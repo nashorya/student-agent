@@ -1,0 +1,23 @@
+{
+  "name": "student-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --loader ts-node/esm src/index.ts",
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "file:./pi-mono/packages/coding-agent",
+    "@mariozechner/pi-ai": "file:./pi-mono/packages/ai",
+    "@mariozechner/pi-agent-core": "file:./pi-mono/packages/agent",
+    "xstate": "^5.18.0",
+    "simple-git": "^3.25.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.0.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
+  }
+}
