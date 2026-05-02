@@ -1,5 +1,3 @@
-export type { ConfirmationProvider } from './types.js';
-
 import type { ConfirmationProvider } from './types.js';
 
 export class AlwaysAllowProvider implements ConfirmationProvider {

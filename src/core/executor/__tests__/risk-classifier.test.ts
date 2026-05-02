@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classify } from '../risk-classifier.js';
+import { classify, HIGH_RISK_TOOL_SUFFIX } from '../risk-classifier.js';
 
 describe('classify', () => {
   describe('HIGH_RISK_TOOL_PATTERN matches', () => {
@@ -14,6 +14,11 @@ describe('classify', () => {
   });
 
   describe('_destroy in toolName', () => {
+    it('HIGH_RISK_TOOL_SUFFIX is exported and matches session_destroy', () => {
+      expect(HIGH_RISK_TOOL_SUFFIX).toBeInstanceOf(RegExp);
+      expect(HIGH_RISK_TOOL_SUFFIX.test('session_destroy')).toBe(true);
+    });
+
     it('toolName "session_destroy" → high', () => {
       expect(classify('session_destroy', {})).toBe('high');
     });

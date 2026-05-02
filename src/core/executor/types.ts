@@ -18,10 +18,11 @@ export interface ConfirmationProvider {
 export class ToolExecutionError extends Error {
   constructor(
     public readonly toolName: string,
-    public readonly cause: unknown,
-    public readonly meta: { rolledBack: boolean; cause?: unknown }
+    runError: unknown,
+    public readonly rolledBack: boolean,
+    public readonly restoreError?: unknown,
   ) {
-    super(`Tool execution failed: ${toolName}`);
+    super(`Tool execution failed: ${toolName}`, { cause: runError });
     this.name = 'ToolExecutionError';
   }
 }
