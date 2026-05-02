@@ -91,4 +91,21 @@ describe("SnapshotManager", () => {
       await cleanup();
     }
   });
+
+  it("restore() restores staged changes to snapshot state", async () => {
+    const { dir, cleanup } = await makeTmpRepo();
+    try {
+      await writeFile(join(dir, "init.txt"), "staged content");
+      const git = simpleGit(dir);
+      await git.add("init.txt");
+      const manager = new SnapshotManager(dir);
+      const sha = await manager.create();
+      await writeFile(join(dir, "init.txt"), "after staged");
+      await manager.restore(sha);
+      const content = await readFile(join(dir, "init.txt"), "utf8");
+      expect(content).toBe("staged content");
+    } finally {
+      await cleanup();
+    }
+  });
 });
