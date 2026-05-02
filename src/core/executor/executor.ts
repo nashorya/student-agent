@@ -10,7 +10,7 @@ export interface ExecutorOptions {
   onSnapshot?: (sha: string) => void;
 }
 
-type ToolCall = { id: string; name: string; input: Record<string, unknown> };
+export type ToolCall = { id: string; name: string; input: Record<string, unknown> };
 
 export class Executor {
   constructor(private readonly opts: ExecutorOptions) {}
@@ -47,6 +47,7 @@ export class Executor {
         const output = await tool.run(toolCall.input);
         results.push({ toolName: toolCall.name, output, rolledBack: false });
       } catch (runErr) {
+        // mutates results, then throws — terminates this round
         await this.handleRunError(toolCall.name, runErr, sha, results);
       }
     }
@@ -54,6 +55,12 @@ export class Executor {
     return results;
   }
 
+  /**
+   * Pushes a failure ToolResult to `results`, then always throws a ToolExecutionError.
+   * Mutates `results` before throwing so the partial result is recorded even though
+   * executeRound never returns.
+   * Return type `Promise<never>` signals this method always throws.
+   */
   private async handleRunError(
     toolName: string,
     runErr: unknown,
@@ -63,8 +70,10 @@ export class Executor {
     try {
       await this.opts.snapshotManager.restore(sha);
       results.push({ toolName, output: null, rolledBack: true });
+      // throw here is caught by the catch block below; the instanceof guard re-throws it unchanged
       throw new ToolExecutionError(toolName, runErr, true);
     } catch (restoreErr) {
+      // re-throw the ToolExecutionError from the successful-restore path above, not a restore failure
       if (restoreErr instanceof ToolExecutionError) throw restoreErr;
       results.push({ toolName, output: null, rolledBack: false });
       throw new ToolExecutionError(toolName, runErr, false, restoreErr);
