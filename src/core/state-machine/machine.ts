@@ -1,6 +1,6 @@
 import { setup, assign } from 'xstate';
 import type { MachineContext, MachineEvent } from './types.js';
-import { SnapshotManager } from '../executor/snapshot.js';
+import { SnapshotManager } from '../executor/index.js';
 
 export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
   return setup({
