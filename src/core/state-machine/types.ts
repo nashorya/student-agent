@@ -21,6 +21,7 @@ export type MachineEvent =
   | { type: 'USER_REJECTED'; reason: string }
   | { type: 'EXECUTION_ROUND_COMPLETE'; toolCalls: ToolCall[]; timestamp: number }
   | { type: 'EXECUTION_FAILED'; error: string }
+  | { type: 'SNAPSHOT_CREATED'; sha: string }
   | { type: 'USER_INTERRUPT' };
 
 export interface TaskPlan {

@@ -131,6 +131,17 @@ describe('studentAgentMachine', () => {
     vi.useRealTimers();
   });
 
+  it('stores snapshotId in context on SNAPSHOT_CREATED while executing', () => {
+    const actor = makeActor();
+    actor.start();
+    actor.send({ type: 'START_TASK', input: 'test task' });
+    actor.send({ type: 'PLAN_READY', plan: { id: 'p1', steps: [] } });
+    actor.send({ type: 'USER_CONFIRMED' });
+    actor.send({ type: 'SNAPSHOT_CREATED', sha: 'a'.repeat(40) });
+    expect(actor.getSnapshot().context.snapshotId).toBe('a'.repeat(40));
+    actor.stop();
+  });
+
   it('resets timeoutCount on new START_TASK', () => {
     const actor = makeActor();
     actor.start();

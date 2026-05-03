@@ -23,6 +23,10 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
       incrementTimeoutCount: assign({
         timeoutCount: ({ context }) => context.timeoutCount + 1,
       }),
+      setSnapshotId: assign({
+        snapshotId: ({ event }) =>
+          event.type === 'SNAPSHOT_CREATED' ? event.sha : null,
+      }),
       setFailureReason: assign({
         failureReason: ({ event }) =>
           event.type === 'EXECUTION_FAILED' ? event.error : null,
@@ -73,6 +77,9 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
           EXECUTION_ROUND_COMPLETE: {
             target: 'idle',
             actions: assign({ currentAttempt: ({ context }) => context.currentAttempt + 1 }),
+          },
+          SNAPSHOT_CREATED: {
+            actions: 'setSnapshotId',
           },
           EXECUTION_FAILED: {
             target: 'reflecting',
