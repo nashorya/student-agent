@@ -2,6 +2,7 @@ import { classify } from './risk-classifier.js';
 import type { SnapshotManager } from './snapshot.js';
 import type { ConfirmationProvider, ExecutorTool, ToolResult } from './types.js';
 import { ToolExecutionError } from './types.js';
+import type { ToolCall } from '../state-machine/types.js';
 
 export interface ExecutorOptions {
   snapshotManager: SnapshotManager;
@@ -9,8 +10,6 @@ export interface ExecutorOptions {
   tools: Map<string, ExecutorTool>;
   onSnapshot?: (sha: string) => void;
 }
-
-export type ToolCall = { id: string; name: string; input: Record<string, unknown> };
 
 export class Executor {
   constructor(private readonly opts: ExecutorOptions) {}

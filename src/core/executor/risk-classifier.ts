@@ -1,7 +1,7 @@
 import type { RiskLevel } from './types.js';
 
 export const HIGH_RISK_TOOL_PATTERN = /^(delete|rm|unlink|drop_)/;
-export const HIGH_RISK_TOOL_SUFFIX = /_destroy/;
+export const HIGH_RISK_TOOL_DESTROY_PATTERN = /_destroy/;
 
 // matches string patterns only — does not cover shell variable expansion or aliases.
 export const HIGH_RISK_BASH_PATTERNS: RegExp[] = [
@@ -13,7 +13,7 @@ export const HIGH_RISK_BASH_PATTERNS: RegExp[] = [
 ];
 
 export function classify(toolName: string, input: Record<string, unknown>): RiskLevel {
-  if (HIGH_RISK_TOOL_PATTERN.test(toolName) || HIGH_RISK_TOOL_SUFFIX.test(toolName)) {
+  if (HIGH_RISK_TOOL_PATTERN.test(toolName) || HIGH_RISK_TOOL_DESTROY_PATTERN.test(toolName)) {
     return 'high';
   }
 
