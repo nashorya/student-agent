@@ -74,7 +74,8 @@ describe('studentAgentMachine', () => {
     actor.send({ type: 'PLAN_READY', plan: { id: 'p1', steps: [] } });
     actor.send({ type: 'USER_CONFIRMED' });
     actor.send({ type: 'EXECUTION_FAILED', error: 'tool error' });
-    expect(actor.getSnapshot().value).toBe('reflecting');
+    // reflecting is now a compound state; we land in attempt_1 before the async stub resolves
+    expect(actor.getSnapshot().value).toMatchObject({ reflecting: expect.any(String) });
     expect(actor.getSnapshot().context.failureReason).toBe('tool error');
     actor.stop();
   });
@@ -122,9 +123,9 @@ describe('studentAgentMachine', () => {
     await vi.advanceTimersByTimeAsync(120_001);
     expect(actor.getSnapshot().value).toBe('executing');
 
-    // Second timeout → retry (timeoutCount = 2, but guard is < 2 so fails)
+    // Second timeout → stub actors run and exhaust all 3 attempts → asking_user
     await vi.advanceTimersByTimeAsync(120_001);
-    expect(actor.getSnapshot().value).toBe('reflecting');
+    expect(actor.getSnapshot().value).toBe('asking_user');
     expect(actor.getSnapshot().context.timeoutCount).toBe(2);
 
     actor.stop();
