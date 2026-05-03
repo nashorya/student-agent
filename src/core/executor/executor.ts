@@ -1,7 +1,7 @@
 import { classify } from './risk-classifier.js';
 import type { SnapshotManager } from './snapshot.js';
 import type { ConfirmationProvider, ExecutorTool, ToolResult } from './types.js';
-import { ToolExecutionError } from './types.js';
+import { ToolExecutionError, UserAbortError } from './types.js';
 import type { ToolCall } from '../state-machine/types.js';
 
 export interface ExecutorOptions {
@@ -14,10 +14,14 @@ export interface ExecutorOptions {
 export class Executor {
   constructor(private readonly opts: ExecutorOptions) {}
 
-  async executeRound(toolCalls: ToolCall[]): Promise<ToolResult[]> {
+  async executeRound(toolCalls: ToolCall[], signal?: AbortSignal): Promise<ToolResult[]> {
     const results: ToolResult[] = [];
 
     for (const toolCall of toolCalls) {
+      if (signal?.aborted) {
+        throw new UserAbortError();
+      }
+
       const tool = this.opts.tools.get(toolCall.name);
 
       if (tool === undefined) {

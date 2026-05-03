@@ -26,3 +26,10 @@ export class ToolExecutionError extends Error {
     this.name = 'ToolExecutionError';
   }
 }
+
+export class UserAbortError extends Error {
+  constructor() {
+    super('Execution aborted by user');
+    this.name = 'UserAbortError';
+  }
+}

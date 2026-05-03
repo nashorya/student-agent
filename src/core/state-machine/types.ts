@@ -11,6 +11,8 @@ export type ErrorCategory =
   | 'user_input'
   | 'state_conflict';
 
+export type RestoreReason = 'timeout' | 'before_attempt_1' | null;
+
 export interface AttemptRecord {
   index: 1 | 2 | 3;
   strategy: string;
@@ -27,8 +29,9 @@ export interface MachineContext {
   taskId: string | null;
   taskDescription: string | null;
   currentAttempt: number;
-  /** Git commit hash (40-character hex SHA) */
+  /** Opaque SnapshotManager id. */
   snapshotId: string | null;
+  restoreReason: RestoreReason;
   failureReason: string | null;
   isHighRiskOperation: boolean;
   timeoutCount: number;

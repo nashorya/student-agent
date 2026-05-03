@@ -1,12 +1,22 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createActor } from 'xstate';
-import { studentAgentMachine } from '../machine.js';
+import { createStudentAgentMachine, studentAgentMachine } from '../machine.js';
+import type { SnapshotManager } from '../../executor/index.js';
+import { resourceManager } from '../resource-manager.js';
 
 function makeActor() {
   return createActor(studentAgentMachine);
 }
 
+async function waitForMicrotasks(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 describe('studentAgentMachine', () => {
+  beforeEach(() => {
+    resourceManager.reset();
+  });
+
   it('starts in idle state', () => {
     const actor = makeActor();
     actor.start();
@@ -52,7 +62,7 @@ describe('studentAgentMachine', () => {
     actor.stop();
   });
 
-  it('transitions executing → idle on EXECUTION_ROUND_COMPLETE', () => {
+  it('transitions executing → idle on EXECUTION_ROUND_COMPLETE', async () => {
     const actor = makeActor();
     actor.start();
     actor.send({ type: 'START_TASK', input: 'test task' });
@@ -63,6 +73,7 @@ describe('studentAgentMachine', () => {
       toolCalls: [],
       timestamp: Date.now(),
     });
+    await waitForMicrotasks();
     expect(actor.getSnapshot().value).toBe('idle');
     actor.stop();
   });
@@ -74,19 +85,20 @@ describe('studentAgentMachine', () => {
     actor.send({ type: 'PLAN_READY', plan: { id: 'p1', steps: [] } });
     actor.send({ type: 'USER_CONFIRMED' });
     actor.send({ type: 'EXECUTION_FAILED', error: 'tool error' });
-    // reflecting is now a compound state; we land in attempt_1 before the async stub resolves
-    expect(actor.getSnapshot().value).toMatchObject({ reflecting: expect.any(String) });
+    expect(actor.getSnapshot().value).toBe('restoring');
     expect(actor.getSnapshot().context.failureReason).toBe('tool error');
     actor.stop();
   });
 
-  it('transitions executing → cancelled on USER_INTERRUPT', () => {
+  it('transitions executing → cancelled on USER_INTERRUPT', async () => {
     const actor = makeActor();
     actor.start();
     actor.send({ type: 'START_TASK', input: 'test task' });
     actor.send({ type: 'PLAN_READY', plan: { id: 'p1', steps: [] } });
     actor.send({ type: 'USER_CONFIRMED' });
     actor.send({ type: 'USER_INTERRUPT' });
+    expect(actor.getSnapshot().value).toBe('restoring_to_cancelled');
+    await waitForMicrotasks();
     expect(actor.getSnapshot().value).toBe('cancelled');
     actor.stop();
   });
@@ -111,22 +123,38 @@ describe('studentAgentMachine', () => {
     vi.useRealTimers();
   });
 
-  it('transitions to reflecting after 2 timeouts', async () => {
+  it('retries twice, then enters restoring before failure escalation after 3 timeouts', async () => {
     vi.useFakeTimers();
-    const actor = makeActor();
+    let restoreCalls = 0;
+    const restore = vi.fn(() => {
+      restoreCalls += 1;
+      if (restoreCalls < 3) return Promise.resolve();
+      return new Promise<void>(() => undefined);
+    });
+    const machine = createStudentAgentMachine(
+      { restore } as unknown as SnapshotManager,
+      { executor: { executeRound: vi.fn().mockResolvedValue([]) } },
+    );
+    const actor = createActor(machine);
     actor.start();
     actor.send({ type: 'START_TASK', input: 'test task' });
     actor.send({ type: 'PLAN_READY', plan: { id: 'p1', steps: [] } });
     actor.send({ type: 'USER_CONFIRMED' });
+    actor.send({ type: 'SNAPSHOT_CREATED', sha: 'snapshot_1' });
 
     // First timeout → retry (timeoutCount = 1)
     await vi.advanceTimersByTimeAsync(120_001);
     expect(actor.getSnapshot().value).toBe('executing');
 
-    // Second timeout → stub actors run and exhaust all 3 attempts → asking_user
+    // Second timeout → retry again because the architecture allows timeout_count <= 2
     await vi.advanceTimersByTimeAsync(120_001);
-    expect(actor.getSnapshot().value).toBe('asking_user');
+    expect(actor.getSnapshot().value).toBe('executing');
     expect(actor.getSnapshot().context.timeoutCount).toBe(2);
+
+    // Third timeout → holds in restoring before failure escalation
+    await vi.advanceTimersByTimeAsync(120_001);
+    expect(actor.getSnapshot().value).toBe('restoring');
+    expect(actor.getSnapshot().context.timeoutCount).toBe(3);
 
     actor.stop();
     vi.useRealTimers();
@@ -143,7 +171,7 @@ describe('studentAgentMachine', () => {
     actor.stop();
   });
 
-  it('resets timeoutCount on new START_TASK', () => {
+  it('resets timeoutCount on new START_TASK', async () => {
     const actor = makeActor();
     actor.start();
 
@@ -152,11 +180,69 @@ describe('studentAgentMachine', () => {
     actor.send({ type: 'PLAN_READY', plan: { id: 'p1', steps: [] } });
     actor.send({ type: 'USER_CONFIRMED' });
     actor.send({ type: 'EXECUTION_ROUND_COMPLETE', toolCalls: [], timestamp: Date.now() });
+    await waitForMicrotasks();
 
     // Second task starts
     actor.send({ type: 'START_TASK', input: 'task 2' });
     expect(actor.getSnapshot().context.timeoutCount).toBe(0);
 
     actor.stop();
+  });
+
+  it('calls executor for tool calls before completing the round', async () => {
+    const executeRound = vi.fn().mockResolvedValue([]);
+    const machine = createStudentAgentMachine(
+      { restore: vi.fn().mockResolvedValue(undefined) } as unknown as SnapshotManager,
+      { executor: { executeRound } },
+    );
+    const actor = createActor(machine);
+    actor.start();
+    actor.send({ type: 'START_TASK', input: 'test task' });
+    actor.send({ type: 'PLAN_READY', plan: { id: 'p1', steps: [] } });
+    actor.send({ type: 'USER_CONFIRMED' });
+    actor.send({
+      type: 'EXECUTION_ROUND_COMPLETE',
+      toolCalls: [{ id: 'tc1', name: 'read_file', input: {} }],
+      timestamp: Date.now(),
+    });
+
+    expect(actor.getSnapshot().value).toBe('executing_tools');
+    await waitForMicrotasks();
+    expect(executeRound).toHaveBeenCalledWith(
+      [{ id: 'tc1', name: 'read_file', input: {} }],
+      expect.any(AbortSignal),
+    );
+    expect(actor.getSnapshot().value).toBe('idle');
+    actor.stop();
+  });
+
+  it('waits for restore to finish before retrying after timeout', async () => {
+    vi.useFakeTimers();
+    let resolveRestore!: () => void;
+    const restore = vi.fn(
+      () => new Promise<void>((resolve) => {
+        resolveRestore = resolve;
+      }),
+    );
+    const machine = createStudentAgentMachine(
+      { restore } as unknown as SnapshotManager,
+      { executor: { executeRound: vi.fn().mockResolvedValue([]) } },
+    );
+    const actor = createActor(machine);
+    actor.start();
+    actor.send({ type: 'START_TASK', input: 'test task' });
+    actor.send({ type: 'PLAN_READY', plan: { id: 'p1', steps: [] } });
+    actor.send({ type: 'USER_CONFIRMED' });
+    actor.send({ type: 'SNAPSHOT_CREATED', sha: 'snapshot_1' });
+
+    await vi.advanceTimersByTimeAsync(120_001);
+    expect(actor.getSnapshot().value).toBe('restoring');
+    expect(restore).toHaveBeenCalledWith('snapshot_1');
+
+    resolveRestore();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(actor.getSnapshot().value).toBe('executing');
+    actor.stop();
+    vi.useRealTimers();
   });
 });

@@ -1,5 +1,5 @@
 import { setup, assign, fromPromise, raise } from 'xstate';
-import type { MachineContext, MachineEvent } from './types.js';
+import type { MachineContext, MachineEvent, ToolCall } from './types.js';
 import { truncateRawError, pushAttempt } from './types.js';
 import { SnapshotManager } from '../executor/index.js';
 import { classifyError } from './error-classifier.js';
@@ -13,6 +13,8 @@ import {
 import type { RetryStrategy } from './stubs.js';
 import { QuestionsManager } from '../../memory/questions/manager.js';
 import type { Question } from '../../memory/questions/types.js';
+import type { Executor } from '../executor/index.js';
+import { resourceManager } from './resource-manager.js';
 
 interface WriteQuestionsInput {
   taskId: string;
@@ -23,6 +25,27 @@ interface WriteQuestionsInput {
   attempts: MachineContext['attempts'];
 }
 
+interface StudentAgentMachineOptions {
+  executor: Pick<Executor, 'executeRound'>;
+}
+
+interface ExecuteRoundInput {
+  toolCalls: ToolCall[];
+  signal?: AbortSignal;
+}
+
+interface RestoreSnapshotInput {
+  snapshotId: string | null;
+}
+
+function errorMessageFromEvent(event: unknown): string {
+  if (typeof event === 'object' && event !== null && 'error' in event) {
+    const err = (event as { error: unknown }).error;
+    return err instanceof Error ? err.message : String(err);
+  }
+  return 'unknown actor error';
+}
+
 function pickStrategy(category: MachineContext['errorCategory'], subtype: string | null): RetryStrategy {
   if (category === 'model') return '上下文复位';
   if (subtype === 'timeout') return '拆分重试';
@@ -30,7 +53,10 @@ function pickStrategy(category: MachineContext['errorCategory'], subtype: string
   return '扩展思考';
 }
 
-export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
+export function createStudentAgentMachine(
+  snapshotManager: SnapshotManager,
+  options: StudentAgentMachineOptions,
+) {
   return setup({
     types: {
       context: {} as MachineContext,
@@ -51,6 +77,18 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
         const results = await stubWebSearchMCP(input.intent);
         return retryWithSearchContext(results);
       }),
+      doExecuteRound: fromPromise<void, ExecuteRoundInput>(
+        async ({ input }) => {
+          if (input.toolCalls.length === 0) return;
+          await options.executor.executeRound(input.toolCalls, input.signal);
+        },
+      ),
+      doRestoreSnapshot: fromPromise<void, RestoreSnapshotInput>(
+        async ({ input }) => {
+          if (!input.snapshotId) return;
+          await snapshotManager.restore(input.snapshotId);
+        },
+      ),
       writeQuestionsEntry: fromPromise<void, WriteQuestionsInput>(async ({ input }) => {
         const mgr = QuestionsManager.getInstance();
         const q: Question = {
@@ -77,18 +115,27 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
       }),
     },
     actions: {
-      restoreSnapshotOnTimeout: ({ context }) => {
-        if (!context.snapshotId) return;
-        void (async () => {
-          try {
-            await snapshotManager.restore(context.snapshotId!);
-          } catch (err) {
-            console.error('[state-machine] restoreSnapshotOnTimeout failed:', err);
-          }
-        })();
+      ensureAbortController: ({ context }) => {
+        if (!context.taskId) return;
+        if (!resourceManager.getAbortController(context.taskId)) {
+          resourceManager.createAbortController(context.taskId);
+        }
+      },
+      abortTask: ({ context }) => {
+        if (!context.taskId) return;
+        resourceManager.abort(context.taskId);
       },
       incrementTimeoutCount: assign({
         timeoutCount: ({ context }) => context.timeoutCount + 1,
+      }),
+      setRestoreReasonTimeout: assign({
+        restoreReason: () => 'timeout' as const,
+      }),
+      setRestoreReasonBeforeAttempt1: assign({
+        restoreReason: () => 'before_attempt_1' as const,
+      }),
+      clearRestoreReason: assign({
+        restoreReason: () => null,
       }),
       setSnapshotId: assign({
         snapshotId: ({ event }) =>
@@ -113,6 +160,15 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
           const toolName = event.type === 'EXECUTION_FAILED' ? event.toolName : undefined;
           return classifyError(new Error(rawErr), toolName).subtype;
         },
+      }),
+      setActorFailureReason: assign({
+        failureReason: ({ event }) => truncateRawError(errorMessageFromEvent(event)),
+      }),
+      classifyActorFailure: assign({
+        errorCategory: ({ event }) =>
+          classifyError(new Error(errorMessageFromEvent(event))).category,
+        errorSubtype: ({ event }) =>
+          classifyError(new Error(errorMessageFromEvent(event))).subtype,
       }),
       assignStrategy: assign({
         lastStrategy: ({ context }) =>
@@ -186,6 +242,7 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
       taskDescription: null,
       currentAttempt: 0,
       snapshotId: null,
+      restoreReason: null,
       failureReason: null,
       isHighRiskOperation: false,
       timeoutCount: 0,
@@ -206,6 +263,7 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
               currentAttempt: 0,
               timeoutCount: 0,
               snapshotId: null,
+              restoreReason: null,
               failureReason: null,
               errorCategory: null,
               errorSubtype: null,
@@ -228,13 +286,16 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
         },
       },
       executing: {
+        entry: 'ensureAbortController',
         after: {
-          120000: 'execution_timeout',
+          120000: {
+            target: 'restoring',
+            actions: ['abortTask', 'incrementTimeoutCount', 'setRestoreReasonTimeout'],
+          },
         },
         on: {
           EXECUTION_ROUND_COMPLETE: {
-            target: 'idle',
-            actions: assign({ currentAttempt: ({ context }) => context.currentAttempt + 1 }),
+            target: 'executing_tools',
           },
           SNAPSHOT_CREATED: {
             actions: 'setSnapshotId',
@@ -243,20 +304,77 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
             target: 'reflecting',
             actions: ['setFailureReason', 'classifyFailure'],
           },
-          USER_INTERRUPT: 'cancelled',
+          USER_INTERRUPT: {
+            target: 'restoring_to_cancelled',
+            actions: 'abortTask',
+          },
         },
       },
-      execution_timeout: {
-        entry: ['restoreSnapshotOnTimeout', 'incrementTimeoutCount'],
-        always: [
-          {
-            guard: ({ context }) => context.timeoutCount < 2,
-            target: 'executing',
+      executing_tools: {
+        invoke: {
+          src: 'doExecuteRound',
+          input: ({ context, event }) => ({
+            toolCalls: event.type === 'EXECUTION_ROUND_COMPLETE' ? event.toolCalls : [],
+            signal: context.taskId ? resourceManager.getAbortSignal(context.taskId) : undefined,
+          }),
+          onDone: {
+            target: 'idle',
+            actions: assign({ currentAttempt: ({ context }) => context.currentAttempt + 1 }),
           },
-          {
+          onError: {
             target: 'reflecting',
+            actions: ['setActorFailureReason', 'classifyActorFailure'],
           },
-        ],
+        },
+        on: {
+          SNAPSHOT_CREATED: {
+            actions: 'setSnapshotId',
+          },
+          USER_INTERRUPT: {
+            target: 'restoring_to_cancelled',
+            actions: 'abortTask',
+          },
+        },
+      },
+      restoring: {
+        invoke: {
+          src: 'doRestoreSnapshot',
+          input: ({ context }) => ({ snapshotId: context.snapshotId }),
+          onDone: [
+            {
+              guard: ({ context }) =>
+                context.restoreReason === 'timeout' && context.timeoutCount <= 2,
+              target: 'executing',
+              actions: 'clearRestoreReason',
+            },
+            {
+              guard: ({ context }) => context.restoreReason === 'before_attempt_1',
+              target: '#attempt1',
+              actions: 'clearRestoreReason',
+            },
+            {
+              target: 'reflecting',
+              actions: 'clearRestoreReason',
+            },
+          ],
+          onError: {
+            target: 'failed',
+            actions: ['setActorFailureReason', 'classifyActorFailure', 'clearRestoreReason'],
+          },
+        },
+      },
+      restoring_to_cancelled: {
+        invoke: {
+          src: 'doRestoreSnapshot',
+          input: ({ context }) => ({ snapshotId: context.snapshotId }),
+          onDone: {
+            target: 'cancelled',
+          },
+          onError: {
+            target: 'failed',
+            actions: ['setActorFailureReason', 'classifyActorFailure'],
+          },
+        },
       },
       reflecting: {
         initial: 'routing',
@@ -270,11 +388,15 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
                 target: '#studentAgent.planning',
                 // TODO (stage 2): inject conflict info into Planner for re-decomposition
               },
-              { target: 'attempt_1' },
+              {
+                target: '#studentAgent.restoring',
+                actions: 'setRestoreReasonBeforeAttempt1',
+              },
             ],
           },
           attempt_1: {
-            entry: ['assignStrategy', 'restoreSnapshotOnTimeout'],
+            id: 'attempt1',
+            entry: 'assignStrategy',
             invoke: {
               src: 'doRetryWithStrategy',
               input: ({ context }) => ({
@@ -392,4 +514,10 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
 }
 
 // Backward-compatible singleton for tests and simple usage
-export const studentAgentMachine = createStudentAgentMachine(new SnapshotManager(process.cwd()));
+export const studentAgentMachine = createStudentAgentMachine(new SnapshotManager(process.cwd()), {
+  executor: {
+    async executeRound() {
+      return [];
+    },
+  },
+});

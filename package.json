@@ -8,16 +8,20 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "file:./pi-mono/packages/coding-agent",
-    "@mariozechner/pi-ai": "file:./pi-mono/packages/ai",
     "@mariozechner/pi-agent-core": "file:./pi-mono/packages/agent",
-    "xstate": "^5.18.0",
-    "simple-git": "^3.25.0"
+    "@mariozechner/pi-ai": "file:./pi-mono/packages/ai",
+    "@mariozechner/pi-coding-agent": "file:./pi-mono/packages/coding-agent",
+    "better-sqlite3": "^12.9.0",
+    "p-queue": "^9.2.0",
+    "simple-git": "^3.25.0",
+    "sqlite-vec": "^0.1.9",
+    "xstate": "^5.18.0"
   },
   "devDependencies": {
-    "vitest": "^2.0.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
     "typescript": "^5.0.0",
-    "ts-node": "^10.9.0"
+    "vitest": "^2.0.0"
   }
 }

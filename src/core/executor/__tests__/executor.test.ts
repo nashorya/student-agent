@@ -2,7 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { Executor } from '../executor.js';
 import type { SnapshotManager } from '../snapshot.js';
 import type { ConfirmationProvider, ExecutorTool, ToolResult } from '../types.js';
-import { ToolExecutionError } from '../types.js';
+import { ToolExecutionError, UserAbortError } from '../types.js';
 
 const makeSnapshotManager = (sha = 'abc123') => ({
   create: vi.fn().mockResolvedValue(sha),
@@ -183,5 +183,36 @@ describe('Executor', () => {
     expect(results[0]).toEqual({ toolName: 'unknown_tool', output: 'tool-not-found', rolledBack: false });
     expect(results[1]).toEqual({ toolName: 'read_file', output: 'ok', rolledBack: false });
     expect(tool.run).toHaveBeenCalledOnce();
+  });
+
+  it('aborts between tool calls and skips later tools', async () => {
+    const controller = new AbortController();
+    const firstTool = makeTool('first', 'ok');
+    (firstTool.run as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      controller.abort();
+      return 'ok';
+    });
+    const secondTool = makeTool('second', 'should-not-run');
+    const executor = new Executor({
+      snapshotManager,
+      confirmationProvider,
+      tools: new Map([
+        ['first', firstTool],
+        ['second', secondTool],
+      ]),
+    });
+
+    await expect(
+      executor.executeRound(
+        [
+          { id: '1', name: 'first', input: {} },
+          { id: '2', name: 'second', input: {} },
+        ],
+        controller.signal,
+      ),
+    ).rejects.toBeInstanceOf(UserAbortError);
+
+    expect(firstTool.run).toHaveBeenCalledOnce();
+    expect(secondTool.run).not.toHaveBeenCalled();
   });
 });

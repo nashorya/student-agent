@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Question, QuestionsFile } from './types.js';
+import { WriteQueue } from '../../core/write-queue.js';
 
 export class QuestionsManager {
   private static instance: QuestionsManager | null = null;
@@ -66,9 +67,11 @@ export class QuestionsManager {
   }
 
   private async write(questions: Question[]): Promise<void> {
-    await mkdir(dirname(this.filePath), { recursive: true });
-    const file: QuestionsFile = { questions };
-    await writeFile(this.filePath, JSON.stringify(file, null, 2), 'utf-8');
+    await WriteQueue.getInstance().enqueue(async () => {
+      await mkdir(dirname(this.filePath), { recursive: true });
+      const file: QuestionsFile = { questions };
+      await writeFile(this.filePath, JSON.stringify(file, null, 2), 'utf-8');
+    });
   }
 }
 

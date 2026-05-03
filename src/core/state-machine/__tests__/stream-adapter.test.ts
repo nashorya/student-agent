@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StreamAdapter } from '../stream-adapter.js';
 import type { MachineEvent } from '../types.js';
 import type { AssistantMessageEvent } from '@mariozechner/pi-ai';
@@ -60,10 +60,6 @@ describe('StreamAdapter', () => {
     adapter = new StreamAdapter((event) => sentEvents.push(event));
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it('sends EXECUTION_ROUND_COMPLETE with buffered tool calls on done', async () => {
     const stream = createMockStream([
       makeToolcallEndEvent('tc1', 'read_file'),
@@ -96,29 +92,30 @@ describe('StreamAdapter', () => {
     }
   });
 
-  it('does not send any event after 120s timeout', async () => {
-    vi.useFakeTimers();
-
-    // Stream whose next() resolves only after 200s — past the 120s timeout
+  it('does not send any event after abort while waiting for the next stream event', async () => {
+    const controller = new AbortController();
+    adapter = new StreamAdapter((event) => sentEvents.push(event), controller.signal);
+    let returnCalled = false;
     const slowStream: AsyncIterable<AssistantMessageEvent> = {
       [Symbol.asyncIterator]() {
         return {
-          next(): Promise<IteratorResult<AssistantMessageEvent>> {
-            return new Promise((resolve) =>
-              setTimeout(() => resolve({ value: makeDoneEvent(), done: false }), 200_000),
-            );
+          async next(): Promise<IteratorResult<AssistantMessageEvent>> {
+            return new Promise(() => undefined);
+          },
+          async return(): Promise<IteratorResult<AssistantMessageEvent>> {
+            returnCalled = true;
+            return { value: undefined as never, done: true };
           },
         };
       },
     };
 
     const attachPromise = adapter.attachToStream(slowStream as never);
-
-    // Advance past the 120s timeout — fires our timer, not the stream's 200s timer
-    await vi.advanceTimersByTimeAsync(120_001);
+    controller.abort();
     await attachPromise;
 
     expect(sentEvents).toHaveLength(0);
+    expect(returnCalled).toBe(true);
   });
 
   it('does not send event when stream throws an error', async () => {

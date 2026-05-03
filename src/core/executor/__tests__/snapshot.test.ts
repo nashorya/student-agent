@@ -18,24 +18,24 @@ async function makeTmpRepo(): Promise<{ dir: string; cleanup: () => Promise<void
 }
 
 describe("SnapshotManager", () => {
-  it("create() returns empty string when working tree is clean", async () => {
+  it("create() returns an opaque snapshot id when working tree is clean", async () => {
     const { dir, cleanup } = await makeTmpRepo();
     try {
       const manager = new SnapshotManager(dir);
       const result = await manager.create();
-      expect(result).toBe("");
+      expect(result).toMatch(/^snapshot_\d+_\d+$/);
     } finally {
       await cleanup();
     }
   });
 
-  it("create() returns a 40-char SHA when there are uncommitted changes", async () => {
+  it("create() returns an opaque snapshot id when there are uncommitted changes", async () => {
     const { dir, cleanup } = await makeTmpRepo();
     try {
       await writeFile(join(dir, "init.txt"), "modified content");
       const manager = new SnapshotManager(dir);
       const result = await manager.create();
-      expect(result).toMatch(/^[0-9a-f]{40}$/);
+      expect(result).toMatch(/^snapshot_\d+_\d+$/);
     } finally {
       await cleanup();
     }
@@ -59,13 +59,16 @@ describe("SnapshotManager", () => {
   it("restore() removes untracked files added after snapshot and restores tracked files", async () => {
     const { dir, cleanup } = await makeTmpRepo();
     try {
+      await writeFile(join(dir, "pre-existing.txt"), "keep me");
       await writeFile(join(dir, "init.txt"), "snapshot state");
       const manager = new SnapshotManager(dir);
       const sha = await manager.create();
       await writeFile(join(dir, "extra.txt"), "extra");
       await manager.restore(sha);
       const content = await readFile(join(dir, "init.txt"), "utf8");
+      const preExisting = await readFile(join(dir, "pre-existing.txt"), "utf8");
       expect(content).toBe("snapshot state");
+      expect(preExisting).toBe("keep me");
       let extraExists = false;
       try {
         await access(join(dir, "extra.txt"));
@@ -103,7 +106,27 @@ describe("SnapshotManager", () => {
       await writeFile(join(dir, "init.txt"), "after staged");
       await manager.restore(sha);
       const content = await readFile(join(dir, "init.txt"), "utf8");
+      const staged = await git.diff(["--cached", "--name-only"]);
       expect(content).toBe("staged content");
+      expect(staged.trim()).toBe("init.txt");
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("restore() removes staged changes created after snapshot", async () => {
+    const { dir, cleanup } = await makeTmpRepo();
+    try {
+      const git = simpleGit(dir);
+      const manager = new SnapshotManager(dir);
+      const sha = await manager.create();
+      await writeFile(join(dir, "init.txt"), "agent staged content");
+      await git.add("init.txt");
+      await manager.restore(sha);
+      const content = await readFile(join(dir, "init.txt"), "utf8");
+      const staged = await git.diff(["--cached", "--name-only"]);
+      expect(content).toBe("init");
+      expect(staged.trim()).toBe("");
     } finally {
       await cleanup();
     }

@@ -3,35 +3,28 @@ import type { MachineEvent, ToolCall } from './types.js';
 
 export class StreamAdapter {
   private buffer: ToolCall[] = [];
-  private roundTimer: ReturnType<typeof setTimeout> | null = null;
-  private isTimedOut = false;
 
-  constructor(private readonly xstateSend: (event: MachineEvent) => void) {}
+  constructor(
+    private readonly xstateSend: (event: MachineEvent) => void,
+    private readonly signal?: AbortSignal,
+  ) {}
 
   async attachToStream(stream: AssistantMessageEventStream): Promise<void> {
-    this.isTimedOut = false;
     this.buffer = [];
-
-    // Timeout promise races against each stream event. When it resolves, we stop.
-    let resolveTimeout!: () => void;
-    const timeoutPromise = new Promise<void>((resolve) => {
-      resolveTimeout = resolve;
-      this.roundTimer = setTimeout(() => {
-        this.isTimedOut = true;
-        resolve();
-      }, 120_000);
-    });
 
     const iterator = stream[Symbol.asyncIterator]();
 
     try {
       while (true) {
-        const raced = await Promise.race([
-          iterator.next().then((r) => ({ kind: 'value' as const, result: r })),
-          timeoutPromise.then(() => ({ kind: 'timeout' as const })),
-        ]);
+        const raced = await this.nextOrAbort(iterator);
 
-        if (raced.kind === 'timeout' || raced.result.done) break;
+        if (raced.kind === 'abort') {
+          this.buffer = [];
+          void Promise.resolve(iterator.return?.()).catch(() => undefined);
+          break;
+        }
+
+        if (raced.result.done) break;
 
         const event: AssistantMessageEvent = raced.result.value;
 
@@ -41,24 +34,21 @@ export class StreamAdapter {
             name: event.toolCall.name,
             input: event.toolCall.arguments as Record<string, unknown>,
           });
-        } else if (event.type === 'done' || event.type === 'error') {
+        } else if (event.type === 'done') {
           this.onRoundComplete();
+          break;
+        } else if (event.type === 'error') {
+          this.buffer = [];
           break;
         }
       }
     } catch {
       // Stream interrupted — discard buffer, do not send event to XState
-    } finally {
-      this.clearTimer();
-      // Resolve timeout promise to avoid dangling callbacks if we exited normally
-      resolveTimeout();
+      this.buffer = [];
     }
   }
 
   private onRoundComplete(): void {
-    if (this.isTimedOut) return;
-
-    this.clearTimer();
     this.xstateSend({
       type: 'EXECUTION_ROUND_COMPLETE',
       toolCalls: [...this.buffer],
@@ -67,10 +57,32 @@ export class StreamAdapter {
     this.buffer = [];
   }
 
-  private clearTimer(): void {
-    if (this.roundTimer !== null) {
-      clearTimeout(this.roundTimer);
-      this.roundTimer = null;
+  private nextOrAbort(
+    iterator: AsyncIterator<AssistantMessageEvent>,
+  ): Promise<
+    | { kind: 'value'; result: IteratorResult<AssistantMessageEvent> }
+    | { kind: 'abort' }
+  > {
+    if (!this.signal) {
+      return iterator.next().then((result) => ({ kind: 'value', result }));
     }
+    if (this.signal.aborted) {
+      return Promise.resolve({ kind: 'abort' });
+    }
+
+    return new Promise((resolve, reject) => {
+      const onAbort = () => resolve({ kind: 'abort' });
+      this.signal?.addEventListener('abort', onAbort, { once: true });
+      iterator.next().then(
+        (result) => {
+          this.signal?.removeEventListener('abort', onAbort);
+          resolve({ kind: 'value', result });
+        },
+        (err: unknown) => {
+          this.signal?.removeEventListener('abort', onAbort);
+          reject(err);
+        },
+      );
+    });
   }
 }

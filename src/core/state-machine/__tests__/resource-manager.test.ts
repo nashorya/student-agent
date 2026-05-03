@@ -38,7 +38,17 @@ describe('ResourceManager', () => {
 
   it('reset clears state for test isolation', () => {
     resourceManager.registerStream('s1', makeFakeStream());
+    resourceManager.createAbortController('task1');
     resourceManager.reset();
     expect(resourceManager.getStream('s1')).toBeUndefined();
+    expect(resourceManager.getAbortController('task1')).toBeUndefined();
+  });
+
+  it('creates and aborts task abort controllers', () => {
+    const controller = resourceManager.createAbortController('task1');
+    expect(resourceManager.getAbortController('task1')).toBe(controller);
+    expect(resourceManager.getAbortSignal('task1')?.aborted).toBe(false);
+    resourceManager.abort('task1');
+    expect(resourceManager.getAbortSignal('task1')?.aborted).toBe(true);
   });
 });
