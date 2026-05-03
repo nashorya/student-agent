@@ -1,0 +1,274 @@
+{
+  "questions": [
+    {
+      "id": "q_task_1777785555221_1777785795221",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T05:23:15.221Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777785555221",
+        "session_ref": "session_1777785795221",
+        "trust_status": "pending"
+      }
+    },
+    {
+      "id": "q_task_1777785717013_1777785957013",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T05:25:57.013Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777785717013",
+        "session_ref": "session_1777785957013",
+        "trust_status": "pending"
+      }
+    },
+    {
+      "id": "q_task_1777788178115_1777788418115",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T06:06:58.115Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777788178115",
+        "session_ref": "session_1777788418115",
+        "trust_status": "pending"
+      }
+    },
+    {
+      "id": "q_task_1777788184886_1777788424886",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T06:07:04.886Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777788184886",
+        "session_ref": "session_1777788424886",
+        "trust_status": "pending"
+      }
+    },
+    {
+      "id": "q_task_1777788205486_1777788445486",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T06:07:25.486Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777788205486",
+        "session_ref": "session_1777788445486",
+        "trust_status": "pending"
+      }
+    },
+    {
+      "id": "q_task_1777788211471_1777788451471",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T06:07:31.471Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777788211471",
+        "session_ref": "session_1777788451471",
+        "trust_status": "pending"
+      }
+    },
+    {
+      "id": "q_task_1777788219792_1777788459792",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T06:07:39.792Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777788219792",
+        "session_ref": "session_1777788459792",
+        "trust_status": "pending"
+      }
+    },
+    {
+      "id": "q_task_1777788227858_1777788467858",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T06:07:47.858Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777788227858",
+        "session_ref": "session_1777788467858",
+        "trust_status": "pending"
+      }
+    },
+    {
+      "id": "q_task_1777788234429_1777788474429",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "test task",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T06:07:54.429Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777788234429",
+        "session_ref": "session_1777788474429",
+        "trust_status": "pending"
+      }
+    },
+    {
+      "id": "q_task_1777788246389_1777788486389",
+      "error_type": "tool",
+      "error_subtype": "unknown",
+      "context": "test task",
+      "attempts": [
+        {
+          "strategy": "扩展思考",
+          "result": "失败",
+          "reason": "actor threw unexpectedly"
+        },
+        {
+          "strategy": "Web Search 注入",
+          "result": "跳过",
+          "reason": "无法提取有效搜索意图，已跳过外部知识注入"
+        }
+      ],
+      "status": "unverified",
+      "hit_count": 1,
+      "last_hit": "2026-05-03T06:08:06.389Z",
+      "provenance": {
+        "source_type": "machine-inferred",
+        "task_id": "task_1777788246389",
+        "session_ref": "session_1777788486389",
+        "trust_status": "pending"
+      }
+    }
+  ]
+}

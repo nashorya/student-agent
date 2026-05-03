@@ -11,6 +11,17 @@ import {
   retryWithSearchContext,
 } from './stubs.js';
 import type { RetryStrategy } from './stubs.js';
+import { QuestionsManager } from '../../memory/questions/manager.js';
+import type { Question } from '../../memory/questions/types.js';
+
+interface WriteQuestionsInput {
+  taskId: string;
+  taskDescription: string;
+  failureReason: string;
+  errorCategory: MachineContext['errorCategory'];
+  errorSubtype: string | null;
+  attempts: MachineContext['attempts'];
+}
 
 function pickStrategy(category: MachineContext['errorCategory'], subtype: string | null): RetryStrategy {
   if (category === 'model') return '上下文复位';
@@ -39,6 +50,30 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
       doRetryWithSearch: fromPromise<void, { intent: string }>(async ({ input }) => {
         const results = await stubWebSearchMCP(input.intent);
         return retryWithSearchContext(results);
+      }),
+      writeQuestionsEntry: fromPromise<void, WriteQuestionsInput>(async ({ input }) => {
+        const mgr = QuestionsManager.getInstance();
+        const q: Question = {
+          id: `q_${input.taskId}_${Date.now()}`,
+          error_type: input.errorCategory ?? 'tool',
+          error_subtype: input.errorSubtype ?? 'unknown',
+          context: input.taskDescription.slice(0, 300),
+          attempts: input.attempts.map((a) => ({
+            strategy: a.strategy,
+            result: a.result === 'success' ? '成功' : a.result === 'skipped' ? '跳过' : '失败',
+            reason: a.reason,
+          })),
+          status: 'unverified',
+          hit_count: 1,
+          last_hit: new Date().toISOString(),
+          provenance: {
+            source_type: 'machine-inferred',
+            task_id: input.taskId,
+            session_ref: `session_${Date.now()}`,
+            trust_status: 'pending',
+          },
+        };
+        await mgr.append(q);
       }),
     },
     actions: {
@@ -135,7 +170,7 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
       }),
       emitDiagnosticReport: ({ context }) => {
         writeDiagnosticReport({
-          taskDescription: context.failureReason ?? '未知任务',
+          taskDescription: context.taskDescription ?? '未知任务',
           attempts: context.attempts,
           errorCategory: context.errorCategory ?? 'tool',
           errorSubtype: context.errorSubtype ?? 'unknown',
@@ -148,6 +183,7 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
     initial: 'idle',
     context: {
       taskId: null,
+      taskDescription: null,
       currentAttempt: 0,
       snapshotId: null,
       failureReason: null,
@@ -166,6 +202,7 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
             target: 'planning',
             actions: assign({
               taskId: () => `task_${Date.now()}`,
+              taskDescription: ({ event }) => event.input,
               currentAttempt: 0,
               timeoutCount: 0,
               snapshotId: null,
@@ -327,7 +364,19 @@ export function createStudentAgentMachine(snapshotManager: SnapshotManager) {
         },
       },
       asking_user: {
-        // Placeholder — stage 1, step 4 (questions.json)
+        invoke: {
+          src: 'writeQuestionsEntry',
+          input: ({ context }) => ({
+            taskId: context.taskId ?? `task_${Date.now()}`,
+            taskDescription: context.taskDescription ?? '',
+            failureReason: context.failureReason ?? '',
+            errorCategory: context.errorCategory,
+            errorSubtype: context.errorSubtype,
+            attempts: context.attempts,
+          }),
+          onDone: {},
+          onError: {},
+        },
       },
       completed: {
         type: 'final',

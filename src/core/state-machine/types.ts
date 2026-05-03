@@ -25,6 +25,7 @@ export const RAW_ERROR_MAX = 500;
 
 export interface MachineContext {
   taskId: string | null;
+  taskDescription: string | null;
   currentAttempt: number;
   /** Git commit hash (40-character hex SHA) */
   snapshotId: string | null;
