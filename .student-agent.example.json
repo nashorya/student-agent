@@ -1,0 +1,18 @@
+{
+  "features": {
+    "context7": true,
+    "playwright": false,
+    "boundedBreaker": true,
+    "qualityWatchdog": true,
+    "subAgents": false
+  },
+  "llm": {
+    "requestTimeoutMs": 300000,
+    "maxOutputTokens": 8192,
+    "maxRetries": 2,
+    "maxRetryDelayMs": 60000
+  },
+  "subAgents": {
+    "maxConcurrency": 3
+  }
+}

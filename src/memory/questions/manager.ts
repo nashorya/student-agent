@@ -37,18 +37,20 @@ export class QuestionsManager {
 
   async append(q: Question): Promise<void> {
     try {
-      const questions = await this.getAll();
-      const existing = questions.findIndex((x) => x.id === q.id);
-      if (existing >= 0) {
-        questions[existing] = {
-          ...questions[existing],
-          hit_count: (questions[existing].hit_count ?? 0) + 1,
-          last_hit: new Date().toISOString(),
-        };
-      } else {
-        questions.push(q);
-      }
-      await this.write(questions);
+      await WriteQueue.getInstance().enqueue(async () => {
+        const questions = await this.readAll();
+        const existing = questions.findIndex((x) => x.id === q.id);
+        if (existing >= 0) {
+          questions[existing] = {
+            ...questions[existing],
+            hit_count: (questions[existing].hit_count ?? 0) + 1,
+            last_hit: new Date().toISOString(),
+          };
+        } else {
+          questions.push(q);
+        }
+        await this.writeRaw(questions);
+      });
     } catch (err) {
       console.error('[QuestionsManager] append failed:', err instanceof Error ? err.message : String(err));
     }
@@ -66,12 +68,21 @@ export class QuestionsManager {
     }
   }
 
-  private async write(questions: Question[]): Promise<void> {
-    await WriteQueue.getInstance().enqueue(async () => {
-      await mkdir(dirname(this.filePath), { recursive: true });
-      const file: QuestionsFile = { questions };
-      await writeFile(this.filePath, JSON.stringify(file, null, 2), 'utf-8');
-    });
+  private async readAll(): Promise<Question[]> {
+    try {
+      const raw = await readFile(this.filePath, 'utf-8');
+      const parsed = JSON.parse(raw) as QuestionsFile;
+      return parsed.questions;
+    } catch (err) {
+      if (isNodeError(err) && err.code === 'ENOENT') return [];
+      throw err;
+    }
+  }
+
+  private async writeRaw(questions: Question[]): Promise<void> {
+    await mkdir(dirname(this.filePath), { recursive: true });
+    const file: QuestionsFile = { questions };
+    await writeFile(this.filePath, JSON.stringify(file, null, 2), 'utf-8');
   }
 }
 

@@ -1,4 +1,5 @@
 import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { WriteQueue } from '../../core/write-queue.js';
 import type {
@@ -69,7 +70,7 @@ export class PreferencesManager {
     sessionRef: string;
   }): Promise<void> {
     const entry: PreferenceEntry = {
-      id: `pref_${Date.now()}`,
+      id: `pref_${randomUUID()}`,
       rule: params.rule,
       scope: params.scope,
       provenance: {
@@ -93,7 +94,7 @@ export class PreferencesManager {
     applyCaution?: boolean;
   }): Promise<void> {
     const entry: PreferenceEntry = {
-      id: `pref_${Date.now()}`,
+      id: `pref_${randomUUID()}`,
       rule: params.rule,
       scope: params.scope,
       provenance: params.provenance,
@@ -108,6 +109,10 @@ export class PreferencesManager {
   private async appendEntry(entry: PreferenceEntry, changeSummary: string): Promise<void> {
     await WriteQueue.getInstance().enqueue(async () => {
       const current = await this.readFile();
+      if (current?.preferences.some((p) => p.scope === entry.scope && p.rule === entry.rule)) {
+        return;
+      }
+
       const preferences = current ? [...current.preferences, entry] : [entry];
       const version = current ? current.header.version + 1 : 1;
 

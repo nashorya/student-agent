@@ -6,6 +6,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    exclude: ['node_modules/**', 'dist/**', 'src/_legacy_phase1/**'],
     fileParallelism: false, // snapshot tests use real git repos; parallel files can conflict
   },
   resolve: {

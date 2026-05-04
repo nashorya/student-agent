@@ -162,6 +162,88 @@ describe('PreferenceCandidatesManager', () => {
     expect(result.reason).toContain('architecture');
   });
 
+  it('decidePromotion 对普通 scope 返回升级动作，moderate report 标记 caution', () => {
+    const mgr = PreferenceCandidatesManager.getInstance(tmpDir);
+    const candidate: PreferenceCandidate = {
+      id: 'pref_cand_decision',
+      pattern: 'decision test',
+      scope: 'code-style',
+      observations: 2,
+      first_observed: new Date().toISOString(),
+      last_observed: new Date().toISOString(),
+      contradictions: 0,
+      status: 'observed',
+      trigger_context: '',
+      breaker_report: null,
+      provenance: [{ source_type: 'reflect-agent', task_id: 't1', session_ref: 's1', trust_status: 're-observed' }],
+    };
+
+    const decision = mgr.decidePromotion(candidate, 50, {
+      id: 'breaker_1',
+      confidence_level: 'moderate',
+      breakers_applied: [],
+      known_failure_context: [],
+      unknown_risk_zones: [],
+      recommendation: 'promote_with_caution',
+      created_at: new Date().toISOString(),
+    });
+
+    expect(decision.action).toBe('promote_with_caution');
+    expect(decision.applyCaution).toBe(true);
+  });
+
+  it('decidePromotion 对 architecture scope 要求用户确认', () => {
+    const mgr = PreferenceCandidatesManager.getInstance(tmpDir);
+    const candidate: PreferenceCandidate = {
+      id: 'pref_cand_arch_confirm',
+      pattern: 'architecture decision',
+      scope: 'architecture',
+      observations: 3,
+      first_observed: new Date().toISOString(),
+      last_observed: new Date().toISOString(),
+      contradictions: 0,
+      status: 'observed',
+      trigger_context: '',
+      breaker_report: null,
+      provenance: [{ source_type: 'reflect-agent', task_id: 't1', session_ref: 's1', trust_status: 're-observed' }],
+    };
+
+    const decision = mgr.decidePromotion(candidate, 50, null);
+
+    expect(decision.action).toBe('pending_user_confirmation');
+  });
+
+  it('decidePromotion 对 security scope 要求用户确认', () => {
+    const mgr = PreferenceCandidatesManager.getInstance(tmpDir);
+    const candidate: PreferenceCandidate = {
+      id: 'pref_cand_security_confirm',
+      pattern: 'security decision',
+      scope: 'security',
+      observations: 3,
+      first_observed: new Date().toISOString(),
+      last_observed: new Date().toISOString(),
+      contradictions: 0,
+      status: 'observed',
+      trigger_context: '',
+      breaker_report: null,
+      provenance: [{ source_type: 'reflect-agent', task_id: 't1', session_ref: 's1', trust_status: 're-observed' }],
+    };
+
+    const decision = mgr.decidePromotion(candidate, 50, null);
+
+    expect(decision.action).toBe('pending_user_confirmation');
+  });
+
+  it('markPendingUserConfirmation 标记候选等待用户确认', async () => {
+    const mgr = PreferenceCandidatesManager.getInstance(tmpDir);
+    await mgr.observe(defaultObserveParams('需要确认', 'architecture'));
+    const candidate = (await mgr.getAll())[0];
+
+    await mgr.markPendingUserConfirmation(candidate.id);
+
+    expect((await mgr.findById(candidate.id))?.status).toBe('pending_user_confirmation');
+  });
+
   it('contested 状态不可升级', () => {
     const mgr = PreferenceCandidatesManager.getInstance(tmpDir);
     const candidate: PreferenceCandidate = {

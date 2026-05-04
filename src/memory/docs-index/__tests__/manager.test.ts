@@ -124,6 +124,26 @@ describe('DocsIndexManager', () => {
       expect(stats.totalChunks).toBe(1);
     });
 
+    it('并发索引同一来源保持单一最终版本', async () => {
+      const results = await Promise.all([
+        manager.indexDocument({
+          source: 'file:///same.md',
+          title: 'V1',
+          content: 'Version 1 content',
+        }),
+        manager.indexDocument({
+          source: 'file:///same.md',
+          title: 'V2',
+          content: 'Version 2 content',
+        }),
+      ]);
+
+      expect(results).toEqual([1, 1]);
+      const stats = await manager.getStats();
+      expect(stats.totalDocs).toBe(1);
+      expect(stats.totalChunks).toBe(1);
+    });
+
     it('嵌入失败时不阻塞，记录错误', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockProvider.shouldFail = true;

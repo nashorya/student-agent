@@ -6,14 +6,14 @@
  *   2. 写入/更新 preference-candidates.json
  *   3. 判断候选是否满足升级条件 → 升级到 preferences.md
  *   4. 清理过期候选条目
- *
- * 阶段二不含 Bounded Breaker（阶段三补充）。
  */
 
 import { PreferenceCandidatesManager } from '../memory/candidates/manager.js';
 import { PreferencesManager } from '../memory/preferences/manager.js';
 import { extractPatterns } from './pattern-rules.js';
 import type { ExtractedPattern } from './pattern-rules.js';
+import { BoundedBreaker } from './bounded-breaker.js';
+import { BreakerLogManager } from './breaker-log-manager.js';
 
 export interface ReflectInput {
   taskId: string;
@@ -36,6 +36,8 @@ export class ReflectAgent {
   constructor(
     private readonly candidatesManager: PreferenceCandidatesManager,
     private readonly preferencesManager: PreferencesManager,
+    private readonly boundedBreaker: BoundedBreaker | null = new BoundedBreaker(),
+    private readonly breakerLogManager?: BreakerLogManager,
   ) {}
 
   /** 主入口：会话结束后调用 */
@@ -59,6 +61,7 @@ export class ReflectAgent {
       result.candidatesUpdated = patterns.length;
 
       // 3. 升级判定
+      this.boundedBreaker?.resetBudget();
       const promoted = await this.tryPromoteEligible(input.totalTaskCount, input);
       result.promoted = promoted;
 
@@ -106,7 +109,45 @@ export class ReflectAgent {
 
       if (!eligible) continue;
 
-      const latestProv = candidate.provenance[candidate.provenance.length - 1];
+      const breakerDecision = this.boundedBreaker
+        ? await this.boundedBreaker.evaluate({
+          candidate,
+          totalTaskCount,
+        })
+        : null;
+
+      if (breakerDecision?.report) {
+        await this.candidatesManager.recordBreakerReport(candidate.id, breakerDecision.report);
+        if (this.breakerLogManager) {
+          try {
+            await this.breakerLogManager.append({
+              task_id: input.taskId,
+              candidate_id: candidate.id,
+              report: breakerDecision.report,
+            });
+          } catch (err) {
+            console.warn(
+              '[ReflectAgent] breaker log append failed:',
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        }
+      }
+
+      const promotionDecision = this.candidatesManager.decidePromotion(
+        candidate,
+        totalTaskCount,
+        breakerDecision?.report ?? null,
+      );
+
+      if (promotionDecision.action === 'reject') {
+        continue;
+      }
+
+      if (promotionDecision.action === 'pending_user_confirmation') {
+        await this.candidatesManager.markPendingUserConfirmation(candidate.id);
+        continue;
+      }
 
       await this.preferencesManager.promoteFromCandidate({
         rule: candidate.pattern,
@@ -116,10 +157,12 @@ export class ReflectAgent {
           task_id: input.taskId,
           session_ref: input.sessionRef,
           created_at: new Date().toISOString(),
+          breaker_report_id: breakerDecision?.report?.id,
         },
-        // 阶段二无 Breaker，不设置 applyCaution
+        applyCaution: promotionDecision.applyCaution,
       });
 
+      await this.candidatesManager.markPromoted(candidate.id);
       promoted.push(candidate.id);
     }
 

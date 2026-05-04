@@ -135,42 +135,46 @@ export class DocsIndexManager {
     await mkdir(join(this.dbPath, '..'), { recursive: true });
 
     this.db = new Database(this.dbPath);
-    this.db.pragma('journal_mode = WAL');
 
-    // 加载 sqlite-vec 扩展
-    try {
-      const sqliteVec = await import('sqlite-vec');
-      sqliteVec.load(this.db);
-    } catch (err) {
-      throw new Error(
-        `加载 sqlite-vec 扩展失败：${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await WriteQueue.getInstance().enqueue(async () => {
+      const db = this.ensureDb();
+      db.pragma('journal_mode = WAL');
 
-    // 创建文档元数据表
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS docs (
-        id TEXT PRIMARY KEY,
-        source TEXT NOT NULL,
-        title TEXT NOT NULL,
-        content TEXT NOT NULL,
-        chunk_index INTEGER NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )
-    `);
+      // 加载 sqlite-vec 扩展
+      try {
+        const sqliteVec = await import('sqlite-vec');
+        sqliteVec.load(db);
+      } catch (err) {
+        throw new Error(
+          `加载 sqlite-vec 扩展失败：${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
 
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_docs_source ON docs(source)
-    `);
+      // 创建文档元数据表
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS docs (
+          id TEXT PRIMARY KEY,
+          source TEXT NOT NULL,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          chunk_index INTEGER NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      `);
 
-    // 创建 sqlite-vec 虚拟表
-    this.db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS docs_vec USING vec0(
-        id TEXT PRIMARY KEY,
-        embedding float[${EMBEDDING_DIMENSIONS}]
-      )
-    `);
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_docs_source ON docs(source)
+      `);
+
+      // 创建 sqlite-vec 虚拟表
+      db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS docs_vec USING vec0(
+          id TEXT PRIMARY KEY,
+          embedding float[${EMBEDDING_DIMENSIONS}]
+        )
+      `);
+    });
   }
 
   // ── 索引文档 ────────────────────────────────────────
@@ -188,11 +192,14 @@ export class DocsIndexManager {
   }): Promise<number> {
     this.ensureDb();
 
-    // 先删除旧的同源索引
-    await this.removeBySource(params.source);
-
     const chunks = this.chunkText(params.content);
-    let indexed = 0;
+    const rows: Array<{
+      id: string;
+      content: string;
+      chunkIndex: number;
+      embedding: number[];
+      createdAt: string;
+    }> = [];
 
     for (let i = 0; i < chunks.length; i++) {
       const chunkId = `doc_${randomUUID().slice(0, 12)}_${i}`;
@@ -200,24 +207,13 @@ export class DocsIndexManager {
 
       try {
         const embedding = await this.embeddingProvider.embed(chunks[i]);
-
-        await WriteQueue.getInstance().enqueue(async () => {
-          const db = this.ensureDb();
-
-          // 写入元数据
-          db.prepare(`
-            INSERT INTO docs (id, source, title, content, chunk_index, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(chunkId, params.source, params.title, chunks[i], i, now, now);
-
-          // 写入向量
-          db.prepare(`
-            INSERT INTO docs_vec (id, embedding)
-            VALUES (?, ?)
-          `).run(chunkId, new Float32Array(embedding));
+        rows.push({
+          id: chunkId,
+          content: chunks[i],
+          chunkIndex: i,
+          embedding,
+          createdAt: now,
         });
-
-        indexed++;
       } catch (err) {
         console.error(
           `[DocsIndex] 分块 ${i} 嵌入失败（source: ${params.source}）:`,
@@ -227,7 +223,48 @@ export class DocsIndexManager {
       }
     }
 
-    return indexed;
+    await WriteQueue.getInstance().enqueue(async () => {
+      const db = this.ensureDb();
+
+      const ids = db
+        .prepare('SELECT id FROM docs WHERE source = ?')
+        .all(params.source) as Array<{ id: string }>;
+
+      const deleteVec = db.prepare('DELETE FROM docs_vec WHERE id = ?');
+      const deleteDoc = db.prepare('DELETE FROM docs WHERE id = ?');
+      const insertDoc = db.prepare(`
+        INSERT INTO docs (id, source, title, content, chunk_index, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      const insertVec = db.prepare(`
+        INSERT INTO docs_vec (id, embedding)
+        VALUES (?, ?)
+      `);
+
+      const replaceSource = db.transaction(() => {
+        for (const row of ids) {
+          deleteVec.run(row.id);
+          deleteDoc.run(row.id);
+        }
+
+        for (const row of rows) {
+          insertDoc.run(
+            row.id,
+            params.source,
+            params.title,
+            row.content,
+            row.chunkIndex,
+            row.createdAt,
+            row.createdAt,
+          );
+          insertVec.run(row.id, new Float32Array(row.embedding));
+        }
+      });
+
+      replaceSource();
+    });
+
+    return rows.length;
   }
 
   // ── 语义搜索 ────────────────────────────────────────

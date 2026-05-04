@@ -1,0 +1,383 @@
+/**
+ * Failure Escalation Hook — 三级失败升级阶梯。
+ * 统一收敛在此文件中，挂载到 Pi 的 afterToolCall 钩子。
+ *
+ * 阶梯：
+ *   Attempt 1：降级/拆分/复位 → 注入恢复指令，不停止
+ *   Attempt 2：Context7 文档注入 → 注入检索结果，不停止
+ *   Attempt 3：中断 + 诊断报告   → terminate: true
+ */
+
+import type { PostToolCallContext, EscalationDecision } from '../../core/pi-bridge/types.js';
+import { classifyError, type ClassifiedError } from '../../core/state-machine/error-classifier.js';
+import { renderDiagnosticReport, type DiagnosticInput } from '../../core/state-machine/diagnostic-reporter.js';
+import type { AttemptRecord, ErrorCategory } from '../../core/state-machine/types.js';
+import type { Context7Client, Context7DocsResult } from '../../knowledge/context7-client.js';
+
+export interface FailureEscalationOptions {
+  context7Client?: Pick<Context7Client, 'query'>;
+  /** 获取最近一次快照 ID 的回调 */
+  getLastSnapshotId?: () => string | null;
+  /** 回滚到指定快照的回调 */
+  restoreSnapshot?: (cwd: string, snapshotId: string) => Promise<void>;
+}
+
+/**
+ * 会话级失败升级上下文。
+ * 每个任务会话创建独立实例，不共享模块级全局状态。
+ */
+export class FailureEscalationContext {
+  private consecutiveFailures = 0;
+  private attempts: AttemptRecord[] = [];
+  private taskDescription = '';
+  private cwd = '';
+  private readonly context7Client?: Pick<Context7Client, 'query'>;
+  private readonly getLastSnapshotId: () => string | null;
+  private readonly restoreSnapshotFn: (cwd: string, snapshotId: string) => Promise<void>;
+
+  constructor(options: FailureEscalationOptions = {}) {
+    this.context7Client = options.context7Client;
+    this.getLastSnapshotId = options.getLastSnapshotId ?? (() => null);
+    this.restoreSnapshotFn = options.restoreSnapshot ?? (async () => {});
+  }
+
+  /** 每次新任务开始时调用，重置连续失败计数和尝试记录。 */
+  initTask(taskDesc: string, workingDir: string): void {
+    this.consecutiveFailures = 0;
+    this.attempts = [];
+    this.taskDescription = taskDesc;
+    this.cwd = workingDir;
+  }
+
+  /**
+   * 创建失败升级 hook。
+   * 返回一个可直接传给 StudentAgentHooks.onAfterToolCall 的函数。
+   *
+   * 只在工具执行出错（isError === true）时介入。
+   * 成功时重置连续失败计数。
+   */
+  createHook() {
+    return async (ctx: PostToolCallContext): Promise<EscalationDecision | undefined> => {
+      if (!ctx.isError) {
+        this.consecutiveFailures = 0;
+        return undefined;
+      }
+
+      this.consecutiveFailures++;
+
+      const classified = classifyError(
+        new Error(ctx.resultText),
+        ctx.toolName,
+      );
+
+      if (this.consecutiveFailures === 1) {
+        return this.handleAttempt1(ctx, classified);
+      } else if (this.consecutiveFailures === 2) {
+        return this.handleAttempt2(ctx, classified);
+      } else {
+        return this.handleAttempt3(ctx, classified);
+      }
+    };
+  }
+
+  // ── Attempt 1：降级/拆分/复位 ──────────────────────
+
+  private async handleAttempt1(
+    ctx: PostToolCallContext,
+    classified: ClassifiedError,
+  ): Promise<EscalationDecision> {
+    const snapshotId = this.getLastSnapshotId();
+    let rolledBack = false;
+    if (snapshotId && this.cwd) {
+      try {
+        await this.restoreSnapshotFn(this.cwd, snapshotId);
+        rolledBack = true;
+      } catch {
+        // 回滚失败不阻塞
+      }
+    }
+
+    const record: AttemptRecord = {
+      index: 1,
+      strategy: selectStrategy(classified.category),
+      result: 'failed',
+      reason: classified.message,
+    };
+    this.attempts.push(record);
+
+    const recoveryInstructions = buildRecoveryInstructions(classified, rolledBack);
+
+    return {
+      overrideContent: recoveryInstructions,
+      isError: true,
+      terminate: false,
+    };
+  }
+
+  // ── Attempt 2：Context7 文档注入 ───────────────────
+
+  private async handleAttempt2(
+    ctx: PostToolCallContext,
+    classified: ClassifiedError,
+  ): Promise<EscalationDecision> {
+    const record: AttemptRecord = {
+      index: 2,
+      strategy: 'context7_docs',
+      result: 'failed',
+      reason: classified.message,
+    };
+    this.attempts.push(record);
+
+    const context = await buildContext7Context(ctx, classified, this.taskDescription, this.context7Client);
+
+    return {
+      overrideContent: context,
+      isError: true,
+      terminate: false,
+    };
+  }
+
+  // ── Attempt 3：中断 + 诊断报告 ─────────────────────
+
+  private async handleAttempt3(
+    ctx: PostToolCallContext,
+    classified: ClassifiedError,
+  ): Promise<EscalationDecision> {
+    const record: AttemptRecord = {
+      index: 3,
+      strategy: 'diagnostic_report',
+      result: 'failed',
+      reason: classified.message,
+    };
+    this.attempts.push(record);
+
+    const diagnosticInput: DiagnosticInput = {
+      taskDescription: this.taskDescription,
+      attempts: this.attempts,
+      errorCategory: classified.category,
+      errorSubtype: classified.subtype,
+      rawError: ctx.resultText.slice(0, 500),
+    };
+
+    const report = renderDiagnosticReport(diagnosticInput);
+
+    return {
+      overrideContent: report,
+      isError: true,
+      terminate: true,
+    };
+  }
+}
+
+// ── 辅助函数 ──────────────────────────────────────────
+
+function selectStrategy(category: ErrorCategory): string {
+  switch (category) {
+    case 'tool':
+      return 'downgrade_retry';
+    case 'model':
+      return 'split_task';
+    case 'environment':
+      return 'wait_retry';
+    case 'user_input':
+      return 'clarify';
+    case 'state_conflict':
+      return 'rollback_retry';
+    default:
+      return 'generic_retry';
+  }
+}
+
+function buildRecoveryInstructions(
+  classified: ClassifiedError,
+  rolledBack: boolean,
+): string {
+  const lines = [
+    `⚠ 工具执行失败（${classified.category}/${classified.subtype}）`,
+    `错误：${classified.message}`,
+    '',
+  ];
+
+  if (rolledBack) {
+    lines.push('✓ 已自动回滚到工具调用前的状态。');
+    lines.push('');
+  }
+
+  switch (classified.category) {
+    case 'tool':
+      lines.push('建议：尝试用不同的参数或方法重新执行。');
+      lines.push('如果是文件操作，请检查路径是否存在。');
+      break;
+    case 'model':
+      lines.push('建议：将当前步骤拆分为更小的子步骤。');
+      lines.push('避免一次性输出过多内容。');
+      break;
+    case 'environment':
+      lines.push('建议：检查网络连接和 API 凭据。');
+      lines.push('可以尝试使用备用方案。');
+      break;
+    case 'user_input':
+      lines.push('建议：向用户请求澄清。');
+      break;
+    case 'state_conflict':
+      lines.push('建议：检查是否有并发操作修改同一文件。');
+      break;
+  }
+
+  return lines.join('\n');
+}
+
+async function buildContext7Context(
+  ctx: PostToolCallContext,
+  classified: ClassifiedError,
+  taskDescription: string,
+  context7Client?: Pick<Context7Client, 'query'>,
+): Promise<string> {
+  const query = extractContext7Query(ctx, classified, taskDescription);
+  if (!query) {
+    return buildContext7Fallback(classified, '未能从任务或错误中提取明确的库名');
+  }
+  if (!context7Client) {
+    return buildContext7Fallback(classified, 'Context7 客户端未配置');
+  }
+
+  try {
+    const docs = await context7Client.query({
+      libraryName: query.libraryName,
+      topic: query.topic,
+      tokens: 2_000,
+    });
+
+    if (!docs) {
+      return buildContext7Fallback(classified, `Context7 未找到与 ${query.libraryName} 相关的文档`);
+    }
+
+    return renderContext7Docs(classified, query, docs);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return buildContext7Fallback(classified, `Context7 检索不可用：${message}`);
+  }
+}
+
+function renderContext7Docs(
+  classified: ClassifiedError,
+  query: Context7Query,
+  docs: Context7DocsResult,
+): string {
+  return [
+    `⚠ 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
+    `错误：${classified.message}`,
+    '',
+    '已触发 Context7 文档检索。',
+    `查询：${query.libraryName}${query.topic ? ` / ${query.topic}` : ''}`,
+    `命中文档：${docs.libraryId}`,
+    '',
+    'Context7 文档片段：',
+    docs.content,
+    '',
+    '建议：',
+    '1. 根据上面的官方文档片段修正工具参数或 API 用法',
+    '2. 如果文档与当前代码版本不匹配，先检查项目依赖版本',
+    '3. 避免重复同一失败路径，换一种实现方式重试',
+  ].join('\n');
+}
+
+function buildContext7Fallback(classified: ClassifiedError, reason?: string): string {
+  const lines = [
+    `⚠ 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
+    `错误：${classified.message}`,
+    '',
+    '已尝试触发 Context7 文档检索，但没有可用文档可注入。',
+  ];
+
+  if (reason) {
+    lines.push(`原因：${reason}`);
+  }
+
+  lines.push(
+    '',
+    '建议：',
+    '1. 停止重复同一工具参数',
+    '2. 根据错误信息缩小复现范围',
+    '3. 若是第三方库或 API 问题，优先检查本地依赖版本和官方文档',
+  );
+
+  return lines.join('\n');
+}
+
+interface Context7Query {
+  libraryName: string;
+  topic?: string;
+}
+
+const KNOWN_LIBRARY_NAMES = [
+  'playwright',
+  'context7',
+  'react',
+  'next',
+  'vite',
+  'vitest',
+  'xstate',
+  'typescript',
+  'node',
+  'express',
+  'prisma',
+  'tailwind',
+  'zod',
+  'anthropic',
+  'claude',
+  'sqlite',
+];
+
+function extractContext7Query(
+  ctx: PostToolCallContext,
+  classified: ClassifiedError,
+  taskDescription: string,
+): Context7Query | null {
+  const text = [
+    taskDescription,
+    ctx.toolName,
+    stringifyToolArgs(ctx.args),
+    ctx.resultText,
+    classified.message,
+  ].join('\n').toLowerCase();
+
+  const knownLibrary = KNOWN_LIBRARY_NAMES.find((name) => text.includes(name));
+  const libraryName = knownLibrary ?? extractPackageName(text);
+  if (!libraryName) {
+    return null;
+  }
+
+  return {
+    libraryName,
+    topic: classified.subtype || classified.category,
+  };
+}
+
+function stringifyToolArgs(args: unknown): string {
+  if (typeof args === 'string') {
+    return args;
+  }
+  if (typeof args === 'number' || typeof args === 'boolean') {
+    return String(args);
+  }
+  if (args === null || args === undefined) {
+    return '';
+  }
+
+  try {
+    return JSON.stringify(args);
+  } catch {
+    return '';
+  }
+}
+
+function extractPackageName(text: string): string | null {
+  const scoped = text.match(/@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*/);
+  if (scoped) {
+    return scoped[0];
+  }
+
+  const dependency = text.match(/(?:package|module|library|import|from)\s+['"]?([a-z0-9][a-z0-9._-]*)/);
+  return dependency?.[1] ?? null;
+}

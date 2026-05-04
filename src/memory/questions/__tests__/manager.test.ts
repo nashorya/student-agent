@@ -86,4 +86,15 @@ describe('QuestionsManager', () => {
     expect(all).toHaveLength(1);
     expect(all[0].id).toBe('q_006');
   });
+
+  it('并发 append 不丢失不同 question', async () => {
+    const mgr = QuestionsManager.getInstance(tmpDir);
+
+    await Promise.all(
+      Array.from({ length: 8 }, (_, i) => mgr.append(makeQuestion(`q_concurrent_${i}`))),
+    );
+
+    const all = await mgr.getAll();
+    expect(all).toHaveLength(8);
+  });
 });

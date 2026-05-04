@@ -1,7 +1,10 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { WriteQueue } from '../../core/write-queue.js';
 import type {
+  CandidateBreakerReport,
+  CandidatePromotionDecision,
   CandidatesFile,
   CandidateTrustStatus,
   PreferenceCandidate,
@@ -106,7 +109,7 @@ export class PreferenceCandidatesManager {
         };
       } else {
         candidates.push({
-          id: `pref_cand_${Date.now()}`,
+          id: `pref_cand_${randomUUID()}`,
           pattern: params.pattern,
           scope: params.scope,
           observations: 1,
@@ -152,6 +155,63 @@ export class PreferenceCandidatesManager {
     });
   }
 
+  /** 标记候选已经升级为正式 preference，避免后续重复升级。 */
+  async markPromoted(candidateId: string): Promise<void> {
+    await WriteQueue.getInstance().enqueue(async () => {
+      const file = await this.readFile();
+      if (!file) return;
+
+      const candidates = [...file.candidates];
+      const idx = candidates.findIndex((c) => c.id === candidateId);
+      if (idx < 0) return;
+
+      candidates[idx] = {
+        ...candidates[idx],
+        status: 'promoted',
+      };
+
+      await this.writeRaw(candidates);
+    });
+  }
+
+  /** 标记候选需要用户确认，避免 architecture 等高影响规则自动写入 preferences。 */
+  async markPendingUserConfirmation(candidateId: string): Promise<void> {
+    await WriteQueue.getInstance().enqueue(async () => {
+      const file = await this.readFile();
+      if (!file) return;
+
+      const candidates = [...file.candidates];
+      const idx = candidates.findIndex((c) => c.id === candidateId);
+      if (idx < 0) return;
+
+      candidates[idx] = {
+        ...candidates[idx],
+        status: 'pending_user_confirmation',
+      };
+
+      await this.writeRaw(candidates);
+    });
+  }
+
+  /** 记录 Bounded Breaker 报告，供后续审计。 */
+  async recordBreakerReport(candidateId: string, report: CandidateBreakerReport): Promise<void> {
+    await WriteQueue.getInstance().enqueue(async () => {
+      const file = await this.readFile();
+      if (!file) return;
+
+      const candidates = [...file.candidates];
+      const idx = candidates.findIndex((c) => c.id === candidateId);
+      if (idx < 0) return;
+
+      candidates[idx] = {
+        ...candidates[idx],
+        breaker_report: report,
+      };
+
+      await this.writeRaw(candidates);
+    });
+  }
+
   // ── 信任状态流转 ──────────────────────────────────
 
   /**
@@ -190,6 +250,10 @@ export class PreferenceCandidatesManager {
     candidate: PreferenceCandidate,
     totalTaskCount: number,
   ): { eligible: boolean; reason: string } {
+    if (candidate.status !== 'observed') {
+      return { eligible: false, reason: `候选状态为 ${candidate.status}，不可升级` };
+    }
+
     // contested 不可升级
     const latestTrust = candidate.provenance.length > 0
       ? candidate.provenance[candidate.provenance.length - 1].trust_status
@@ -211,17 +275,58 @@ export class PreferenceCandidatesManager {
       };
     }
 
-    // architecture scope 特殊规则：必须 re-observed 以上
-    if (candidate.scope === 'architecture') {
+    // architecture/security scope 特殊规则：必须 re-observed 以上
+    if (candidate.scope === 'architecture' || candidate.scope === 'security') {
       if (latestTrust !== 're-observed' && latestTrust !== 'user-confirmed') {
         return {
           eligible: false,
-          reason: 'architecture scope 需要 trust ≥ re-observed 才可升级',
+          reason: `${candidate.scope} scope 需要 trust ≥ re-observed 才可升级`,
         };
       }
     }
 
     return { eligible: true, reason: '满足升级条件' };
+  }
+
+  /**
+   * 信任状态机的最终 promotion decision。
+   * Breaker report 只能影响审计和 caution 标记，不能绕过候选资格和高影响 scope 拦截。
+   */
+  decidePromotion(
+    candidate: PreferenceCandidate,
+    totalTaskCount: number,
+    breakerReport: CandidateBreakerReport | null,
+  ): CandidatePromotionDecision {
+    const eligibility = this.checkUpgradeEligibility(candidate, totalTaskCount);
+    if (!eligibility.eligible) {
+      return {
+        action: 'reject',
+        reason: eligibility.reason,
+        applyCaution: false,
+      };
+    }
+
+    if (requiresUserConfirmation(candidate.scope)) {
+      return {
+        action: 'pending_user_confirmation',
+        reason: `${candidate.scope} scope 需要用户确认`,
+        applyCaution: false,
+      };
+    }
+
+    if (breakerReport?.confidence_level === 'moderate') {
+      return {
+        action: 'promote_with_caution',
+        reason: '满足信任状态机升级条件，Breaker 标记为 moderate',
+        applyCaution: true,
+      };
+    }
+
+    return {
+      action: 'promote',
+      reason: '满足信任状态机升级条件',
+      applyCaution: false,
+    };
   }
 
   // ── 清理 ──────────────────────────────────────────
@@ -300,4 +405,8 @@ export class PreferenceCandidatesManager {
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err;
+}
+
+function requiresUserConfirmation(scope: PreferenceScope): boolean {
+  return scope === 'architecture' || scope === 'security';
 }

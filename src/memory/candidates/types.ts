@@ -5,7 +5,11 @@
 
 import type { PreferenceScope } from '../preferences/types.js';
 
-export type CandidateStatus = 'observed' | 'archived';
+export type CandidateStatus =
+  | 'observed'
+  | 'pending_user_confirmation'
+  | 'promoted'
+  | 'archived';
 
 export type CandidateTrustStatus =
   | 'unverified'
@@ -35,8 +39,26 @@ export interface PreferenceCandidate {
   /** 触发上下文描述 */
   trigger_context: string;
   /** Bounded Breaker 报告（阶段三填充） */
-  breaker_report: null;
+  breaker_report: CandidateBreakerReport | null;
   provenance: CandidateProvenance[];
+}
+
+export type BreakerConfidenceLevel = 'high' | 'moderate' | 'low';
+
+export interface CandidateBreakerReport {
+  id: string;
+  confidence_level: BreakerConfidenceLevel;
+  breakers_applied: string[];
+  known_failure_context: string[];
+  unknown_risk_zones: string[];
+  recommendation: 'promote' | 'promote_with_caution' | 'reject';
+  created_at: string;
+}
+
+export interface CandidatePromotionDecision {
+  action: 'promote' | 'promote_with_caution' | 'pending_user_confirmation' | 'reject';
+  reason: string;
+  applyCaution: boolean;
 }
 
 export interface CandidatesFile {
@@ -52,6 +74,7 @@ export const UPGRADE_THRESHOLDS: Record<PreferenceScope, number> = {
   'tool-preference': 2,
   'communication': 2,
   'architecture': 3,
+  'security': 3,
 };
 
 /** 冷启动保护：任务总数低于此值时统一提升阈值 */

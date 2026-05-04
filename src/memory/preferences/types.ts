@@ -7,13 +7,14 @@ export type PreferenceScope =
   | 'code-style'
   | 'control-flow'
   | 'architecture'
+  | 'security'
   | 'tool-preference'
   | 'communication';
 
 export type PreferenceSourceType =
   | 'user-explicit'      // 用户直接指令
   | 'reflect-agent'      // Reflect Agent 隐式提取后升级
-  | 'bounded-breaker';   // Breaker 自动合并（阶段三）
+  | 'bounded-breaker';   // 预留：Breaker 审计来源标记
 
 export interface PreferenceProvenance {
   source_type: PreferenceSourceType;
