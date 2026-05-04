@@ -1,2 +1,18 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.student-agent.json
 pi-mono/
 node_modules/.claude/
+
+# memory/ 运行时数据（project-rules.md 手动维护，不忽略）
+memory/preference-candidates.json
+memory/preferences.md
+memory/preferences-history/
+memory/quality-feedback.json
+memory/questions.json
+memory/breaker-logs/
+memory/benchmark-results/
+
