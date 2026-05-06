@@ -39,7 +39,7 @@ export function createMemoryHook(memoryDir: string) {
     if (prefs.length > 0) {
       const prefsText = prefs
         .map((p) => {
-          const caution = p.apply_caution ? ' ⚠ APPLY_WITH_CAUTION' : '';
+          const caution = p.apply_caution ? ' WARN: APPLY_WITH_CAUTION' : '';
           return `- ${p.rule}（来源：${p.provenance.source_type}，scope：${p.scope}${caution}）`;
         })
         .join('\n');
@@ -61,6 +61,25 @@ export function createMemoryHook(memoryDir: string) {
         '## Past Q&A（过去的问答参考）\n\n' + qaText,
       );
     }
+
+    sections.push(`
+## 任务管理输出格式（必须遵守）
+
+当你理解用户意图并准备开始一个新任务时，在第一条回复的开头输出：
+[TASK_START name="任务简称（15字以内）"]
+Phase 1: 第一步描述
+Phase 2: 第二步描述
+...（2-5个Phase）
+[/TASK_START]
+
+当你认为当前 Phase 的工作已完成时，在回复末尾输出：
+[PHASE_DONE phase=N]
+已完成：一句话描述完成的内容。
+下一步：下一个 Phase 的简要说明。
+[/PHASE_DONE]
+
+N 是当前 Phase 的编号（从 1 开始）。不要在未完成时输出这些标记。
+`);
 
     if (sections.length === 0) {
       return '';
