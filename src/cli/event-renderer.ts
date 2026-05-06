@@ -7,7 +7,7 @@
  *
  * 事件处理：
  *   agent_start       → 显示 spinner
- *   message_start     → 准备流式输出，打印 ● 前缀
+ *   message_start     → 准备流式输出，打印 Assistant: 前缀
  *   message_update    → 逐 token 写 stdout（text_delta）+ 缓存
  *   message_end       → 清屏重绘 Markdown + 换行
  *   tool_execution_*  → 工具状态 + 参数提示
@@ -97,8 +97,7 @@ export class EventRenderer {
           this.isStreaming = true;
           this.streamBuffer = '';
           this.streamLineCount = 0;
-          // ● 前缀标记 assistant 回复开始
-          process.stdout.write(chalk.cyan('● '));
+          process.stdout.write(chalk.cyan('Assistant: '));
         }
         break;
 
@@ -123,13 +122,14 @@ export class EventRenderer {
 
       case 'tool_execution_start':
         this.toolCount++;
-        this.spinner.start(chalk.dim(`🔧 ${event.toolName}`));
+        this.spinner.start(chalk.dim(`Tool: ${event.toolName}`));
         break;
 
       case 'tool_execution_end':
         this.spinner.stop();
         if (event.isError) {
-          console.log(chalk.red(`  ✗ ${event.toolName} 失败`));
+          const detail = (event as Record<string, unknown>).resultText ?? (event as Record<string, unknown>).error ?? '';
+          console.log(chalk.red(`  ERROR: ${event.toolName} 失败${detail ? ': ' + String(detail).slice(0, 200) : ''}`));
         }
         break;
 
@@ -143,7 +143,7 @@ export class EventRenderer {
         if (this.toolCount > 0) {
           parts.push(`${this.toolCount} 个工具调用`);
         }
-        console.log(chalk.dim(`\n  ※ ${parts.join(' · ')}`));
+        console.log(chalk.dim(`\n  DONE: ${parts.join(' | ')}`));
         break;
       }
 
@@ -165,8 +165,8 @@ export class EventRenderer {
       return;
     }
 
-    // 计算已输出的行数（包含 ● 前缀那行）
-    const rawWithPrefix = '● ' + raw;
+    // 计算已输出的行数（包含 Assistant: 前缀那行）
+    const rawWithPrefix = 'Assistant: ' + raw;
     const lineCount = countTerminalLines(rawWithPrefix);
 
     // 用 ANSI escape 回退并清除
@@ -192,7 +192,7 @@ export class EventRenderer {
 
     // 用 Markdown 渲染器重绘
     const rendered = renderMarkdown(raw);
-    process.stdout.write(chalk.cyan('● ') + rendered + '\n');
+    process.stdout.write(chalk.cyan('Assistant: ') + rendered + '\n');
   }
 
   /** 创建可传给 agent.subscribe() 的回调函数。 */

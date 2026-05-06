@@ -2,6 +2,9 @@
   "name": "student-agent",
   "version": "0.1.0",
   "type": "module",
+  "bin": {
+    "student-agent": "./bin/student-agent"
+  },
   "scripts": {
     "dev": "node --loader ts-node/esm src/extension/index.ts",
     "dev:legacy": "node --loader ts-node/esm src/_legacy_phase1/index.ts",

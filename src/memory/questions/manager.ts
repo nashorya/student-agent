@@ -56,6 +56,26 @@ export class QuestionsManager {
     }
   }
 
+  async resolve(id: string, resolution: string): Promise<void> {
+    try {
+      await WriteQueue.getInstance().enqueue(async () => {
+        const questions = await this.readAll();
+        const idx = questions.findIndex((q) => q.id === id);
+        if (idx >= 0) {
+          questions[idx] = {
+            ...questions[idx],
+            resolution,
+            resolved_at: new Date().toISOString(),
+            status: 'resolved',
+          };
+          await this.writeRaw(questions);
+        }
+      });
+    } catch (err) {
+      console.error('[QuestionsManager] resolve failed:', err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async findByError(errorType: string, errorSubtype: string): Promise<Question[]> {
     try {
       const questions = await this.getAll();

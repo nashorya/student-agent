@@ -59,6 +59,25 @@ describe('student agent config loader', () => {
     expect(config.llm.maxOutputTokens).toBe(4096);
   });
 
+  it('支持 OpenAI Chat provider 配置', async () => {
+    await writeFile(join(tmpDir, '.student-agent.json'), JSON.stringify({
+      model: {
+        provider: 'openai',
+        name: 'gpt-4o-mini',
+        baseUrl: 'https://relay.example/v1',
+      },
+    }));
+
+    const config = await loadStudentAgentConfig({
+      cwd: tmpDir,
+      env: {},
+    });
+
+    expect(config.model.provider).toBe('openai');
+    expect(config.model.name).toBe('gpt-4o-mini');
+    expect(config.model.baseUrl).toBe('https://relay.example/v1');
+  });
+
   it('环境变量覆盖 JSON 配置', async () => {
     await writeFile(join(tmpDir, '.student-agent.json'), JSON.stringify({
       features: {
@@ -92,6 +111,21 @@ describe('student agent config loader', () => {
     expect(config.llm.maxOutputTokens).toBe(8192);
     expect(config.llm.maxRetries).toBe(1);
     expect(config.llm.maxRetryDelayMs).toBe(30_000);
+  });
+
+  it('OpenAI provider 环境变量读取 OPENAI_BASE_URL', async () => {
+    const config = await loadStudentAgentConfig({
+      cwd: tmpDir,
+      env: {
+        STUDENT_AGENT_PROVIDER: 'openai',
+        STUDENT_AGENT_MODEL: 'gpt-4o-mini',
+        OPENAI_BASE_URL: 'https://openai-relay.example/v1',
+      },
+    });
+
+    expect(config.model.provider).toBe('openai');
+    expect(config.model.name).toBe('gpt-4o-mini');
+    expect(config.model.baseUrl).toBe('https://openai-relay.example/v1');
   });
 
   it('支持通过 env.STUDENT_AGENT_CONFIG 指定配置文件名', async () => {

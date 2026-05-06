@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+SCRIPT_REAL="$(readlink -f "${BASH_SOURCE[0]}")"
+AGENT_DIR="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
+export STUDENT_AGENT_CWD="$(pwd)"
+cd "$AGENT_DIR"
+exec node --loader ts-node/esm "$AGENT_DIR/src/extension/index.ts" "$@"

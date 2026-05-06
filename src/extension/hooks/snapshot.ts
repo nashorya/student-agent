@@ -13,6 +13,9 @@ let lastSnapshotId: string | null = null;
 
 let snapshotManager: SnapshotManager | null = null;
 
+/** 已打印过的警告，避免重复刷屏 */
+const warnedMessages = new Set<string>();
+
 /** 初始化 SnapshotManager（延迟创建，首次调用时实例化） */
 function ensureManager(cwd: string): SnapshotManager {
   if (!snapshotManager) {
@@ -35,13 +38,15 @@ export function createSnapshotHook(cwd: string) {
     try {
       lastSnapshotId = await manager.create();
     } catch (err) {
+      const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : '';
       const message = err instanceof Error ? err.message : String(err);
-      console.warn('[Snapshot] 快照创建失败:', message);
       lastSnapshotId = null;
-      return {
-        block: true,
-        reason: `工具 ${ctx.toolName} 执行前创建 git 快照失败，已阻止执行以避免不可回滚的工作区修改：${message}`,
-      };
+      const warnKey = cause || message;
+      if (!warnedMessages.has(warnKey)) {
+        warnedMessages.add(warnKey);
+        console.warn(`[Snapshot] ${warnKey}（快照已跳过，无法回滚。输入 /init 可初始化 git 仓库）`);
+      }
+      return undefined;
     }
 
     return undefined;

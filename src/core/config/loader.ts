@@ -4,6 +4,7 @@ import {
   DEFAULT_STUDENT_AGENT_CONFIG,
   type StudentAgentConfig,
   type StudentAgentConfigInput,
+  type StudentAgentProvider,
 } from './types.js';
 
 export interface LoadStudentAgentConfigOptions {
@@ -32,12 +33,7 @@ export function mergeConfig(
 ): StudentAgentConfig {
   return {
     envFile: override.envFile ?? base.envFile ?? DEFAULT_STUDENT_AGENT_CONFIG.envFile,
-    model: {
-      ...DEFAULT_STUDENT_AGENT_CONFIG.model,
-      ...base.model,
-      ...override.model,
-      provider: 'anthropic',
-    },
+    model: mergeModelConfig(base, override),
     llm: {
       ...DEFAULT_STUDENT_AGENT_CONFIG.llm,
       ...base.llm,
@@ -53,6 +49,11 @@ export function mergeConfig(
       ...base.context7,
       ...override.context7,
     },
+    setup: {
+      ...DEFAULT_STUDENT_AGENT_CONFIG.setup,
+      ...base.setup,
+      ...override.setup,
+    },
     playwright: {
       ...DEFAULT_STUDENT_AGENT_CONFIG.playwright,
       ...base.playwright,
@@ -64,6 +65,28 @@ export function mergeConfig(
       ...override.subAgents,
     },
   };
+}
+
+function mergeModelConfig(
+  base: StudentAgentConfigInput,
+  override: StudentAgentConfigInput,
+): StudentAgentConfig['model'] {
+  const merged = {
+    ...DEFAULT_STUDENT_AGENT_CONFIG.model,
+    ...base.model,
+    ...override.model,
+  };
+  return {
+    ...merged,
+    provider: normalizeProvider(merged.provider),
+  };
+}
+
+function normalizeProvider(provider: string | undefined): StudentAgentProvider {
+  if (provider === 'openai') {
+    return 'openai';
+  }
+  return 'anthropic';
 }
 
 async function readConfigFile(
@@ -83,11 +106,13 @@ async function readConfigFile(
 }
 
 function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
+  const provider = readProviderEnv(env);
   return {
     envFile: env.STUDENT_AGENT_ENV_FILE,
     model: compactObject({
-      baseUrl: env.ANTHROPIC_BASE_URL,
-      name: env.STUDENT_AGENT_MODEL,
+      provider,
+      baseUrl: readModelBaseUrl(env, provider),
+      name: readOptionalString(env.STUDENT_AGENT_MODEL),
     }),
     llm: compactObject({
       requestTimeoutMs: readInteger(env.STUDENT_AGENT_LLM_REQUEST_TIMEOUT_MS),
@@ -103,13 +128,16 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       subAgents: readBoolean(env.STUDENT_AGENT_FEATURE_SUB_AGENTS),
     }),
     context7: compactObject({
-      apiKey: env.CONTEXT7_API_KEY,
+      apiKey: readOptionalString(env.CONTEXT7_API_KEY),
       timeoutMs: readInteger(env.CONTEXT7_TIMEOUT_MS),
       maxDocsChars: readInteger(env.CONTEXT7_MAX_DOCS_CHARS),
     }),
+    setup: compactObject({
+      suppressEmbeddingReminder: readBoolean(env.STUDENT_AGENT_SUPPRESS_EMBEDDING_REMINDER),
+    }),
     playwright: compactObject({
       useStorageState: readBoolean(env.PLAYWRIGHT_USE_STORAGE_STATE),
-      storageStatePath: env.PLAYWRIGHT_STORAGE_STATE_PATH,
+      storageStatePath: readOptionalString(env.PLAYWRIGHT_STORAGE_STATE_PATH),
       navigationTimeoutMs: readInteger(env.PLAYWRIGHT_NAVIGATION_TIMEOUT_MS),
       renderWaitMs: readInteger(env.PLAYWRIGHT_RENDER_WAIT_MS),
       maxChars: readInteger(env.PLAYWRIGHT_MAX_CHARS),
@@ -118,6 +146,23 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       maxConcurrency: readInteger(env.SUB_AGENT_MAX_CONCURRENCY),
     }),
   };
+}
+
+function readProviderEnv(env: NodeJS.ProcessEnv): StudentAgentProvider | undefined {
+  const raw = readOptionalString(env.STUDENT_AGENT_PROVIDER);
+  return raw ? normalizeProvider(raw) : undefined;
+}
+
+function readModelBaseUrl(
+  env: NodeJS.ProcessEnv,
+  provider: StudentAgentProvider | undefined,
+): string | undefined {
+  return readOptionalString(env.STUDENT_AGENT_MODEL_BASE_URL)
+    ?? (provider === undefined
+      ? undefined
+      : provider === 'openai'
+      ? readOptionalString(env.OPENAI_BASE_URL)
+      : readOptionalString(env.ANTHROPIC_BASE_URL));
 }
 
 function readBoolean(value: string | undefined): boolean | undefined {
@@ -139,6 +184,14 @@ function readBoolean(value: string | undefined): boolean | undefined {
     default:
       return undefined;
   }
+}
+
+function readOptionalString(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function readInteger(value: string | undefined): number | undefined {

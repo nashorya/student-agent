@@ -62,7 +62,7 @@ const DIAGNOSIS_TABLE: Partial<Record<ErrorCategory, Record<string, DiagnosisEnt
   },
 };
 
-const BORDER = '━'.repeat(39);
+const BORDER = '='.repeat(39);
 
 function lookupEntry(category: ErrorCategory, subtype: string): DiagnosisEntry {
   const byCategory = DIAGNOSIS_TABLE[category];
@@ -90,7 +90,7 @@ export function renderDiagnosticReport(input: DiagnosticInput): string {
   return [
     BORDER,
     '',
-    ' ⚠  需要你的帮助',
+    ' WARN: 需要你的帮助',
     '',
     ` 任务：${taskDescription}`,
     '',

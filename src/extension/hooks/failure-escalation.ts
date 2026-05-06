@@ -13,9 +13,15 @@ import { classifyError, type ClassifiedError } from '../../core/state-machine/er
 import { renderDiagnosticReport, type DiagnosticInput } from '../../core/state-machine/diagnostic-reporter.js';
 import type { AttemptRecord, ErrorCategory } from '../../core/state-machine/types.js';
 import type { Context7Client, Context7DocsResult } from '../../knowledge/context7-client.js';
+import { QuestionsManager } from '../../memory/questions/manager.js';
+import type { Question } from '../../memory/questions/types.js';
+
+// 只读工具成功不代表任务恢复，不重置失败计数
+const READONLY_TOOLS = new Set(['read', 'grep', 'ripgrep', 'ls']);
 
 export interface FailureEscalationOptions {
   context7Client?: Pick<Context7Client, 'query'>;
+  memoryDir?: string;
   /** 获取最近一次快照 ID 的回调 */
   getLastSnapshotId?: () => string | null;
   /** 回滚到指定快照的回调 */
@@ -31,12 +37,15 @@ export class FailureEscalationContext {
   private attempts: AttemptRecord[] = [];
   private taskDescription = '';
   private cwd = '';
+  private pendingQuestion: Question | null = null;
   private readonly context7Client?: Pick<Context7Client, 'query'>;
+  private readonly memoryDir: string;
   private readonly getLastSnapshotId: () => string | null;
   private readonly restoreSnapshotFn: (cwd: string, snapshotId: string) => Promise<void>;
 
   constructor(options: FailureEscalationOptions = {}) {
     this.context7Client = options.context7Client;
+    this.memoryDir = options.memoryDir ?? `${process.cwd()}/memory`;
     this.getLastSnapshotId = options.getLastSnapshotId ?? (() => null);
     this.restoreSnapshotFn = options.restoreSnapshot ?? (async () => {});
   }
@@ -47,6 +56,14 @@ export class FailureEscalationContext {
     this.attempts = [];
     this.taskDescription = taskDesc;
     this.cwd = workingDir;
+    this.pendingQuestion = null;
+  }
+
+  /** 取出待回答问题（取后清空），供 REPL 展示给用户。 */
+  takePendingQuestion(): Question | null {
+    const q = this.pendingQuestion;
+    this.pendingQuestion = null;
+    return q;
   }
 
   /**
@@ -54,12 +71,14 @@ export class FailureEscalationContext {
    * 返回一个可直接传给 StudentAgentHooks.onAfterToolCall 的函数。
    *
    * 只在工具执行出错（isError === true）时介入。
-   * 成功时重置连续失败计数。
+   * 只读工具（read/grep/ls）成功不重置计数。
    */
   createHook() {
     return async (ctx: PostToolCallContext): Promise<EscalationDecision | undefined> => {
       if (!ctx.isError) {
-        this.consecutiveFailures = 0;
+        if (!READONLY_TOOLS.has(ctx.toolName)) {
+          this.consecutiveFailures = 0;
+        }
         return undefined;
       }
 
@@ -137,7 +156,7 @@ export class FailureEscalationContext {
     };
   }
 
-  // ── Attempt 3：中断 + 诊断报告 ─────────────────────
+  // ── Attempt 3：中断 + 诊断报告 + 提问 ──────────────
 
   private async handleAttempt3(
     ctx: PostToolCallContext,
@@ -160,6 +179,34 @@ export class FailureEscalationContext {
     };
 
     const report = renderDiagnosticReport(diagnosticInput);
+
+    const question: Question = {
+      id: `q_${Date.now()}`,
+      error_type: classified.category,
+      error_subtype: classified.subtype,
+      context: `任务「${this.taskDescription}」三次自动恢复失败（${classified.category}/${classified.subtype}）。${classified.message}`,
+      attempts: this.attempts.map((a) => ({
+        strategy: a.strategy,
+        result: '失败' as const,
+        reason: a.reason,
+      })),
+      status: 'unverified',
+      hit_count: 1,
+      last_hit: new Date().toISOString(),
+      provenance: {
+        source_type: 'machine-inferred',
+        task_id: `task_${Date.now()}`,
+        session_ref: `session_${Date.now()}`,
+        trust_status: 'pending',
+      },
+    };
+
+    try {
+      await QuestionsManager.getInstance(this.memoryDir).append(question);
+    } catch {
+      // 写入失败不阻塞主流程
+    }
+    this.pendingQuestion = question;
 
     return {
       overrideContent: report,
@@ -193,13 +240,13 @@ function buildRecoveryInstructions(
   rolledBack: boolean,
 ): string {
   const lines = [
-    `⚠ 工具执行失败（${classified.category}/${classified.subtype}）`,
+    `WARN: 工具执行失败（${classified.category}/${classified.subtype}）`,
     `错误：${classified.message}`,
     '',
   ];
 
   if (rolledBack) {
-    lines.push('✓ 已自动回滚到工具调用前的状态。');
+    lines.push('OK: 已自动回滚到工具调用前的状态。');
     lines.push('');
   }
 
@@ -265,7 +312,7 @@ function renderContext7Docs(
   docs: Context7DocsResult,
 ): string {
   return [
-    `⚠ 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
+    `WARN: 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
     `错误：${classified.message}`,
     '',
     '已触发 Context7 文档检索。',
@@ -284,7 +331,7 @@ function renderContext7Docs(
 
 function buildContext7Fallback(classified: ClassifiedError, reason?: string): string {
   const lines = [
-    `⚠ 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
+    `WARN: 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
     `错误：${classified.message}`,
     '',
     '已尝试触发 Context7 文档检索，但没有可用文档可注入。',

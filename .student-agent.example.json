@@ -6,11 +6,18 @@
     "qualityWatchdog": true,
     "subAgents": false
   },
+  "model": {
+    "provider": "anthropic",
+    "name": "claude-sonnet-4-6"
+  },
   "llm": {
     "requestTimeoutMs": 300000,
     "maxOutputTokens": 8192,
     "maxRetries": 2,
     "maxRetryDelayMs": 60000
+  },
+  "setup": {
+    "suppressEmbeddingReminder": false
   },
   "subAgents": {
     "maxConcurrency": 3

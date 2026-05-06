@@ -1,7 +1,9 @@
+export type StudentAgentProvider = 'anthropic' | 'openai';
+
 export interface StudentAgentConfig {
   envFile: string;
   model: {
-    provider: 'anthropic';
+    provider: StudentAgentProvider;
     name: string;
     baseUrl?: string;
   };
@@ -23,6 +25,9 @@ export interface StudentAgentConfig {
     timeoutMs: number;
     maxDocsChars: number;
   };
+  setup: {
+    suppressEmbeddingReminder: boolean;
+  };
   playwright: {
     useStorageState: boolean;
     storageStatePath?: string;
@@ -36,7 +41,7 @@ export interface StudentAgentConfig {
 }
 
 export interface StudentAgentModelInput {
-  provider?: 'anthropic';
+  provider?: StudentAgentProvider;
   name?: string;
   baseUrl?: string;
 }
@@ -47,6 +52,7 @@ export type StudentAgentConfigInput = Partial<{
   llm: Partial<StudentAgentConfig['llm']>;
   features: Partial<StudentAgentConfig['features']>;
   context7: Partial<StudentAgentConfig['context7']>;
+  setup: Partial<StudentAgentConfig['setup']>;
   playwright: Partial<StudentAgentConfig['playwright']>;
   subAgents: Partial<StudentAgentConfig['subAgents']>;
 }>;
@@ -70,6 +76,9 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
   context7: {
     timeoutMs: 10_000,
     maxDocsChars: 6_000,
+  },
+  setup: {
+    suppressEmbeddingReminder: false,
   },
   playwright: {
     useStorageState: false,

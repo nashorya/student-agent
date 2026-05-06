@@ -31,18 +31,27 @@ class OpenAICompatibleEmbeddingProvider implements EmbeddingProvider {
   private readonly apiKey: string;
 
   constructor(options?: { baseUrl?: string; model?: string; apiKey?: string }) {
-    this.baseUrl = options?.baseUrl ?? EMBEDDING_API_BASE_URL;
-    this.model = options?.model ?? EMBEDDING_MODEL;
-    const key = options?.apiKey ?? process.env.OPENAI_API_KEY ?? '';
+    this.baseUrl = options?.baseUrl
+      ?? process.env.STUDENT_AGENT_EMBEDDING_BASE_URL
+      ?? process.env.OPENAI_BASE_URL
+      ?? EMBEDDING_API_BASE_URL;
+    this.model = options?.model
+      ?? process.env.STUDENT_AGENT_EMBEDDING_MODEL
+      ?? process.env.OPENAI_EMBEDDING_MODEL
+      ?? EMBEDDING_MODEL;
+    const key = options?.apiKey
+      ?? process.env.STUDENT_AGENT_EMBEDDING_API_KEY
+      ?? process.env.OPENAI_API_KEY
+      ?? '';
     if (!key) {
-      console.warn('[DocsIndex] OPENAI_API_KEY 未设置，嵌入功能将不可用');
+      console.warn('[DocsIndex] STUDENT_AGENT_EMBEDDING_API_KEY / OPENAI_API_KEY 未设置，嵌入功能将不可用');
     }
     this.apiKey = key;
   }
 
   async embed(text: string): Promise<number[]> {
     if (!this.apiKey) {
-      throw new Error('OPENAI_API_KEY 未设置，无法生成嵌入向量');
+      throw new Error('STUDENT_AGENT_EMBEDDING_API_KEY / OPENAI_API_KEY 未设置，无法生成嵌入向量');
     }
 
     const response = await fetch(`${this.baseUrl}/embeddings`, {

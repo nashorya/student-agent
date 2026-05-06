@@ -34,7 +34,7 @@ import { EventRenderer } from '../cli/event-renderer.js';
 import { parseCommand, getHelpText, COMMANDS } from '../cli/command-parser.js';
 import { printBanner } from '../cli/banner.js';
 import { TasksManager } from '../memory/tasks/manager.js';
-import { parsePhaseSignal, stripPhaseSignals } from '../core/task-planner/phase-signal.js';
+import { parsePhaseSignal } from '../core/task-planner/phase-signal.js';
 import { detectNegativeFeedback } from '../core/task-planner/feedback-detector.js';
 import { classifyIntent } from '../core/task-planner/intent-classifier.js';
 import { buildTaskContextPrefix } from '../core/task-planner/task-context-builder.js';
