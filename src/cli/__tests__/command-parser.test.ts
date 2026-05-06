@@ -25,6 +25,11 @@ describe('parseCommand', () => {
     expect(parseCommand('/status')).toEqual({ type: 'status' });
   });
 
+  it('解析 setting 命令及别名', () => {
+    expect(parseCommand('/setting')).toEqual({ type: 'setting' });
+    expect(parseCommand('/settings')).toEqual({ type: 'setting' });
+  });
+
   it('解析 clear 命令', () => {
     expect(parseCommand('/clear')).toEqual({ type: 'clear' });
   });
@@ -62,6 +67,27 @@ describe('parseCommand', () => {
     });
   });
 
+  it('解析 task 命令', () => {
+    expect(parseCommand('/task')).toEqual({
+      type: 'task',
+      subcommand: 'status',
+    });
+    expect(parseCommand('/task status')).toEqual({
+      type: 'task',
+      subcommand: 'status',
+    });
+    expect(parseCommand('/task rename 新任务名')).toEqual({
+      type: 'task',
+      subcommand: 'rename',
+      name: '新任务名',
+    });
+    expect(parseCommand('/task rename 多个 词 的 名字')).toEqual({
+      type: 'task',
+      subcommand: 'rename',
+      name: '多个 词 的 名字',
+    });
+  });
+
   it('未知命令返回 unknown', () => {
     expect(parseCommand('/foo')).toEqual({ type: 'unknown', raw: '/foo' });
     expect(parseCommand('/bar baz')).toEqual({ type: 'unknown', raw: '/bar baz' });
@@ -80,8 +106,10 @@ describe('getHelpText', () => {
     expect(help).toContain('/help');
     expect(help).toContain('/quit');
     expect(help).toContain('/status');
+    expect(help).toContain('/setting');
     expect(help).toContain('/clear');
     expect(help).toContain('/candidates');
     expect(help).toContain('/feedback');
+    expect(help).toContain('/task');
   });
 });
