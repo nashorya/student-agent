@@ -7,9 +7,13 @@ export type SlashCommand =
   | { type: 'quit' }
   | { type: 'help' }
   | { type: 'status' }
+  | { type: 'setting' }
   | { type: 'clear' }
   | { type: 'candidates' }
+  | { type: 'init' }
   | { type: 'feedback'; rating: 'up' | 'down'; comment: string }
+  | { type: 'task'; subcommand: 'rename'; name: string }
+  | { type: 'task'; subcommand: 'status' }
   | { type: 'unknown'; raw: string };
 
 export const COMMANDS = [
@@ -20,9 +24,13 @@ export const COMMANDS = [
   '/exit',
   '/q',
   '/status',
+  '/setting',
+  '/settings',
   '/clear',
   '/candidates',
-  '/feedback'
+  '/init',
+  '/feedback',
+  '/task'
 ];
 
 /**
@@ -50,11 +58,18 @@ export function parseCommand(input: string): SlashCommand | null {
     case 'status':
       return { type: 'status' };
 
+    case 'setting':
+    case 'settings':
+      return { type: 'setting' };
+
     case 'clear':
       return { type: 'clear' };
 
     case 'candidates':
       return { type: 'candidates' };
+
+    case 'init':
+      return { type: 'init' };
 
     case 'feedback': {
       const rating = args[0] as 'up' | 'down' | undefined;
@@ -63,6 +78,13 @@ export function parseCommand(input: string): SlashCommand | null {
       }
       const comment = args.slice(1).join(' ') || '';
       return { type: 'feedback', rating, comment };
+    }
+
+    case 'task': {
+      if (args[0] === 'rename' && args.length >= 2) {
+        return { type: 'task', subcommand: 'rename', name: args.slice(1).join(' ') };
+      }
+      return { type: 'task', subcommand: 'status' };
     }
 
     default:
@@ -80,9 +102,13 @@ export function getHelpText(): string {
     '    /help, /h, /?         显示此帮助',
     '    /quit, /exit, /q      退出',
     '    /status               显示当前状态',
+    '    /setting              重新配置 Provider / API Key',
     '    /clear                清空屏幕',
     '    /candidates           查看偏好候选',
+    '    /init                     将当前目录初始化为 git 仓库（启用快照回滚）',
     '    /feedback up|down [评论]  提交质量反馈',
+    '    /task                 查看当前任务状态',
+    '    /task rename <名字>   重命名当前任务',
     '',
   ].join('\n');
 }
