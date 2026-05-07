@@ -223,6 +223,9 @@ async function main(): Promise<void> {
           case 'setting': {
             tui.unmount();
             runtime.unsubscribe();
+            // Ink 的 unmount 会 pause stdin，需要立即 resume 防止进程退出
+            process.stdin.resume();
+            await new Promise<void>((resolve) => setTimeout(resolve, 50));
             const settingsRl = createInterface({ input, output });
             try {
               runtime = await runSettingFlow(settingsRl, runtime);
