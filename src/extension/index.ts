@@ -62,25 +62,25 @@ interface RuntimeState {
 // ── 构建模型 ──────────────────────────────────────────
 
 function buildModel(config: StudentAgentConfig): Model<Api> {
-  if (config.model.provider === 'openai') {
-    return buildOpenAIChatModel(config);
+  const { provider, name, baseUrl } = config.model;
+
+  // 先从 Pi 注册表查找（支持所有已知提供商）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const piModels = getModels(provider as any) as Model<Api>[];
+  const piModel = piModels.find((m) => m.id === name);
+
+  if (piModel) {
+    return { ...piModel, baseUrl: baseUrl ?? piModel.baseUrl };
   }
 
-  const defaultModel = getDefaultModel(config.model.provider);
-  const configuredModel = getModels(config.model.provider).find((model) => model.id === config.model.name);
-  const baseModel = configuredModel ?? defaultModel;
-  return {
-    ...baseModel,
-    baseUrl: config.model.baseUrl ?? baseModel.baseUrl,
-  };
+  // 未在注册表中：按 OpenAI-compatible 规范构建（兜底）
+  return buildOpenAIChatModel(config);
 }
 
-function getDefaultModel(provider: StudentAgentConfig['model']['provider']): Model<Api> {
-  if (provider === 'openai') {
-    return buildOpenAIChatModel({
-      ...DEFAULT_OPENAI_CHAT_CONFIG,
-    });
-  }
+function getDefaultModel(provider: string): Model<Api> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const models = getModels(provider as any) as Model<Api>[];
+  if (models.length > 0) return models[0];
   return getModel('anthropic', 'claude-sonnet-4-6');
 }
 

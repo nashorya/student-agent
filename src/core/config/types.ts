@@ -1,4 +1,4 @@
-export type StudentAgentProvider = 'anthropic' | 'openai';
+export type StudentAgentProvider = string;
 
 export interface StudentAgentConfig {
   envFile: string;

@@ -2,8 +2,33 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Interface } from 'node:readline/promises';
 import chalk from 'chalk';
+import { getProviders, getModels } from '@mariozechner/pi-ai';
+import type { KnownProvider } from '@mariozechner/pi-ai';
 import type { StudentAgentConfig, StudentAgentConfigInput, StudentAgentProvider } from '../config/types.js';
 import { parseEnvFile } from '../env.js';
+
+const API_KEY_MAP: Record<string, string> = {
+  'anthropic': 'ANTHROPIC_API_KEY',
+  'openai': 'OPENAI_API_KEY',
+  'openai-codex': 'OPENAI_API_KEY',
+  'deepseek': 'DEEPSEEK_API_KEY',
+  'google': 'GOOGLE_API_KEY',
+  'google-vertex': 'GOOGLE_API_KEY',
+  'groq': 'GROQ_API_KEY',
+  'xai': 'XAI_API_KEY',
+  'mistral': 'MISTRAL_API_KEY',
+  'openrouter': 'OPENROUTER_API_KEY',
+  'cerebras': 'CEREBRAS_API_KEY',
+  'fireworks': 'FIREWORKS_API_KEY',
+  'github-copilot': 'GITHUB_TOKEN',
+  'amazon-bedrock': 'AWS_ACCESS_KEY_ID',
+  'azure-openai-responses': 'AZURE_OPENAI_API_KEY',
+  'huggingface': 'HUGGINGFACE_API_KEY',
+  'moonshotai': 'MOONSHOT_API_KEY',
+  'minimax': 'MINIMAX_API_KEY',
+  'vercel-ai-gateway': 'VERCEL_OPENAI_API_KEY',
+  'zai': 'ZAI_API_KEY',
+};
 
 export interface StartupInitializerOptions {
   cwd: string;
@@ -74,54 +99,76 @@ async function configureModelProvider(
     return false;
   }
 
-  log(chalk.yellow('未检测到模型 API Key，需要先完成 Provider 连接配置。'));
-  const provider = normalizeProviderChoice(await prompt('选择 Provider：1) Anthropic Messages  2) OpenAI Chat Completions [1]: '));
-  const mode = normalizeConnectionMode(await prompt('连接方式：1) 直连  2) 中转站 [1]: '));
+  log(chalk.yellow('需要配置 LLM Provider 和 API Key。'));
 
-  const modelName = await promptModelName(prompt, provider);
+  // ── 选择 Provider ──────────────────────────────────────────────────
+  const piProviders = getProviders();
+  log('\n  可用 Provider（来自 Pi 注册表）：');
+  piProviders.forEach((p, i) => {
+    log(`    ${String(i + 1).padStart(2)}) ${p}`);
+  });
+  log(`    ${String(piProviders.length + 1).padStart(2)}) 手动输入`);
+
+  const defaultProviderIdx = piProviders.indexOf('anthropic' as KnownProvider) + 1;
+  const providerChoice = (await prompt(`\n  选择 Provider [${defaultProviderIdx}]: `)).trim();
+  const providerNum = parseInt(providerChoice || String(defaultProviderIdx));
+
+  let provider: StudentAgentProvider;
+  if (!isNaN(providerNum) && providerNum >= 1 && providerNum <= piProviders.length) {
+    provider = piProviders[providerNum - 1];
+  } else if (providerNum === piProviders.length + 1) {
+    provider = (await prompt('  Provider 名称: ')).trim() || 'anthropic';
+  } else {
+    provider = providerChoice || 'anthropic';
+  }
+
+  // ── 选择模型 ───────────────────────────────────────────────────────
+  const modelName = await promptModelName(prompt, provider, log);
+
+  // ── API Key ────────────────────────────────────────────────────────
+  const apiKeyName = getApiKeyEnvName(provider);
+  const existingKey = env[apiKeyName] ? ` [已有，直接回车保留]` : '';
+  const apiKey = (await prompt(`  ${apiKeyName}${existingKey}: `)).trim();
+  if (!apiKey && !env[apiKeyName]) {
+    log(chalk.yellow('API Key 为空，已跳过初始化。'));
+    return false;
+  }
+
+  // ── 中转站（可选）──────────────────────────────────────────────────
+  const modeChoice = (await prompt('  连接方式：1) 直连  2) 中转站（自定义 Base URL）[1]: ')).trim();
+  const isRelay = modeChoice === '2' || modeChoice.toLowerCase() === 'relay';
+
   const values: Record<string, string> = {
     STUDENT_AGENT_PROVIDER: provider,
     STUDENT_AGENT_MODEL: modelName,
   };
   env.STUDENT_AGENT_PROVIDER = provider;
   env.STUDENT_AGENT_MODEL = modelName;
-  const configPatch: StudentAgentConfigInput = {
-    model: {
-      provider,
-      name: modelName,
-    },
-  };
 
-  if (mode === 'relay') {
-    const baseUrl = (await prompt('中转站 Base URL: ')).trim();
+  const configPatch: StudentAgentConfigInput = { model: { provider, name: modelName } };
+
+  if (isRelay) {
+    const baseUrl = (await prompt('  Base URL: ')).trim();
     if (!baseUrl) {
       log(chalk.yellow('Base URL 为空，已跳过初始化。'));
       return false;
     }
-    configPatch.model = {
-      ...configPatch.model,
-      baseUrl,
-    };
-    values[getBaseUrlEnvName(provider)] = baseUrl;
-    env[getBaseUrlEnvName(provider)] = baseUrl;
+    configPatch.model = { ...configPatch.model, baseUrl };
+    values['STUDENT_AGENT_BASE_URL'] = baseUrl;
+    env['STUDENT_AGENT_BASE_URL'] = baseUrl;
   } else {
-    values[getBaseUrlEnvName(provider)] = '';
-    delete env[getBaseUrlEnvName(provider)];
+    values['STUDENT_AGENT_BASE_URL'] = '';
+    delete env['STUDENT_AGENT_BASE_URL'];
   }
 
-  const apiKeyName = getApiKeyEnvName(provider);
-  const apiKey = (await prompt(`${apiKeyName}: `)).trim();
-  if (!apiKey) {
-    log(chalk.yellow('API Key 为空，已跳过初始化。'));
-    return false;
+  if (apiKey) {
+    values[apiKeyName] = apiKey;
+    env[apiKeyName] = apiKey;
   }
-
-  values[apiKeyName] = apiKey;
-  env[apiKeyName] = apiKey;
 
   await upsertEnvFile(join(options.cwd, options.config.envFile), values);
   await updateStudentAgentConfig(options.cwd, configPatch);
-  log(chalk.green(`已写入 ${options.config.envFile}`));
+  log(chalk.green(`\nOK: 已写入 ${options.config.envFile}（Provider: ${provider}, 模型: ${modelName}）`));
   return true;
 }
 
@@ -277,41 +324,49 @@ async function updateStudentAgentConfig(cwd: string, patch: StudentAgentConfigIn
   await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
 }
 
-function normalizeConnectionMode(input: string): 'direct' | 'relay' {
-  const normalized = input.trim().toLowerCase();
-  if (normalized === '2' || normalized === 'relay' || normalized === 'baseurl' || normalized === '中转站') {
-    return 'relay';
-  }
-  return 'direct';
-}
-
-function normalizeProviderChoice(input: string): StudentAgentProvider {
-  const normalized = input.trim().toLowerCase();
-  if (normalized === '2' || normalized === 'openai' || normalized === 'openai-chat') {
-    return 'openai';
-  }
-  return 'anthropic';
-}
-
 async function promptModelName(
   prompt: (question: string) => Promise<string>,
   provider: StudentAgentProvider,
+  log: (message: string) => void,
 ): Promise<string> {
-  const defaultModel = provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6';
-  const input = (await prompt(`模型名称 [${defaultModel}]: `)).trim();
-  return input || defaultModel;
+  const defaultFallback = provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const models = getModels(provider as any);
+
+  if (models.length === 0) {
+    const input = (await prompt(`  模型名称 [${defaultFallback}]: `)).trim();
+    return input || defaultFallback;
+  }
+
+  log(`\n  ${provider} 可用模型：`);
+  models.forEach((m, i) => {
+    log(`    ${String(i + 1).padStart(2)}) ${m.id}`);
+  });
+  log(`    ${String(models.length + 1).padStart(2)}) 手动输入`);
+
+  const defaultIdx = models.findIndex((m) => m.id === defaultFallback);
+  const displayDefault = defaultIdx >= 0 ? defaultIdx + 1 : 1;
+
+  const choice = (await prompt(`  选择模型 [${displayDefault}]: `)).trim();
+  const num = parseInt(choice || String(displayDefault));
+
+  if (!isNaN(num) && num >= 1 && num <= models.length) {
+    return models[num - 1].id;
+  }
+  if (num === models.length + 1) {
+    const custom = (await prompt(`  模型名称 [${defaultFallback}]: `)).trim();
+    return custom || defaultFallback;
+  }
+  // 直接输入了模型 ID
+  return choice || defaultFallback;
 }
 
 function hasModelProviderKey(provider: StudentAgentProvider, env: NodeJS.ProcessEnv): boolean {
   return hasValue(env[getApiKeyEnvName(provider)]);
 }
 
-function getApiKeyEnvName(provider: StudentAgentProvider): 'ANTHROPIC_API_KEY' | 'OPENAI_API_KEY' {
-  return provider === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY';
-}
-
-function getBaseUrlEnvName(provider: StudentAgentProvider): 'ANTHROPIC_BASE_URL' | 'OPENAI_BASE_URL' {
-  return provider === 'openai' ? 'OPENAI_BASE_URL' : 'ANTHROPIC_BASE_URL';
+function getApiKeyEnvName(provider: StudentAgentProvider): string {
+  return API_KEY_MAP[provider] ?? `${provider.toUpperCase().replace(/-/g, '_')}_API_KEY`;
 }
 
 function readEnvLineKey(line: string): string | null {
