@@ -25,7 +25,6 @@ export const COMMANDS = [
   '/q',
   '/status',
   '/setting',
-  '/settings',
   '/clear',
   '/candidates',
   '/init',

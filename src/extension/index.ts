@@ -174,7 +174,8 @@ async function main(): Promise<void> {
 
   if (isTTY()) {
     // ── TUI 模式 ──────────────────────────────────────
-
+    // 外层循环：setting 流程完成后重新挂载 TUI
+    tuiRestartLoop: while (true) {
     let resolveSubmit: ((value: string) => void) | null = null;
     let currentRuntime = runtime;
 
@@ -219,9 +220,17 @@ async function main(): Promise<void> {
             );
             continue;
 
-          case 'setting':
-            tui.bridge.addMessage('system', '/setting 在 TUI 模式下暂不支持，请退出后使用普通终端');
-            continue;
+          case 'setting': {
+            tui.unmount();
+            runtime.unsubscribe();
+            const settingsRl = createInterface({ input, output });
+            try {
+              runtime = await runSettingFlow(settingsRl, runtime);
+            } finally {
+              settingsRl.close();
+            }
+            continue tuiRestartLoop;
+          }
 
           case 'task': {
             const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
@@ -488,6 +497,7 @@ async function main(): Promise<void> {
         tui.bridge.addMessage('system', `[需要你的帮助] ${pendingQ.context}`);
       }
     }
+    } // end tuiRestartLoop iteration
   } else {
     // ── 非 TUI 模式（readline 降级）──────────────────
 
