@@ -43,6 +43,7 @@ export interface LlmRequestLimits {
   maxTokens?: number;
   maxRetries?: number;
   maxRetryDelayMs?: number;
+  apiKey?: string;
 }
 
 // ── Session 创建 ────────────────────────────────────
@@ -56,6 +57,11 @@ export interface CreateStudentSessionOptions {
   hooks: StudentAgentHooks;
   /** Provider-level request limits injected into each LLM stream call. */
   llm?: LlmRequestLimits;
+  /**
+   * 显式 API Key（供自定义 provider 使用）。
+   * Pi 的 hasConfiguredAuth 不认识自定义 provider，需通过 registerProvider 注入。
+   */
+  apiKey?: string;
   /** 额外传递给 Pi 的选项 */
   piOptions?: Partial<CreateAgentSessionOptions>;
 }
@@ -77,7 +83,7 @@ export interface CreateStudentSessionResult {
 export async function createStudentSession(
   options: CreateStudentSessionOptions,
 ): Promise<CreateStudentSessionResult> {
-  const { cwd = process.cwd(), model, hooks, llm, piOptions = {} } = options;
+  const { cwd = process.cwd(), model, hooks, llm, apiKey, piOptions = {} } = options;
 
   const agentOptions: CreateAgentSessionOptions = {
     cwd,
@@ -109,6 +115,13 @@ export async function createStudentSession(
 
   const { session } = piResult;
   const { agent } = session;
+
+  // 为自定义 provider 注册 API Key。
+  // Pi 的 hasConfiguredAuth 只认识内置 provider 的 env var，
+  // 对未知 provider 需通过 registerProvider 把 key 存入 providerRequestConfigs。
+  if (apiKey && model) {
+    session.modelRegistry.registerProvider(model.provider, { apiKey });
+  }
 
   applyLlmRequestLimits(agent, llm);
 
@@ -183,5 +196,6 @@ export function applyLlmRequestLimits(agent: Agent, limits: LlmRequestLimits | u
     maxTokens: options?.maxTokens ?? limits.maxTokens,
     maxRetries: options?.maxRetries ?? limits.maxRetries,
     maxRetryDelayMs: options?.maxRetryDelayMs ?? limits.maxRetryDelayMs,
+    apiKey: options?.apiKey ?? limits.apiKey,
   });
 }

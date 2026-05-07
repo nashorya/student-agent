@@ -18,12 +18,13 @@ import { execFile } from 'node:child_process';
 import chalk from 'chalk';
 import { getModel, getModels, type Api, type Model } from '@mariozechner/pi-ai';
 import { loadEnvFile } from '../core/env.js';
-import { loadStudentAgentConfig } from '../core/config/loader.js';
+import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
-import { createReadlinePrompt, runStartupInitializer } from '../core/setup/initializer.js';
+import { createReadlinePrompt, runStartupInitializer, switchModelName, getApiKeyEnvName } from '../core/setup/initializer.js';
 import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/session-factory.js';
 import { Context7Client } from '../knowledge/context7-client.js';
 import { createSnapshotHook, getLastSnapshotId, restoreSnapshot } from './hooks/snapshot.js';
+import { createFileGuardHook } from './hooks/file-guard.js';
 import { FailureEscalationContext } from './hooks/failure-escalation.js';
 import { createMemoryHook } from './hooks/memory.js';
 import { createReflectHook, markReflectBaseline } from './hooks/reflect.js';
@@ -40,11 +41,20 @@ import { detectNegativeFeedback } from '../core/task-planner/feedback-detector.j
 import { classifyIntent } from '../core/task-planner/intent-classifier.js';
 import { buildTaskContextPrefix } from '../core/task-planner/task-context-builder.js';
 import { buildCtx7RetryContext } from '../core/task-planner/ctx7-retry-builder.js';
+import { buildPlanningPrompt, buildPhaseExecutionPrompt } from '../core/task-planner/planning-prompt.js';
 
 // ── 配置 ──────────────────────────────────────────────
 
 const CWD = process.env.STUDENT_AGENT_CWD ?? process.cwd();
 const MEMORY_DIR = join(CWD, 'memory');
+
+// 早期检测：CWD 为根目录会导致 memory/ 写入 /memory（需要 root 权限）
+if (CWD === '/') {
+  console.error('[StudentAgent] 错误：工作目录为文件系统根目录（/）。');
+  console.error('  请从项目目录运行：cd /path/to/project && npm run dev');
+  console.error('  或设置 STUDENT_AGENT_CWD 环境变量指向项目目录。');
+  process.exit(1);
+}
 
 /** 当前任务描述（用于 ReflectAgent 和失败升级的诊断报告） */
 let currentTaskDescription = '';
@@ -57,6 +67,8 @@ interface RuntimeState {
   renderer: EventRenderer;
   unsubscribe: () => void;
   model: Model<Api>;
+  resetFileGuard: () => void;
+  setFileGuardMode: (mode: 'planning' | 'normal') => void;
 }
 
 // ── 构建模型 ──────────────────────────────────────────
@@ -92,11 +104,12 @@ const DEFAULT_OPENAI_CHAT_CONFIG: Pick<StudentAgentConfig, 'model'> = {
 };
 
 function buildOpenAIChatModel(config: Pick<StudentAgentConfig, 'model'>): Model<Api> {
+  const api = (config.model.api as Api | undefined) ?? 'openai-completions';
   return {
     id: config.model.name,
     name: config.model.name,
-    api: 'openai-completions',
-    provider: 'openai',
+    api,
+    provider: config.model.provider,
     baseUrl: config.model.baseUrl ?? 'https://api.openai.com/v1',
     reasoning: false,
     input: ['text', 'image'],
@@ -116,7 +129,7 @@ function buildOpenAIChatModel(config: Pick<StudentAgentConfig, 'model'>): Model<
 
 // ── 组装 Hooks ────────────────────────────────────────
 
-function buildHooks(config: StudentAgentConfig): { hooks: StudentAgentHooks; escalation: FailureEscalationContext } {
+function buildHooks(config: StudentAgentConfig, abortRef: { abort: () => void }): { hooks: StudentAgentHooks; escalation: FailureEscalationContext; resetFileGuard: () => void; setFileGuardMode: (mode: 'planning' | 'normal') => void } {
   const reflectHook = createReflectHook(MEMORY_DIR, () => currentTaskDescription, {
     boundedBreakerEnabled: config.features.boundedBreaker,
   });
@@ -138,8 +151,15 @@ function buildHooks(config: StudentAgentConfig): { hooks: StudentAgentHooks; esc
     restoreSnapshot,
   });
 
+  const fileGuard = createFileGuardHook(abortRef);
+  const snapshotHook = createSnapshotHook(CWD);
+
   const hooks: StudentAgentHooks = {
-    onBeforeToolCall: createSnapshotHook(CWD),
+    onBeforeToolCall: async (ctx) => {
+      const guardDecision = await fileGuard.hook(ctx);
+      if (guardDecision?.block) return guardDecision;
+      return snapshotHook(ctx);
+    },
     onAfterToolCall: escalation.createHook(),
     buildMemoryPrompt: createMemoryHook(MEMORY_DIR),
     onSessionEnd: async (ctx) => {
@@ -148,7 +168,7 @@ function buildHooks(config: StudentAgentConfig): { hooks: StudentAgentHooks; esc
     },
   };
 
-  return { hooks, escalation };
+  return { hooks, escalation, resetFileGuard: fileGuard.reset, setFileGuardMode: fileGuard.setMode };
 }
 
 // ── 主入口 ─────────────────────────────────────────────
@@ -174,21 +194,20 @@ async function main(): Promise<void> {
 
   if (isTTY()) {
     // ── TUI 模式 ──────────────────────────────────────
-    // 外层循环：setting 流程完成后重新挂载 TUI
-    tuiRestartLoop: while (true) {
     let resolveSubmit: ((value: string) => void) | null = null;
-    let currentRuntime = runtime;
 
     const tui = startTUI({
       onSubmit: (value) => { resolveSubmit?.(value); },
-      onAbort: () => { currentRuntime.session.abort().catch(() => {}); },
+      onAbort: () => {
+        tui.bridge.updateTaskStatus({ state: 'aborting' });
+        runtime.session.abort().catch(() => {});
+      },
     });
 
-    // 重新挂载 EventRenderer，注入 TUIBridge
+    // 注入 TUIBridge 到 EventRenderer
     runtime.unsubscribe();
     runtime.renderer = new EventRenderer(tui.bridge);
     runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
-    currentRuntime = runtime;
 
     while (true) {
       const userInput = await new Promise<string>((resolve) => { resolveSubmit = resolve; });
@@ -220,19 +239,76 @@ async function main(): Promise<void> {
             );
             continue;
 
-          case 'setting': {
-            tui.unmount();
-            runtime.unsubscribe();
-            // Ink 的 unmount 会 pause stdin，需要立即 resume 防止进程退出
-            process.stdin.resume();
-            await new Promise<void>((resolve) => setTimeout(resolve, 50));
-            const settingsRl = createInterface({ input, output });
-            try {
-              runtime = await runSettingFlow(settingsRl, runtime);
-            } finally {
-              settingsRl.close();
+          case 'model': {
+            if (runtime.agent.state.isStreaming) {
+              tui.bridge.addMessage('system', '当前任务仍在运行，不能切换模型。');
+              continue;
             }
-            continue tuiRestartLoop;
+            let modelLog = '';
+            const tuiModelPrompt = (question: string) => {
+              const fullQuestion = modelLog.trim()
+                ? modelLog.trimEnd() + '\n' + question
+                : question;
+              modelLog = '';
+              return tui.bridge.promptSettings(fullQuestion);
+            };
+            const newName = await switchModelName({
+              config: runtime.config,
+              prompt: tuiModelPrompt,
+              log: (msg) => { modelLog += msg + '\n'; },
+            });
+            if (newName) {
+              runtime.renderer.cleanup();
+              runtime.unsubscribe();
+              runtime = await createRuntime(await reloadConfig());
+              runtime.renderer = new EventRenderer(tui.bridge);
+              runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
+              tui.bridge.addMessage('system', `OK: 模型已切换为 ${runtime.config.model.provider}/${runtime.config.model.name}`);
+            } else {
+              tui.bridge.addMessage('system', '已取消。');
+            }
+            continue;
+          }
+
+          case 'setting': {
+            if (runtime.agent.state.isStreaming) {
+              tui.bridge.addMessage('system', '当前任务仍在运行，不能修改设置。');
+              continue;
+            }
+            // log() 调用的内容累积到 pendingLog，在下一次 prompt() 时拼入问题头部显示
+            let pendingLog = '';
+            const tuiLog = (msg: string) => { pendingLog += msg + '\n'; };
+            const tuiPrompt = (question: string) => {
+              const fullQuestion = pendingLog.trim()
+                ? pendingLog.trimEnd() + '\n' + question
+                : question;
+              pendingLog = '';
+              return tui.bridge.promptSettings(fullQuestion);
+            };
+            const targetAnswer = await tuiPrompt(
+              '设置项：\n  1) 模型 Provider / API Key\n  2) 向量模型\n  q) 取消\n选择 [1]: '
+            );
+            const trimmed = targetAnswer.trim().toLowerCase();
+            if (trimmed === 'q' || trimmed === 'quit' || trimmed === 'cancel') {
+              tui.bridge.addMessage('system', '已取消设置。');
+              continue;
+            }
+            const forceEmbedding = trimmed === '2' || trimmed === 'embedding';
+            await runStartupInitializer({
+              cwd: CWD,
+              config: runtime.config,
+              prompt: tuiPrompt,
+              log: tuiLog,
+              forceModelProviderSetup: !forceEmbedding,
+              forceEmbeddingSetup: forceEmbedding,
+            });
+            runtime.renderer.cleanup();
+            runtime.unsubscribe();
+            runtime = await createRuntime(await reloadConfig());
+            runtime.renderer = new EventRenderer(tui.bridge);
+            runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
+            tui.bridge.addMessage('system', `OK: 已应用设置：${runtime.config.model.provider}/${runtime.config.model.name}`);
+            continue;
           }
 
           case 'task': {
@@ -359,6 +435,7 @@ async function main(): Promise<void> {
         });
 
         try {
+          runtime.resetFileGuard();
           await runtime.session.prompt(finalPrompt);
           await runtime.agent.waitForIdle();
           tui.bridge.updateTaskStatus({ state: 'idle' });
@@ -377,20 +454,12 @@ async function main(): Promise<void> {
         );
 
         if (intent.type === 'new_task') {
-          const agentOutputs: string[] = [];
-          const tempUnsubscribe = runtime.agent.subscribe((event) => {
-            if (event.type === 'message_update' && event.message.role === 'assistant') {
-              const textContent = event.message.content.find((c) => c.type === 'text');
-              if (textContent && textContent.type === 'text') {
-                agentOutputs.push(textContent.text);
-              }
-            }
-          });
-
           currentTaskDescription = intent.taskName ?? userInput;
           runtime.escalation.initTask(currentTaskDescription, CWD);
           markReflectBaseline();
 
+          // ── 阶段 0：规划（planning 模式，最多读 3 个文件）──────────
+          tui.bridge.addMessage('system', '[规划中] 正在分析任务并制定执行计划…');
           tui.bridge.updateTaskStatus({
             name: currentTaskDescription,
             phaseIndex: 0,
@@ -401,8 +470,70 @@ async function main(): Promise<void> {
             state: 'running',
           });
 
+          const planOutputs: string[] = [];
+          const planUnsub = runtime.agent.subscribe((event) => {
+            if (event.type === 'message_update' && event.message.role === 'assistant') {
+              const textContent = event.message.content.find((c) => c.type === 'text');
+              if (textContent && textContent.type === 'text') planOutputs.push(textContent.text);
+            }
+          });
+
           try {
-            await runtime.session.prompt(userInput);
+            runtime.setFileGuardMode('planning');
+            await runtime.session.prompt(buildPlanningPrompt(userInput));
+            await runtime.agent.waitForIdle();
+          } catch (err) {
+            tui.bridge.updateTaskStatus({ state: 'failed' });
+            tui.bridge.addMessage('system', `规划失败: ${err instanceof Error ? err.message : String(err)}`);
+            runtime.setFileGuardMode('normal');
+            planUnsub();
+            continue;
+          } finally {
+            planUnsub();
+          }
+
+          runtime.setFileGuardMode('normal');
+          tui.bridge.updateTaskStatus({ state: 'idle' });
+
+          const planText = planOutputs.join('');
+          const planSignal = parsePhaseSignal(planText);
+
+          if (!planSignal || planSignal.type !== 'task_start') {
+            tui.bridge.addMessage('system', '[规划失败] Agent 未输出 TASK_START 信号，请重试或换个描述方式。');
+            continue;
+          }
+
+          const newTask = await tasksMgr.createTask(planSignal.name, planSignal.phases);
+          tui.bridge.addMessage('system',
+            `[规划完成] ${planSignal.name}，共 ${planSignal.phases.length} 个 Phase。开始执行 Phase 1…`
+          );
+          tui.bridge.updateTaskStatus({
+            name: planSignal.name,
+            phaseIndex: 0,
+            totalPhases: planSignal.phases.length,
+            retryCount: 0,
+            toolCallCount: 0,
+            elapsedMs: 0,
+            state: 'running',
+          });
+
+          // ── 阶段 1：自动执行 Phase 1 ──────────────────────────────
+          const phase1 = newTask.phases[0];
+          const phase1Prompt = buildPhaseExecutionPrompt(planSignal.name, phase1?.description ?? '', 0, planSignal.phases.length);
+
+          const exec1Outputs: string[] = [];
+          const exec1Unsub = runtime.agent.subscribe((event) => {
+            if (event.type === 'message_update' && event.message.role === 'assistant') {
+              const textContent = event.message.content.find((c) => c.type === 'text');
+              if (textContent && textContent.type === 'text') exec1Outputs.push(textContent.text);
+            }
+          });
+
+          try {
+            runtime.resetFileGuard();
+            currentTaskDescription = planSignal.name;
+            runtime.escalation.initTask(currentTaskDescription, CWD);
+            await runtime.session.prompt(phase1Prompt);
             await runtime.agent.waitForIdle();
             tui.bridge.updateTaskStatus({ state: 'idle' });
             if (runtime.agent.state.errorMessage) {
@@ -410,25 +541,20 @@ async function main(): Promise<void> {
             }
           } catch (err) {
             tui.bridge.updateTaskStatus({ state: 'failed' });
-            tui.bridge.addMessage('system', `Task error: ${err instanceof Error ? err.message : String(err)}`);
+            tui.bridge.addMessage('system', `Phase 1 执行失败: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
-            tempUnsubscribe();
+            exec1Unsub();
           }
 
-          const fullOutput = agentOutputs.join('');
-          const signal = parsePhaseSignal(fullOutput);
-
-          if (signal?.type === 'task_start') {
-            await tasksMgr.createTask(signal.name, signal.phases);
-            tui.bridge.addMessage('system', `[任务已创建] ${signal.name}，共 ${signal.phases.length} 个 Phase`);
-            tui.bridge.updateTaskStatus({ totalPhases: signal.phases.length });
-          } else if (signal?.type === 'phase_done' && activeTask) {
-            await tasksMgr.completePhase(activeTask.id);
-            const updatedTask = await tasksMgr.getActive();
-            if (updatedTask) {
-              tui.bridge.addMessage('system', `[Phase ${signal.phaseIndex + 1} 完成] 进入下一 Phase`);
+          const exec1Text = exec1Outputs.join('');
+          const exec1Signal = parsePhaseSignal(exec1Text);
+          if (exec1Signal?.type === 'phase_done') {
+            await tasksMgr.completePhase(newTask.id);
+            const remaining = await tasksMgr.getActive();
+            if (remaining) {
+              tui.bridge.addMessage('system', `[Phase 1 完成] 进入 Phase 2，发送任意内容继续。`);
             } else {
-              tui.bridge.addMessage('system', `[任务完成] ${activeTask.name}`);
+              tui.bridge.addMessage('system', `[任务完成] ${planSignal.name}`);
               tui.bridge.clearTaskStatus();
             }
           }
@@ -463,6 +589,7 @@ async function main(): Promise<void> {
           }
 
           try {
+            runtime.resetFileGuard();
             await runtime.session.prompt(finalPrompt);
             await runtime.agent.waitForIdle();
             tui.bridge.updateTaskStatus({ state: 'idle' });
@@ -500,7 +627,6 @@ async function main(): Promise<void> {
         tui.bridge.addMessage('system', `[需要你的帮助] ${pendingQ.context}`);
       }
     }
-    } // end tuiRestartLoop iteration
   } else {
     // ── 非 TUI 模式（readline 降级）──────────────────
 
@@ -546,6 +672,25 @@ async function main(): Promise<void> {
             console.log(chalk.dim(`  模型: ${runtime.config.model.provider}/${runtime.config.model.name}`));
             console.log(chalk.dim(`  LLM 超时: ${runtime.config.llm.requestTimeoutMs}ms`));
             continue;
+
+          case 'model': {
+            if (runtime.agent.state.isStreaming) {
+              console.log(chalk.yellow('  当前任务仍在运行，不能切换模型。'));
+              continue;
+            }
+            const newName = await switchModelName({
+              config: runtime.config,
+              prompt: createReadlinePrompt(rl),
+            });
+            if (newName) {
+              runtime.renderer.cleanup();
+              runtime.unsubscribe();
+              runtime = await createRuntime(await reloadConfig());
+            } else {
+              console.log(chalk.dim('  已取消。'));
+            }
+            continue;
+          }
 
           case 'setting':
             runtime = await runSettingFlow(rl, runtime);
@@ -792,23 +937,27 @@ async function main(): Promise<void> {
 }
 
 async function reloadConfig(): Promise<StudentAgentConfig> {
+  // 先加载全局 env（~/.student-agent/.env），再用项目 .env 覆盖
+  await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: true });
   const initialConfig = await loadStudentAgentConfig({ cwd: CWD });
-  await loadEnvFile({
-    cwd: CWD,
-    filename: initialConfig.envFile,
-    override: true,
-  });
+  await loadEnvFile({ cwd: CWD, filename: initialConfig.envFile, override: true });
   return loadStudentAgentConfig({ cwd: CWD });
 }
 
 async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> {
   const model = buildModel(config);
-  const { hooks, escalation } = buildHooks(config);
+  const abortRef = { abort: () => {} };
+  const { hooks, escalation, resetFileGuard, setFileGuardMode } = buildHooks(config, abortRef);
+
+  // Pi SDK 只认识内置 provider 的 env var（OPENAI_API_KEY 等）。
+  // 对自定义 provider，用 API_KEY_MAP 规则找到对应 env var，显式注入 apiKey。
+  const resolvedApiKey = process.env[getApiKeyEnvName(config.model.provider)];
 
   const { session, agent } = await createStudentSession({
     cwd: CWD,
     model,
     hooks,
+    apiKey: resolvedApiKey,
     llm: {
       timeoutMs: config.llm.requestTimeoutMs,
       maxTokens: config.llm.maxOutputTokens,
@@ -816,6 +965,9 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
       maxRetryDelayMs: config.llm.maxRetryDelayMs,
     },
   });
+
+  // 绑定 abort 回调：session 创建后才能访问 session.abort
+  abortRef.abort = () => session.abort().catch(() => {});
 
   const renderer = new EventRenderer();
   const unsubscribe = agent.subscribe((event) => {
@@ -830,6 +982,8 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
     renderer,
     unsubscribe,
     model,
+    resetFileGuard,
+    setFileGuardMode,
   };
 }
 
@@ -905,6 +1059,7 @@ async function runTaskWithAbort(runtime: RuntimeState, userInput: string): Promi
   }
 
   try {
+    runtime.resetFileGuard();
     await runtime.session.prompt(userInput);
     await runtime.agent.waitForIdle();
 

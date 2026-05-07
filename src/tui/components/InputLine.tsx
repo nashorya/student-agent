@@ -10,11 +10,11 @@ interface InputLineProps {
 
 export function InputLine({ onSubmit, onAbort }: InputLineProps) {
   const { state, dispatch } = useAppState();
-  const { inputValue, taskStatus } = state;
+  const { inputValue, cursorPos, taskStatus, currentTool, settingsPrompt } = state;
 
   const [menuIndex, setMenuIndex] = useState(0);
 
-  const menuItems = inputValue.startsWith('/')
+  const menuItems = !settingsPrompt && inputValue.startsWith('/')
     ? COMMANDS.filter((c) => c.startsWith(inputValue))
     : [];
   const showMenu = menuItems.length > 0;
@@ -25,6 +25,29 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
   }, [inputValue]);
 
   useInput((input, key) => {
+    // Settings prompt 模式：Enter 提交答案，Escape 取消（空答案）
+    if (settingsPrompt) {
+      if (key.return) {
+        settingsPrompt.resolve(inputValue);
+        dispatch({ type: 'SET_INPUT', value: '' });
+        return;
+      }
+      if (key.escape) {
+        settingsPrompt.resolve('');
+        dispatch({ type: 'SET_INPUT', value: '' });
+        return;
+      }
+      if (key.backspace || key.delete) {
+        dispatch({ type: 'SET_INPUT', value: inputValue.slice(0, -1) });
+        return;
+      }
+      if (input) {
+        const sanitized = input.replace(/\n/g, ' ');
+        dispatch({ type: 'SET_INPUT', value: inputValue + sanitized });
+      }
+      return;
+    }
+
     // 菜单开着时，↑↓ 和 Enter 优先给菜单
     if (showMenu) {
       if (key.upArrow) {
@@ -77,14 +100,30 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
       return;
     }
 
-    if (key.backspace || key.delete) {
-      dispatch({ type: 'SET_INPUT', value: inputValue.slice(0, -1) });
+    if (key.leftArrow) {
+      dispatch({ type: 'MOVE_CURSOR', direction: 'left' });
       return;
     }
 
-    // 多行粘贴：替换换行符为空格
-    const sanitized = input.replace(/\n/g, ' ');
-    dispatch({ type: 'SET_INPUT', value: inputValue + sanitized });
+    if (key.rightArrow) {
+      dispatch({ type: 'MOVE_CURSOR', direction: 'right' });
+      return;
+    }
+
+    if (key.backspace || key.delete) {
+      if (cursorPos > 0) {
+        const newValue = inputValue.slice(0, cursorPos - 1) + inputValue.slice(cursorPos);
+        dispatch({ type: 'SET_INPUT', value: newValue, cursorPos: cursorPos - 1 });
+      }
+      return;
+    }
+
+    if (input) {
+      // 多行粘贴：替换换行符为空格
+      const sanitized = input.replace(/\n/g, ' ');
+      const newValue = inputValue.slice(0, cursorPos) + sanitized + inputValue.slice(cursorPos);
+      dispatch({ type: 'SET_INPUT', value: newValue, cursorPos: cursorPos + sanitized.length });
+    }
   });
 
   const showStatus = taskStatus && taskStatus.name;
@@ -102,8 +141,13 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
           ))}
         </Box>
       )}
-      <Box flexDirection="column" borderStyle="single" borderColor="gray">
-        {showStatus && (
+      <Box flexDirection="column" borderStyle="single" borderColor={settingsPrompt ? 'yellow' : 'gray'}>
+        {settingsPrompt && (
+          <Box>
+            <Text color="yellow">{settingsPrompt.question}</Text>
+          </Box>
+        )}
+        {!settingsPrompt && showStatus && (
           <Box>
             <Text dimColor>
               {truncate(taskStatus.name, 20)} · Phase {taskStatus.phaseIndex + 1}/{taskStatus.totalPhases}
@@ -112,10 +156,16 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
             </Text>
           </Box>
         )}
+        {!settingsPrompt && currentTool && (
+          <Box>
+            <Text dimColor>正在调用 {currentTool}</Text>
+          </Box>
+        )}
         <Box>
-          <Text color="cyan">&gt; </Text>
-          <Text>{inputValue}</Text>
-          <Text inverse> </Text>
+          <Text color={settingsPrompt ? 'yellow' : 'cyan'}>&gt; </Text>
+          <Text>{inputValue.slice(0, cursorPos)}</Text>
+          <Text inverse>{inputValue[cursorPos] ?? ' '}</Text>
+          <Text>{inputValue.slice(cursorPos + 1)}</Text>
         </Box>
       </Box>
     </Box>
@@ -134,9 +184,10 @@ function formatElapsed(ms: number): string {
   return `00:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-function getStateText(s: 'running' | 'idle' | 'failed'): string {
+function getStateText(s: 'running' | 'aborting' | 'idle' | 'failed'): string {
   switch (s) {
     case 'running': return '● 运行中';
+    case 'aborting': return '⊘ 中止中…';
     case 'idle': return '◌ 等待';
     case 'failed': return '✗ 失败';
   }

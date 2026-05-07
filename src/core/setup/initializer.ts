@@ -1,10 +1,11 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Interface } from 'node:readline/promises';
 import chalk from 'chalk';
 import { getProviders, getModels } from '@mariozechner/pi-ai';
 import type { KnownProvider } from '@mariozechner/pi-ai';
 import type { StudentAgentConfig, StudentAgentConfigInput, StudentAgentProvider } from '../config/types.js';
+import { GLOBAL_CONFIG_DIR } from '../config/loader.js';
 import { parseEnvFile } from '../env.js';
 
 const API_KEY_MAP: Record<string, string> = {
@@ -49,6 +50,7 @@ export interface StartupInitializationResult {
 }
 
 const CONFIG_FILENAME = '.student-agent.json';
+const GLOBAL_ENV_FILENAME = '.env';
 
 export async function runStartupInitializer(
   options: StartupInitializerOptions,
@@ -107,13 +109,18 @@ async function configureModelProvider(
   piProviders.forEach((p, i) => {
     log(`    ${String(i + 1).padStart(2)}) ${p}`);
   });
-  log(`    ${String(piProviders.length + 1).padStart(2)}) 手动输入`);
+  log(`    ${String(piProviders.length + 1).padStart(2)}) 自定义提供商`);
 
   const defaultProviderIdx = piProviders.indexOf('anthropic' as KnownProvider) + 1;
   const providerChoice = (await prompt(`\n  选择 Provider [${defaultProviderIdx}]: `)).trim();
   const providerNum = parseInt(providerChoice || String(defaultProviderIdx));
 
   let provider: StudentAgentProvider;
+  const isCustomProvider = providerNum === piProviders.length + 1
+    || isNaN(providerNum)
+    || providerNum < 1
+    || providerNum > piProviders.length;
+
   if (!isNaN(providerNum) && providerNum >= 1 && providerNum <= piProviders.length) {
     provider = piProviders[providerNum - 1];
   } else if (providerNum === piProviders.length + 1) {
@@ -122,8 +129,21 @@ async function configureModelProvider(
     provider = providerChoice || 'anthropic';
   }
 
-  // ── 选择模型 ───────────────────────────────────────────────────────
-  const modelName = await promptModelName(prompt, provider, log);
+  // ── API 格式（仅自定义 provider 需要选择）─────────────────────────
+  let apiFormat = '';
+  if (isCustomProvider) {
+    log('\n  API 格式：');
+    log('    1) OpenAI Chat Completions（大多数代理/自建服务）');
+    log('    2) Anthropic Messages');
+    const formatChoice = (await prompt('  选择 API 格式 [1]: ')).trim();
+    apiFormat = formatChoice === '2' ? 'anthropic-messages' : 'openai-completions';
+  }
+
+  // ── Base URL（可选，空则使用 Provider 默认）────────────────────────
+  const existingBaseUrl = env['STUDENT_AGENT_BASE_URL'] ?? '';
+  const baseUrlHint = existingBaseUrl ? ` [${existingBaseUrl}，直接回车保留]` : ' [直接回车跳过]';
+  const baseUrlInput = (await prompt(`  Base URL${baseUrlHint}: `)).trim();
+  const baseUrl = baseUrlInput || existingBaseUrl || '';
 
   // ── API Key ────────────────────────────────────────────────────────
   const apiKeyName = getApiKeyEnvName(provider);
@@ -134,10 +154,10 @@ async function configureModelProvider(
     return false;
   }
 
-  // ── 中转站（可选）──────────────────────────────────────────────────
-  const modeChoice = (await prompt('  连接方式：1) 直连  2) 中转站（自定义 Base URL）[1]: ')).trim();
-  const isRelay = modeChoice === '2' || modeChoice.toLowerCase() === 'relay';
+  // ── 选择模型 ───────────────────────────────────────────────────────
+  const modelName = await promptModelName(prompt, provider, log);
 
+  // ── 写入 ──────────────────────────────────────────────────────────
   const values: Record<string, string> = {
     STUDENT_AGENT_PROVIDER: provider,
     STUDENT_AGENT_MODEL: modelName,
@@ -147,18 +167,20 @@ async function configureModelProvider(
 
   const configPatch: StudentAgentConfigInput = { model: { provider, name: modelName } };
 
-  if (isRelay) {
-    const baseUrl = (await prompt('  Base URL: ')).trim();
-    if (!baseUrl) {
-      log(chalk.yellow('Base URL 为空，已跳过初始化。'));
-      return false;
-    }
-    configPatch.model = { ...configPatch.model, baseUrl };
+  if (baseUrl) {
     values['STUDENT_AGENT_BASE_URL'] = baseUrl;
+    configPatch.model = { ...configPatch.model, baseUrl };
     env['STUDENT_AGENT_BASE_URL'] = baseUrl;
   } else {
-    values['STUDENT_AGENT_BASE_URL'] = '';
     delete env['STUDENT_AGENT_BASE_URL'];
+  }
+
+  if (apiFormat) {
+    values['STUDENT_AGENT_API'] = apiFormat;
+    configPatch.model = { ...configPatch.model, api: apiFormat };
+    env['STUDENT_AGENT_API'] = apiFormat;
+  } else {
+    delete env['STUDENT_AGENT_API'];
   }
 
   if (apiKey) {
@@ -166,9 +188,10 @@ async function configureModelProvider(
     env[apiKeyName] = apiKey;
   }
 
-  await upsertEnvFile(join(options.cwd, options.config.envFile), values);
-  await updateStudentAgentConfig(options.cwd, configPatch);
-  log(chalk.green(`\nOK: 已写入 ${options.config.envFile}（Provider: ${provider}, 模型: ${modelName}）`));
+  await mkdir(GLOBAL_CONFIG_DIR, { recursive: true });
+  await upsertEnvFile(join(GLOBAL_CONFIG_DIR, GLOBAL_ENV_FILENAME), values);
+  await updateStudentAgentConfig(GLOBAL_CONFIG_DIR, configPatch);
+  log(chalk.green(`\nOK: 已写入 ${GLOBAL_CONFIG_DIR}（Provider: ${provider}, 模型: ${modelName}）`));
   return true;
 }
 
@@ -197,7 +220,8 @@ async function maybeRemindEmbeddingConfig(
     return { wroteConfig: false, suppressed: false };
   }
 
-  await updateStudentAgentConfig(options.cwd, {
+  await mkdir(GLOBAL_CONFIG_DIR, { recursive: true });
+  await updateStudentAgentConfig(GLOBAL_CONFIG_DIR, {
     setup: {
       suppressEmbeddingReminder: true,
     },
@@ -239,13 +263,14 @@ async function configureEmbeddingProvider(
   };
   Object.assign(env, values);
 
-  await upsertEnvFile(join(options.cwd, options.config.envFile), values);
-  await updateStudentAgentConfig(options.cwd, {
+  await mkdir(GLOBAL_CONFIG_DIR, { recursive: true });
+  await upsertEnvFile(join(GLOBAL_CONFIG_DIR, GLOBAL_ENV_FILENAME), values);
+  await updateStudentAgentConfig(GLOBAL_CONFIG_DIR, {
     setup: {
       suppressEmbeddingReminder: suppressReminder,
     },
   });
-  log(chalk.green(`已写入向量模型配置到 ${options.config.envFile}`));
+  log(chalk.green(`已写入向量模型配置到 ${GLOBAL_CONFIG_DIR}`));
   return true;
 }
 
@@ -361,11 +386,66 @@ async function promptModelName(
   return choice || defaultFallback;
 }
 
+/**
+ * 仅切换模型名称，保持 Provider / API Key / BaseUrl 不变。
+ * 返回新模型名，取消时返回 null。
+ */
+export async function switchModelName(options: {
+  config: StudentAgentConfig;
+  prompt: (question: string) => Promise<string>;
+  log?: (message: string) => void;
+}): Promise<string | null> {
+  const { config, prompt } = options;
+  const log = options.log ?? console.log;
+  const { provider, name: currentName } = config.model;
+
+  log(`\n  当前模型：${provider} / ${currentName}`);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const models = getModels(provider as any);
+
+  let newName: string;
+  if (models.length === 0) {
+    const input = (await prompt(`  新模型名称 [回车取消]: `)).trim();
+    if (!input) return null;
+    newName = input;
+  } else {
+    log(`\n  ${provider} 可用模型：`);
+    models.forEach((m, i) => {
+      const current = m.id === currentName ? ' ← 当前' : '';
+      log(`    ${String(i + 1).padStart(2)}) ${m.id}${current}`);
+    });
+    log(`    ${String(models.length + 1).padStart(2)}) 手动输入`);
+
+    const choice = (await prompt(`  选择模型 [回车取消]: `)).trim();
+    if (!choice) return null;
+
+    const num = parseInt(choice);
+    if (!isNaN(num) && num >= 1 && num <= models.length) {
+      newName = models[num - 1].id;
+    } else if (num === models.length + 1) {
+      const custom = (await prompt('  模型名称: ')).trim();
+      if (!custom) return null;
+      newName = custom;
+    } else {
+      newName = choice;
+    }
+  }
+
+  await mkdir(GLOBAL_CONFIG_DIR, { recursive: true });
+  await upsertEnvFile(join(GLOBAL_CONFIG_DIR, GLOBAL_ENV_FILENAME), { STUDENT_AGENT_MODEL: newName });
+  await updateStudentAgentConfig(GLOBAL_CONFIG_DIR, { model: { name: newName } });
+  process.env.STUDENT_AGENT_MODEL = newName;
+
+  log(chalk.green(`\nOK: 模型已切换为 ${provider} / ${newName}`));
+  return newName;
+}
+
 function hasModelProviderKey(provider: StudentAgentProvider, env: NodeJS.ProcessEnv): boolean {
   return hasValue(env[getApiKeyEnvName(provider)]);
 }
 
-function getApiKeyEnvName(provider: StudentAgentProvider): string {
+export function getApiKeyEnvName(provider: StudentAgentProvider): string {
   return API_KEY_MAP[provider] ?? `${provider.toUpperCase().replace(/-/g, '_')}_API_KEY`;
 }
 

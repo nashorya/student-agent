@@ -6,6 +6,7 @@ export interface StudentAgentConfig {
     provider: StudentAgentProvider;
     name: string;
     baseUrl?: string;
+    api?: string;
   };
   llm: {
     requestTimeoutMs: number;
@@ -44,6 +45,7 @@ export interface StudentAgentModelInput {
   provider?: StudentAgentProvider;
   name?: string;
   baseUrl?: string;
+  api?: string;
 }
 
 export type StudentAgentConfigInput = Partial<{

@@ -44,10 +44,12 @@ function truncate(text: string, maxLen: number): string {
   return text.length > maxLen ? text.slice(0, maxLen - 1) + '…' : text;
 }
 
-function getStateIndicator(taskState: 'running' | 'idle' | 'failed'): React.ReactElement {
+function getStateIndicator(taskState: 'running' | 'aborting' | 'idle' | 'failed'): React.ReactElement {
   switch (taskState) {
     case 'running':
       return <Text color="green">● 运行中</Text>;
+    case 'aborting':
+      return <Text color="yellow">⊘ 中止中…</Text>;
     case 'idle':
       return <Text dimColor>◌ 等待输入</Text>;
     case 'failed':

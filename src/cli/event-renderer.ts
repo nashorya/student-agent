@@ -91,7 +91,9 @@ export class EventRenderer {
         this.streamBuffer = '';
         this.streamLineCount = 0;
         this.startTime = Date.now();
-        this.spinner.start(chalk.dim('思考中...'));
+        if (!this.bridge) {
+          this.spinner.start(chalk.dim('思考中...'));
+        }
         break;
 
       case 'message_start':
@@ -100,11 +102,11 @@ export class EventRenderer {
           this.isStreaming = true;
           this.streamBuffer = '';
           this.streamLineCount = 0;
-          if (this.bridge) {
-            this.bridge.addMessage('assistant', '');
-          } else {
+          if (!this.bridge) {
             process.stdout.write(chalk.cyan('Assistant: '));
           }
+          // TUI 模式下延迟到第一个 text_delta 才添加消息，
+          // 避免工具调用轮次留下空白 Assistant 消息
         }
         break;
 
@@ -112,6 +114,10 @@ export class EventRenderer {
         if (!this.isStreaming) break;
         const delta = extractTextDelta(event.assistantMessageEvent);
         if (delta) {
+          if (this.bridge && !this.hasOutput) {
+            // 第一个 text_delta：此时才在 TUI 中创建 assistant 消息
+            this.bridge.addMessage('assistant', '');
+          }
           this.streamBuffer += delta;
           this.hasOutput = true;
           if (this.bridge) {
@@ -124,8 +130,8 @@ export class EventRenderer {
       }
 
       case 'message_end':
-        if (this.isStreaming && this.hasOutput) {
-          // 清除裸文本输出，用 Markdown 格式化后重绘
+        if (this.isStreaming && this.hasOutput && !this.bridge) {
+          // 清除裸文本输出，用 Markdown 格式化后重绘（仅非 TUI 模式）
           this.reRenderWithMarkdown();
         }
         this.isStreaming = false;
@@ -134,22 +140,36 @@ export class EventRenderer {
       case 'tool_execution_start':
         this.toolCount++;
         if (this.bridge) {
-          this.bridge.addMessage('tool', event.toolName);
+          this.bridge.setCurrentTool(event.toolName);
         } else {
           this.spinner.start(chalk.dim(`Tool: ${event.toolName}`));
         }
         break;
 
       case 'tool_execution_end':
-        this.spinner.stop();
+        if (this.bridge) {
+          this.bridge.setCurrentTool(null);
+        } else {
+          this.spinner.stop();
+        }
         if (event.isError) {
-          const detail = (event as Record<string, unknown>).resultText ?? (event as Record<string, unknown>).error ?? '';
-          console.log(chalk.red(`  ERROR: ${event.toolName} 失败${detail ? ': ' + String(detail).slice(0, 200) : ''}`));
+          const ev = event as Record<string, unknown>;
+          const rawDetail = extractToolErrorDetail(ev);
+          const detail = trimAdviceText(rawDetail);
+          if (this.bridge) {
+            this.bridge.addMessage('error', `${event.toolName} 失败${detail ? ': ' + detail : ''}`);
+          } else {
+            console.log(chalk.red(`  ERROR: ${event.toolName} 失败${detail ? ': ' + detail : ''}`));
+          }
         }
         break;
 
       case 'agent_end': {
-        this.spinner.stop();
+        if (this.bridge) {
+          this.bridge.setCurrentTool(null);
+        } else {
+          this.spinner.stop();
+        }
         this.isStreaming = false;
 
         // 耗时 + 工具统计
@@ -158,7 +178,9 @@ export class EventRenderer {
         if (this.toolCount > 0) {
           parts.push(`${this.toolCount} 个工具调用`);
         }
-        console.log(chalk.dim(`\n  DONE: ${parts.join(' | ')}`));
+        if (!this.bridge) {
+          console.log(chalk.dim(`\n  DONE: ${parts.join(' | ')}`));
+        }
         break;
       }
 
@@ -219,4 +241,33 @@ export class EventRenderer {
   cleanup(): void {
     this.spinner.stop();
   }
+}
+
+/** 从 Pi tool_execution_end 事件中提取原始错误文本，尝试多条路径。 */
+function extractToolErrorDetail(ev: Record<string, unknown>): string {
+  // 路径1: result.content[0].text（AgentToolResult 标准格式）
+  const resultContent = (ev.result as Record<string, unknown> | undefined)?.content;
+  if (Array.isArray(resultContent) && resultContent.length > 0) {
+    const text = (resultContent[0] as Record<string, unknown>)?.text;
+    if (typeof text === 'string' && text.trim()) return text.trim();
+  }
+  // 路径2: resultText
+  if (typeof ev.resultText === 'string' && ev.resultText.trim()) return ev.resultText.trim();
+  // 路径3: error
+  if (typeof ev.error === 'string' && ev.error.trim()) return ev.error.trim();
+  if (ev.error instanceof Error) return ev.error.message;
+  return '';
+}
+
+/**
+ * 去掉 Pi 框架附加的「建议：...」段落，只保留错误描述部分。
+ * 截断到 200 字符防止撑满屏幕。
+ */
+function trimAdviceText(text: string): string {
+  if (!text) return '';
+  // 去掉「建议：」及其后的内容（含前面的空行）
+  const trimmed = text.replace(/\n*建议[：:][^]*$/u, '').trim();
+  // 去掉「WARN: 工具执行失败...」前缀行，只留错误本身
+  const withoutWarn = trimmed.replace(/^WARN[：:][^\n]*\n?/u, '').trim();
+  return withoutWarn.slice(0, 200);
 }

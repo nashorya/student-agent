@@ -8,6 +8,7 @@ export type SlashCommand =
   | { type: 'help' }
   | { type: 'status' }
   | { type: 'setting' }
+  | { type: 'model' }
   | { type: 'clear' }
   | { type: 'candidates' }
   | { type: 'init' }
@@ -25,6 +26,7 @@ export const COMMANDS = [
   '/q',
   '/status',
   '/setting',
+  '/model',
   '/clear',
   '/candidates',
   '/init',
@@ -60,6 +62,9 @@ export function parseCommand(input: string): SlashCommand | null {
     case 'setting':
     case 'settings':
       return { type: 'setting' };
+
+    case 'model':
+      return { type: 'model' };
 
     case 'clear':
       return { type: 'clear' };
@@ -102,6 +107,7 @@ export function getHelpText(): string {
     '    /quit, /exit, /q      退出',
     '    /status               显示当前状态',
     '    /setting              重新配置 Provider / API Key',
+    '    /model                快速切换模型（保持其他设置不变）',
     '    /clear                清空屏幕',
     '    /candidates           查看偏好候选',
     '    /init                     将当前目录初始化为 git 仓库（启用快照回滚）',

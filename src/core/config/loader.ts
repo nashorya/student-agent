@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   DEFAULT_STUDENT_AGENT_CONFIG,
@@ -7,10 +8,13 @@ import {
   type StudentAgentProvider,
 } from './types.js';
 
+export const GLOBAL_CONFIG_DIR = join(homedir(), '.student-agent');
+
 export interface LoadStudentAgentConfigOptions {
   cwd?: string;
   filename?: string;
   env?: NodeJS.ProcessEnv;
+  globalConfigDir?: string;
 }
 
 const DEFAULT_CONFIG_FILENAME = '.student-agent.json';
@@ -20,11 +24,18 @@ export async function loadStudentAgentConfig(
 ): Promise<StudentAgentConfig> {
   const cwd = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
+  const globalDir = options.globalConfigDir ?? GLOBAL_CONFIG_DIR;
   const filename = options.filename ?? env.STUDENT_AGENT_CONFIG ?? DEFAULT_CONFIG_FILENAME;
-  const fileConfig = await readConfigFile(cwd, filename);
+
+  // 优先级（低→高）：默认值 → 全局配置 → 项目配置 → 环境变量
+  const globalConfig = await readConfigFile(globalDir, filename);
+  const localConfig = cwd !== globalDir ? await readConfigFile(cwd, filename) : {};
   const envConfig = readEnvConfig(env);
 
-  return mergeConfig(DEFAULT_STUDENT_AGENT_CONFIG, mergeConfig(fileConfig, envConfig));
+  return mergeConfig(
+    DEFAULT_STUDENT_AGENT_CONFIG,
+    mergeConfig(globalConfig, mergeConfig(localConfig, envConfig)),
+  );
 }
 
 export function mergeConfig(
@@ -83,10 +94,7 @@ function mergeModelConfig(
 }
 
 function normalizeProvider(provider: string | undefined): StudentAgentProvider {
-  if (provider === 'openai') {
-    return 'openai';
-  }
-  return 'anthropic';
+  return provider ?? DEFAULT_STUDENT_AGENT_CONFIG.model.provider;
 }
 
 async function readConfigFile(
@@ -113,6 +121,7 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       provider,
       baseUrl: readModelBaseUrl(env, provider),
       name: readOptionalString(env.STUDENT_AGENT_MODEL),
+      api: readOptionalString(env.STUDENT_AGENT_API),
     }),
     llm: compactObject({
       requestTimeoutMs: readInteger(env.STUDENT_AGENT_LLM_REQUEST_TIMEOUT_MS),
@@ -157,12 +166,10 @@ function readModelBaseUrl(
   env: NodeJS.ProcessEnv,
   provider: StudentAgentProvider | undefined,
 ): string | undefined {
-  return readOptionalString(env.STUDENT_AGENT_MODEL_BASE_URL)
-    ?? (provider === undefined
-      ? undefined
-      : provider === 'openai'
-      ? readOptionalString(env.OPENAI_BASE_URL)
-      : readOptionalString(env.ANTHROPIC_BASE_URL));
+  return readOptionalString(env.STUDENT_AGENT_BASE_URL)
+    ?? readOptionalString(env.STUDENT_AGENT_MODEL_BASE_URL)
+    ?? (provider === 'openai' ? readOptionalString(env.OPENAI_BASE_URL) : undefined)
+    ?? (provider === 'anthropic' ? readOptionalString(env.ANTHROPIC_BASE_URL) : undefined);
 }
 
 function readBoolean(value: string | undefined): boolean | undefined {

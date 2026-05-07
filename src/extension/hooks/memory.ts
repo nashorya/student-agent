@@ -63,6 +63,19 @@ export function createMemoryHook(memoryDir: string) {
     }
 
     sections.push(`
+## 文件探索规则（必须遵守）
+
+**永远不要在不知道目标文件的情况下批量 read 文件。** 正确流程：
+
+1. 先用 grep/glob 定位：grep 关键词、类名、函数名，找到具体文件路径
+2. 再 read 那几个文件（每次任务最多读 15 个文件）
+3. 不确定项目结构时，只读 CLAUDE.md——它已描述完整结构
+
+❌ 错误做法：read src/a.ts → read src/b.ts → read src/c.ts（逐个扫描）
+✅ 正确做法：grep "关键词" → 看结果 → 只 read 命中的文件
+`);
+
+    sections.push(`
 ## 任务管理输出格式（必须遵守）
 
 当你理解用户意图并准备开始一个新任务时，在第一条回复的开头输出：
