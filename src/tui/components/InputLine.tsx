@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useAppState } from '../state.js';
 import { COMMANDS } from '../../cli/command-parser.js';
@@ -12,7 +12,40 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
   const { state, dispatch } = useAppState();
   const { inputValue, taskStatus } = state;
 
+  const [menuIndex, setMenuIndex] = useState(0);
+
+  const menuItems = inputValue.startsWith('/')
+    ? COMMANDS.filter((c) => c.startsWith(inputValue))
+    : [];
+  const showMenu = menuItems.length > 0;
+
+  // 输入变化时重置菜单选中到第一项
+  useEffect(() => {
+    setMenuIndex(0);
+  }, [inputValue]);
+
   useInput((input, key) => {
+    // 菜单开着时，↑↓ 和 Enter 优先给菜单
+    if (showMenu) {
+      if (key.upArrow) {
+        setMenuIndex((i) => (i <= 0 ? menuItems.length - 1 : i - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setMenuIndex((i) => (i >= menuItems.length - 1 ? 0 : i + 1));
+        return;
+      }
+      if (key.return) {
+        const selected = menuItems[menuIndex] ?? menuItems[0];
+        dispatch({ type: 'SET_INPUT', value: selected });
+        return;
+      }
+      if (key.escape) {
+        dispatch({ type: 'SET_INPUT', value: '' });
+        return;
+      }
+    }
+
     if (key.escape) {
       onAbort();
       return;
@@ -23,17 +56,6 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
         onSubmit(inputValue);
         dispatch({ type: 'ADD_TO_HISTORY', value: inputValue });
         dispatch({ type: 'SET_INPUT', value: '' });
-      }
-      return;
-    }
-
-    if (key.tab) {
-      if (inputValue.startsWith('/')) {
-        const hits = COMMANDS.filter((c) => c.startsWith(inputValue));
-        if (hits.length === 0) return;
-        const currentIdx = hits.indexOf(inputValue);
-        const next = currentIdx >= 0 ? hits[(currentIdx + 1) % hits.length] : hits[0];
-        dispatch({ type: 'SET_INPUT', value: next });
       }
       return;
     }
@@ -61,20 +83,33 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
   const showStatus = taskStatus && taskStatus.name;
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor="gray">
-      {showStatus && (
-        <Box>
-          <Text dimColor>
-            {truncate(taskStatus.name, 20)} · Phase {taskStatus.phaseIndex + 1}/{taskStatus.totalPhases}
-            {taskStatus.retryCount > 0 ? ` · 重试:${taskStatus.retryCount}` : ''}
-            {' · '}工具:{taskStatus.toolCallCount} · {formatElapsed(taskStatus.elapsedMs)} · {getStateText(taskStatus.state)}
-          </Text>
+    <Box flexDirection="column">
+      {showMenu && (
+        <Box flexDirection="column" borderStyle="single" borderColor="gray">
+          {menuItems.map((cmd, i) => (
+            <Box key={cmd}>
+              <Text color={i === menuIndex ? 'cyan' : undefined}>
+                {i === menuIndex ? '❯ ' : '  '}{cmd}
+              </Text>
+            </Box>
+          ))}
         </Box>
       )}
-      <Box>
-        <Text color="cyan">&gt; </Text>
-        <Text>{inputValue}</Text>
-        <Text inverse> </Text>
+      <Box flexDirection="column" borderStyle="single" borderColor="gray">
+        {showStatus && (
+          <Box>
+            <Text dimColor>
+              {truncate(taskStatus.name, 20)} · Phase {taskStatus.phaseIndex + 1}/{taskStatus.totalPhases}
+              {taskStatus.retryCount > 0 ? ` · 重试:${taskStatus.retryCount}` : ''}
+              {' · '}工具:{taskStatus.toolCallCount} · {formatElapsed(taskStatus.elapsedMs)} · {getStateText(taskStatus.state)}
+            </Text>
+          </Box>
+        )}
+        <Box>
+          <Text color="cyan">&gt; </Text>
+          <Text>{inputValue}</Text>
+          <Text inverse> </Text>
+        </Box>
       </Box>
     </Box>
   );
