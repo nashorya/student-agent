@@ -7,6 +7,14 @@ dist/
 pi-mono/
 node_modules/.claude/
 
+# AI assistant configs (not for VCS)
+.claude/
+.codex
+CLAUDE.md
+CLAUDE*.md
+codex.md
+*.Zone.Identifier
+
 # memory/ 运行时数据（project-rules.md 手动维护，不忽略）
 memory/preference-candidates.json
 memory/preferences.md
