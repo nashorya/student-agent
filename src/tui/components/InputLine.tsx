@@ -37,7 +37,14 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
       }
       if (key.return) {
         const selected = menuItems[menuIndex] ?? menuItems[0];
-        dispatch({ type: 'SET_INPUT', value: selected });
+        onSubmit(selected);
+        dispatch({ type: 'ADD_TO_HISTORY', value: selected });
+        dispatch({ type: 'SET_INPUT', value: '' });
+        return;
+      }
+      if (key.tab) {
+        const selected = menuItems[menuIndex] ?? menuItems[0];
+        dispatch({ type: 'SET_INPUT', value: selected + ' ' });
         return;
       }
       if (key.escape) {
