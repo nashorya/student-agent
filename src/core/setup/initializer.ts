@@ -134,9 +134,11 @@ async function configureModelProvider(
   if (isCustomProvider) {
     log('\n  API 格式：');
     log('    1) OpenAI Chat Completions（大多数代理/自建服务）');
-    log('    2) Anthropic Messages');
+    log('    2) Anthropic Messages（Anthropic 官方 / 兼容代理）');
     const formatChoice = (await prompt('  选择 API 格式 [1]: ')).trim();
     apiFormat = formatChoice === '2' ? 'anthropic-messages' : 'openai-completions';
+    // 归一化到 Pi SDK 已知的 provider，确保 API Key env var 名称正确
+    provider = apiFormat === 'anthropic-messages' ? 'anthropic' : 'openai';
   }
 
   // ── Base URL（可选，空则使用 Provider 默认）────────────────────────
