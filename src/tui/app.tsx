@@ -25,8 +25,8 @@ export function App({ onSubmit, onAbort }: AppProps) {
         <Box flexGrow={1} flexDirection="column">
           <OutputArea />
         </Box>
-        <InputLine onSubmit={onSubmit} onAbort={onAbort} />
         <StatusBar />
+        <InputLine onSubmit={onSubmit} onAbort={onAbort} />
       </Box>
     </AppStateContext.Provider>
   );

@@ -6,7 +6,7 @@ export function StatusBar() {
   const { state } = useAppState();
   const { taskStatus } = state;
 
-  if (!taskStatus) {
+  if (!taskStatus || !taskStatus.name) {
     return (
       <Box borderStyle="single" borderColor="gray">
         <Text dimColor>student-agent · 就绪</Text>
