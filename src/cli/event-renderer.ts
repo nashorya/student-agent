@@ -19,6 +19,7 @@ import type { AssistantMessageEvent } from '@mariozechner/pi-ai';
 import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
 import { renderMarkdown } from './markdown.js';
+import type { TUIBridge } from '../tui/bridge.js';
 
 /**
  * 从 message_update 事件的 assistantMessageEvent 中提取文本 delta。
@@ -63,12 +64,14 @@ export class EventRenderer {
   private hasOutput = false;
   private startTime = 0;
   private toolCount = 0;
+  private bridge?: TUIBridge;
 
   // 流式输出缓冲区，用于 message_end 时的 markdown 重绘
   private streamBuffer = '';
   private streamLineCount = 0;
 
-  constructor() {
+  constructor(bridge?: TUIBridge) {
+    this.bridge = bridge;
     this.spinner = ora({
       spinner: 'dots',
       color: 'cyan',
@@ -97,7 +100,11 @@ export class EventRenderer {
           this.isStreaming = true;
           this.streamBuffer = '';
           this.streamLineCount = 0;
-          process.stdout.write(chalk.cyan('Assistant: '));
+          if (this.bridge) {
+            this.bridge.addMessage('assistant', '');
+          } else {
+            process.stdout.write(chalk.cyan('Assistant: '));
+          }
         }
         break;
 
@@ -105,9 +112,13 @@ export class EventRenderer {
         if (!this.isStreaming) break;
         const delta = extractTextDelta(event.assistantMessageEvent);
         if (delta) {
-          process.stdout.write(delta);
           this.streamBuffer += delta;
           this.hasOutput = true;
+          if (this.bridge) {
+            this.bridge.updateLastMessage(this.streamBuffer);
+          } else {
+            process.stdout.write(delta);
+          }
         }
         break;
       }
@@ -122,7 +133,11 @@ export class EventRenderer {
 
       case 'tool_execution_start':
         this.toolCount++;
-        this.spinner.start(chalk.dim(`Tool: ${event.toolName}`));
+        if (this.bridge) {
+          this.bridge.addMessage('tool', event.toolName);
+        } else {
+          this.spinner.start(chalk.dim(`Tool: ${event.toolName}`));
+        }
         break;
 
       case 'tool_execution_end':
