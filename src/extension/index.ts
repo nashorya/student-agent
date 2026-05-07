@@ -963,6 +963,7 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
       maxTokens: config.llm.maxOutputTokens,
       maxRetries: config.llm.maxRetries,
       maxRetryDelayMs: config.llm.maxRetryDelayMs,
+      apiKey: resolvedApiKey,
     },
   });
 

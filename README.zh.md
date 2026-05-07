@@ -52,8 +52,11 @@ cp .env.example .env
 | `ANTHROPIC_BASE_URL` | 使用代理时填写，否则留空 |
 
 ```bash
-# 5. 启动
-npm run dev
+# 5. 注册为全局命令
+npm link
+
+# 6. 在任意目录启动
+student-agent
 ```
 
 ## 命令
