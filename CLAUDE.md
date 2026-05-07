@@ -5,12 +5,20 @@
 ## 命令
 
 ```bash
-npm run dev        # Pi 集成入口
+npm run dev        # Pi 集成入口（TTY 下自动启用 TUI 界面）
 npm run dev:legacy # 旧 XState 入口（待删除）
 npm run build      # 编译
 npm test           # 运行测试
 tsc --noEmit       # 类型检查（改完代码必须跑）
 ```
+
+## TUI 界面
+
+TTY 环境下 `npm run dev` 自动启用基于 Ink 的 TUI 界面：
+- **主输出区**：对话历史 + 流式 Assistant 输出
+- **底部状态栏**：任务名、Phase 进度、重试次数、工具调用数、耗时、状态
+- **输入行**：历史记录（↑↓箭头）、Escape 中止任务、多行粘贴自动转换为空格
+- **降级**：非 TTY 环境（CI、管道）自动切换为纯文本 readline REPL
 
 ## 项目结构
 
@@ -44,6 +52,12 @@ src/
 │   ├── watchdog.ts           # 退化检测（≥2 信号告警）
 │   ├── feedback-collector.ts # /feedback 采集
 │   └── benchmark-runner.ts   # 沙箱基准测试
+├── tui/
+│   ├── index.ts              # startTUI() + isTTY() 入口
+│   ├── app.tsx               # App 根组件（OutputArea + InputLine + StatusBar）
+│   ├── state.ts              # AppState / AppAction / reducer / Context
+│   ├── bridge.ts             # TUIBridge（EventRenderer → AppState 桥接）
+│   └── components/           # StatusBar / OutputArea / InputLine
 └── orchestrator/
     ├── orchestrator.ts       # 并发子代理调度
     ├── planner.ts            # 写意图冲突检测
@@ -74,7 +88,7 @@ pi 源码在 ./pi-mono/，只读，只通过 import 使用其 API。了解 Pi �
 阶段二（记忆层）：  ✅  preferences 双通道 + candidates + Reflect Agent + sqlite-vec
 Pi 集成：          ✅  extension/hooks 四钩子 + pi-bridge 类型边界
 阶段三（增强）：    ✅  Context7 + Playwright + Bounded Breaker + Orchestrator + Watchdog + Feature Flags
-当前：             🔄  CLI 界面优化
+当前：             ✅  TUI 界面（Ink + React，TTY 检测 + 降级）
 ```
 
 ## 遇到架构问题时
