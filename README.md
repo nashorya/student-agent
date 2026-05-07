@@ -52,8 +52,11 @@ cp .env.example .env
 | `ANTHROPIC_BASE_URL` | Leave blank unless using a proxy |
 
 ```bash
-# 5. Run
-npm run dev
+# 5. Register as a global CLI command
+npm link
+
+# 6. Run from any directory
+student-agent
 ```
 
 ## Commands
