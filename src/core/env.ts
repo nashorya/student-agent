@@ -35,6 +35,10 @@ export async function loadEnvFile(options: LoadEnvFileOptions = {}): Promise<Loa
     if (!options.override && process.env[key] !== undefined) {
       continue;
     }
+    // Empty value in .env should not overwrite an already-set non-empty value
+    if (value === '' && process.env[key]) {
+      continue;
+    }
     process.env[key] = value;
     keys.push(key);
   }

@@ -70,6 +70,11 @@ export class EventRenderer {
   private streamBuffer = '';
   private streamLineCount = 0;
 
+  // TUI 模式节流：限制 updateLastMessage 频率，减少 Ink 重绘闪烁
+  private readonly THROTTLE_MS = 80;
+  private lastUpdateTime = 0;
+  private pendingFlush: ReturnType<typeof setTimeout> | null = null;
+
   constructor(bridge?: TUIBridge) {
     this.bridge = bridge;
     this.spinner = ora({
@@ -121,7 +126,7 @@ export class EventRenderer {
           this.streamBuffer += delta;
           this.hasOutput = true;
           if (this.bridge) {
-            this.bridge.updateLastMessage(this.streamBuffer);
+            this.throttledUpdateMessage(this.streamBuffer);
           } else {
             process.stdout.write(delta);
           }
@@ -130,9 +135,14 @@ export class EventRenderer {
       }
 
       case 'message_end':
-        if (this.isStreaming && this.hasOutput && !this.bridge) {
-          // 清除裸文本输出，用 Markdown 格式化后重绘（仅非 TUI 模式）
-          this.reRenderWithMarkdown();
+        if (this.isStreaming && this.hasOutput) {
+          if (this.bridge) {
+            // TUI 模式：flush 节流缓冲，然后渲染 Markdown
+            this.flushPending();
+            this.bridge.updateLastMessage(renderMarkdown(this.streamBuffer.trim()));
+          } else {
+            this.reRenderWithMarkdown();
+          }
         }
         this.isStreaming = false;
         break;
@@ -232,6 +242,33 @@ export class EventRenderer {
     process.stdout.write(chalk.cyan('Assistant: ') + rendered + '\n');
   }
 
+  /** 节流发送：最多每 THROTTLE_MS 推一次 raw 内容给 TUI。 */
+  private throttledUpdateMessage(content: string): void {
+    if (this.pendingFlush !== null) {
+      // 已有定时器，只更新内容，等定时器触发
+      return;
+    }
+    const now = Date.now();
+    const sinceLastUpdate = now - this.lastUpdateTime;
+    if (sinceLastUpdate >= this.THROTTLE_MS) {
+      this.bridge!.updateLastMessage(content);
+      this.lastUpdateTime = now;
+    } else {
+      this.pendingFlush = setTimeout(() => {
+        this.pendingFlush = null;
+        this.lastUpdateTime = Date.now();
+        if (this.bridge) this.bridge.updateLastMessage(this.streamBuffer);
+      }, this.THROTTLE_MS - sinceLastUpdate);
+    }
+  }
+
+  private flushPending(): void {
+    if (this.pendingFlush !== null) {
+      clearTimeout(this.pendingFlush);
+      this.pendingFlush = null;
+    }
+  }
+
   /** 创建可传给 agent.subscribe() 的回调函数。 */
   createSubscriber(): (event: AgentEvent) => void {
     return (event) => this.handleEvent(event);
@@ -239,6 +276,7 @@ export class EventRenderer {
 
   /** 停止 spinner（用于 REPL 退出时的清理）。 */
   cleanup(): void {
+    this.flushPending();
     this.spinner.stop();
   }
 }
