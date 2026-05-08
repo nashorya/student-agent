@@ -10,6 +10,7 @@ export function parsePhaseSignal(text: string): PhaseSignal | null {
   if (taskMatch) {
     const phases = taskMatch[2]
       .split('\n')
+      .filter((l) => /^Phase \d+:/.test(l.trim()))
       .map((l) => l.replace(/^Phase \d+:\s*/, '').trim())
       .filter(Boolean);
     return { type: 'task_start', name: taskMatch[1], phases };
