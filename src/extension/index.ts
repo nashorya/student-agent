@@ -470,11 +470,11 @@ async function main(): Promise<void> {
             state: 'running',
           });
 
-          const planOutputs: string[] = [];
+          let planText = '';
           const planUnsub = runtime.agent.subscribe((event) => {
             if (event.type === 'message_update' && event.message.role === 'assistant') {
               const textContent = event.message.content.find((c) => c.type === 'text');
-              if (textContent && textContent.type === 'text') planOutputs.push(textContent.text);
+              if (textContent && textContent.type === 'text') planText = textContent.text;
             }
           });
 
@@ -495,7 +495,6 @@ async function main(): Promise<void> {
           runtime.setFileGuardMode('normal');
           tui.bridge.updateTaskStatus({ state: 'idle' });
 
-          const planText = planOutputs.join('');
           const planSignal = parsePhaseSignal(planText);
 
           if (!planSignal || planSignal.type !== 'task_start') {
@@ -521,11 +520,11 @@ async function main(): Promise<void> {
           const phase1 = newTask.phases[0];
           const phase1Prompt = buildPhaseExecutionPrompt(planSignal.name, phase1?.description ?? '', 0, planSignal.phases.length);
 
-          const exec1Outputs: string[] = [];
+          let exec1Text = '';
           const exec1Unsub = runtime.agent.subscribe((event) => {
             if (event.type === 'message_update' && event.message.role === 'assistant') {
               const textContent = event.message.content.find((c) => c.type === 'text');
-              if (textContent && textContent.type === 'text') exec1Outputs.push(textContent.text);
+              if (textContent && textContent.type === 'text') exec1Text = textContent.text;
             }
           });
 
@@ -546,7 +545,6 @@ async function main(): Promise<void> {
             exec1Unsub();
           }
 
-          const exec1Text = exec1Outputs.join('');
           const exec1Signal = parsePhaseSignal(exec1Text);
           if (exec1Signal?.type === 'phase_done') {
             await tasksMgr.completePhase(newTask.id);
@@ -559,12 +557,12 @@ async function main(): Promise<void> {
             }
           }
         } else {
-          const agentOutputs: string[] = [];
+          let agentLastOutput = '';
           const tempUnsubscribe = runtime.agent.subscribe((event) => {
             if (event.type === 'message_update' && event.message.role === 'assistant') {
               const textContent = event.message.content.find((c) => c.type === 'text');
               if (textContent && textContent.type === 'text') {
-                agentOutputs.push(textContent.text);
+                agentLastOutput = textContent.text;
               }
             }
           });
@@ -604,8 +602,7 @@ async function main(): Promise<void> {
           }
 
           if (activeTask) {
-            const fullOutput = agentOutputs.join('');
-            const signal = parsePhaseSignal(fullOutput);
+            const signal = parsePhaseSignal(agentLastOutput);
 
             if (signal?.type === 'phase_done') {
               await tasksMgr.completePhase(activeTask.id);
@@ -830,13 +827,12 @@ async function main(): Promise<void> {
         );
 
         if (intent.type === 'new_task') {
-          // 新任务：收集 agent 输出，解析信号
-          const agentOutputs: string[] = [];
+          let agentLastOutput = '';
           const tempUnsubscribe = runtime.agent.subscribe((event) => {
             if (event.type === 'message_update' && event.message.role === 'assistant') {
               const textContent = event.message.content.find((c) => c.type === 'text');
               if (textContent && textContent.type === 'text') {
-                agentOutputs.push(textContent.text);
+                agentLastOutput = textContent.text;
               }
             }
           });
@@ -856,9 +852,7 @@ async function main(): Promise<void> {
             tempUnsubscribe();
           }
 
-          // 解析信号
-          const fullOutput = agentOutputs.join('');
-          const signal = parsePhaseSignal(fullOutput);
+          const signal = parsePhaseSignal(agentLastOutput);
 
           if (signal?.type === 'task_start') {
             await tasksMgr.createTask(signal.name, signal.phases);
@@ -874,12 +868,12 @@ async function main(): Promise<void> {
           }
         } else {
           // 继续当前任务或其他操作
-          const agentOutputs: string[] = [];
+          let agentLastOutput = '';
           const tempUnsubscribe = runtime.agent.subscribe((event) => {
             if (event.type === 'message_update' && event.message.role === 'assistant') {
               const textContent = event.message.content.find((c) => c.type === 'text');
               if (textContent && textContent.type === 'text') {
-                agentOutputs.push(textContent.text);
+                agentLastOutput = textContent.text;
               }
             }
           });
@@ -902,10 +896,8 @@ async function main(): Promise<void> {
             tempUnsubscribe();
           }
 
-          // 检查是否有 phase_done 信号
           if (activeTask) {
-            const fullOutput = agentOutputs.join('');
-            const signal = parsePhaseSignal(fullOutput);
+            const signal = parsePhaseSignal(agentLastOutput);
 
             if (signal?.type === 'phase_done') {
               await tasksMgr.completePhase(activeTask.id);
