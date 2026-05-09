@@ -22,6 +22,9 @@ export type SlashCommand =
   | { type: 'design'; subcommand: 'study'; url: string; name?: string }
   | { type: 'design'; subcommand: 'confirm'; candidateId: string }
   | { type: 'design'; subcommand: 'use'; profileId: string }
+  | { type: 'design'; subcommand: 'globalize'; profileId: string }
+  | { type: 'design'; subcommand: 'globals' }
+  | { type: 'design'; subcommand: 'use-global'; profileId: string }
   | { type: 'design'; subcommand: 'local-url'; url: string }
   | { type: 'design'; subcommand: 'critique'; url?: string; profileId?: string }
   | { type: 'unknown'; raw: string };
@@ -64,6 +67,9 @@ export const COMMAND_COMPLETIONS = [
   '/design study <url> --name ',
   '/design confirm ',
   '/design use ',
+  '/design globalize ',
+  '/design globals',
+  '/design use-global ',
   '/design local-url ',
   '/design critique ',
 ];
@@ -182,6 +188,9 @@ export function getHelpText(): string {
     '    /design study <url> [--name <名字>]  学习参考网页视觉风格',
     '    /design confirm <candidate-id>       确认设计候选为 Profile',
     '    /design use <profile-id>             使用指定 StyleProfile',
+    '    /design globalize <profile-id>       将项目 StyleProfile 加入全局',
+    '    /design globals                      查看全局 StyleProfile',
+    '    /design use-global <profile-id>      将全局 StyleProfile 引入并启用',
     '    /design local-url <url>              设置本地 UI 自评地址',
     '    /design critique [url] [profile-id]  运行视觉自评',
     '',
@@ -205,6 +214,15 @@ function parseDesignCommand(args: string[], raw: string): SlashCommand {
   }
   if (subcommand === 'use' && args[1]) {
     return { type: 'design', subcommand: 'use', profileId: args[1] };
+  }
+  if (subcommand === 'globalize' && args[1]) {
+    return { type: 'design', subcommand: 'globalize', profileId: args[1] };
+  }
+  if (subcommand === 'globals') {
+    return { type: 'design', subcommand: 'globals' };
+  }
+  if (subcommand === 'use-global' && args[1]) {
+    return { type: 'design', subcommand: 'use-global', profileId: args[1] };
   }
   if (subcommand === 'local-url' && args[1]) {
     return { type: 'design', subcommand: 'local-url', url: args[1] };

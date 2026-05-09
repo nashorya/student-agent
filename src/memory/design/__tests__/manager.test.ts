@@ -198,4 +198,26 @@ describe('DesignMemoryManager', () => {
 
     expect(await mgr.getCandidates()).toHaveLength(5);
   });
+
+  it('copies a confirmed profile to another design memory manager', async () => {
+    const otherDir = await mkdtemp(join(tmpdir(), 'design-global-test-'));
+    try {
+      const candidate = await mgr.observeCandidate(extraction(), {
+        taskId: 'task_1',
+        sessionRef: 'session_1',
+      });
+      const profile = await mgr.confirmCandidate(candidate.id, {
+        taskId: 'task_2',
+        sessionRef: 'session_2',
+      });
+      const globalMgr = new DesignMemoryManager(otherDir);
+
+      const copied = await mgr.copyProfileTo(profile.id, globalMgr);
+
+      expect(copied.id).toBe(profile.id);
+      expect((await globalMgr.getProfile(profile.id))?.name).toBe(profile.name);
+    } finally {
+      await rm(otherDir, { recursive: true, force: true });
+    }
+  });
 });

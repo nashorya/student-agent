@@ -26,7 +26,7 @@ export class DesignMemoryManager {
   private readonly critiquesPath: string;
   private readonly activePath: string;
 
-  private constructor(memoryDir: string) {
+  constructor(memoryDir: string) {
     this.candidatesPath = join(memoryDir, 'design-candidates.json');
     this.profilesDir = join(memoryDir, 'design-profiles');
     this.critiquesPath = join(memoryDir, 'design-critiques.json');
@@ -140,6 +140,21 @@ export class DesignMemoryManager {
 
   async getProfile(profileId: string): Promise<StyleProfile | null> {
     return this.readProfileFile(this.profilePath(profileId));
+  }
+
+  async upsertProfile(profile: StyleProfile): Promise<StyleProfile> {
+    return WriteQueue.getInstance().enqueue(async () => {
+      await this.writeProfile(profile);
+      return profile;
+    });
+  }
+
+  async copyProfileTo(profileId: string, target: DesignMemoryManager): Promise<StyleProfile> {
+    const profile = await this.getProfile(profileId);
+    if (!profile) {
+      throw new Error(`Design profile not found: ${profileId}`);
+    }
+    return target.upsertProfile({ ...profile, updated_at: new Date().toISOString() });
   }
 
   async setActiveProfile(profileId: string): Promise<void> {

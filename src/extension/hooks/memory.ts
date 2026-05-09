@@ -121,7 +121,9 @@ export function createMemoryHook(memoryDir: string) {
 正确引导流程：
 - 如果用户给 URL：提示并使用 /design study <url> [--name <名字>] 生成设计候选。
 - 候选生成后：用 /design confirm <candidate-id> 确认为 StyleProfile。
+- 用户确认 StyleProfile 后：明确提醒该风格默认只在当前项目 memory 生效；如需跨项目复用，可用 /design globalize <profile-id> 加入全局。
 - 需要应用风格时：用 /design use <profile-id> 设为 active profile。
+- 需要复用全局风格时：用 /design globals 查看，再用 /design use-global <profile-id> 引入当前项目并启用。
 - 需要验证本地实现时：先 /design local-url <url>，再 /design critique [url] [profile-id]。
 
 Design Study 会采集首屏/移动端截图、computed style、颜色、字体、边框、圆角、阴影和组件模式；它学习的是可迁移的视觉规则，不是网页正文内容。

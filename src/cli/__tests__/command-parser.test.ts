@@ -136,6 +136,20 @@ describe('parseCommand', () => {
       subcommand: 'use',
       profileId: 'food-app',
     });
+    expect(parseCommand('/design globalize food-app')).toEqual({
+      type: 'design',
+      subcommand: 'globalize',
+      profileId: 'food-app',
+    });
+    expect(parseCommand('/design globals')).toEqual({
+      type: 'design',
+      subcommand: 'globals',
+    });
+    expect(parseCommand('/design use-global food-app')).toEqual({
+      type: 'design',
+      subcommand: 'use-global',
+      profileId: 'food-app',
+    });
     expect(parseCommand('/design local-url http://localhost:3000')).toEqual({
       type: 'design',
       subcommand: 'local-url',
@@ -194,6 +208,7 @@ describe('COMMAND_COMPLETIONS', () => {
   it('包含常用子命令补全', () => {
     expect(COMMAND_COMPLETIONS).toContain('/design study ');
     expect(COMMAND_COMPLETIONS).toContain('/design confirm ');
+    expect(COMMAND_COMPLETIONS).toContain('/design globalize ');
     expect(COMMAND_COMPLETIONS).toContain('/plan revision ');
     expect(COMMAND_COMPLETIONS).toContain('/feedback down ');
   });

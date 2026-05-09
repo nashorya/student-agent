@@ -58,6 +58,7 @@ import { buildPlanningPrompt, buildPhaseExecutionPrompt } from '../core/task-pla
 
 const CWD = process.env.STUDENT_AGENT_CWD ?? process.cwd();
 const MEMORY_DIR = join(CWD, 'memory');
+const GLOBAL_MEMORY_DIR = join(GLOBAL_CONFIG_DIR, 'memory');
 
 // 早期检测：CWD 为根目录会导致 memory/ 写入 /memory（需要 root 权限）
 if (CWD === '/') {
@@ -1228,12 +1229,48 @@ async function handleDesignCommand(
       return [
         `已确认 StyleProfile：${profile.name}`,
         `profile_id: ${profile.id}`,
+        `作用域：当前项目（${MEMORY_DIR}）`,
+        '这个风格默认只在当前项目生效；如需跨项目复用，运行 /design globalize <profile-id> 加入全局。',
         '可用 /design use <profile-id> 设为当前 UI 实现风格。',
       ].join('\n');
     }
     case 'use':
       await runtime.designService.useProfile(command.profileId);
       return `已启用 StyleProfile：${command.profileId}`;
+
+    case 'globalize': {
+      const globalMemory = new DesignMemoryManager(GLOBAL_MEMORY_DIR);
+      const profile = await memory.copyProfileTo(command.profileId, globalMemory);
+      return [
+        `已加入全局 StyleProfile：${profile.name}`,
+        `profile_id: ${profile.id}`,
+        `全局位置：${GLOBAL_MEMORY_DIR}/design-profiles/${profile.id}.json`,
+        '其他项目可用 /design use-global <profile-id> 引入并启用。',
+      ].join('\n');
+    }
+
+    case 'globals': {
+      const globalMemory = new DesignMemoryManager(GLOBAL_MEMORY_DIR);
+      const profiles = await globalMemory.getProfiles();
+      if (profiles.length === 0) {
+        return '暂无全局 StyleProfile。可在项目中确认风格后运行 /design globalize <profile-id>。';
+      }
+      return [
+        '全局 StyleProfile：',
+        ...profiles.map((profile) => `- ${profile.id}：${profile.name}`),
+      ].join('\n');
+    }
+
+    case 'use-global': {
+      const globalMemory = new DesignMemoryManager(GLOBAL_MEMORY_DIR);
+      const profile = await globalMemory.copyProfileTo(command.profileId, memory);
+      await runtime.designService.useProfile(profile.id);
+      return [
+        `已引入并启用全局 StyleProfile：${profile.name}`,
+        `profile_id: ${profile.id}`,
+        `项目位置：${MEMORY_DIR}/design-profiles/${profile.id}.json`,
+      ].join('\n');
+    }
 
     case 'local-url':
       assertLocalDesignUrl(command.url);
