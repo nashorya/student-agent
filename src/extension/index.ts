@@ -43,6 +43,7 @@ import type { Task } from '../memory/tasks/types.js';
 import { PlanRevisionManager } from '../memory/plan-revisions/manager.js';
 import type { PlanRevision } from '../memory/plan-revisions/types.js';
 import { DesignMemoryManager } from '../memory/design/manager.js';
+import type { DesignCandidate } from '../memory/design/types.js';
 import { ProjectKbManager } from '../memory/project-kb/manager.js';
 import { DesignStudyService, NativePlaywrightExtractor, assertLocalDesignUrl } from '../knowledge/design-study/index.js';
 import { parsePhaseSignal } from '../core/task-planner/phase-signal.js';
@@ -1217,6 +1218,8 @@ async function handleDesignCommand(
         `已生成设计候选：${candidate.name}`,
         `candidate_id: ${candidate.id}`,
         `观察次数：${candidate.observations}`,
+        '',
+        formatDesignEvidence(candidate),
         '下一步：/design confirm <candidate-id> 确认为 StyleProfile。',
       ].join('\n');
     }
@@ -1256,6 +1259,38 @@ async function handleDesignCommand(
       return `视觉自评分数：${score}%（阈值 ${Math.round(runtime.config.designStudy.criticThreshold * 100)}%）${failures}`;
     }
   }
+}
+
+function formatDesignEvidence(candidate: DesignCandidate): string {
+  const viewports = candidate.screenshots.map((shot) => `${shot.viewport} ${shot.width}x${shot.height}`);
+  const roles = countBy(candidate.samples.map((sample) => sample.role));
+  const tokens = candidate.tokens;
+  return [
+    '检查证据：',
+    `- 来源 URL：${candidate.source_urls.join(', ')}`,
+    `- 截图：${candidate.screenshots.length} 张（${viewports.join('；') || '无'}）`,
+    `- computed style 样本：${candidate.samples.length} 个（${formatCounts(roles)}）`,
+    `- 颜色：背景 ${tokens.colors.background.length} / 文本 ${tokens.colors.text.length} / 强调 ${tokens.colors.accent.length}`,
+    `- 字体权重：${JSON.stringify(tokens.fontWeight)}`,
+    `- 边框：${JSON.stringify(tokens.border)}`,
+    `- 圆角：${tokens.radius.slice(0, 6).join(', ') || '未提取'}`,
+    `- 阴影：${tokens.shadow.slice(0, 4).join(', ') || '未提取'}`,
+    `- 组件模式：${Object.keys(candidate.component_patterns).join(', ') || '未识别'}`,
+    '- 审计位置：memory/design-candidates.json',
+  ].join('\n');
+}
+
+function countBy(values: string[]): Record<string, number> {
+  return values.reduce<Record<string, number>>((counts, value) => {
+    counts[value] = (counts[value] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function formatCounts(counts: Record<string, number>): string {
+  const entries = Object.entries(counts);
+  if (entries.length === 0) return '无';
+  return entries.map(([key, count]) => `${key}:${count}`).join(', ');
 }
 
 async function maybeRunAutomaticDesignCritique(runtime: RuntimeState, taskDescription: string): Promise<string | null> {

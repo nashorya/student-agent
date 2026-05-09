@@ -80,7 +80,7 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
   features: {
     context7: true,
     playwright: false,
-    designStudy: false,
+    designStudy: true,
     boundedBreaker: true,
     qualityWatchdog: true,
     subAgents: false,
