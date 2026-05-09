@@ -15,8 +15,9 @@ import { emitKeypressEvents } from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
+import { writeFile, mkdir } from 'node:fs/promises';
 import chalk from 'chalk';
-import { getModel, getModels, type Api, type Model } from '@mariozechner/pi-ai';
+import { getModel, getModels, completeSimple, type Api, type Model } from '@mariozechner/pi-ai';
 import { loadEnvFile } from '../core/env.js';
 import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
@@ -1215,14 +1216,28 @@ async function handleDesignCommand(
         taskId,
         sessionRef,
       });
+      const [screenshotPaths, styleDescription] = await Promise.all([
+        saveDesignScreenshots(candidate),
+        describeDesignStyle(candidate, runtime.model),
+      ]);
+      if (screenshotPaths.length > 0) {
+        openScreenshots(screenshotPaths);
+      }
       return [
         `已生成设计候选：${candidate.name}`,
         `candidate_id: ${candidate.id}`,
         `观察次数：${candidate.observations}`,
         '',
         formatDesignEvidence(candidate),
+        screenshotPaths.length > 0
+          ? `截图文件：\n${screenshotPaths.map((p) => `  ${p}`).join('\n')}`
+          : '',
+        '',
+        '风格描述：',
+        styleDescription,
+        '',
         '下一步：/design confirm <candidate-id> 确认为 StyleProfile。',
-      ].join('\n');
+      ].filter((line) => line !== undefined).join('\n');
     }
     case 'confirm': {
       const profile = await runtime.designService.confirmCandidate(command.candidateId, taskId, sessionRef);
@@ -1295,6 +1310,46 @@ async function handleDesignCommand(
         : '';
       return `视觉自评分数：${score}%（阈值 ${Math.round(runtime.config.designStudy.criticThreshold * 100)}%）${failures}`;
     }
+  }
+}
+
+async function saveDesignScreenshots(candidate: DesignCandidate): Promise<string[]> {
+  const dir = join(MEMORY_DIR, 'design-screenshots', candidate.id);
+  await mkdir(dir, { recursive: true });
+  const paths: string[] = [];
+  for (const shot of candidate.screenshots) {
+    if (!shot.dataUrl) continue;
+    const base64 = shot.dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    const filePath = join(dir, `${shot.viewport}.png`);
+    await writeFile(filePath, Buffer.from(base64, 'base64'));
+    paths.push(filePath);
+  }
+  return paths;
+}
+
+function openScreenshots(paths: string[]): void {
+  const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
+  for (const p of paths) {
+    execFile(opener, [p], () => {});
+  }
+}
+
+async function describeDesignStyle(candidate: DesignCandidate, model: Model<Api>): Promise<string> {
+  const summary = {
+    tokens: candidate.tokens,
+    component_patterns: candidate.component_patterns,
+    anti_patterns: candidate.anti_patterns,
+    samples_count: candidate.samples.length,
+    viewports: [...new Set(candidate.screenshots.map((s) => s.viewport))],
+  };
+  try {
+    const result = await completeSimple(model, {
+      systemPrompt: '你是设计系统分析师。根据提供的视觉 token 和组件模式，用简洁自然的中文描述这个设计风格的视觉特征，包括配色印象、排版风格、组件外观和整体气质。控制在 120 字以内，不要列举数值，用描述性语言。',
+      messages: [{ role: 'user', content: [{ type: 'text', text: JSON.stringify(summary) }], timestamp: Date.now() }],
+    });
+    return result.content.find((c) => c.type === 'text')?.text?.trim() ?? '（描述生成失败）';
+  } catch {
+    return '（描述生成失败）';
   }
 }
 
