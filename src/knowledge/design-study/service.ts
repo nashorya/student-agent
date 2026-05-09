@@ -1,5 +1,4 @@
 import { createActor, createMachine } from 'xstate';
-import { DomainWhitelist } from '../domain-whitelist.js';
 import { DesignMemoryManager } from '../../memory/design/manager.js';
 import type { DesignCandidate, DesignCritique, DesignExtractionResult, StyleProfile } from '../../memory/design/types.js';
 import type { CandidateBreakerReport } from '../../memory/candidates/types.js';
@@ -16,7 +15,6 @@ export interface DesignStudyServiceOptions {
   critic?: VisualCriticLike;
   criticThreshold?: number;
   operationTimeoutMs?: number;
-  referenceWhitelist?: DomainWhitelist;
 }
 
 export interface DesignStudyMachineContext {
@@ -79,7 +77,6 @@ export class DesignStudyService {
   private readonly extractorMode: 'auto' | 'native' | 'dembrandt';
   private readonly critic: VisualCriticLike;
   private readonly operationTimeoutMs: number;
-  private readonly referenceWhitelist: DomainWhitelist;
 
   constructor(options: DesignStudyServiceOptions) {
     this.memory = options.memory;
@@ -87,7 +84,6 @@ export class DesignStudyService {
     this.dembrandtCommand = options.dembrandtCommand;
     this.extractorMode = options.extractorMode ?? 'auto';
     this.operationTimeoutMs = options.operationTimeoutMs ?? 120_000;
-    this.referenceWhitelist = options.referenceWhitelist ?? new DomainWhitelist();
     this.critic = options.critic ?? new VisualCritic({
       extractor: this.nativeExtractor,
       threshold: options.criticThreshold,
@@ -95,7 +91,7 @@ export class DesignStudyService {
   }
 
   async study(request: DesignStudyRunRequest): Promise<DesignCandidate> {
-    assertReferenceStudyUrl(request.url, this.referenceWhitelist);
+    assertReferenceStudyUrl(request.url);
     const actor = createActor(createDesignStudyMachine()).start();
     try {
       actor.send({ type: 'DESIGN_STUDY_REQUESTED' });
@@ -179,10 +175,15 @@ export class DesignStudyService {
   }
 }
 
-export function assertReferenceStudyUrl(url: string, whitelist: DomainWhitelist = new DomainWhitelist()): void {
-  const decision = whitelist.check(url);
-  if (!decision.allowed) {
-    throw new Error(`Design study reference URL rejected: ${decision.reason ?? 'not allowed'}`);
+export function assertReferenceStudyUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('Design study reference URL 格式无效');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Design study reference URL 仅允许 http/https');
   }
 }
 

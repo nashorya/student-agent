@@ -343,7 +343,7 @@ DESIGN_STUDY_REQUESTED
 - `getComputedStyle` 的颜色、字体、边框、圆角、阴影、间距
 - 重复组件的布局密度与移动端稳定性
 
-`design-candidates.json` 只存未验证观察；用户确认或多次独立观察后才升级到 `design-profiles/*.json`。Dembrandt 可以作为可选 extractor 后端，但必须由用户显式配置命令，系统不自动安装外部工具。
+`design-candidates.json` 只存未验证观察；用户确认或多次独立观察后才升级到 `design-profiles/*.json`。Dembrandt 可以作为可选 extractor 后端，但必须由用户显式配置命令，系统不自动安装外部工具。Design Study 必须由 `/design study` 显式触发，参考 URL 不使用通用 Playwright 内容读取白名单，但仍限制为 `http/https`。
 
 实现后视觉自评流程：
 

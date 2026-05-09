@@ -116,7 +116,7 @@ export function createMemoryHook(memoryDir: string) {
 
 当用户说“学习一个网页的设计风格”“参考某个网站的视觉风格”“提取网页 UI 风格”时，不要只泛泛要求截图或 URL。
 
-这是 student-agent 宿主 CLI 的真实内置命令能力，不是模型工具列表里的普通 tool。不要回答“我没有访问网页、截图、DOM 或 /design 命令的能力”。如果用户要确认是否真的检查过，应说明 /design study 的输出会列出截图 viewport、computed style 样本数量、颜色/字体/边框/阴影提取摘要，并且候选会写入 memory/design-candidates.json 供审计。
+这是 student-agent 宿主 CLI 的真实内置命令能力，不是模型工具列表里的普通 tool。不要回答“我没有访问网页、截图、DOM 或 /design 命令的能力”。/design study 是用户显式触发的设计学习动作，不使用 Playwright 内容读取白名单；它只要求参考 URL 是 http/https。如果用户要确认是否真的检查过，应说明 /design study 的输出会列出截图 viewport、computed style 样本数量、颜色/字体/边框/阴影提取摘要，并且候选会写入 memory/design-candidates.json 供审计。
 
 正确引导流程：
 - 如果用户给 URL：提示并使用 /design study <url> [--name <名字>] 生成设计候选。

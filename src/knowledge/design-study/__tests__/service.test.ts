@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createActor } from 'xstate';
 import { WriteQueue } from '../../../core/write-queue.js';
-import { DomainWhitelist } from '../../domain-whitelist.js';
 import { DesignMemoryManager } from '../../../memory/design/manager.js';
 import { DesignStudyService, createDesignStudyMachine } from '../service.js';
 import type { DesignExtractor } from '../types.js';
@@ -58,7 +57,6 @@ describe('DesignStudyService', () => {
       memory,
       nativeExtractor: extractor,
       extractorMode: 'native',
-      referenceWhitelist: new DomainWhitelist({ additionalRules: [{ type: 'exact', value: 'example.com' }] }),
     });
 
     const candidate = await service.study({
@@ -73,7 +71,25 @@ describe('DesignStudyService', () => {
     expect(await memory.getCandidates()).toHaveLength(1);
   });
 
-  it('rejects reference study URLs outside the Playwright whitelist', async () => {
+  it('accepts reference study URLs without the Playwright whitelist', async () => {
+    const memory = DesignMemoryManager.getInstance(tmpDir);
+    const service = new DesignStudyService({
+      memory,
+      nativeExtractor: extractor,
+      extractorMode: 'native',
+    });
+
+    const candidate = await service.study({
+      url: 'http://localhost:3000',
+      name: 'Localhost',
+      taskId: 'task_1',
+      sessionRef: 'session_1',
+    });
+
+    expect(candidate.name).toBe('Localhost');
+  });
+
+  it('rejects non-http reference study URLs', async () => {
     const memory = DesignMemoryManager.getInstance(tmpDir);
     const service = new DesignStudyService({
       memory,
@@ -82,10 +98,10 @@ describe('DesignStudyService', () => {
     });
 
     await expect(service.study({
-      url: 'http://localhost:3000',
-      name: 'Localhost',
+      url: 'file:///tmp/design.html',
+      name: 'File',
       taskId: 'task_1',
       sessionRef: 'session_1',
-    })).rejects.toThrow(/rejected/);
+    })).rejects.toThrow(/仅允许 http\/https/);
   });
 });
