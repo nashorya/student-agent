@@ -41,6 +41,9 @@ export function buildPhaseExecutionPrompt(phaseName: string, phaseDesc: string, 
 
 请专注执行上述 Phase 目标：
 - 只读取与本 Phase 直接相关的文件（不超过 5 个）
+- 修改文件前必须先读取目标文件的当前内容，不能凭旧上下文猜测
+- 避免对大块 JSX/TSX 使用精确 oldText 替换；多处或结构性改动优先使用 apply_patch/patch 风格修改
+- 如果使用 edit 精确替换，只替换小范围、稳定、刚读到的文本锚点
 - 完成后输出 [PHASE_DONE phase=${phaseIndex}] 信号（见系统提示格式）
 - 不要提前做其他 Phase 的工作`;
 }

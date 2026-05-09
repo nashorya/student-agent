@@ -50,6 +50,7 @@ export interface BoundedBreakerOptions {
 }
 
 const DEFAULT_MAX_REVIEWS_PER_RUN = 3;
+export const BREAKER_STRATEGY_LIBRARY_VERSION = '2026-05-v0.31';
 
 export class BoundedBreaker {
   private readonly reviewer: BreakerReviewer;
@@ -92,6 +93,7 @@ export class BoundedBreaker {
       action: recommendation,
       report: {
         id: `breaker_${this.now().getTime()}_${this.reviewsUsed}`,
+        strategy_version: BREAKER_STRATEGY_LIBRARY_VERSION,
         confidence_level: review.confidenceLevel,
         breakers_applied: strategies,
         known_failure_context: review.knownFailureContext,
@@ -119,6 +121,7 @@ export class BoundedBreaker {
         action: 'reject',
         report: {
           id: `breaker_${this.now().getTime()}_generalization_reject`,
+          strategy_version: BREAKER_STRATEGY_LIBRARY_VERSION,
           confidence_level: 'low',
           breakers_applied: ['generalization-admission-check'],
           known_failure_context: ['泛化候选不足：需要至少 3 个具体候选和至少 2 个不同任务来源'],

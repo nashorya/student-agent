@@ -23,9 +23,12 @@ describe('student agent config loader', () => {
 
     expect(config.features.context7).toBe(true);
     expect(config.features.playwright).toBe(false);
+    expect(config.features.designStudy).toBe(false);
     expect(config.features.subAgents).toBe(false);
     expect(config.context7.timeoutMs).toBe(10_000);
     expect(config.llm.requestTimeoutMs).toBe(300_000);
+    expect(config.designStudy.extractorMode).toBe('auto');
+    expect(config.designStudy.criticThreshold).toBe(0.8);
   });
 
   it('JSON 配置覆盖默认值', async () => {
@@ -36,6 +39,14 @@ describe('student agent config loader', () => {
       features: {
         context7: false,
         playwright: true,
+        designStudy: true,
+      },
+      designStudy: {
+        extractorMode: 'dembrandt',
+        dembrandtCommand: 'dembrandt',
+        criticThreshold: 0.75,
+        maxCriticRetries: 2,
+        localUrl: 'http://localhost:3000',
       },
       subAgents: {
         maxConcurrency: 2,
@@ -54,6 +65,12 @@ describe('student agent config loader', () => {
     expect(config.model.name).toBe('claude-sonnet-4-7');
     expect(config.features.context7).toBe(false);
     expect(config.features.playwright).toBe(true);
+    expect(config.features.designStudy).toBe(true);
+    expect(config.designStudy.extractorMode).toBe('dembrandt');
+    expect(config.designStudy.dembrandtCommand).toBe('dembrandt');
+    expect(config.designStudy.criticThreshold).toBe(0.75);
+    expect(config.designStudy.maxCriticRetries).toBe(2);
+    expect(config.designStudy.localUrl).toBe('http://localhost:3000');
     expect(config.subAgents.maxConcurrency).toBe(2);
     expect(config.llm.requestTimeoutMs).toBe(120_000);
     expect(config.llm.maxOutputTokens).toBe(4096);
@@ -94,7 +111,13 @@ describe('student agent config loader', () => {
       env: {
         STUDENT_AGENT_MODEL: 'claude-opus-4-1',
         STUDENT_AGENT_FEATURE_CONTEXT7: 'true',
+        STUDENT_AGENT_FEATURE_DESIGN_STUDY: 'true',
         STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG: 'true',
+        STUDENT_AGENT_DESIGN_EXTRACTOR_MODE: 'native',
+        STUDENT_AGENT_DESIGN_DEMBRANDT_COMMAND: 'dembrandt',
+        STUDENT_AGENT_DESIGN_CRITIC_THRESHOLD: '0.9',
+        STUDENT_AGENT_DESIGN_MAX_CRITIC_RETRIES: '3',
+        STUDENT_AGENT_DESIGN_LOCAL_URL: 'http://localhost:5173',
         CONTEXT7_TIMEOUT_MS: '2500',
         STUDENT_AGENT_LLM_REQUEST_TIMEOUT_MS: '180000',
         STUDENT_AGENT_LLM_MAX_OUTPUT_TOKENS: '8192',
@@ -105,7 +128,13 @@ describe('student agent config loader', () => {
 
     expect(config.model.name).toBe('claude-opus-4-1');
     expect(config.features.context7).toBe(true);
+    expect(config.features.designStudy).toBe(true);
     expect(config.features.qualityWatchdog).toBe(true);
+    expect(config.designStudy.extractorMode).toBe('native');
+    expect(config.designStudy.dembrandtCommand).toBe('dembrandt');
+    expect(config.designStudy.criticThreshold).toBe(0.9);
+    expect(config.designStudy.maxCriticRetries).toBe(3);
+    expect(config.designStudy.localUrl).toBe('http://localhost:5173');
     expect(config.context7.timeoutMs).toBe(2_500);
     expect(config.llm.requestTimeoutMs).toBe(180_000);
     expect(config.llm.maxOutputTokens).toBe(8192);
@@ -156,6 +185,9 @@ describe('student agent config loader', () => {
         playwright: {
           renderWaitMs: 500,
         },
+        designStudy: {
+          extractorMode: 'native',
+        },
       },
     );
 
@@ -163,5 +195,7 @@ describe('student agent config loader', () => {
     expect(config.features.boundedBreaker).toBe(true);
     expect(config.playwright.renderWaitMs).toBe(500);
     expect(config.playwright.navigationTimeoutMs).toBe(10_000);
+    expect(config.designStudy.extractorMode).toBe('native');
+    expect(config.designStudy.criticThreshold).toBe(0.8);
   });
 });

@@ -31,12 +31,22 @@ import { createReflectHook, markReflectBaseline } from './hooks/reflect.js';
 import { createQualityWatchdogHook } from './hooks/quality-watchdog.js';
 import { QualityFeedbackManager, parseFeedbackCommand } from '../watchdog/feedback-collector.js';
 import { QuestionsManager } from '../memory/questions/manager.js';
+import { WhyManager } from '../memory/why/manager.js';
 import { EventRenderer } from '../cli/event-renderer.js';
-import { parseCommand, getHelpText, COMMANDS } from '../cli/command-parser.js';
+import { parseCommand, getHelpText, COMMAND_COMPLETIONS, type SlashCommand } from '../cli/command-parser.js';
 import { printBanner } from '../cli/banner.js';
 import { startTUI, isTTY } from '../tui/index.js';
+import { createInputQueue } from '../tui/input-queue.js';
+import type { TUIBridge } from '../tui/bridge.js';
 import { TasksManager } from '../memory/tasks/manager.js';
+import type { Task } from '../memory/tasks/types.js';
+import { PlanRevisionManager } from '../memory/plan-revisions/manager.js';
+import type { PlanRevision } from '../memory/plan-revisions/types.js';
+import { DesignMemoryManager } from '../memory/design/manager.js';
+import { ProjectKbManager } from '../memory/project-kb/manager.js';
+import { DesignStudyService, NativePlaywrightExtractor, assertLocalDesignUrl } from '../knowledge/design-study/index.js';
 import { parsePhaseSignal } from '../core/task-planner/phase-signal.js';
+import { createPlanSnapshot, detectPlanRevisionIntent, type PlanSnapshot } from '../core/task-planner/plan-revision-detector.js';
 import { detectNegativeFeedback } from '../core/task-planner/feedback-detector.js';
 import { classifyIntent } from '../core/task-planner/intent-classifier.js';
 import { buildTaskContextPrefix } from '../core/task-planner/task-context-builder.js';
@@ -58,6 +68,8 @@ if (CWD === '/') {
 
 /** 当前任务描述（用于 ReflectAgent 和失败升级的诊断报告） */
 let currentTaskDescription = '';
+let automaticDesignCritiqueFailures = 0;
+let lastPlanSnapshot: PlanSnapshot | null = null;
 
 interface RuntimeState {
   config: StudentAgentConfig;
@@ -69,6 +81,7 @@ interface RuntimeState {
   model: Model<Api>;
   resetFileGuard: () => void;
   setFileGuardMode: (mode: 'planning' | 'normal') => void;
+  designService: DesignStudyService;
 }
 
 // ── 构建模型 ──────────────────────────────────────────
@@ -141,6 +154,7 @@ function buildHooks(config: StudentAgentConfig, abortRef: { abort: () => void })
       apiKey: config.context7.apiKey,
       timeoutMs: config.context7.timeoutMs,
       maxDocsChars: config.context7.maxDocsChars,
+      projectKb: ProjectKbManager.getInstance(MEMORY_DIR),
     })
     : undefined;
 
@@ -194,10 +208,13 @@ async function main(): Promise<void> {
 
   if (isTTY()) {
     // ── TUI 模式 ──────────────────────────────────────
-    let resolveSubmit: ((value: string) => void) | null = null;
+    const inputQueue = createInputQueue((value) => {
+      tui.bridge.addMessage('user', value);
+      tui.bridge.addMessage('system', '当前任务仍在运行，消息已排队。');
+    });
 
     const tui = startTUI({
-      onSubmit: (value) => { resolveSubmit?.(value); },
+      onSubmit: inputQueue.enqueueSubmit,
       onAbort: () => {
         tui.bridge.updateTaskStatus({ state: 'aborting' });
         runtime.session.abort().catch(() => {});
@@ -210,10 +227,12 @@ async function main(): Promise<void> {
     runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
 
     while (true) {
-      const userInput = await new Promise<string>((resolve) => { resolveSubmit = resolve; });
-      if (!userInput.trim()) continue;
+      const submitted = await inputQueue.waitForSubmit();
+      const userInput = submitted.value;
 
-      tui.bridge.addMessage('user', userInput);
+      if (!submitted.alreadyDisplayed) {
+        tui.bridge.addMessage('user', userInput);
+      }
 
       // ── Slash command 处理 ────────────────────────
 
@@ -357,17 +376,31 @@ async function main(): Promise<void> {
           }
 
           case 'feedback':
-            if (runtime.config.features.qualityWatchdog) {
-              await QualityFeedbackManager.getInstance(MEMORY_DIR).append({
-                task_id: `manual_${Date.now()}`,
-                session_ref: `session_${Date.now()}`,
-                task_description: currentTaskDescription,
-                rating: command.rating,
-                comment: command.comment,
-              });
-              tui.bridge.addMessage('system', 'OK: 已记录质量反馈');
-            } else {
-              tui.bridge.addMessage('system', 'qualityWatchdog 未启用');
+            tui.bridge.addMessage('system', await recordQualityFeedback(command, runtime));
+            if (isActionableDownFeedback(command)) {
+              await runTuiFeedbackRepair(runtime, tui.bridge, command.comment);
+            }
+            continue;
+
+          case 'review':
+            await recordReviewCommand(command, currentTaskDescription);
+            tui.bridge.addMessage('system', 'OK: 已记录本轮信心投票');
+            continue;
+
+          case 'why':
+            tui.bridge.addMessage('system', await renderWhyCommand(command));
+            continue;
+
+          case 'plan':
+            tui.bridge.addMessage('system', await handlePlanCommand(command));
+            continue;
+
+          case 'design':
+            tui.bridge.addMessage('system', '[DesignStudy] 正在处理设计命令…');
+            try {
+              tui.bridge.addMessage('system', await handleDesignCommand(command, runtime));
+            } catch (err) {
+              tui.bridge.addMessage('system', `[DesignStudy] 失败：${err instanceof Error ? err.message : String(err)}`);
             }
             continue;
 
@@ -381,14 +414,10 @@ async function main(): Promise<void> {
 
       const feedback = runtime.config.features.qualityWatchdog ? parseFeedbackCommand(userInput) : null;
       if (feedback) {
-        await QualityFeedbackManager.getInstance(MEMORY_DIR).append({
-          task_id: `manual_${Date.now()}`,
-          session_ref: `session_${Date.now()}`,
-          task_description: currentTaskDescription,
-          rating: feedback.rating,
-          comment: feedback.comment,
-        });
-        tui.bridge.addMessage('system', 'OK: 已记录质量反馈');
+        tui.bridge.addMessage('system', await recordQualityFeedback(feedback, runtime));
+        if (isActionableDownFeedback(feedback)) {
+          await runTuiFeedbackRepair(runtime, tui.bridge, feedback.comment);
+        }
         continue;
       }
 
@@ -396,9 +425,14 @@ async function main(): Promise<void> {
 
       const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
       const activeTask = await tasksMgr.getActive();
+      const automaticRevisionMessage = await maybeRecordAutomaticPlanRevision(userInput, activeTask);
+      if (automaticRevisionMessage) {
+        tui.bridge.addMessage('system', automaticRevisionMessage);
+      }
 
       const feedbackSignal = detectNegativeFeedback(userInput);
       if (feedbackSignal.isNegative && activeTask) {
+        automaticDesignCritiqueFailures = 0;
         const phase = activeTask.phases[activeTask.active_phase_index];
         await tasksMgr.incrementRetry(activeTask.id, feedbackSignal.extractedText);
 
@@ -408,6 +442,7 @@ async function main(): Promise<void> {
             apiKey: runtime.config.context7.apiKey,
             timeoutMs: runtime.config.context7.timeoutMs,
             maxDocsChars: runtime.config.context7.maxDocsChars,
+            projectKb: ProjectKbManager.getInstance(MEMORY_DIR),
           });
           ctx7Docs = await buildCtx7RetryContext(
             activeTask.name,
@@ -439,6 +474,8 @@ async function main(): Promise<void> {
           await runtime.session.prompt(finalPrompt);
           await runtime.agent.waitForIdle();
           tui.bridge.updateTaskStatus({ state: 'idle' });
+          const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
+          if (critiqueMessage) tui.bridge.addMessage('system', critiqueMessage);
           if (runtime.agent.state.errorMessage) {
             tui.bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
           }
@@ -454,6 +491,7 @@ async function main(): Promise<void> {
         );
 
         if (intent.type === 'new_task') {
+          automaticDesignCritiqueFailures = 0;
           currentTaskDescription = intent.taskName ?? userInput;
           runtime.escalation.initTask(currentTaskDescription, CWD);
           markReflectBaseline();
@@ -504,6 +542,7 @@ async function main(): Promise<void> {
           }
 
           const newTask = await tasksMgr.createTask(planSignal.name, planSignal.phases);
+          lastPlanSnapshot = createPlanSnapshot(newTask);
           tui.bridge.addMessage('system',
             `[规划完成] ${planSignal.name}，共 ${planSignal.phases.length} 个 Phase。开始执行 Phase 1…`
           );
@@ -536,6 +575,8 @@ async function main(): Promise<void> {
             await runtime.session.prompt(phase1Prompt);
             await runtime.agent.waitForIdle();
             tui.bridge.updateTaskStatus({ state: 'idle' });
+            const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
+            if (critiqueMessage) tui.bridge.addMessage('system', critiqueMessage);
             if (runtime.agent.state.errorMessage) {
               tui.bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
             }
@@ -556,6 +597,7 @@ async function main(): Promise<void> {
             } else {
               tui.bridge.addMessage('system', `[任务完成] ${planSignal.name}`);
               tui.bridge.clearTaskStatus();
+              lastPlanSnapshot = null;
             }
           }
         } else {
@@ -593,6 +635,8 @@ async function main(): Promise<void> {
             await runtime.session.prompt(finalPrompt);
             await runtime.agent.waitForIdle();
             tui.bridge.updateTaskStatus({ state: 'idle' });
+            const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
+            if (critiqueMessage) tui.bridge.addMessage('system', critiqueMessage);
             if (runtime.agent.state.errorMessage) {
               tui.bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
             }
@@ -615,6 +659,7 @@ async function main(): Promise<void> {
               } else {
                 tui.bridge.addMessage('system', `[任务完成] ${activeTask.name}`);
                 tui.bridge.clearTaskStatus();
+                lastPlanSnapshot = null;
               }
             }
           }
@@ -634,8 +679,8 @@ async function main(): Promise<void> {
       input,
       output,
       completer: (line: string) => {
-        const hits = COMMANDS.filter((c) => c.startsWith(line));
-        return [hits.length ? hits : COMMANDS, line] as [string[], string];
+        const hits = COMMAND_COMPLETIONS.filter((c) => c.startsWith(line));
+        return [hits.length ? hits : COMMAND_COMPLETIONS, line] as [string[], string];
       }
     });
 
@@ -742,17 +787,31 @@ async function main(): Promise<void> {
           }
 
           case 'feedback':
-            if (runtime.config.features.qualityWatchdog) {
-              await QualityFeedbackManager.getInstance(MEMORY_DIR).append({
-                task_id: `manual_${Date.now()}`,
-                session_ref: `session_${Date.now()}`,
-                task_description: currentTaskDescription,
-                rating: command.rating,
-                comment: command.comment,
-              });
-              console.log(chalk.green('OK: 已记录质量反馈'));
-            } else {
-              console.log(chalk.dim('  qualityWatchdog 未启用'));
+            console.log(chalk.green(await recordQualityFeedback(command, runtime)));
+            if (isActionableDownFeedback(command)) {
+              await runConsoleFeedbackRepair(runtime, command.comment);
+            }
+            continue;
+
+          case 'review':
+            await recordReviewCommand(command, currentTaskDescription);
+            console.log(chalk.green('  OK: 已记录本轮信心投票'));
+            continue;
+
+          case 'why':
+            console.log(chalk.green(await renderWhyCommand(command)));
+            continue;
+
+          case 'plan':
+            console.log(chalk.green(await handlePlanCommand(command)));
+            continue;
+
+          case 'design':
+            console.log(chalk.dim('  [DesignStudy] 正在处理设计命令…'));
+            try {
+              console.log(chalk.green(await handleDesignCommand(command, runtime)));
+            } catch (err) {
+              console.log(chalk.red(`[DesignStudy] 失败：${err instanceof Error ? err.message : String(err)}`));
             }
             continue;
 
@@ -767,14 +826,10 @@ async function main(): Promise<void> {
 
       const feedback = runtime.config.features.qualityWatchdog ? parseFeedbackCommand(userInput) : null;
       if (feedback) {
-        await QualityFeedbackManager.getInstance(MEMORY_DIR).append({
-          task_id: `manual_${Date.now()}`,
-          session_ref: `session_${Date.now()}`,
-          task_description: currentTaskDescription,
-          rating: feedback.rating,
-          comment: feedback.comment,
-        });
-        console.log(chalk.green('OK: 已记录质量反馈'));
+        console.log(chalk.green(await recordQualityFeedback(feedback, runtime)));
+        if (isActionableDownFeedback(feedback)) {
+          await runConsoleFeedbackRepair(runtime, feedback.comment);
+        }
         continue;
       }
 
@@ -782,6 +837,10 @@ async function main(): Promise<void> {
 
       const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
       const activeTask = await tasksMgr.getActive();
+      const automaticRevisionMessage = await maybeRecordAutomaticPlanRevision(userInput, activeTask);
+      if (automaticRevisionMessage) {
+        console.log(chalk.dim(`  ${automaticRevisionMessage}`));
+      }
 
       // 负反馈检测
       const feedbackSignal = detectNegativeFeedback(userInput);
@@ -796,6 +855,7 @@ async function main(): Promise<void> {
             apiKey: runtime.config.context7.apiKey,
             timeoutMs: runtime.config.context7.timeoutMs,
             maxDocsChars: runtime.config.context7.maxDocsChars,
+            projectKb: ProjectKbManager.getInstance(MEMORY_DIR),
           });
           ctx7Docs = await buildCtx7RetryContext(
             activeTask.name,
@@ -861,7 +921,8 @@ async function main(): Promise<void> {
           const signal = parsePhaseSignal(fullOutput);
 
           if (signal?.type === 'task_start') {
-            await tasksMgr.createTask(signal.name, signal.phases);
+            const newTask = await tasksMgr.createTask(signal.name, signal.phases);
+            lastPlanSnapshot = createPlanSnapshot(newTask);
             console.log(chalk.green(`\n  [任务已创建] ${signal.name}，共 ${signal.phases.length} 个 Phase`));
           } else if (signal?.type === 'phase_done' && activeTask) {
             await tasksMgr.completePhase(activeTask.id);
@@ -870,6 +931,7 @@ async function main(): Promise<void> {
               console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入下一 Phase`));
             } else {
               console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
+              lastPlanSnapshot = null;
             }
           }
         } else {
@@ -914,6 +976,7 @@ async function main(): Promise<void> {
                 console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入下一 Phase`));
               } else {
                 console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
+                lastPlanSnapshot = null;
               }
             }
           }
@@ -934,6 +997,303 @@ async function main(): Promise<void> {
 
     rl.close();
   }
+}
+
+type DesignCommand = Extract<SlashCommand, { type: 'design' }>;
+type FeedbackCommand = Extract<SlashCommand, { type: 'feedback' }>;
+type PlanCommand = Extract<SlashCommand, { type: 'plan' }>;
+type ReviewCommand = Extract<SlashCommand, { type: 'review' }>;
+type WhyCommand = Extract<SlashCommand, { type: 'why' }>;
+
+async function recordQualityFeedback(
+  feedback: Pick<FeedbackCommand, 'rating' | 'comment'>,
+  runtime: RuntimeState,
+): Promise<string> {
+  if (!runtime.config.features.qualityWatchdog) {
+    return isActionableDownFeedback(feedback)
+      ? 'qualityWatchdog 未启用；这条负反馈会直接用于返工。'
+      : 'qualityWatchdog 未启用';
+  }
+
+  await QualityFeedbackManager.getInstance(MEMORY_DIR).append({
+    task_id: `manual_${Date.now()}`,
+    session_ref: `session_${Date.now()}`,
+    task_description: currentTaskDescription,
+    rating: feedback.rating,
+    comment: feedback.comment,
+  });
+
+  return isActionableDownFeedback(feedback)
+    ? 'OK: 已记录质量反馈，开始根据反馈返工。'
+    : 'OK: 已记录质量反馈';
+}
+
+function isActionableDownFeedback(feedback: Pick<FeedbackCommand, 'rating' | 'comment'>): boolean {
+  return feedback.rating === 'down' && feedback.comment.trim().length > 0;
+}
+
+async function runTuiFeedbackRepair(
+  runtime: RuntimeState,
+  bridge: TUIBridge,
+  feedback: string,
+): Promise<void> {
+  const taskName = currentTaskDescription || '用户反馈返工';
+  currentTaskDescription = taskName;
+  runtime.escalation.initTask(taskName, CWD);
+  markReflectBaseline();
+
+  bridge.updateTaskStatus({
+    name: taskName,
+    phaseIndex: 0,
+    totalPhases: 1,
+    retryCount: 0,
+    toolCallCount: 0,
+    elapsedMs: 0,
+    state: 'running',
+  });
+
+  try {
+    runtime.resetFileGuard();
+    await runtime.session.prompt(buildFeedbackRepairPrompt(taskName, feedback));
+    await runtime.agent.waitForIdle();
+    bridge.updateTaskStatus({ state: 'idle' });
+    const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
+    if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
+    if (runtime.agent.state.errorMessage) {
+      bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
+    }
+  } catch (err) {
+    bridge.updateTaskStatus({ state: 'failed' });
+    bridge.addMessage('system', `反馈返工失败: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+async function runConsoleFeedbackRepair(runtime: RuntimeState, feedback: string): Promise<void> {
+  const taskName = currentTaskDescription || '用户反馈返工';
+  currentTaskDescription = taskName;
+  runtime.escalation.initTask(taskName, CWD);
+  markReflectBaseline();
+  try {
+    await runTaskWithAbort(runtime, buildFeedbackRepairPrompt(taskName, feedback));
+  } catch (err) {
+    console.error(
+      chalk.red('反馈返工失败:'),
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+function buildFeedbackRepairPrompt(taskName: string, feedback: string): string {
+  return [
+    '[用户负反馈返工]',
+    `刚完成的任务：${taskName}`,
+    `用户反馈：${feedback.trim()}`,
+    '',
+    '请把这条反馈当作当前任务的返工要求：',
+    '- 先定位原因，不要只回复解释',
+    '- 如果是运行时/渲染/网络层错误，优先复现并检查相关页面、路由、资源引用和控制台错误',
+    '- 修复后运行可用的相关测试或检查',
+    '- 完成后说明修复点和验证结果',
+  ].join('\n');
+}
+
+async function recordReviewCommand(command: ReviewCommand, taskDescription: string): Promise<void> {
+  await QualityFeedbackManager.getInstance(MEMORY_DIR).append({
+    task_id: `review_${Date.now()}`,
+    session_ref: `session_${Date.now()}`,
+    task_description: taskDescription,
+    rating: command.rating === 'down' ? 'down' : 'up',
+    comment: command.rating === 'ok'
+      ? `ok${command.comment ? `: ${command.comment}` : ''}`
+      : command.comment,
+  });
+}
+
+async function renderWhyCommand(command: WhyCommand): Promise<string> {
+  const entries = await new WhyManager(MEMORY_DIR).explain(command.query, { trace: command.trace });
+  if (entries.length === 0) {
+    return '没有找到相关决策来源。';
+  }
+  return [
+    command.trace ? '决策来源追溯：' : '直接决策来源：',
+    ...entries.map((entry) => [
+      `- [${entry.source}] ${entry.id}: ${entry.summary}`,
+      ...(entry.trace?.map((line) => `  ${line}`) ?? []),
+    ].join('\n')),
+  ].join('\n');
+}
+
+async function handlePlanCommand(command: PlanCommand): Promise<string> {
+  const manager = PlanRevisionManager.getInstance(MEMORY_DIR);
+  if (command.subcommand === 'revisions') {
+    const revisions = await manager.search(command.query, 10);
+    if (revisions.length === 0) return '没有找到计划修订记忆。';
+    return formatPlanRevisions(revisions);
+  }
+
+  const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+  const activeTask = await tasksMgr.getActive();
+  if (!activeTask) {
+    return '当前没有活跃任务，无法记录计划修订。';
+  }
+
+  const snapshot = lastPlanSnapshot ?? createPlanSnapshot(activeTask);
+  const detected = detectPlanRevisionIntent(command.content, activeTask, snapshot) ?? {
+    agentPlanSummary: snapshot.summary,
+    userRevisionSummary: command.content.trim(),
+    diffType: 'implementation_strategy_change' as const,
+    reasonInferred: '用户显式记录了一次计划修订，应作为后续规划的低优先级证据。',
+  };
+
+  const revision = await manager.append({
+    taskId: activeTask.id,
+    sessionRef: `session_${Date.now()}`,
+    agentPlanSummary: detected.agentPlanSummary,
+    userRevisionSummary: detected.userRevisionSummary,
+    diffType: detected.diffType,
+    reasonInferred: detected.reasonInferred,
+    outcome: 'accepted',
+    trustStatus: 'user_confirmed',
+    sourceType: 'explicit-command',
+  });
+
+  return `OK: 已记录计划修订：${revision.id}`;
+}
+
+async function maybeRecordAutomaticPlanRevision(input: string, activeTask: Task | null): Promise<string | null> {
+  const detected = detectPlanRevisionIntent(input, activeTask, lastPlanSnapshot);
+  if (!activeTask || !detected) return null;
+
+  try {
+    const revision = await PlanRevisionManager.getInstance(MEMORY_DIR).append({
+      taskId: activeTask.id,
+      sessionRef: `session_${Date.now()}`,
+      agentPlanSummary: detected.agentPlanSummary,
+      userRevisionSummary: detected.userRevisionSummary,
+      diffType: detected.diffType,
+      reasonInferred: detected.reasonInferred,
+      outcome: 'observed',
+      trustStatus: 'unverified',
+      sourceType: 'automatic-detection',
+    });
+    return `OK: 已记录计划修订证据：${revision.id}`;
+  } catch (err) {
+    return `[PlanRevision] 记录失败：${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+function formatPlanRevisions(revisions: PlanRevision[]): string {
+  return [
+    '计划修订记忆：',
+    ...revisions.map((revision) => [
+      `- ${revision.id} [${revision.diff_type}/${revision.trust_status}]`,
+      `  用户修订：${revision.user_revision_summary}`,
+      `  推断：${revision.reason_inferred}`,
+    ].join('\n')),
+  ].join('\n');
+}
+
+async function handleDesignCommand(
+  command: DesignCommand,
+  runtime: RuntimeState,
+): Promise<string> {
+  if (!runtime.config.features.designStudy) {
+    return 'DesignStudy 未启用。设置 STUDENT_AGENT_FEATURE_DESIGN_STUDY=true 后重启即可使用。';
+  }
+
+  const memory = DesignMemoryManager.getInstance(MEMORY_DIR);
+  const taskId = `design_${Date.now()}`;
+  const sessionRef = `session_${Date.now()}`;
+
+  switch (command.subcommand) {
+    case 'study': {
+      const candidate = await runtime.designService.study({
+        url: command.url,
+        name: command.name,
+        taskId,
+        sessionRef,
+      });
+      return [
+        `已生成设计候选：${candidate.name}`,
+        `candidate_id: ${candidate.id}`,
+        `观察次数：${candidate.observations}`,
+        '下一步：/design confirm <candidate-id> 确认为 StyleProfile。',
+      ].join('\n');
+    }
+    case 'confirm': {
+      const profile = await runtime.designService.confirmCandidate(command.candidateId, taskId, sessionRef);
+      return [
+        `已确认 StyleProfile：${profile.name}`,
+        `profile_id: ${profile.id}`,
+        '可用 /design use <profile-id> 设为当前 UI 实现风格。',
+      ].join('\n');
+    }
+    case 'use':
+      await runtime.designService.useProfile(command.profileId);
+      return `已启用 StyleProfile：${command.profileId}`;
+
+    case 'local-url':
+      assertLocalDesignUrl(command.url);
+      await memory.setLocalUrl(command.url);
+      return `已设置本地视觉自评地址：${command.url}`;
+
+    case 'critique': {
+      const profile = command.profileId
+        ? await memory.getProfile(command.profileId)
+        : await memory.getActiveProfile();
+      if (!profile) {
+        return '没有可用 StyleProfile。请先 /design confirm 再 /design use，或传入 profile_id。';
+      }
+      const url = command.url ?? await memory.getLocalUrl() ?? runtime.config.designStudy.localUrl;
+      if (!url) {
+        return '没有本地页面地址。请先运行 /design local-url <url>，或在命令中传入 URL。';
+      }
+      const critique = await runtime.designService.critique(url, profile, taskId, sessionRef);
+      const score = Math.round(critique.score * 100);
+      const failures = critique.failures.length > 0
+        ? `\n失败项：\n${critique.failures.map((failure) => `- ${failure}`).join('\n')}`
+        : '';
+      return `视觉自评分数：${score}%（阈值 ${Math.round(runtime.config.designStudy.criticThreshold * 100)}%）${failures}`;
+    }
+  }
+}
+
+async function maybeRunAutomaticDesignCritique(runtime: RuntimeState, taskDescription: string): Promise<string | null> {
+  if (!runtime.config.features.designStudy) return null;
+  if (automaticDesignCritiqueFailures >= runtime.config.designStudy.maxCriticRetries) return null;
+  if (!isUiImplementationTask(taskDescription)) return null;
+
+  const memory = DesignMemoryManager.getInstance(MEMORY_DIR);
+  const profile = await memory.getActiveProfile();
+  const url = await memory.getLocalUrl() ?? runtime.config.designStudy.localUrl;
+  if (!profile || !url) return null;
+
+  try {
+    const critique = await runtime.designService.critique(
+      url,
+      profile,
+      `task_${Date.now()}`,
+      `session_${Date.now()}`,
+    );
+    const score = Math.round(critique.score * 100);
+    if (!critique.revision_required) {
+      automaticDesignCritiqueFailures = 0;
+      return `[DesignCritic] 视觉一致性 ${score}%，已通过当前 StyleProfile。`;
+    }
+    automaticDesignCritiqueFailures++;
+    return [
+      `[DesignCritic] 视觉一致性 ${score}%，低于阈值 ${Math.round(runtime.config.designStudy.criticThreshold * 100)}%。`,
+      '下一轮 UI 修改请优先修正：',
+      ...critique.failures.map((failure) => `- ${failure}`),
+    ].join('\n');
+  } catch (err) {
+    return `[DesignCritic] 自评失败：${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+function isUiImplementationTask(taskDescription: string): boolean {
+  return /\b(ui|ux|css|html|frontend|front-end|react|vue|svelte|tailwind|style|styles|component|layout|page|screen|website|web app)\b/i.test(taskDescription)
+    || /(前端|页面|网页|样式|视觉|界面|组件|布局|按钮|卡片|移动端|响应式)/.test(taskDescription);
 }
 
 async function reloadConfig(): Promise<StudentAgentConfig> {
@@ -974,6 +1334,17 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
   const unsubscribe = agent.subscribe((event) => {
     renderer.handleEvent(event);
   });
+  const designMemory = DesignMemoryManager.getInstance(MEMORY_DIR);
+  const designService = new DesignStudyService({
+    memory: designMemory,
+    nativeExtractor: new NativePlaywrightExtractor({
+      navigationTimeoutMs: config.playwright.navigationTimeoutMs,
+      renderWaitMs: config.playwright.renderWaitMs,
+    }),
+    extractorMode: config.designStudy.extractorMode,
+    dembrandtCommand: config.designStudy.dembrandtCommand,
+    criticThreshold: config.designStudy.criticThreshold,
+  });
 
   return {
     config,
@@ -985,6 +1356,7 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
     model,
     resetFileGuard,
     setFileGuardMode,
+    designService,
   };
 }
 
@@ -1063,6 +1435,10 @@ async function runTaskWithAbort(runtime: RuntimeState, userInput: string): Promi
     runtime.resetFileGuard();
     await runtime.session.prompt(userInput);
     await runtime.agent.waitForIdle();
+    const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
+    if (critiqueMessage) {
+      console.log(chalk.yellow('\n' + critiqueMessage));
+    }
 
     if (!aborted && runtime.agent.state.errorMessage) {
       console.error(chalk.red(`[Agent Error] ${runtime.agent.state.errorMessage}`));

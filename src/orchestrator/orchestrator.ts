@@ -1,6 +1,7 @@
 import PQueue from 'p-queue';
 import type { SubAgentTask, TaskPlan, WriteIntentConflict } from './planner.js';
 import { detectWriteIntentConflicts, normalizeWritePath } from './planner.js';
+import { MergeAgent, type MergeAgentResult } from './merge-agent.js';
 
 export type SubAgentStatus = 'success' | 'failed' | 'state_conflict' | 'skipped';
 
@@ -17,6 +18,7 @@ export interface OrchestratorResult {
   status: 'disabled' | 'blocked_conflicts' | 'completed' | 'completed_with_errors';
   conflicts: WriteIntentConflict[];
   results: SubAgentRunResult[];
+  merge?: MergeAgentResult;
 }
 
 export interface SubAgentExecutor {
@@ -35,6 +37,7 @@ export class SubAgentOrchestrator {
   private readonly enabled: boolean;
   private readonly maxConcurrency: number;
   private readonly rollbackTask?: (task: SubAgentTask, reason: string) => Promise<void>;
+  private readonly mergeAgent: MergeAgent;
 
   constructor(
     private readonly executor: SubAgentExecutor,
@@ -43,6 +46,7 @@ export class SubAgentOrchestrator {
     this.enabled = options.enabled ?? false;
     this.maxConcurrency = options.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY;
     this.rollbackTask = options.rollbackTask;
+    this.mergeAgent = new MergeAgent();
   }
 
   async run(plan: TaskPlan): Promise<OrchestratorResult> {
@@ -91,12 +95,18 @@ export class SubAgentOrchestrator {
       };
     });
 
+    const merge = this.mergeAgent.synchronize({
+      tasks: plan.tasks,
+      results: mergedResults,
+    });
+
     return {
       status: mergedResults.some((result) => result.status !== 'success')
         ? 'completed_with_errors'
         : 'completed',
-      conflicts: [],
+      conflicts: merge.conflicts,
       results: mergedResults,
+      merge,
     };
   }
 

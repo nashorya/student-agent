@@ -12,6 +12,10 @@
 - 修正三：Bounded Breaker 冷启动防护，任务数 < 20 时统一提升合并阈值至 ≥4 次
 - 修正四：新增 Stream Adapter，解决流式输出与 XState 的阻抗匹配问题
 - 修正五：Stream Adapter 超时兜底，XState after 120s 接管，超时重试上下文注入规范
+- 合并发布：Design Study Skill / Visual Style Learner，支持显式网页风格学习、StyleProfile 记忆和本地视觉自评
+- 子代理硬化：Merge Agent 定位为 Orchestrator 内部 Synchronizer；SubAgentTask 增加 readIntent，调度前执行 reader-writer/write-write 锁检查
+- 技术债收敛：Context7/MCP 响应增加 schema 校验；新增 project-kb.json TTL 缓存；Breaker 报告写入 strategy_version
+- 开放问题收敛：questions.json 引入 decay_factor；/why 默认展示直接来源，/why --trace 展示完整溯源；/review 接入质量反馈主路径
 
 **v0.3 变更摘要**
 - 新增 Bounded Breaker：仅在语义合并/抽象泛化时触发，生成置信度报告替代机械的通过/不通过判定
@@ -50,7 +54,8 @@
 │                                                          │
 │   Planner                                                │
 │   任务分解，静态依赖分析（仅承诺 import/config 级别）     │
-│   子代理开启时：Write Intent 声明 + 冲突检测             │
+│   子代理开启时：Read Intent / Write Intent 声明 + 锁检测 │
+│   Merge Agent 作为内部 Synchronizer 汇总 patch/冲突       │
 │   输出无冲突任务树供用户确认后执行                        │
 │                                                          │
 │   Executor                                               │
@@ -81,6 +86,9 @@
 │ JS渲染页面       │   │ 提取检索意图 → 成功：Web Search 注入 │
 │ 持久化登录会话    │   │             → 失败：跳过直接 Attempt 3│
 │ 域名白名单机制    │   │                                     │
+│                  │   │                                     │
+│ Design Study     │   │                                     │
+│ 视觉风格学习模式  │   │                                     │
 │                  │   │ Attempt 3+                          │
 │ Web Search MCP   │   │ 中断执行，生成结构化诊断报告         │
 │ 第二级失败时触发  │   │ 向用户提问，写入 questions.json      │
@@ -94,6 +102,9 @@
 │  project-rules.md           最高优先级，手动维护          │
 │  preferences.md             正式偏好，版本化存储          │
 │  preference-candidates.json 偏好候选池，含信任状态机      │
+│  design-candidates.json    设计候选池，含信任状态机       │
+│  design-profiles/          已确认 StyleProfile            │
+│  design-critiques.json     视觉自评记录                   │
 │  questions.json             失败案例库，含可信度标记      │
 │  docs-index/                sqlite-vec 文档向量库         │
 │                                                          │
@@ -162,6 +173,9 @@
 - `web-search`：外部检索注入
 - `re-observed`：多次独立观察验证
 - `bounded-breaker`：Breaker 生成的置信度报告
+- `playwright-design-study`：Playwright 视觉风格学习
+- `dembrandt-design-study`：Dembrandt 可选后端视觉提取
+- `playwright-visual-critic`：实现后本地页面视觉自评
 
 ### 信任状态流转
 
@@ -187,6 +201,11 @@ memory/
 │   ├── v1_20260501.md
 │   └── v2_20260503.md
 ├── preference-candidates.json    # 偏好候选池，含信任状态机
+├── design-candidates.json        # 设计候选池，未确认视觉规则
+├── design-profiles/              # 已确认 StyleProfile
+│   └── eatconfusion-neobrutalism.json
+├── design-active-profile.json    # 当前 UI 实现使用的 StyleProfile
+├── design-critiques.json         # Playwright 视觉自评记录
 ├── questions.json                # 失败案例库，含可信度标记
 ├── quality-feedback.json         # 用户质量反馈
 ├── benchmark-results/            # 基准任务回放结果
@@ -289,6 +308,54 @@ preference-candidates.json 清理规则：
   → 超过 60 天未有新观察且未升级 → 降级为 archived
   → archived 超过 30 天 → 删除
 ```
+
+### Design Study Skill / Visual Style Learner
+
+Playwright 分成两种模式：
+
+```
+content-read mode:
+  目标：回答网页写了什么
+  输出：Readability markdown / 文本摘要
+
+design-study mode:
+  目标：回答网页如何建立视觉风格，哪些规则可迁移
+  输出：DesignCandidate / StyleProfile / DesignCritique
+```
+
+设计学习流程由 XState 管控，浏览器与外部提取器资源不进入 context：
+
+```
+DESIGN_STUDY_REQUESTED
+  → OPEN_REFERENCE_URLS
+  → CAPTURE_SCREENSHOTS
+  → EXTRACT_COMPUTED_STYLE_SAMPLES
+  → IDENTIFY_COMPONENT_PATTERNS
+  → PRODUCE_STYLE_PROFILE_CANDIDATE
+  → BOUNDED_BREAKER_FOR_DESIGN_GENERALIZATION
+  → WRITE_DESIGN_CANDIDATE
+  → USER_CONFIRM_OR_REOBSERVE
+```
+
+采样内容：
+- 首屏与移动端截图
+- 按角色抽取按钮、卡片、输入框、标签、标题、正文
+- `getComputedStyle` 的颜色、字体、边框、圆角、阴影、间距
+- 重复组件的布局密度与移动端稳定性
+
+`design-candidates.json` 只存未验证观察；用户确认或多次独立观察后才升级到 `design-profiles/*.json`。Dembrandt 可以作为可选 extractor 后端，但必须由用户显式配置命令，系统不自动安装外部工具。
+
+实现后视觉自评流程：
+
+```
+IMPLEMENT_UI
+  → PLAYWRIGHT_SCREENSHOT_LOCAL_PAGE
+  → COMPARE_WITH_STYLE_PROFILE
+  → SCORE(color, border/shadow, typography, components, density, mobile)
+  → score < threshold: 注入 critique failures，要求修正
+```
+
+设计泛化必须进入 Bounded Breaker：例如从“参考页按钮有 4px 黑边”提升到“所有交互组件用粗黑边”时，要标注输入框、小标签、密集列表、移动端拥挤等失败边界。
 
 ---
 
@@ -714,6 +781,8 @@ Footer 显示：
   策略稳定性        是否还首选策略空间内的正确策略
   任务分解稳定性    子代理开启时，任务树分解模式是否剧烈偏移
   信息来源健康度    是否大量依赖 unverified 或 stale 信息
+  视觉一致性        UI 实现是否偏离已确认 StyleProfile
+  设计候选健康度    是否大量依赖 unverified design candidates
 
 警报规则：≥2 个指标同时退化 → 触发全屏警报
           单一指标退化 → 记录，不打扰用户

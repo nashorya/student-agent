@@ -1,3 +1,6 @@
+import type { ProjectKbManager } from '../memory/project-kb/manager.js';
+import { mergeValidation, validateRecord } from './mcp-schema-validator.js';
+
 export interface Context7ClientOptions {
   apiKey?: string;
   baseUrl?: string;
@@ -5,6 +8,7 @@ export interface Context7ClientOptions {
   maxSearchResults?: number;
   maxDocsChars?: number;
   fetchFn?: typeof fetch;
+  projectKb?: ProjectKbManager;
 }
 
 export interface Context7SearchResult {
@@ -56,6 +60,7 @@ export class Context7Client {
   private readonly maxSearchResults: number;
   private readonly maxDocsChars: number;
   private readonly fetchFn: typeof fetch;
+  private readonly projectKb?: ProjectKbManager;
 
   constructor(options: Context7ClientOptions = {}) {
     this.apiKey = options.apiKey ?? process.env.CONTEXT7_API_KEY;
@@ -64,6 +69,7 @@ export class Context7Client {
     this.maxSearchResults = options.maxSearchResults ?? DEFAULT_MAX_SEARCH_RESULTS;
     this.maxDocsChars = options.maxDocsChars ?? DEFAULT_MAX_DOCS_CHARS;
     this.fetchFn = options.fetchFn ?? fetch;
+    this.projectKb = options.projectKb;
   }
 
   async query(request: Context7QueryRequest): Promise<Context7DocsResult | null> {
@@ -139,6 +145,7 @@ export class Context7Client {
     if (request.tokens) url.searchParams.set('tokens', String(request.tokens));
 
     const content = await this.fetchText(url);
+    await this.cacheDocs({ libraryId, topic: request.topic, content });
     return {
       libraryId,
       topic: request.topic,
@@ -159,6 +166,7 @@ export class Context7Client {
 
     try {
       const content = await this.fetchText(url);
+      await this.cacheDocs({ libraryId, topic: request.topic, content });
       return {
         libraryId,
         topic: request.topic,
@@ -175,7 +183,12 @@ export class Context7Client {
     if (!response.ok) {
       throw new Context7UnavailableError(`Context7 returned HTTP ${response.status}`);
     }
-    return response.json() as Promise<unknown>;
+    const json = await response.json() as unknown;
+    const validation = validateContext7Payload(json);
+    if (!validation.ok) {
+      throw new Context7UnavailableError(`Context7 schema validation failed: ${validation.errors.join('; ')}`);
+    }
+    return validation.value;
   }
 
   private async fetchText(url: URL): Promise<string> {
@@ -219,6 +232,28 @@ export class Context7Client {
     }
     return `${normalized.slice(0, this.maxDocsChars).trimEnd()}\n\n[Context7 文档已截断]`;
   }
+
+  private async cacheDocs(params: { libraryId: string; topic?: string; content: string }): Promise<void> {
+    if (!this.projectKb) return;
+    await this.projectKb.upsert({
+      sourceUrl: `context7:${params.libraryId}${params.topic ? `#${params.topic}` : ''}`,
+      title: params.topic ? `${params.libraryId} / ${params.topic}` : params.libraryId,
+      content: this.trimDocs(params.content),
+      versionHint: params.libraryId,
+      ttlDays: 14,
+    });
+  }
+}
+
+export function validateContext7Payload(value: unknown) {
+  if (Array.isArray(value)) {
+    return mergeValidation(value, value.every(isJsonObject) ? [] : ['array items must be objects']);
+  }
+  const record = validateRecord(value, 'Context7 response');
+  if (!record.ok || !record.value) return record;
+  const payload = record.value;
+  const hasKnownContainer = ['results', 'data', 'items', 'libraries'].some((key) => key in payload);
+  return mergeValidation(payload, hasKnownContainer ? [] : ['missing result container']);
 }
 
 function normalizeBaseUrl(baseUrl: string): string {

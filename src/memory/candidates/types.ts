@@ -47,6 +47,7 @@ export type BreakerConfidenceLevel = 'high' | 'moderate' | 'low';
 
 export interface CandidateBreakerReport {
   id: string;
+  strategy_version?: string;
   confidence_level: BreakerConfidenceLevel;
   breakers_applied: string[];
   known_failure_context: string[];

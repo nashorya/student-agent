@@ -13,8 +13,17 @@ export type SlashCommand =
   | { type: 'candidates' }
   | { type: 'init' }
   | { type: 'feedback'; rating: 'up' | 'down'; comment: string }
+  | { type: 'review'; rating: 'up' | 'ok' | 'down'; comment: string }
+  | { type: 'why'; query: string; trace: boolean }
+  | { type: 'plan'; subcommand: 'revision'; content: string }
+  | { type: 'plan'; subcommand: 'revisions'; query: string }
   | { type: 'task'; subcommand: 'rename'; name: string }
   | { type: 'task'; subcommand: 'status' }
+  | { type: 'design'; subcommand: 'study'; url: string; name?: string }
+  | { type: 'design'; subcommand: 'confirm'; candidateId: string }
+  | { type: 'design'; subcommand: 'use'; profileId: string }
+  | { type: 'design'; subcommand: 'local-url'; url: string }
+  | { type: 'design'; subcommand: 'critique'; url?: string; profileId?: string }
   | { type: 'unknown'; raw: string };
 
 export const COMMANDS = [
@@ -31,7 +40,32 @@ export const COMMANDS = [
   '/candidates',
   '/init',
   '/feedback',
-  '/task'
+  '/review',
+  '/why',
+  '/plan',
+  '/task',
+  '/design',
+];
+
+export const COMMAND_COMPLETIONS = [
+  ...COMMANDS,
+  '/feedback up ',
+  '/feedback down ',
+  '/review up ',
+  '/review ok ',
+  '/review down ',
+  '/why ',
+  '/why --trace',
+  '/plan revision ',
+  '/plan revisions ',
+  '/task status',
+  '/task rename ',
+  '/design study ',
+  '/design study <url> --name ',
+  '/design confirm ',
+  '/design use ',
+  '/design local-url ',
+  '/design critique ',
 ];
 
 /**
@@ -84,12 +118,39 @@ export function parseCommand(input: string): SlashCommand | null {
       return { type: 'feedback', rating, comment };
     }
 
+    case 'review': {
+      const rating = args[0] as 'up' | 'ok' | 'down' | undefined;
+      if (rating !== 'up' && rating !== 'ok' && rating !== 'down') {
+        return { type: 'unknown', raw: trimmed };
+      }
+      return { type: 'review', rating, comment: args.slice(1).join(' ') || '' };
+    }
+
+    case 'why': {
+      const trace = args.includes('--trace');
+      const query = args.filter((arg) => arg !== '--trace').join(' ');
+      return { type: 'why', query, trace };
+    }
+
+    case 'plan': {
+      if (args[0] === 'revision' && args.length >= 2) {
+        return { type: 'plan', subcommand: 'revision', content: args.slice(1).join(' ') };
+      }
+      if (args[0] === 'revisions') {
+        return { type: 'plan', subcommand: 'revisions', query: args.slice(1).join(' ') };
+      }
+      return { type: 'unknown', raw: trimmed };
+    }
+
     case 'task': {
       if (args[0] === 'rename' && args.length >= 2) {
         return { type: 'task', subcommand: 'rename', name: args.slice(1).join(' ') };
       }
       return { type: 'task', subcommand: 'status' };
     }
+
+    case 'design':
+      return parseDesignCommand(args, trimmed);
 
     default:
       return { type: 'unknown', raw: trimmed };
@@ -112,8 +173,49 @@ export function getHelpText(): string {
     '    /candidates           查看偏好候选',
     '    /init                     将当前目录初始化为 git 仓库（启用快照回滚）',
     '    /feedback up|down [评论]  提交质量反馈',
+    '    /review up|ok|down [评论]  静默记录本轮信心投票',
+    '    /why [关键词] [--trace]    查看决策来源',
+    '    /plan revision <内容>       记录一次用户计划修订',
+    '    /plan revisions [关键词]    查看计划修订记忆',
     '    /task                 查看当前任务状态',
     '    /task rename <名字>   重命名当前任务',
+    '    /design study <url> [--name <名字>]  学习参考网页视觉风格',
+    '    /design confirm <candidate-id>       确认设计候选为 Profile',
+    '    /design use <profile-id>             使用指定 StyleProfile',
+    '    /design local-url <url>              设置本地 UI 自评地址',
+    '    /design critique [url] [profile-id]  运行视觉自评',
     '',
   ].join('\n');
+}
+
+function parseDesignCommand(args: string[], raw: string): SlashCommand {
+  const subcommand = args[0];
+  if (subcommand === 'study' && args[1]) {
+    const nameIndex = args.findIndex((arg) => arg === '--name');
+    const name = nameIndex >= 0 ? args.slice(nameIndex + 1).join(' ') : undefined;
+    return {
+      type: 'design',
+      subcommand: 'study',
+      url: args[1],
+      name: name || undefined,
+    };
+  }
+  if (subcommand === 'confirm' && args[1]) {
+    return { type: 'design', subcommand: 'confirm', candidateId: args[1] };
+  }
+  if (subcommand === 'use' && args[1]) {
+    return { type: 'design', subcommand: 'use', profileId: args[1] };
+  }
+  if (subcommand === 'local-url' && args[1]) {
+    return { type: 'design', subcommand: 'local-url', url: args[1] };
+  }
+  if (subcommand === 'critique') {
+    return {
+      type: 'design',
+      subcommand: 'critique',
+      url: args[1],
+      profileId: args[2],
+    };
+  }
+  return { type: 'unknown', raw };
 }

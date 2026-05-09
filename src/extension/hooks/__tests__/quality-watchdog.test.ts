@@ -38,7 +38,7 @@ describe('quality watchdog hook', () => {
     }
 
     expect(logSpy).toHaveBeenCalledWith(
-      '[QualityWatchdog] 可用 /feedback up|down <说明> 记录本轮质量反馈。',
+      '[QualityWatchdog] [👍 /review up] [✅ /review ok] [👎 /review down]',
     );
     logSpy.mockRestore();
   });

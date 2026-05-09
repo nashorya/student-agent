@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { FailureEscalationContext } from '../failure-escalation.js';
 import { _resetForTesting as resetSnapshotForTesting } from '../snapshot.js';
 import type { PostToolCallContext } from '../../../core/pi-bridge/types.js';
@@ -36,7 +36,7 @@ describe('failure escalation', () => {
     const decision = await hook(makeErrorContext('second React failure'));
 
     expect(decision?.terminate).toBe(false);
-    expect(decision?.overrideContent).toContain('已触发 Context7 文档检索');
+    expect(decision?.overrideContent).toContain('辅助诊断：已触发 Context7 文档检索');
     expect(decision?.overrideContent).toContain('/reactjs/react.dev');
     expect(decision?.overrideContent).toContain('React docs snippet');
   });
@@ -58,6 +58,52 @@ describe('failure escalation', () => {
     expect(decision?.terminate).toBe(false);
     expect(decision?.overrideContent).toContain('没有可用文档可注入');
     expect(decision?.overrideContent).toContain('Context7 检索不可用');
+  });
+
+  it('edit 精确文本失败时第二次不触发 Context7，要求重新读取目标文件', async () => {
+    const query = vi.fn();
+    const ctx = new FailureEscalationContext({
+      context7Client: { query },
+    });
+    ctx.initTask('调整首页推荐菜谱位置', process.cwd());
+    const hook = ctx.createHook();
+    const error = 'Could not find the exact text in src/pages/home/index.tsx. The oldText must match exactly including all whitespace and newlines.';
+
+    await hook(makeErrorContext(error));
+    const decision = await hook(makeErrorContext(error));
+
+    expect(query).not.toHaveBeenCalled();
+    expect(decision?.overrideContent).toContain('跳过 Context7');
+    expect(decision?.overrideContent).toContain('先重新读取 src/pages/home/index.tsx');
+    expect(decision?.overrideContent).toContain('不要再次提交同一段 oldText');
+  });
+
+  it('第一次失败时显示回滚成功结果', async () => {
+    const ctx = new FailureEscalationContext({
+      getLastSnapshotId: () => 'snap_1',
+      restoreSnapshot: async () => {},
+    });
+    ctx.initTask('测试任务', process.cwd());
+    const hook = ctx.createHook();
+
+    const decision = await hook(makeErrorContext('failure'));
+
+    expect(decision?.overrideContent).toContain('恢复动作：已自动回滚到工具调用前的状态（snapshot: snap_1）');
+  });
+
+  it('第一次失败时显示回滚失败原因', async () => {
+    const ctx = new FailureEscalationContext({
+      getLastSnapshotId: () => 'snap_2',
+      restoreSnapshot: async () => {
+        throw new Error('dirty worktree');
+      },
+    });
+    ctx.initTask('测试任务', process.cwd());
+    const hook = ctx.createHook();
+
+    const decision = await hook(makeErrorContext('failure'));
+
+    expect(decision?.overrideContent).toContain('恢复动作：自动回滚失败（snapshot: snap_2）：dirty worktree');
   });
 
   it('成功调用重置连续失败计数', async () => {
@@ -95,4 +141,3 @@ describe('failure escalation', () => {
     expect(decision?.overrideContent).not.toContain('Context7');
   });
 });
-

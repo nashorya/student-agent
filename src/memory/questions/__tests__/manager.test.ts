@@ -97,4 +97,25 @@ describe('QuestionsManager', () => {
     const all = await mgr.getAll();
     expect(all).toHaveLength(8);
   });
+
+  it('按 decay_factor 归档过期 resolved question', async () => {
+    const mgr = QuestionsManager.getInstance(tmpDir);
+    const old = makeQuestion('q_old');
+    await mgr.append({
+      ...old,
+      status: 'resolved',
+      resolution: 'use fallback',
+      last_hit: '2026-01-01T00:00:00.000Z',
+    });
+
+    const archived = await mgr.archiveStaleResolved({
+      now: new Date('2026-05-01T00:00:00.000Z'),
+      baseDays: 90,
+    });
+
+    const all = await mgr.getAll();
+    expect(archived).toBe(1);
+    expect(all[0].status).toBe('stale');
+    expect(all[0].decay_factor).toBe(1);
+  });
 });

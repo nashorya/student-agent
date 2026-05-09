@@ -88,6 +88,32 @@ export class QuestionsManager {
     }
   }
 
+  async archiveStaleResolved(params: {
+    now?: Date;
+    baseDays?: number;
+  } = {}): Promise<number> {
+    const now = params.now ?? new Date();
+    const baseDays = params.baseDays ?? 90;
+    return WriteQueue.getInstance().enqueue(async () => {
+      const questions = await this.readAll();
+      let archived = 0;
+      const updated = questions.map((question) => {
+        if (question.status !== 'resolved') return question;
+        const decay = question.decay_factor ?? decayFactorForQuestion(question);
+        const thresholdDays = baseDays * decay;
+        if (daysSince(question.last_hit || question.resolved_at, now) <= thresholdDays) {
+          return { ...question, decay_factor: decay };
+        }
+        archived++;
+        return { ...question, status: 'stale' as const, decay_factor: decay };
+      });
+      if (archived > 0) {
+        await this.writeRaw(updated);
+      }
+      return archived;
+    });
+  }
+
   private async readAll(): Promise<Question[]> {
     try {
       const raw = await readFile(this.filePath, 'utf-8');
@@ -104,6 +130,20 @@ export class QuestionsManager {
     const file: QuestionsFile = { questions };
     await writeFile(this.filePath, JSON.stringify(file, null, 2), 'utf-8');
   }
+}
+
+function decayFactorForQuestion(question: Question): number {
+  if (question.error_type === 'security') return 2;
+  if (question.error_type === 'architecture') return 1.5;
+  if (question.hit_count >= 3) return 1.25;
+  return 1;
+}
+
+function daysSince(value: string | undefined, now: Date): number {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return Number.POSITIVE_INFINITY;
+  return (now.getTime() - timestamp) / (24 * 60 * 60 * 1000);
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {

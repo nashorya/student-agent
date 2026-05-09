@@ -20,6 +20,10 @@ export async function classifyIntent(
   currentTaskName: string | null,
   model: Model<Api>,
 ): Promise<IntentResult> {
+  if (isMetaQuestion(input)) {
+    return { type: 'continue' };
+  }
+
   const context = currentTaskName
     ? `当前任务：${currentTaskName}\n用户输入：${input}`
     : `当前任务：无\n用户输入：${input}`;
@@ -42,4 +46,13 @@ export async function classifyIntent(
   } catch {
     return { type: 'continue' };
   }
+}
+
+export function isMetaQuestion(input: string): boolean {
+  const text = input.trim();
+  if (!text) return false;
+  const asksHow = /(怎么|如何|怎样|该怎么|要怎么|怎么办|怎么做|如何做|怎么用|如何使用|怎么触发|怎么操作|what|how)/i.test(text);
+  const asksCapability = /(能不能|可以吗|是否可以|是不是|是什么|介绍|说明|流程|用法|命令|技能|能力|design|设计|学习|网站|网页)/i.test(text);
+  const questionMark = /[?？]$/.test(text);
+  return (asksHow && asksCapability) || (questionMark && asksCapability);
 }

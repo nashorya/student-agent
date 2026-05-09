@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { useAppState } from '../state.js';
+import { renderMarkdown } from '../../cli/markdown.js';
 
 export function OutputArea() {
   const { state } = useAppState();
@@ -17,10 +18,13 @@ export function OutputArea() {
 
 function MessageLine({ message }: { message: { role: string; content: string } }) {
   const prefix = getPrefix(message.role);
+  const content = message.role === 'assistant'
+    ? renderMarkdown(message.content, Math.max(40, (process.stdout.columns || 80) - prefix.length - 4))
+    : message.content;
   return (
     <Box>
       <Text color={getPrefixColor(message.role)}>{prefix}</Text>
-      <Text color={getContentColor(message.role)}>{message.content}</Text>
+      <Text color={getContentColor(message.role)}>{content}</Text>
     </Box>
   );
 }

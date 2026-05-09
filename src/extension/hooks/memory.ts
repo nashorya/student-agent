@@ -9,6 +9,9 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PreferencesManager } from '../../memory/preferences/manager.js';
 import { QuestionsManager } from '../../memory/questions/manager.js';
+import { DesignMemoryManager } from '../../memory/design/manager.js';
+import { ProjectKbManager } from '../../memory/project-kb/manager.js';
+import { PlanRevisionManager } from '../../memory/plan-revisions/manager.js';
 
 // ── 记忆注入 ──────────────────────────────────────────
 
@@ -61,6 +64,76 @@ export function createMemoryHook(memoryDir: string) {
         '## Past Q&A（过去的问答参考）\n\n' + qaText,
       );
     }
+
+    const planRevisions = await PlanRevisionManager.getInstance(memoryDir).getRecent(3);
+    if (planRevisions.length > 0) {
+      const revisionText = planRevisions
+        .map((revision) => [
+          `- ${revision.diff_type}: ${revision.user_revision_summary}`,
+          `  原计划：${revision.agent_plan_summary}`,
+          `  推断：${revision.reason_inferred}（trust：${revision.trust_status}，参考而非硬规则）`,
+        ].join('\n'))
+        .join('\n');
+      sections.push(
+        '## Planning Preference Evidence（计划修订证据，低优先级参考，不是硬规则）\n\n' + revisionText,
+      );
+    }
+
+    const projectKb = await ProjectKbManager.getInstance(memoryDir).getFresh(5);
+    if (projectKb.length > 0) {
+      const kbText = projectKb
+        .map((entry) => `- ${entry.title}（${entry.source_url}，retrieved_at: ${entry.retrieved_at}）`)
+        .join('\n');
+      sections.push(
+        '## Project Knowledge Cache（动态知识缓存，可能过期）\n\n' + kbText,
+      );
+    }
+
+    // 4. active StyleProfile（视觉实现约束）
+    const designManager = DesignMemoryManager.getInstance(memoryDir);
+    const activeProfile = await designManager.getActiveProfile();
+    if (activeProfile) {
+      const unresolved = await designManager.getRecentUnresolvedCritiques(3);
+      const profileText = [
+        `Profile: ${activeProfile.name} (${activeProfile.id})`,
+        `Colors: ${JSON.stringify(activeProfile.tokens.colors)}`,
+        `Border: ${JSON.stringify(activeProfile.tokens.border)}`,
+        `Shadow: ${activeProfile.tokens.shadow.join(', ') || '(none)'}`,
+        `Radius: ${activeProfile.tokens.radius.join(', ') || '(none)'}`,
+        `Component patterns: ${JSON.stringify(activeProfile.component_patterns)}`,
+        `Anti-patterns: ${activeProfile.anti_patterns.join('; ') || '(none)'}`,
+        unresolved.length > 0
+          ? 'Recent critique failures:\n' + unresolved.flatMap((critique) => critique.failures).map((failure) => `- ${failure}`).join('\n')
+          : '',
+      ].filter(Boolean).join('\n');
+      sections.push(
+        '## Active StyleProfile（当前 UI 视觉约束）\n\n' + profileText,
+      );
+    }
+
+    sections.push(`
+## Built-in Design Study Skill（内置网页设计学习能力）
+
+当用户说“学习一个网页的设计风格”“参考某个网站的视觉风格”“提取网页 UI 风格”时，不要只泛泛要求截图或 URL。
+
+正确引导流程：
+- 如果用户给 URL：提示并使用 /design study <url> [--name <名字>] 生成设计候选。
+- 候选生成后：用 /design confirm <candidate-id> 确认为 StyleProfile。
+- 需要应用风格时：用 /design use <profile-id> 设为 active profile。
+- 需要验证本地实现时：先 /design local-url <url>，再 /design critique [url] [profile-id]。
+
+Design Study 会采集首屏/移动端截图、computed style、颜色、字体、边框、圆角、阴影和组件模式；它学习的是可迁移的视觉规则，不是网页正文内容。
+`);
+
+    sections.push(`
+## 文件修改规则（必须遵守）
+
+1. 修改任何文件前，先读取目标文件当前内容；不要用旧记忆或上一轮输出猜测 oldText。
+2. 避免对大块 JSX/TSX/JSON 使用精确 oldText 替换；空格、换行、回滚都会导致 edit 失败。
+3. edit 精确替换只用于小范围、稳定、刚读取过的文本。
+4. 多处修改、移动代码块、组件重排、结构性改动时，优先用 apply_patch/patch 风格修改。
+5. 如果出现 oldText must match exactly，必须重新读取目标文件并换小锚点，不要重复同一次 edit。
+`);
 
     sections.push(`
 ## 文件探索规则（必须遵守）

@@ -76,6 +76,7 @@ student-agent
 |---|---|---|
 | `STUDENT_AGENT_FEATURE_CONTEXT7` | `true` | 库文档检索 |
 | `STUDENT_AGENT_FEATURE_PLAYWRIGHT` | `false` | 动态网页读取 |
+| `STUDENT_AGENT_FEATURE_DESIGN_STUDY` | `false` | 参考页视觉风格学习与本地 UI 自评 |
 | `STUDENT_AGENT_FEATURE_BOUNDED_BREAKER` | `true` | 模式泛化 + 置信度评分 |
 | `STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG` | `true` | 被动质量退化检测 |
 | `STUDENT_AGENT_FEATURE_SUB_AGENTS` | `false` | 并发子代理编排 |
@@ -101,6 +102,14 @@ npx playwright install chromium
 ```
 
 完整架构设计见 [`docs/student-agent-architecture-v0.3.md`](docs/student-agent-architecture-v0.3.md)。
+
+### v0.31 合并发布
+
+- Design Study：`/design study`、`/design confirm`、`/design use`、`/design critique`
+- 质量反馈：`/review up|ok|down [评论]`
+- 决策追溯：`/why [关键词] [--trace]`
+- 子代理硬化：Merge Agent 内置同步器 + read/write 锁语义
+- 技术债收敛：MCP schema 校验、`project-kb.json` TTL 缓存、Breaker 策略版本、questions decay
 
 ## 许可证
 
