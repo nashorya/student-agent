@@ -23,6 +23,7 @@ describe('Planner', () => {
         firstTaskId: 'a',
         secondTaskId: 'b',
         path: 'src/core',
+        kind: 'write-write',
       },
     ]);
   });

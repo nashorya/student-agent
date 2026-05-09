@@ -24,13 +24,13 @@ export function renderMarkdown(text: string, width?: number): string {
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
     const nextType = tokens[i + 1]?.type;
-    lines.push(...renderToken(token, nextType));
+    lines.push(...renderToken(token, nextType, contentWidth));
   }
 
   return lines.join('\n');
 }
 
-function renderToken(token: Token, nextType?: string): string[] {
+function renderToken(token: Token, nextType?: string, contentWidth = process.stdout.columns || 80): string[] {
   const lines: string[] = [];
 
   switch (token.type) {
@@ -73,7 +73,7 @@ function renderToken(token: Token, nextType?: string): string[] {
           ? chalk.dim(`${startNum + i}. `)
           : chalk.cyan('- ');
         const itemText = renderListItem(item.tokens ?? []);
-        lines.push(`${bullet}${itemText}`);
+        lines.push(...wrapPrefixedText(bullet, itemText, contentWidth));
       }
       break;
     }
@@ -130,6 +130,50 @@ function renderListItem(tokens: Token[]): string {
     }
   }
   return parts.join('');
+}
+
+function wrapPrefixedText(prefix: string, text: string, width: number): string[] {
+  const plainPrefix = stripAnsi(prefix);
+  const available = Math.max(20, width - plainPrefix.length);
+  const rawLines = text.split('\n');
+  const lines: string[] = [];
+
+  for (const rawLine of rawLines) {
+    const wrapped = wrapText(rawLine, available);
+    for (let i = 0; i < wrapped.length; i++) {
+      lines.push((i === 0 ? prefix : ' '.repeat(plainPrefix.length)) + wrapped[i]);
+    }
+  }
+
+  return lines.length > 0 ? lines : [prefix];
+}
+
+function wrapText(text: string, width: number): string[] {
+  if (!text) return [''];
+  const lines: string[] = [];
+  let current = '';
+
+  for (const segment of text.split(/(\s+)/u)) {
+    if (!segment) continue;
+    const next = current + segment;
+    if (visibleLength(next) <= width || !current) {
+      current = next;
+      continue;
+    }
+    lines.push(current.trimEnd());
+    current = segment.trimStart();
+  }
+
+  if (current) lines.push(current.trimEnd());
+  return lines;
+}
+
+function visibleLength(text: string): number {
+  return stripAnsi(text).length;
+}
+
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
 function renderInline(tokens: Token[]): string {

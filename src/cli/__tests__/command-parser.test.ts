@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCommand, getHelpText } from '../command-parser.js';
+import { COMMAND_COMPLETIONS, parseCommand, getHelpText } from '../command-parser.js';
 
 describe('parseCommand', () => {
   it('非 / 开头返回 null', () => {
@@ -56,6 +56,37 @@ describe('parseCommand', () => {
     });
   });
 
+  it('解析 review 和 why 命令', () => {
+    expect(parseCommand('/review ok 稳定')).toEqual({
+      type: 'review',
+      rating: 'ok',
+      comment: '稳定',
+    });
+    expect(parseCommand('/why breaker --trace')).toEqual({
+      type: 'why',
+      query: 'breaker',
+      trace: true,
+    });
+  });
+
+  it('解析 plan revision 命令', () => {
+    expect(parseCommand('/plan revision 先做低风险修复')).toEqual({
+      type: 'plan',
+      subcommand: 'revision',
+      content: '先做低风险修复',
+    });
+    expect(parseCommand('/plan revisions TUI')).toEqual({
+      type: 'plan',
+      subcommand: 'revisions',
+      query: 'TUI',
+    });
+    expect(parseCommand('/plan revisions')).toEqual({
+      type: 'plan',
+      subcommand: 'revisions',
+      query: '',
+    });
+  });
+
   it('feedback 缺少 rating 返回 unknown', () => {
     expect(parseCommand('/feedback')).toEqual({
       type: 'unknown',
@@ -88,6 +119,47 @@ describe('parseCommand', () => {
     });
   });
 
+  it('解析 design 命令', () => {
+    expect(parseCommand('/design study https://example.com --name Food App')).toEqual({
+      type: 'design',
+      subcommand: 'study',
+      url: 'https://example.com',
+      name: 'Food App',
+    });
+    expect(parseCommand('/design confirm design_cand_1')).toEqual({
+      type: 'design',
+      subcommand: 'confirm',
+      candidateId: 'design_cand_1',
+    });
+    expect(parseCommand('/design use food-app')).toEqual({
+      type: 'design',
+      subcommand: 'use',
+      profileId: 'food-app',
+    });
+    expect(parseCommand('/design local-url http://localhost:3000')).toEqual({
+      type: 'design',
+      subcommand: 'local-url',
+      url: 'http://localhost:3000',
+    });
+    expect(parseCommand('/design critique http://localhost:3000 food-app')).toEqual({
+      type: 'design',
+      subcommand: 'critique',
+      url: 'http://localhost:3000',
+      profileId: 'food-app',
+    });
+  });
+
+  it('design 缺少必要参数返回 unknown', () => {
+    expect(parseCommand('/design study')).toEqual({
+      type: 'unknown',
+      raw: '/design study',
+    });
+    expect(parseCommand('/design confirm')).toEqual({
+      type: 'unknown',
+      raw: '/design confirm',
+    });
+  });
+
   it('未知命令返回 unknown', () => {
     expect(parseCommand('/foo')).toEqual({ type: 'unknown', raw: '/foo' });
     expect(parseCommand('/bar baz')).toEqual({ type: 'unknown', raw: '/bar baz' });
@@ -110,6 +182,19 @@ describe('getHelpText', () => {
     expect(help).toContain('/clear');
     expect(help).toContain('/candidates');
     expect(help).toContain('/feedback');
+    expect(help).toContain('/review');
+    expect(help).toContain('/why');
+    expect(help).toContain('/plan');
     expect(help).toContain('/task');
+    expect(help).toContain('/design');
+  });
+});
+
+describe('COMMAND_COMPLETIONS', () => {
+  it('包含常用子命令补全', () => {
+    expect(COMMAND_COMPLETIONS).toContain('/design study ');
+    expect(COMMAND_COMPLETIONS).toContain('/design confirm ');
+    expect(COMMAND_COMPLETIONS).toContain('/plan revision ');
+    expect(COMMAND_COMPLETIONS).toContain('/feedback down ');
   });
 });

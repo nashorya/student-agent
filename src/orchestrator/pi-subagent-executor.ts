@@ -78,6 +78,9 @@ function renderSubAgentPrompt(task: SubAgentTask): string {
     '',
     task.prompt,
     '',
+    '读取意图：',
+    ...(task.readIntent ?? []).map((path) => `- ${path}`),
+    '',
     '写入意图：',
     ...task.writeIntent.map((path) => `- ${path}`),
   ].join('\n');

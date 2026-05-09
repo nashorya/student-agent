@@ -27,6 +27,7 @@ export interface Question {
   status: QuestionStatus;
   hit_count: number;
   last_hit: string;
+  decay_factor?: number;
   provenance: Provenance;
 }
 

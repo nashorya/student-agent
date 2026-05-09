@@ -66,6 +66,35 @@ describe('SubAgentOrchestrator', () => {
     expect(executor.execute).not.toHaveBeenCalled();
   });
 
+  it('存在读写锁冲突时阻止并发执行', async () => {
+    const executor: SubAgentExecutor = {
+      execute: vi.fn(),
+    };
+    const orchestrator = new SubAgentOrchestrator(executor, { enabled: true });
+
+    const result = await orchestrator.run(makePlan({
+      tasks: [
+        {
+          id: 'reader',
+          title: 'Reader',
+          prompt: 'Read shared state',
+          readIntent: ['src/shared.ts'],
+          writeIntent: [],
+        },
+        {
+          id: 'writer',
+          title: 'Writer',
+          prompt: 'Write shared state',
+          writeIntent: ['src/shared.ts'],
+        },
+      ],
+    }));
+
+    expect(result.status).toBe('blocked_conflicts');
+    expect(result.conflicts[0]).toMatchObject({ kind: 'read-write', path: 'src/shared.ts' });
+    expect(executor.execute).not.toHaveBeenCalled();
+  });
+
   it('遵守 maxConcurrency 限制', async () => {
     let active = 0;
     let maxActive = 0;
@@ -91,6 +120,7 @@ describe('SubAgentOrchestrator', () => {
 
     expect(result.status).toBe('completed');
     expect(maxActive).toBe(1);
+    expect(result.merge?.status).toBe('merged');
   });
 
   it('运行时未声明写入触发 state_conflict 并回滚该子任务', async () => {

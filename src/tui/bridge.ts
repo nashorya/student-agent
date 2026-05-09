@@ -11,24 +11,36 @@ export interface TUIBridge {
 }
 
 export function createBridge(dispatch: (action: AppAction) => void): TUIBridge {
+  let lastMessageContent = '';
+  let currentTool: string | null = null;
+  let taskStatus: Partial<TaskStatus> | null = null;
   return {
     dispatch,
     addMessage(role, content) {
+      lastMessageContent = role === 'assistant' ? content : '';
       dispatch({
         type: 'ADD_MESSAGE',
         message: { role, content, timestamp: Date.now() },
       });
     },
     updateLastMessage(content) {
+      if (content === lastMessageContent) return;
+      lastMessageContent = content;
       dispatch({ type: 'UPDATE_LAST_MESSAGE', content });
     },
     updateTaskStatus(status) {
+      const next = { ...(taskStatus ?? {}), ...status };
+      if (taskStatus && shallowEqual(taskStatus, next)) return;
+      taskStatus = next;
       dispatch({ type: 'UPDATE_TASK_STATUS', status });
     },
     clearTaskStatus() {
+      taskStatus = null;
       dispatch({ type: 'CLEAR_TASK_STATUS' });
     },
     setCurrentTool(name) {
+      if (name === currentTool) return;
+      currentTool = name;
       dispatch({ type: 'SET_CURRENT_TOOL', name });
     },
     promptSettings(question) {
@@ -44,4 +56,13 @@ export function createBridge(dispatch: (action: AppAction) => void): TUIBridge {
       });
     },
   };
+}
+
+function shallowEqual(left: Partial<TaskStatus>, right: Partial<TaskStatus>): boolean {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    const typedKey = key as keyof TaskStatus;
+    if (left[typedKey] !== right[typedKey]) return false;
+  }
+  return true;
 }

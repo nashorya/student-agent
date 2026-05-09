@@ -13,6 +13,9 @@ const NEGATIVE_PATTERNS = [
   /不是这个意思/,
   /看起来(还是|仍然)(不对|有问题)/,
   /还是(原来的|旧的|之前的)/,
+  /(报错|错误|异常|失败|崩了|打不开)/,
+  /Failed to load/i,
+  /net::ERR_[A-Z_]+/,
 ];
 
 export function detectNegativeFeedback(input: string): FeedbackSignal {

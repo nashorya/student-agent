@@ -70,6 +70,11 @@ export function mergeConfig(
       ...base.playwright,
       ...override.playwright,
     },
+    designStudy: {
+      ...DEFAULT_STUDENT_AGENT_CONFIG.designStudy,
+      ...base.designStudy,
+      ...override.designStudy,
+    },
     subAgents: {
       ...DEFAULT_STUDENT_AGENT_CONFIG.subAgents,
       ...base.subAgents,
@@ -132,6 +137,7 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
     features: compactObject({
       context7: readBoolean(env.STUDENT_AGENT_FEATURE_CONTEXT7),
       playwright: readBoolean(env.STUDENT_AGENT_FEATURE_PLAYWRIGHT),
+      designStudy: readBoolean(env.STUDENT_AGENT_FEATURE_DESIGN_STUDY),
       boundedBreaker: readBoolean(env.STUDENT_AGENT_FEATURE_BOUNDED_BREAKER),
       qualityWatchdog: readBoolean(env.STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG),
       subAgents: readBoolean(env.STUDENT_AGENT_FEATURE_SUB_AGENTS),
@@ -150,6 +156,13 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       navigationTimeoutMs: readInteger(env.PLAYWRIGHT_NAVIGATION_TIMEOUT_MS),
       renderWaitMs: readInteger(env.PLAYWRIGHT_RENDER_WAIT_MS),
       maxChars: readInteger(env.PLAYWRIGHT_MAX_CHARS),
+    }),
+    designStudy: compactObject({
+      extractorMode: readDesignExtractorMode(env.STUDENT_AGENT_DESIGN_EXTRACTOR_MODE),
+      dembrandtCommand: readOptionalString(env.STUDENT_AGENT_DESIGN_DEMBRANDT_COMMAND),
+      criticThreshold: readFloat(env.STUDENT_AGENT_DESIGN_CRITIC_THRESHOLD),
+      maxCriticRetries: readInteger(env.STUDENT_AGENT_DESIGN_MAX_CRITIC_RETRIES),
+      localUrl: readOptionalString(env.STUDENT_AGENT_DESIGN_LOCAL_URL),
     }),
     subAgents: compactObject({
       maxConcurrency: readInteger(env.SUB_AGENT_MAX_CONCURRENCY),
@@ -207,6 +220,22 @@ function readInteger(value: string | undefined): number | undefined {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readFloat(value: string | undefined): number | undefined {
+  if (value === undefined || !value.trim()) {
+    return undefined;
+  }
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function readDesignExtractorMode(value: string | undefined): 'auto' | 'native' | 'dembrandt' | undefined {
+  const normalized = readOptionalString(value);
+  if (normalized === 'auto' || normalized === 'native' || normalized === 'dembrandt') {
+    return normalized;
+  }
+  return undefined;
 }
 
 function compactObject<T extends Record<string, unknown>>(value: T): Partial<T> {

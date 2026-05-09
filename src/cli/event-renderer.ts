@@ -69,6 +69,7 @@ export class EventRenderer {
   // 流式输出缓冲区，用于 message_end 时的 markdown 重绘
   private streamBuffer = '';
   private streamLineCount = 0;
+  private bridgeFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(bridge?: TUIBridge) {
     this.bridge = bridge;
@@ -121,7 +122,7 @@ export class EventRenderer {
           this.streamBuffer += delta;
           this.hasOutput = true;
           if (this.bridge) {
-            this.bridge.updateLastMessage(this.streamBuffer);
+            this.scheduleBridgeFlush();
           } else {
             process.stdout.write(delta);
           }
@@ -130,6 +131,7 @@ export class EventRenderer {
       }
 
       case 'message_end':
+        this.flushBridgeBuffer();
         if (this.isStreaming && this.hasOutput && !this.bridge) {
           // 清除裸文本输出，用 Markdown 格式化后重绘（仅非 TUI 模式）
           this.reRenderWithMarkdown();
@@ -155,18 +157,25 @@ export class EventRenderer {
         if (event.isError) {
           const ev = event as Record<string, unknown>;
           const rawDetail = extractToolErrorDetail(ev);
-          const detail = trimAdviceText(rawDetail);
+          const messages = formatToolFailureMessages(event.toolName, rawDetail, ev.args ?? ev.toolArgs);
           if (this.bridge) {
-            this.bridge.addMessage('error', `${event.toolName} 失败${detail ? ': ' + detail : ''}`);
+            for (const message of messages) {
+              this.bridge.addMessage(message.role, message.content);
+            }
           } else {
-            console.log(chalk.red(`  ERROR: ${event.toolName} 失败${detail ? ': ' + detail : ''}`));
+            for (const message of messages) {
+              const color = message.role === 'error' ? chalk.red : chalk.dim;
+              console.log(color(`  ${message.content}`));
+            }
           }
         }
         break;
 
       case 'agent_end': {
+        this.flushBridgeBuffer();
         if (this.bridge) {
           this.bridge.setCurrentTool(null);
+          this.bridge.updateTaskStatus({ state: 'idle' });
         } else {
           this.spinner.stop();
         }
@@ -239,7 +248,25 @@ export class EventRenderer {
 
   /** 停止 spinner（用于 REPL 退出时的清理）。 */
   cleanup(): void {
+    this.flushBridgeBuffer();
     this.spinner.stop();
+  }
+
+  private scheduleBridgeFlush(): void {
+    if (!this.bridge || this.bridgeFlushTimer) return;
+    this.bridgeFlushTimer = setTimeout(() => {
+      this.bridgeFlushTimer = null;
+      this.flushBridgeBuffer();
+    }, 50);
+  }
+
+  private flushBridgeBuffer(): void {
+    if (!this.bridge || !this.hasOutput) return;
+    if (this.bridgeFlushTimer) {
+      clearTimeout(this.bridgeFlushTimer);
+      this.bridgeFlushTimer = null;
+    }
+    this.bridge.updateLastMessage(this.streamBuffer);
   }
 }
 
@@ -259,15 +286,139 @@ function extractToolErrorDetail(ev: Record<string, unknown>): string {
   return '';
 }
 
-/**
- * 去掉 Pi 框架附加的「建议：...」段落，只保留错误描述部分。
- * 截断到 200 字符防止撑满屏幕。
- */
-function trimAdviceText(text: string): string {
-  if (!text) return '';
-  // 去掉「建议：」及其后的内容（含前面的空行）
-  const trimmed = text.replace(/\n*建议[：:][^]*$/u, '').trim();
-  // 去掉「WARN: 工具执行失败...」前缀行，只留错误本身
-  const withoutWarn = trimmed.replace(/^WARN[：:][^\n]*\n?/u, '').trim();
-  return withoutWarn.slice(0, 200);
+export interface ToolFailureMessage {
+  role: 'error' | 'system';
+  content: string;
+}
+
+export function formatToolFailureMessages(
+  toolName: string,
+  rawDetail: string,
+  args?: unknown,
+): ToolFailureMessage[] {
+  const detail = rawDetail.trim();
+  const lines = detail.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+  const exitCode = extractExitCode(detail);
+  const contextLines = summarizeToolArgs(args);
+  const primaryError = extractPrimaryError(lines);
+
+  const primary = [
+    `主错误：${toolName} 失败${exitCode ? `（exit code ${exitCode}）` : ''}`,
+    ...contextLines,
+    primaryError ?? '命令没有 stdout/stderr（no output）。',
+  ].join('\n');
+
+  const messages: ToolFailureMessage[] = [{ role: 'error', content: primary }];
+  const diagnostics = extractDiagnosticLines(lines);
+  if (diagnostics.length > 0) {
+    messages.push({ role: 'system', content: ['辅助诊断：', ...diagnostics].join('\n') });
+  }
+
+  const recovery = extractRecoveryLines(lines);
+  if (recovery.length > 0) {
+    messages.push({ role: 'system', content: ['恢复动作：', ...recovery].join('\n') });
+  }
+
+  return messages;
+}
+
+function extractExitCode(text: string): string | null {
+  const match = text.match(/Command exited with code (\d+)/u);
+  return match?.[1] ?? null;
+}
+
+function extractPrimaryError(lines: string[]): string | null {
+  const errorLine = lines.find((line) => /^错误[：:]/u.test(line));
+  if (errorLine) {
+    return /\(no output\)|no output/iu.test(errorLine)
+      ? '命令没有 stdout/stderr（no output）。'
+      : errorLine;
+  }
+
+  const fallback = lines.find((line) =>
+    !/^WARN[：:]/u.test(line)
+    && !/^建议[：:]/u.test(line)
+    && !/^辅助诊断[：:]/u.test(line)
+    && !/^恢复动作[：:]/u.test(line)
+    && !/^OK[：:]/u.test(line)
+    && !/^原因[：:]/u.test(line)
+    && !/^Command exited with code/u.test(line)
+  );
+  if (!fallback) return null;
+  return /\(no output\)|no output/iu.test(fallback)
+    ? '命令没有 stdout/stderr（no output）。'
+    : fallback;
+}
+
+function extractDiagnosticLines(lines: string[]): string[] {
+  const diagnostics: string[] = [];
+  for (const line of lines) {
+    if (/^辅助诊断[：:]/u.test(line)) {
+      diagnostics.push(stripLabel(line));
+    } else if (/Context7/u.test(line) || /^原因[：:]/u.test(line) || /^查询[：:]/u.test(line) || /^命中文档[：:]/u.test(line)) {
+      diagnostics.push(line);
+    }
+  }
+  return uniqueLines(diagnostics).map(limitLine);
+}
+
+function extractRecoveryLines(lines: string[]): string[] {
+  const recovery: string[] = [];
+  let inAdvice = false;
+
+  for (const line of lines) {
+    if (/^恢复动作[：:]/u.test(line)) {
+      recovery.push(stripLabel(line));
+      inAdvice = false;
+      continue;
+    }
+    if (/^OK[：:]/u.test(line)) {
+      recovery.push(line);
+      inAdvice = false;
+      continue;
+    }
+    if (/^建议[：:]/u.test(line)) {
+      inAdvice = true;
+      continue;
+    }
+    if (inAdvice) {
+      recovery.push(line);
+    }
+  }
+
+  return uniqueLines(recovery).map(limitLine);
+}
+
+function summarizeToolArgs(args: unknown): string[] {
+  if (!isRecord(args)) return [];
+  const command = pickString(args, ['cmd', 'command']);
+  const cwd = pickString(args, ['cwd', 'workdir']);
+  const lines: string[] = [];
+  if (command) lines.push(`命令：${limitLine(command)}`);
+  if (cwd) lines.push(`目录：${cwd}`);
+  return lines;
+}
+
+function pickString(record: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stripLabel(line: string): string {
+  return line.replace(/^[^：:]+[：:]\s*/u, '');
+}
+
+function uniqueLines(lines: string[]): string[] {
+  return [...new Set(lines.filter((line) => line.trim()))];
+}
+
+function limitLine(line: string): string {
+  return line.length > 220 ? `${line.slice(0, 217)}...` : line;
 }

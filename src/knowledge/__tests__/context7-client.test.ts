@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { Context7Client } from '../context7-client.js';
+import { Context7Client, validateContext7Payload } from '../context7-client.js';
 
 describe('Context7Client', () => {
   it('query 使用 v2 search 和 v2 context，并携带 API key', async () => {
@@ -59,5 +59,12 @@ describe('Context7Client', () => {
 
     expect(String(fetchFn.mock.calls[1][0])).toContain('/api/v1/reactjs/react.dev');
     expect(result.content).toBe('xxxxxxxxxx\n\n[Context7 文档已截断]');
+  });
+
+  it('marks malformed MCP payloads as untrusted', () => {
+    const result = validateContext7Payload({ unexpected: true });
+
+    expect(result.ok).toBe(false);
+    expect(result.trustStatus).toBe('untrusted');
   });
 });

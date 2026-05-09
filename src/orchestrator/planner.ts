@@ -2,6 +2,7 @@ export interface SubAgentTask {
   id: string;
   title: string;
   prompt: string;
+  readIntent?: string[];
   writeIntent: string[];
 }
 
@@ -16,6 +17,7 @@ export interface WriteIntentConflict {
   firstTaskId: string;
   secondTaskId: string;
   path: string;
+  kind?: 'write-write' | 'read-write';
 }
 
 export interface PlanGenerator {
@@ -41,18 +43,33 @@ export function detectWriteIntentConflicts(tasks: SubAgentTask[]): WriteIntentCo
 
   for (let i = 0; i < tasks.length; i++) {
     for (let j = i + 1; j < tasks.length; j++) {
-      const overlap = findOverlappingPaths(tasks[i].writeIntent, tasks[j].writeIntent);
-      for (const path of overlap) {
+      for (const path of findOverlappingPaths(tasks[i].writeIntent, tasks[j].writeIntent)) {
         conflicts.push({
           firstTaskId: tasks[i].id,
           secondTaskId: tasks[j].id,
           path,
+          kind: 'write-write',
+        });
+      }
+      for (const path of findReadWriteOverlaps(tasks[i], tasks[j])) {
+        conflicts.push({
+          firstTaskId: tasks[i].id,
+          secondTaskId: tasks[j].id,
+          path,
+          kind: 'read-write',
         });
       }
     }
   }
 
   return conflicts;
+}
+
+function findReadWriteOverlaps(first: SubAgentTask, second: SubAgentTask): string[] {
+  return [
+    ...findOverlappingPaths(first.readIntent ?? [], second.writeIntent),
+    ...findOverlappingPaths(second.readIntent ?? [], first.writeIntent),
+  ];
 }
 
 export function normalizeWritePath(path: string): string {

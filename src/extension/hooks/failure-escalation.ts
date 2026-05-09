@@ -19,6 +19,11 @@ import type { Question } from '../../memory/questions/types.js';
 // 只读工具成功不代表任务恢复，不重置失败计数
 const READONLY_TOOLS = new Set(['read', 'grep', 'ripgrep', 'ls']);
 
+type RollbackStatus =
+  | { state: 'success'; snapshotId: string }
+  | { state: 'failed'; snapshotId: string; reason: string }
+  | { state: 'unavailable' };
+
 export interface FailureEscalationOptions {
   context7Client?: Pick<Context7Client, 'query'>;
   memoryDir?: string;
@@ -106,13 +111,17 @@ export class FailureEscalationContext {
     classified: ClassifiedError,
   ): Promise<EscalationDecision> {
     const snapshotId = this.getLastSnapshotId();
-    let rolledBack = false;
+    let rollback: RollbackStatus = { state: 'unavailable' };
     if (snapshotId && this.cwd) {
       try {
         await this.restoreSnapshotFn(this.cwd, snapshotId);
-        rolledBack = true;
-      } catch {
-        // 回滚失败不阻塞
+        rollback = { state: 'success', snapshotId };
+      } catch (err) {
+        rollback = {
+          state: 'failed',
+          snapshotId,
+          reason: err instanceof Error ? err.message : String(err),
+        };
       }
     }
 
@@ -124,7 +133,7 @@ export class FailureEscalationContext {
     };
     this.attempts.push(record);
 
-    const recoveryInstructions = buildRecoveryInstructions(classified, rolledBack);
+    const recoveryInstructions = buildRecoveryInstructions(classified, rollback);
 
     return {
       overrideContent: recoveryInstructions,
@@ -141,11 +150,21 @@ export class FailureEscalationContext {
   ): Promise<EscalationDecision> {
     const record: AttemptRecord = {
       index: 2,
-      strategy: 'context7_docs',
+      strategy: classified.subtype === 'edit-exact-text-mismatch'
+        ? 'reread_target_and_patch'
+        : 'context7_docs',
       result: 'failed',
       reason: classified.message,
     };
     this.attempts.push(record);
+
+    if (classified.subtype === 'edit-exact-text-mismatch') {
+      return {
+        overrideContent: buildEditMismatchRecovery(classified, ctx),
+        isError: true,
+        terminate: false,
+      };
+    }
 
     const context = await buildContext7Context(ctx, classified, this.taskDescription, this.context7Client);
 
@@ -237,7 +256,7 @@ function selectStrategy(category: ErrorCategory): string {
 
 function buildRecoveryInstructions(
   classified: ClassifiedError,
-  rolledBack: boolean,
+  rollback: RollbackStatus,
 ): string {
   const lines = [
     `WARN: 工具执行失败（${classified.category}/${classified.subtype}）`,
@@ -245,15 +264,30 @@ function buildRecoveryInstructions(
     '',
   ];
 
-  if (rolledBack) {
-    lines.push('OK: 已自动回滚到工具调用前的状态。');
-    lines.push('');
+  switch (rollback.state) {
+    case 'success':
+      lines.push(`恢复动作：已自动回滚到工具调用前的状态（snapshot: ${rollback.snapshotId}）。`);
+      lines.push('');
+      break;
+    case 'failed':
+      lines.push(`恢复动作：自动回滚失败（snapshot: ${rollback.snapshotId}）：${rollback.reason}`);
+      lines.push('');
+      break;
+    case 'unavailable':
+      lines.push('恢复动作：没有可用快照，未执行自动回滚。');
+      lines.push('');
+      break;
   }
 
   switch (classified.category) {
     case 'tool':
-      lines.push('建议：尝试用不同的参数或方法重新执行。');
-      lines.push('如果是文件操作，请检查路径是否存在。');
+      if (classified.subtype === 'edit-exact-text-mismatch') {
+        lines.push('建议：不要重复使用同一段 oldText。');
+        lines.push('必须先重新读取目标文件当前内容，再用更小范围的精确替换或 apply_patch 修改。');
+      } else {
+        lines.push('建议：尝试用不同的参数或方法重新执行。');
+        lines.push('如果是文件操作，请检查路径是否存在。');
+      }
       break;
     case 'model':
       lines.push('建议：将当前步骤拆分为更小的子步骤。');
@@ -272,6 +306,28 @@ function buildRecoveryInstructions(
   }
 
   return lines.join('\n');
+}
+
+function buildEditMismatchRecovery(
+  classified: ClassifiedError,
+  ctx: PostToolCallContext,
+): string {
+  const targetPath = extractTargetPath(ctx.resultText) ?? extractTargetPath(stringifyToolArgs(ctx.args));
+  return [
+    `WARN: 第二次 edit 精确文本替换仍失败（${classified.category}/${classified.subtype}）`,
+    `错误：${classified.message}`,
+    '',
+    '辅助诊断：这是本地文件内容与 oldText 不一致导致的 edit 失败，不是第三方库/API 问题；跳过 Context7。',
+    targetPath ? `目标文件：${targetPath}` : '',
+    '',
+    '恢复动作：',
+    targetPath
+      ? `1. 先重新读取 ${targetPath} 的当前内容，确认真实上下文。`
+      : '1. 先重新读取目标文件当前内容，确认真实上下文。',
+    '2. 不要再次提交同一段 oldText。',
+    '3. 优先使用更小的锚点替换；如果要改大块结构，改用 apply_patch 或按当前文件内容重构 patch。',
+    '4. 修改后再继续当前 Phase，不要重新规划整个任务。',
+  ].filter(Boolean).join('\n');
 }
 
 async function buildContext7Context(
@@ -315,7 +371,7 @@ function renderContext7Docs(
     `WARN: 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
     `错误：${classified.message}`,
     '',
-    '已触发 Context7 文档检索。',
+    '辅助诊断：已触发 Context7 文档检索。',
     `查询：${query.libraryName}${query.topic ? ` / ${query.topic}` : ''}`,
     `命中文档：${docs.libraryId}`,
     '',
@@ -334,7 +390,7 @@ function buildContext7Fallback(classified: ClassifiedError, reason?: string): st
     `WARN: 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
     `错误：${classified.message}`,
     '',
-    '已尝试触发 Context7 文档检索，但没有可用文档可注入。',
+    '辅助诊断：已尝试触发 Context7 文档检索，但没有可用文档可注入。',
   ];
 
   if (reason) {
@@ -417,6 +473,11 @@ function stringifyToolArgs(args: unknown): string {
   } catch {
     return '';
   }
+}
+
+function extractTargetPath(text: string): string | null {
+  const match = text.match(/\b(?:src|app|pages|components|lib|server|client|test|tests)\/[^\s:'"]+/);
+  return match?.[0].replace(/[.)\],;]+$/u, '') ?? null;
 }
 
 function extractPackageName(text: string): string | null {

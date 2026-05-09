@@ -17,6 +17,7 @@ export interface StudentAgentConfig {
   features: {
     context7: boolean;
     playwright: boolean;
+    designStudy: boolean;
     boundedBreaker: boolean;
     qualityWatchdog: boolean;
     subAgents: boolean;
@@ -35,6 +36,13 @@ export interface StudentAgentConfig {
     navigationTimeoutMs: number;
     renderWaitMs: number;
     maxChars: number;
+  };
+  designStudy: {
+    extractorMode: 'auto' | 'native' | 'dembrandt';
+    dembrandtCommand?: string;
+    criticThreshold: number;
+    maxCriticRetries: number;
+    localUrl?: string;
   };
   subAgents: {
     maxConcurrency: number;
@@ -56,6 +64,7 @@ export type StudentAgentConfigInput = Partial<{
   context7: Partial<StudentAgentConfig['context7']>;
   setup: Partial<StudentAgentConfig['setup']>;
   playwright: Partial<StudentAgentConfig['playwright']>;
+  designStudy: Partial<StudentAgentConfig['designStudy']>;
   subAgents: Partial<StudentAgentConfig['subAgents']>;
 }>;
 
@@ -71,6 +80,7 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
   features: {
     context7: true,
     playwright: false,
+    designStudy: false,
     boundedBreaker: true,
     qualityWatchdog: true,
     subAgents: false,
@@ -87,6 +97,11 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
     navigationTimeoutMs: 10_000,
     renderWaitMs: 2_000,
     maxChars: 5_000,
+  },
+  designStudy: {
+    extractorMode: 'auto',
+    criticThreshold: 0.8,
+    maxCriticRetries: 1,
   },
   subAgents: {
     maxConcurrency: 3,

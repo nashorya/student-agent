@@ -10,6 +10,8 @@ describe('detectNegativeFeedback', () => {
     ['没用', true],
     ['这不是我想要的', true],
     ['改了但没变化', true],
+    ['渲染层网络层错误 Failed to load local resource net::ERR_CACHE_MISS', true],
+    ['页面报错打不开', true],
     ['好的，继续下一步', false],
     ['帮我修改首页', false],
     ['这样可以了', false],

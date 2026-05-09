@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useAppState } from '../state.js';
-import { COMMANDS } from '../../cli/command-parser.js';
+import { getCommandCompletions } from '../command-completions.js';
 
 interface InputLineProps {
   onSubmit: (value: string) => void;
@@ -15,7 +15,7 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
   const [menuIndex, setMenuIndex] = useState(0);
 
   const menuItems = !settingsPrompt && inputValue.startsWith('/')
-    ? COMMANDS.filter((c) => c.startsWith(inputValue))
+    ? getCommandCompletions(inputValue)
     : [];
   const showMenu = menuItems.length > 0;
 
@@ -48,36 +48,12 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
       return;
     }
 
-    // 菜单开着时，↑↓ 和 Enter 优先给菜单
-    if (showMenu) {
-      if (key.upArrow) {
-        setMenuIndex((i) => (i <= 0 ? menuItems.length - 1 : i - 1));
-        return;
-      }
-      if (key.downArrow) {
-        setMenuIndex((i) => (i >= menuItems.length - 1 ? 0 : i + 1));
-        return;
-      }
-      if (key.return) {
-        const selected = menuItems[menuIndex] ?? menuItems[0];
-        onSubmit(selected);
-        dispatch({ type: 'ADD_TO_HISTORY', value: selected });
-        dispatch({ type: 'SET_INPUT', value: '' });
-        return;
-      }
-      if (key.tab) {
-        const selected = menuItems[menuIndex] ?? menuItems[0];
-        dispatch({ type: 'SET_INPUT', value: selected + ' ' });
-        return;
-      }
-      if (key.escape) {
-        dispatch({ type: 'SET_INPUT', value: '' });
-        return;
-      }
-    }
-
     if (key.escape) {
-      onAbort();
+      if (showMenu || inputValue) {
+        dispatch({ type: 'SET_INPUT', value: '' });
+      } else {
+        onAbort();
+      }
       return;
     }
 
@@ -88,6 +64,31 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
         dispatch({ type: 'SET_INPUT', value: '' });
       }
       return;
+    }
+
+    if (key.backspace || key.delete) {
+      if (cursorPos > 0) {
+        const newValue = inputValue.slice(0, cursorPos - 1) + inputValue.slice(cursorPos);
+        dispatch({ type: 'SET_INPUT', value: newValue, cursorPos: cursorPos - 1 });
+      }
+      return;
+    }
+
+    // 菜单只接管导航和 Tab 补全；Enter/Backspace 始终按用户当前输入处理。
+    if (showMenu) {
+      if (key.upArrow) {
+        setMenuIndex((i) => (i <= 0 ? menuItems.length - 1 : i - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setMenuIndex((i) => (i >= menuItems.length - 1 ? 0 : i + 1));
+        return;
+      }
+      if (key.tab) {
+        const selected = menuItems[menuIndex] ?? menuItems[0];
+        dispatch({ type: 'SET_INPUT', value: selected, cursorPos: selected.length });
+        return;
+      }
     }
 
     if (key.upArrow) {
@@ -107,14 +108,6 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
 
     if (key.rightArrow) {
       dispatch({ type: 'MOVE_CURSOR', direction: 'right' });
-      return;
-    }
-
-    if (key.backspace || key.delete) {
-      if (cursorPos > 0) {
-        const newValue = inputValue.slice(0, cursorPos - 1) + inputValue.slice(cursorPos);
-        dispatch({ type: 'SET_INPUT', value: newValue, cursorPos: cursorPos - 1 });
-      }
       return;
     }
 

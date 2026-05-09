@@ -22,4 +22,20 @@ describe('MergeAgent', () => {
     expect(summary.failed).toBe(1);
     expect(summary.summaries).toEqual(['a: done', 'b: failed']);
   });
+
+  it('作为同步器发现运行时写入冲突并阻止合并', () => {
+    const merge = new MergeAgent().synchronize({
+      tasks: [
+        { id: 'a', title: 'A', prompt: 'A', writeIntent: [] },
+        { id: 'b', title: 'B', prompt: 'B', writeIntent: [] },
+      ],
+      results: [
+        { taskId: 'a', status: 'success', summary: 'a', writtenFiles: ['shared.ts'], patch: 'patch-a' },
+        { taskId: 'b', status: 'success', summary: 'b', writtenFiles: ['shared.ts'], patch: 'patch-b' },
+      ],
+    });
+
+    expect(merge.status).toBe('blocked');
+    expect(merge.conflicts[0]).toMatchObject({ path: 'shared.ts', kind: 'write-write' });
+  });
 });
