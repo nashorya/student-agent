@@ -97,6 +97,7 @@ export function createMemoryHook(memoryDir: string) {
       const profileText = [
         `Profile: ${activeProfile.name} (${activeProfile.id})`,
         `Colors: ${JSON.stringify(activeProfile.tokens.colors)}`,
+        `FontFamily: ${activeProfile.tokens.fontFamily?.join(', ') || '(none)'}`,
         `Border: ${JSON.stringify(activeProfile.tokens.border)}`,
         `Shadow: ${activeProfile.tokens.shadow.join(', ') || '(none)'}`,
         `Radius: ${activeProfile.tokens.radius.join(', ') || '(none)'}`,

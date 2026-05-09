@@ -110,6 +110,7 @@ function readTokens(value: unknown): DesignTokens {
     },
     shadow: readStringArray(value['shadow']) ?? [],
     radius: readStringArray(value['radius']) ?? [],
+    fontFamily: readStringArray(value['fontFamily']) ?? [],
     fontWeight: {
       heading: readNumber(fontWeight['heading']),
       body: readNumber(fontWeight['body']),

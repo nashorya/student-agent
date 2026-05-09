@@ -1215,6 +1215,7 @@ async function handleDesignCommand(
         name: command.name,
         taskId,
         sessionRef,
+        mode: command.mode,
       });
       const [screenshotPaths, styleDescription] = await Promise.all([
         saveDesignScreenshots(candidate),
@@ -1222,7 +1223,12 @@ async function handleDesignCommand(
       ]);
       if (screenshotPaths.length > 0) {
         openScreenshots(screenshotPaths);
+        void memory.stripScreenshotData(candidate.id);
       }
+      const screenshotHint = command.mode !== 'screenshot' && isSparseColorPalette(candidate.tokens)
+        ? '⚠️  提取到的颜色较单一，页面可能依赖插画/SVG/图片配色。建议用 --screenshot 重新提取：\n' +
+          `   /design study ${command.url} --screenshot`
+        : '';
       return [
         `已生成设计候选：${candidate.name}`,
         `candidate_id: ${candidate.id}`,
@@ -1232,15 +1238,32 @@ async function handleDesignCommand(
         screenshotPaths.length > 0
           ? `截图文件：\n${screenshotPaths.map((p) => `  ${p}`).join('\n')}`
           : '',
+        screenshotHint,
         '',
         '风格描述：',
         styleDescription,
         '',
         '下一步：/design confirm <candidate-id> 确认为 StyleProfile。',
-      ].filter((line) => line !== undefined).join('\n');
+      ].filter(Boolean).join('\n');
+    }
+    case 'merge': {
+      const merged = await runtime.designService.mergeCandidates(command.candidateIds, taskId, sessionRef, command.name);
+      const styleDescription = await describeDesignStyle(merged, runtime.model);
+      return [
+        `已合并 ${command.candidateIds.length} 个候选 → 新候选：${merged.name}`,
+        `candidate_id: ${merged.id}`,
+        `来源：${merged.source_urls.join(', ')}`,
+        '',
+        formatDesignEvidence(merged),
+        '',
+        '风格描述：',
+        styleDescription,
+        '',
+        '下一步：/design confirm <candidate-id> [--name <名字>] 确认为 StyleProfile。',
+      ].join('\n');
     }
     case 'confirm': {
-      const profile = await runtime.designService.confirmCandidate(command.candidateId, taskId, sessionRef);
+      const profile = await runtime.designService.confirmCandidate(command.candidateId, taskId, sessionRef, command.name);
       return [
         `已确认 StyleProfile：${profile.name}`,
         `profile_id: ${profile.id}`,
@@ -1335,22 +1358,46 @@ function openScreenshots(paths: string[]): void {
 }
 
 async function describeDesignStyle(candidate: DesignCandidate, model: Model<Api>): Promise<string> {
-  const summary = {
-    tokens: candidate.tokens,
-    component_patterns: candidate.component_patterns,
-    anti_patterns: candidate.anti_patterns,
-    samples_count: candidate.samples.length,
-    viewports: [...new Set(candidate.screenshots.map((s) => s.viewport))],
+  const imageBlocks = candidate.screenshots
+    .filter((s) => s.dataUrl)
+    .map((s) => {
+      const base64 = s.dataUrl!.replace(/^data:image\/\w+;base64,/, '');
+      return { type: 'image' as const, data: base64, mimeType: 'image/png' };
+    });
+  const textBlock = {
+    type: 'text' as const,
+    text: JSON.stringify({
+      tokens: candidate.tokens,
+      component_patterns: candidate.component_patterns,
+      anti_patterns: candidate.anti_patterns,
+    }),
   };
   try {
     const result = await completeSimple(model, {
-      systemPrompt: '你是设计系统分析师。根据提供的视觉 token 和组件模式，用简洁自然的中文描述这个设计风格的视觉特征，包括配色印象、排版风格、组件外观和整体气质。控制在 120 字以内，不要列举数值，用描述性语言。',
-      messages: [{ role: 'user', content: [{ type: 'text', text: JSON.stringify(summary) }], timestamp: Date.now() }],
+      systemPrompt: '你是设计系统分析师。根据截图和视觉 token，用简洁自然的中文描述这个设计风格的视觉特征，包括配色印象、插画或装饰风格、排版风格、组件外观和整体气质。控制在 120 字以内，用描述性语言，不要列举数值。',
+      messages: [{ role: 'user', content: [...imageBlocks, textBlock], timestamp: Date.now() }],
     });
     return result.content.find((c) => c.type === 'text')?.text?.trim() ?? '（描述生成失败）';
   } catch {
     return '（描述生成失败）';
   }
+}
+
+function isSparseColorPalette(tokens: DesignCandidate['tokens']): boolean {
+  const allColors = [
+    ...tokens.colors.background,
+    ...tokens.colors.text,
+    ...tokens.colors.accent,
+  ];
+  const hasChromatic = allColors.some((color) => {
+    const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!m) return false;
+    const [, r, g, b] = m.map(Number);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    return max - min > 40;
+  });
+  return !hasChromatic;
 }
 
 function formatDesignEvidence(candidate: DesignCandidate): string {

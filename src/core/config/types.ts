@@ -38,7 +38,7 @@ export interface StudentAgentConfig {
     maxChars: number;
   };
   designStudy: {
-    extractorMode: 'auto' | 'native' | 'dembrandt';
+    extractorMode: 'auto' | 'native' | 'dembrandt' | 'screenshot';
     dembrandtCommand?: string;
     criticThreshold: number;
     maxCriticRetries: number;

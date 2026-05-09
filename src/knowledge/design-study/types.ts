@@ -27,4 +27,5 @@ export interface VisualCriticLike {
 export interface DesignStudyRunRequest extends DesignStudyRequest {
   taskId: string;
   sessionRef: string;
+  mode?: 'screenshot';
 }

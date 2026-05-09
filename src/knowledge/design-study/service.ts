@@ -10,7 +10,7 @@ export interface DesignStudyServiceOptions {
   memory: DesignMemoryManager;
   nativeExtractor?: DesignExtractor;
   dembrandtCommand?: string;
-  extractorMode?: 'auto' | 'native' | 'dembrandt';
+  extractorMode?: 'auto' | 'native' | 'dembrandt' | 'screenshot';
   critic?: VisualCriticLike;
   criticThreshold?: number;
   operationTimeoutMs?: number;
@@ -20,7 +20,7 @@ export class DesignStudyService {
   private readonly memory: DesignMemoryManager;
   private readonly nativeExtractor: DesignExtractor;
   private readonly dembrandtCommand?: string;
-  private readonly extractorMode: 'auto' | 'native' | 'dembrandt';
+  private readonly extractorMode: 'auto' | 'native' | 'dembrandt' | 'screenshot';
   private readonly critic: VisualCriticLike;
   private readonly operationTimeoutMs: number;
 
@@ -52,8 +52,12 @@ export class DesignStudyService {
     return updated ?? candidate;
   }
 
-  async confirmCandidate(candidateId: string, taskId: string, sessionRef: string): Promise<StyleProfile> {
-    return this.memory.confirmCandidate(candidateId, { taskId, sessionRef });
+  async mergeCandidates(candidateIds: string[], taskId: string, sessionRef: string, name?: string): Promise<DesignCandidate> {
+    return this.memory.mergeCandidates(candidateIds, { taskId, sessionRef, name });
+  }
+
+  async confirmCandidate(candidateId: string, taskId: string, sessionRef: string, name?: string): Promise<StyleProfile> {
+    return this.memory.confirmCandidate(candidateId, { taskId, sessionRef, name });
   }
 
   async useProfile(profileId: string): Promise<void> {
@@ -75,6 +79,9 @@ export class DesignStudyService {
     request: DesignStudyRunRequest,
     signal: AbortSignal,
   ): Promise<DesignExtractionResult> {
+    if (request.mode === 'screenshot' || this.extractorMode === 'screenshot') {
+      return new NativePlaywrightExtractor({ mode: 'screenshot' }).extract(request, { signal });
+    }
     if (this.extractorMode === 'native') {
       return this.nativeExtractor.extract(request, { signal });
     }

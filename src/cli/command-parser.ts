@@ -19,13 +19,14 @@ export type SlashCommand =
   | { type: 'plan'; subcommand: 'revisions'; query: string }
   | { type: 'task'; subcommand: 'rename'; name: string }
   | { type: 'task'; subcommand: 'status' }
-  | { type: 'design'; subcommand: 'study'; url: string; name?: string }
-  | { type: 'design'; subcommand: 'confirm'; candidateId: string }
+  | { type: 'design'; subcommand: 'study'; url: string; name?: string; mode?: 'screenshot' }
+  | { type: 'design'; subcommand: 'confirm'; candidateId: string; name?: string }
   | { type: 'design'; subcommand: 'use'; profileId: string }
   | { type: 'design'; subcommand: 'globalize'; profileId: string }
   | { type: 'design'; subcommand: 'globals' }
   | { type: 'design'; subcommand: 'use-global'; profileId: string }
   | { type: 'design'; subcommand: 'local-url'; url: string }
+  | { type: 'design'; subcommand: 'merge'; candidateIds: string[]; name?: string }
   | { type: 'design'; subcommand: 'critique'; url?: string; profileId?: string }
   | { type: 'unknown'; raw: string };
 
@@ -65,12 +66,16 @@ export const COMMAND_COMPLETIONS = [
   '/task rename ',
   '/design study ',
   '/design study <url> --name ',
+  '/design study <url> --screenshot',
   '/design confirm ',
+  '/design confirm <candidate-id> --name ',
   '/design use ',
   '/design globalize ',
   '/design globals',
   '/design use-global ',
   '/design local-url ',
+  '/design merge <id1> <id2> ',
+  '/design merge <id1> <id2> --name ',
   '/design critique ',
 ];
 
@@ -185,16 +190,21 @@ export function getHelpText(): string {
     '    /plan revisions [关键词]    查看计划修订记忆',
     '    /task                 查看当前任务状态',
     '    /task rename <名字>   重命名当前任务',
-    '    /design study <url> [--name <名字>]  学习参考网页视觉风格',
-    '    /design confirm <candidate-id>       确认设计候选为 Profile',
+    '    /design study <url> [--name <名字>] [--screenshot]  学习参考网页视觉风格（--screenshot 使用像素色彩分析）',
+    '    /design confirm <candidate-id> [--name <名字>]  确认设计候选为 Profile',
     '    /design use <profile-id>             使用指定 StyleProfile',
     '    /design globalize <profile-id>       将项目 StyleProfile 加入全局',
     '    /design globals                      查看全局 StyleProfile',
     '    /design use-global <profile-id>      将全局 StyleProfile 引入并启用',
+    '    /design merge <id1> <id2> [id...] [--name <名字>]  合并多个候选提取共性风格',
     '    /design local-url <url>              设置本地 UI 自评地址',
     '    /design critique [url] [profile-id]  运行视觉自评',
     '',
   ].join('\n');
+}
+
+function stripAngleBrackets(value: string): string {
+  return value.startsWith('<') && value.endsWith('>') ? value.slice(1, -1) : value;
 }
 
 function parseDesignCommand(args: string[], raw: string): SlashCommand {
@@ -202,15 +212,19 @@ function parseDesignCommand(args: string[], raw: string): SlashCommand {
   if (subcommand === 'study' && args[1]) {
     const nameIndex = args.findIndex((arg) => arg === '--name');
     const name = nameIndex >= 0 ? args.slice(nameIndex + 1).join(' ') : undefined;
+    const screenshot = args.includes('--screenshot');
     return {
       type: 'design',
       subcommand: 'study',
-      url: args[1],
+      url: stripAngleBrackets(args[1]),
       name: name || undefined,
+      mode: screenshot ? 'screenshot' : undefined,
     };
   }
   if (subcommand === 'confirm' && args[1]) {
-    return { type: 'design', subcommand: 'confirm', candidateId: args[1] };
+    const nameIndex = args.findIndex((arg) => arg === '--name');
+    const name = nameIndex >= 0 ? args.slice(nameIndex + 1).join(' ') : undefined;
+    return { type: 'design', subcommand: 'confirm', candidateId: args[1], name: name || undefined };
   }
   if (subcommand === 'use' && args[1]) {
     return { type: 'design', subcommand: 'use', profileId: args[1] };
@@ -225,13 +239,20 @@ function parseDesignCommand(args: string[], raw: string): SlashCommand {
     return { type: 'design', subcommand: 'use-global', profileId: args[1] };
   }
   if (subcommand === 'local-url' && args[1]) {
-    return { type: 'design', subcommand: 'local-url', url: args[1] };
+    return { type: 'design', subcommand: 'local-url', url: stripAngleBrackets(args[1]) };
+  }
+  if (subcommand === 'merge' && args.length >= 2) {
+    const nameIndex = args.findIndex((arg) => arg === '--name');
+    const ids = nameIndex >= 0 ? args.slice(1, nameIndex) : args.slice(1);
+    const name = nameIndex >= 0 ? args.slice(nameIndex + 1).join(' ') : undefined;
+    if (ids.length < 2) return { type: 'unknown', raw };
+    return { type: 'design', subcommand: 'merge', candidateIds: ids, name: name || undefined };
   }
   if (subcommand === 'critique') {
     return {
       type: 'design',
       subcommand: 'critique',
-      url: args[1],
+      url: args[1] ? stripAngleBrackets(args[1]) : undefined,
       profileId: args[2],
     };
   }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useAppState } from '../state.js';
 import { getCommandCompletions } from '../command-completions.js';
@@ -13,6 +13,8 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
   const { inputValue, cursorPos, taskStatus, currentTool, settingsPrompt } = state;
 
   const [menuIndex, setMenuIndex] = useState(0);
+  const pendingInputRef = useRef<{ value: string; cursorPos: number } | null>(null);
+  const flushScheduledRef = useRef(false);
 
   const menuItems = !settingsPrompt && inputValue.startsWith('/')
     ? getCommandCompletions(inputValue)
@@ -112,10 +114,22 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
     }
 
     if (input) {
-      // 多行粘贴：替换换行符为空格
       const sanitized = input.replace(/\n/g, ' ');
-      const newValue = inputValue.slice(0, cursorPos) + sanitized + inputValue.slice(cursorPos);
-      dispatch({ type: 'SET_INPUT', value: newValue, cursorPos: cursorPos + sanitized.length });
+      const base = pendingInputRef.current ?? { value: inputValue, cursorPos };
+      pendingInputRef.current = {
+        value: base.value.slice(0, base.cursorPos) + sanitized + base.value.slice(base.cursorPos),
+        cursorPos: base.cursorPos + sanitized.length,
+      };
+      if (!flushScheduledRef.current) {
+        flushScheduledRef.current = true;
+        setImmediate(() => {
+          flushScheduledRef.current = false;
+          if (pendingInputRef.current) {
+            dispatch({ type: 'SET_INPUT', value: pendingInputRef.current.value, cursorPos: pendingInputRef.current.cursorPos });
+            pendingInputRef.current = null;
+          }
+        });
+      }
     }
   });
 
@@ -156,12 +170,34 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
         )}
         <Box>
           <Text color={settingsPrompt ? 'yellow' : 'cyan'}>&gt; </Text>
-          <Text>{inputValue.slice(0, cursorPos)}</Text>
-          <Text inverse>{inputValue[cursorPos] ?? ' '}</Text>
-          <Text>{inputValue.slice(cursorPos + 1)}</Text>
+          <InputText value={inputValue} cursor={cursorPos} />
         </Box>
       </Box>
     </Box>
+  );
+}
+
+function InputText({ value, cursor }: { value: string; cursor: number }) {
+  const termWidth = process.stdout.columns ?? 80;
+  const promptWidth = 2; // "> "
+  const borderWidth = 2; // left + right border
+  const viewWidth = Math.max(10, termWidth - promptWidth - borderWidth);
+
+  // 计算滑动窗口起点，让光标始终在窗口内
+  let windowStart = 0;
+  if (cursor >= viewWidth) {
+    windowStart = cursor - viewWidth + 1;
+  }
+
+  const visible = value.slice(windowStart, windowStart + viewWidth);
+  const localCursor = cursor - windowStart;
+
+  return (
+    <>
+      <Text>{visible.slice(0, localCursor)}</Text>
+      <Text inverse>{visible[localCursor] ?? ' '}</Text>
+      <Text>{visible.slice(localCursor + 1)}</Text>
+    </>
   );
 }
 

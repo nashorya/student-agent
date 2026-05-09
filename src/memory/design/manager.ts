@@ -83,6 +83,7 @@ export class DesignMemoryManager {
   async confirmCandidate(candidateId: string, params: {
     taskId: string;
     sessionRef: string;
+    name?: string;
     now?: Date;
   }): Promise<StyleProfile> {
     return WriteQueue.getInstance().enqueue(async () => {
@@ -120,6 +121,47 @@ export class DesignMemoryManager {
       file.candidates[idx] = updated;
       await this.writeCandidates(file.candidates);
       return updated;
+    });
+  }
+
+  async mergeCandidates(candidateIds: string[], params: {
+    taskId: string;
+    sessionRef: string;
+    name?: string;
+  }): Promise<DesignCandidate> {
+    return WriteQueue.getInstance().enqueue(async () => {
+      const file = await this.readCandidatesFile();
+      const candidates = candidateIds.map((id) => {
+        const c = file.candidates.find((c) => c.id === id);
+        if (!c) throw new Error(`Design candidate not found: ${id}`);
+        return c;
+      });
+      const now = new Date().toISOString();
+      const merged = mergeDesignCandidates(candidates, params.name);
+      const candidate: DesignCandidate = {
+        ...merged,
+        id: `design_cand_${randomUUID()}`,
+        first_observed: now,
+        last_observed: now,
+        status: 'pending_user_confirmation',
+        breaker_report: null,
+        provenance: [makeProvenance('playwright-design-study', params.taskId, params.sessionRef, now, 'unverified')],
+      };
+      await this.writeCandidates([...file.candidates, candidate]);
+      return candidate;
+    });
+  }
+
+  async stripScreenshotData(candidateId: string): Promise<void> {
+    await WriteQueue.getInstance().enqueue(async () => {
+      const file = await this.readCandidatesFile();
+      const idx = file.candidates.findIndex((candidate) => candidate.id === candidateId);
+      if (idx < 0) return;
+      file.candidates[idx] = {
+        ...file.candidates[idx],
+        screenshots: file.candidates[idx].screenshots.map(({ dataUrl: _dataUrl, ...rest }) => rest),
+      };
+      await this.writeCandidates(file.candidates);
     });
   }
 
@@ -251,13 +293,14 @@ export class DesignMemoryManager {
 
   private profileFromCandidate(
     candidate: DesignCandidate,
-    params: { taskId: string; sessionRef: string },
+    params: { taskId: string; sessionRef: string; name?: string },
     now: string,
   ): StyleProfile {
+    const name = params.name?.trim() || candidate.name;
     return {
-      id: slugify(candidate.name) || candidate.id,
+      id: slugify(name) || candidate.id,
       candidate_id: candidate.id,
-      name: candidate.name,
+      name,
       mood: inferMood(candidate),
       source_urls: candidate.source_urls,
       tokens: candidate.tokens,
@@ -373,4 +416,98 @@ function inferMood(candidate: DesignCandidate): string[] {
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err;
+}
+
+function mergeDesignCandidates(
+  candidates: DesignCandidate[],
+  nameOverride?: string,
+): Omit<DesignCandidate, 'id' | 'first_observed' | 'last_observed' | 'status' | 'breaker_report' | 'provenance'> {
+  const n = candidates.length;
+
+  // 颜色：出现在超过一半候选中的保留（共性），否则退回全部并集
+  function mergeColors(getter: (c: DesignCandidate) => string[]): string[] {
+    const freq = new Map<string, number>();
+    for (const c of candidates) {
+      for (const color of getter(c)) {
+        freq.set(color, (freq.get(color) ?? 0) + 1);
+      }
+    }
+    const shared = [...freq.entries()].filter(([, count]) => count > n / 2).map(([c]) => c);
+    return shared.length > 0 ? shared.slice(0, 8) : [...freq.keys()].slice(0, 8);
+  }
+
+  // 字符串列表：按出现频率排序，取频率最高的前 N 个
+  function mergeByFreq(getter: (c: DesignCandidate) => string[], limit: number): string[] {
+    const freq = new Map<string, number>();
+    for (const c of candidates) {
+      for (const v of getter(c)) {
+        freq.set(v, (freq.get(v) ?? 0) + 1);
+      }
+    }
+    return [...freq.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([v]) => v)
+      .slice(0, limit);
+  }
+
+  // 字重：取众数
+  function mergeWeight(role: 'heading' | 'body' | 'button'): number | undefined {
+    const vals = candidates.map((c) => c.tokens.fontWeight[role]).filter((v): v is number => v !== undefined);
+    if (vals.length === 0) return undefined;
+    const freq = new Map<number, number>();
+    for (const v of vals) freq.set(v, (freq.get(v) ?? 0) + 1);
+    return [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+
+  // 边框：取出现最多的值
+  function mergeBorderField(getter: (c: DesignCandidate) => string | undefined): string | undefined {
+    const vals = candidates.map(getter).filter((v): v is string => v !== undefined);
+    if (vals.length === 0) return undefined;
+    const freq = new Map<string, number>();
+    for (const v of vals) freq.set(v, (freq.get(v) ?? 0) + 1);
+    return [...freq.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }
+
+  // 组件模式：合并，同 key 取最长描述
+  const componentPatterns: Record<string, string> = {};
+  for (const c of candidates) {
+    for (const [key, val] of Object.entries(c.component_patterns)) {
+      if (!componentPatterns[key] || val.length > componentPatterns[key].length) {
+        componentPatterns[key] = val;
+      }
+    }
+  }
+
+  const name = nameOverride?.trim()
+    || `合并风格：${candidates.map((c) => c.name).join(' + ')}`;
+
+  return {
+    name,
+    source_urls: [...new Set(candidates.flatMap((c) => c.source_urls))],
+    screenshots: candidates.flatMap((c) => c.screenshots.slice(0, 1)),
+    samples: candidates.flatMap((c) => c.samples),
+    observations: candidates.length,
+    tokens: {
+      colors: {
+        ink: candidates[0].tokens.colors.ink,
+        background: mergeColors((c) => c.tokens.colors.background),
+        text: mergeColors((c) => c.tokens.colors.text),
+        accent: mergeColors((c) => c.tokens.colors.accent),
+      },
+      border: {
+        default: mergeBorderField((c) => c.tokens.border.default),
+        strong: mergeBorderField((c) => c.tokens.border.strong),
+      },
+      shadow: mergeByFreq((c) => c.tokens.shadow, 4),
+      radius: mergeByFreq((c) => c.tokens.radius, 6),
+      fontFamily: mergeByFreq((c) => c.tokens.fontFamily, 4),
+      fontWeight: {
+        heading: mergeWeight('heading'),
+        body: mergeWeight('body'),
+        button: mergeWeight('button'),
+      },
+    },
+    component_patterns: componentPatterns,
+    anti_patterns: [...new Set(candidates.flatMap((c) => c.anti_patterns))],
+  };
 }

@@ -1,4 +1,3 @@
-import { chromium } from 'playwright';
 import type {
   ComputedStyleSample,
   DesignExtractionResult,
@@ -15,6 +14,7 @@ export interface NativePlaywrightExtractorOptions {
   navigationTimeoutMs?: number;
   renderWaitMs?: number;
   headless?: boolean;
+  mode?: 'dom' | 'screenshot';
 }
 
 export interface BrowserFactory {
@@ -37,6 +37,7 @@ interface PageLike {
   setViewportSize?(viewport: { width: number; height: number }): Promise<void>;
   screenshot?(options: { fullPage: boolean }): Promise<{ toString(encoding: 'base64'): string }>;
   evaluate<T>(pageFunction: () => T | Promise<T>): Promise<T>;
+  evaluate<T, A>(pageFunction: (arg: A) => T | Promise<T>, arg: A): Promise<T>;
   close(): Promise<void>;
 }
 
@@ -90,6 +91,7 @@ interface ComputedStyleDeclarationLike {
 
 const DEFAULT_NAVIGATION_TIMEOUT_MS = 10_000;
 const DEFAULT_RENDER_WAIT_MS = 2_000;
+const BROWSER_LAUNCH_TIMEOUT_MS = 20_000;
 
 const VIEWPORTS: Array<{ viewport: DesignViewport; width: number; height: number }> = [
   { viewport: 'desktop', width: 1440, height: 900 },
@@ -97,20 +99,23 @@ const VIEWPORTS: Array<{ viewport: DesignViewport; width: number; height: number
 ];
 
 export class NativePlaywrightExtractor implements DesignExtractor {
-  private readonly browserFactory: BrowserFactory;
+  private readonly browserFactory: BrowserFactory | null;
   private readonly navigationTimeoutMs: number;
   private readonly renderWaitMs: number;
   private readonly headless: boolean;
+  private readonly mode: 'dom' | 'screenshot';
 
   constructor(options: NativePlaywrightExtractorOptions = {}) {
-    this.browserFactory = options.browserFactory ?? chromium;
+    this.browserFactory = options.browserFactory ?? null;
     this.navigationTimeoutMs = options.navigationTimeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS;
     this.renderWaitMs = options.renderWaitMs ?? DEFAULT_RENDER_WAIT_MS;
     this.headless = options.headless ?? true;
+    this.mode = options.mode ?? 'dom';
   }
 
   async extract(request: DesignStudyRequest, options: DesignExtractionOptions = {}): Promise<DesignExtractionResult> {
     throwIfAborted(options.signal);
+    const factory = this.browserFactory ?? await loadPlaywright();
     let browser: BrowserLike | null = null;
     let context: BrowserContextLike | null = null;
     const abortResources = () => {
@@ -119,7 +124,11 @@ export class NativePlaywrightExtractor implements DesignExtractor {
     };
     options.signal?.addEventListener('abort', abortResources, { once: true });
     try {
-      browser = await this.browserFactory.launch({ headless: this.headless });
+      browser = await launchWithTimeout(
+        factory,
+        { headless: this.headless },
+        BROWSER_LAUNCH_TIMEOUT_MS,
+      );
       throwIfAborted(options.signal);
       context = await browser.newContext();
       throwIfAborted(options.signal);
@@ -141,6 +150,7 @@ export class NativePlaywrightExtractor implements DesignExtractor {
   ): Promise<DesignExtractionResult> {
     const samples: DesignStyleSample[] = [];
     const screenshots: DesignScreenshotRef[] = [];
+    const screenshotColors: string[] = [];
     let title = request.name ?? '';
 
     for (const viewport of VIEWPORTS) {
@@ -151,12 +161,13 @@ export class NativePlaywrightExtractor implements DesignExtractor {
         title = title || extracted.title || request.url;
         samples.push(...extracted.samples);
         screenshots.push(extracted.screenshot);
+        screenshotColors.push(...extracted.screenshotColors);
       } finally {
         await page.close();
       }
     }
 
-    const tokens = deriveTokens(samples);
+    const tokens = deriveTokens(samples, screenshotColors, this.mode);
     return {
       name: request.name ?? titleFromUrlOrTitle(title, request.url),
       sourceUrls: [request.url],
@@ -174,7 +185,7 @@ export class NativePlaywrightExtractor implements DesignExtractor {
     url: string,
     viewport: { viewport: DesignViewport; width: number; height: number },
     options: DesignExtractionOptions,
-  ): Promise<{ title: string; samples: DesignStyleSample[]; screenshot: DesignScreenshotRef }> {
+  ): Promise<{ title: string; samples: DesignStyleSample[]; screenshot: DesignScreenshotRef; screenshotColors: string[] }> {
     throwIfAborted(options.signal);
     await page.setViewportSize?.({ width: viewport.width, height: viewport.height });
     throwIfAborted(options.signal);
@@ -186,10 +197,14 @@ export class NativePlaywrightExtractor implements DesignExtractor {
     throwIfAborted(options.signal);
     const extracted = await page.evaluate(extractDesignSamples);
     const screenshot = await this.captureScreenshot(page, viewport.viewport, viewport.width, viewport.height);
+    const screenshotColors = (this.mode === 'screenshot' && screenshot.dataUrl)
+      ? await page.evaluate(analyzeScreenshotColors, screenshot.dataUrl).catch(() => [] as string[])
+      : [];
     return {
       title: extracted.title,
       samples: extracted.samples.map((sample) => ({ ...sample, viewport: viewport.viewport })),
       screenshot,
+      screenshotColors,
     };
   }
 
@@ -224,6 +239,82 @@ async function safeClose(resource: { close(): Promise<void> } | null): Promise<v
   } catch {
     // Closing can race with AbortSignal cleanup; extraction errors still carry the useful cause.
   }
+}
+
+async function launchWithTimeout(
+  factory: BrowserFactory,
+  options: { headless: boolean },
+  timeoutMs: number,
+): Promise<BrowserLike> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return Promise.race([
+    factory.launch(options),
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`浏览器启动超时（${timeoutMs / 1000}s）`)),
+        timeoutMs,
+      );
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+interface BrowserImageLike {
+  width: number;
+  height: number;
+  src: string;
+  onload: (() => void) | null;
+  onerror: (() => void) | null;
+}
+
+interface BrowserCanvasLike {
+  width: number;
+  height: number;
+  getContext(type: '2d'): BrowserCanvas2DLike | null;
+}
+
+interface BrowserCanvas2DLike {
+  drawImage(img: BrowserImageLike, x: number, y: number, w: number, h: number): void;
+  getImageData(x: number, y: number, w: number, h: number): { data: Uint8ClampedArray };
+}
+
+interface BrowserScreenshotGlobal {
+  Image: new () => BrowserImageLike;
+  document: { createElement(tag: 'canvas'): BrowserCanvasLike };
+}
+
+function analyzeScreenshotColors(dataUrl: string): Promise<string[]> {
+  // 此函数在浏览器上下文中通过 page.evaluate() 执行
+  const bg = globalThis as unknown as BrowserScreenshotGlobal;
+  return new Promise((resolve) => {
+    const img = new bg.Image();
+    img.onerror = () => resolve([]);
+    img.onload = () => {
+      const scale = Math.min(1, 300 / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = bg.document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve([]); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      const { data } = ctx.getImageData(0, 0, w, h);
+      const counts = new Map<string, number>();
+      for (let i = 0; i < data.length; i += 16) {
+        if (data[i + 3] < 128) continue;
+        const r = Math.min(255, Math.round(data[i] / 24) * 24);
+        const g = Math.min(255, Math.round(data[i + 1] / 24) * 24);
+        const b = Math.min(255, Math.round(data[i + 2] / 24) * 24);
+        const key = `rgb(${r}, ${g}, ${b})`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+      resolve(sorted.slice(0, 20).map(([color]) => color));
+    };
+    img.src = dataUrl;
+  });
 }
 
 function extractDesignSamples(): BrowserExtraction {
@@ -290,22 +381,42 @@ function extractDesignSamples(): BrowserExtraction {
   }
 }
 
-export function deriveTokens(samples: DesignStyleSample[]): DesignTokens {
+export function deriveTokens(
+  samples: DesignStyleSample[],
+  screenshotColors: string[] = [],
+  mode: 'dom' | 'screenshot' = 'dom',
+): DesignTokens {
   const colors = compactUnique(samples.flatMap((sample) => [
     sample.styles.color,
     sample.styles.backgroundColor,
   ]).map(normalizeCssValue));
   const backgrounds = compactUnique(samples.map((sample) => normalizeCssValue(sample.styles.backgroundColor)));
-  const text = compactUnique(samples.map((sample) => normalizeCssValue(sample.styles.color)));
-  const accent = colors.filter((color) => !isNeutralColor(color)).slice(0, 8);
+  const text = compactUnique(
+    samples.map((sample) => normalizeCssValue(sample.styles.color))
+      .filter((c): c is string => !!c && /^rgba?\(/.test(c)),
+  );
+  const domAccent = colors.filter((color) => !isNeutralColor(color));
+
+  const { background: shotBg, accent: shotAccent } = partitionScreenshotColors(screenshotColors);
+
+  const finalBackground = mode === 'screenshot'
+    ? compactUnique([...shotBg, ...backgrounds]).slice(0, 8)
+    : backgrounds.slice(0, 8);
+  const finalAccent = mode === 'screenshot'
+    ? compactUnique([...shotAccent, ...domAccent]).slice(0, 8)
+    : domAccent.slice(0, 8);
+  const finalInk = mode === 'screenshot'
+    ? (screenshotColors.find(isDarkColor) ?? text.find(isDarkColor))
+    : text.find(isDarkColor);
+
   const borders = compactUnique(samples.map((sample) => normalizeCssValue(sample.styles.border)));
 
   return {
     colors: {
-      ink: text.find(isDarkColor),
-      background: backgrounds.slice(0, 8),
+      ink: finalInk,
+      background: finalBackground,
       text: text.slice(0, 8),
-      accent,
+      accent: finalAccent,
     },
     border: {
       default: borders[0],
@@ -313,6 +424,7 @@ export function deriveTokens(samples: DesignStyleSample[]): DesignTokens {
     },
     shadow: compactUnique(samples.map((sample) => normalizeCssValue(sample.styles.boxShadow))).slice(0, 8),
     radius: compactUnique(samples.map((sample) => normalizeCssValue(sample.styles.borderRadius))).slice(0, 8),
+    fontFamily: compactUnique(samples.map((sample) => normalizeCssValue(sample.styles.fontFamily))).slice(0, 4),
     fontWeight: {
       heading: mostCommonNumericWeight(samples, 'heading'),
       body: mostCommonNumericWeight(samples, 'body'),
@@ -378,6 +490,28 @@ function mostCommon(values: number[]): number | undefined {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
 }
 
+function partitionScreenshotColors(colors: string[]): { background: string[]; accent: string[] } {
+  const background: string[] = [];
+  const accent: string[] = [];
+  for (const color of colors) {
+    const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (!match) continue;
+    const r = Number(match[1]) / 255;
+    const g = Number(match[2]) / 255;
+    const b = Number(match[3]) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    const s = max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1));
+    if (s < 0.12 || l < 0.05 || l > 0.95) {
+      background.push(color);
+    } else {
+      accent.push(color);
+    }
+  }
+  return { background, accent };
+}
+
 function compactUnique(values: Array<string | undefined>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value && value !== 'none' && value !== 'rgba(0, 0, 0, 0)')))];
 }
@@ -404,5 +538,18 @@ function titleFromUrlOrTitle(title: string, url: string): string {
     return new URL(url).hostname;
   } catch {
     return url;
+  }
+}
+
+async function loadPlaywright(): Promise<BrowserFactory> {
+  try {
+    const pw = await import('playwright');
+    return pw.chromium;
+  } catch {
+    throw new Error(
+      'Design Study 技能需要安装 Playwright。\n' +
+      '请运行：npx playwright install chromium\n' +
+      '或：npm install playwright && npx playwright install chromium',
+    );
   }
 }

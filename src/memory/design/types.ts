@@ -47,6 +47,7 @@ export interface DesignTokens {
   border: DesignBorderTokens;
   shadow: string[];
   radius: string[];
+  fontFamily: string[];
   fontWeight: {
     heading?: number;
     body?: number;
@@ -182,5 +183,6 @@ export const EMPTY_DESIGN_TOKENS: DesignTokens = {
   border: {},
   shadow: [],
   radius: [],
+  fontFamily: [],
   fontWeight: {},
 };
