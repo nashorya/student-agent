@@ -5,10 +5,8 @@ import { createRequire } from 'node:module';
 import { constants } from 'node:fs';
 import { chromium } from 'playwright';
 import TurndownService from 'turndown';
-import { DomainWhitelist } from './domain-whitelist.js';
 
 export interface PlaywrightReaderOptions {
-  whitelist?: DomainWhitelist;
   maxChars?: number;
   navigationTimeoutMs?: number;
   renderWaitMs?: number;
@@ -86,7 +84,6 @@ const DEFAULT_STORAGE_STATE_PATH = join(homedir(), '.student-agent', 'playwright
 const require = createRequire(import.meta.url);
 
 export class PlaywrightReader {
-  private readonly whitelist: DomainWhitelist;
   private readonly maxChars: number;
   private readonly navigationTimeoutMs: number;
   private readonly renderWaitMs: number;
@@ -102,7 +99,6 @@ export class PlaywrightReader {
   private resolvedReadabilityScript: string | null = null;
 
   constructor(options: PlaywrightReaderOptions = {}) {
-    this.whitelist = options.whitelist ?? new DomainWhitelist();
     this.maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
     this.navigationTimeoutMs = options.navigationTimeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS;
     this.renderWaitMs = options.renderWaitMs ?? DEFAULT_RENDER_WAIT_MS;
@@ -119,10 +115,7 @@ export class PlaywrightReader {
   }
 
   async read(url: string): Promise<ReadPageResult> {
-    const decision = this.whitelist.check(url);
-    if (!decision.allowed) {
-      throw new Error(decision.reason ?? 'URL 不在 Playwright 读取白名单中');
-    }
+    assertReadableUrl(url);
 
     const context = await this.ensureContext();
     const page = await context.newPage();
@@ -207,6 +200,18 @@ export class PlaywrightReader {
       ? this.turndown.turndown(extracted.html)
       : extracted.text;
     return truncateMarkdown(markdown, this.maxChars);
+  }
+}
+
+export function assertReadableUrl(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('Playwright 读取 URL 格式无效');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Playwright 读取仅允许 http/https URL');
   }
 }
 

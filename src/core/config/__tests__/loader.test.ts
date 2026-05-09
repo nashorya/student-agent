@@ -22,7 +22,7 @@ describe('student agent config loader', () => {
     });
 
     expect(config.features.context7).toBe(true);
-    expect(config.features.playwright).toBe(false);
+    expect(config.features.playwright).toBe(true);
     expect(config.features.designStudy).toBe(true);
     expect(config.features.subAgents).toBe(false);
     expect(config.context7.timeoutMs).toBe(10_000);

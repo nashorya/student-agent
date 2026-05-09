@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DomainWhitelist } from '../domain-whitelist.js';
 import { PlaywrightReader, type BrowserFactory } from '../playwright-reader.js';
 
 interface MockPage {
@@ -71,7 +70,6 @@ describe('PlaywrightReader', () => {
     });
     const reader = new PlaywrightReader({
       browserFactory: factory,
-      whitelist: new DomainWhitelist({ additionalRules: [{ type: 'exact', value: 'example.com' }] }),
       readabilityScript: 'globalThis.Readability = function () {};',
     });
 
@@ -97,7 +95,6 @@ describe('PlaywrightReader', () => {
     });
     const reader = new PlaywrightReader({
       browserFactory: factory,
-      whitelist: new DomainWhitelist({ additionalRules: [{ type: 'exact', value: 'example.com' }] }),
       readabilityScript: '',
     });
 
@@ -118,7 +115,6 @@ describe('PlaywrightReader', () => {
     });
     const reader = new PlaywrightReader({
       browserFactory: factory,
-      whitelist: new DomainWhitelist({ additionalRules: [{ type: 'exact', value: 'example.com' }] }),
       readabilityScript: '',
       useStorageState: true,
       storageStatePath,
@@ -130,7 +126,23 @@ describe('PlaywrightReader', () => {
     await reader.close();
   });
 
-  it('拒绝非白名单 URL，不启动浏览器', async () => {
+  it('允许任意 http/https URL，不检查域名白名单', async () => {
+    const { factory } = makeFactory({
+      title: 'Any',
+      html: '<p>any site</p>',
+      text: 'any site',
+      usedReadability: false,
+    });
+    const reader = new PlaywrightReader({ browserFactory: factory, readabilityScript: '' });
+
+    const result = await reader.read('https://not-in-a-whitelist.example/private');
+
+    expect(result.markdown).toContain('any site');
+    expect(factory.launch).toHaveBeenCalled();
+    await reader.close();
+  });
+
+  it('拒绝非 http/https URL，不启动浏览器', async () => {
     const { factory } = makeFactory({
       title: '',
       html: '',
@@ -139,7 +151,7 @@ describe('PlaywrightReader', () => {
     });
     const reader = new PlaywrightReader({ browserFactory: factory });
 
-    await expect(reader.read('https://example.com/private')).rejects.toThrow('不在 Playwright 读取白名单');
+    await expect(reader.read('file:///tmp/page.html')).rejects.toThrow('仅允许 http/https');
     expect(factory.launch).not.toHaveBeenCalled();
   });
 });

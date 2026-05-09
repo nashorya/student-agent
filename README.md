@@ -75,17 +75,16 @@ Runtime behavior can be tuned via `.env` or `.student-agent.json`. Key feature f
 | Flag | Default | Description |
 |---|---|---|
 | `STUDENT_AGENT_FEATURE_CONTEXT7` | `true` | Library documentation lookup |
-| `STUDENT_AGENT_FEATURE_PLAYWRIGHT` | `false` | Dynamic web page reading |
+| `STUDENT_AGENT_FEATURE_PLAYWRIGHT` | `true` | Dynamic web page reading |
 | `STUDENT_AGENT_FEATURE_DESIGN_STUDY` | `true` | Visual style learning from reference pages and local UI critique |
 | `STUDENT_AGENT_FEATURE_BOUNDED_BREAKER` | `true` | Pattern generalization with confidence scoring |
 | `STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG` | `true` | Passive quality degradation detection |
 | `STUDENT_AGENT_FEATURE_SUB_AGENTS` | `false` | Concurrent sub-agent orchestration |
 
-If enabling Playwright:
+If Playwright browsers are not installed yet:
 
 ```bash
 npx playwright install chromium
-# Then set STUDENT_AGENT_FEATURE_PLAYWRIGHT=true in .env
 ```
 
 ## Architecture

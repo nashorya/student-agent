@@ -75,17 +75,16 @@ student-agent
 | 开关 | 默认值 | 说明 |
 |---|---|---|
 | `STUDENT_AGENT_FEATURE_CONTEXT7` | `true` | 库文档检索 |
-| `STUDENT_AGENT_FEATURE_PLAYWRIGHT` | `false` | 动态网页读取 |
+| `STUDENT_AGENT_FEATURE_PLAYWRIGHT` | `true` | 动态网页读取 |
 | `STUDENT_AGENT_FEATURE_DESIGN_STUDY` | `true` | 参考页视觉风格学习与本地 UI 自评 |
 | `STUDENT_AGENT_FEATURE_BOUNDED_BREAKER` | `true` | 模式泛化 + 置信度评分 |
 | `STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG` | `true` | 被动质量退化检测 |
 | `STUDENT_AGENT_FEATURE_SUB_AGENTS` | `false` | 并发子代理编排 |
 
-如需开启 Playwright：
+如果还没有安装 Playwright 浏览器：
 
 ```bash
 npx playwright install chromium
-# 然后在 .env 中设置 STUDENT_AGENT_FEATURE_PLAYWRIGHT=true
 ```
 
 ## 架构概览

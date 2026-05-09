@@ -79,7 +79,7 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
   },
   features: {
     context7: true,
-    playwright: false,
+    playwright: true,
     designStudy: true,
     boundedBreaker: true,
     qualityWatchdog: true,

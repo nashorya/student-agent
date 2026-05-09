@@ -317,6 +317,7 @@ Playwright 分成两种模式：
 content-read mode:
   目标：回答网页写了什么
   输出：Readability markdown / 文本摘要
+  边界：用户启用 Playwright 后不做域名白名单限制，仅允许 http/https
 
 design-study mode:
   目标：回答网页如何建立视觉风格，哪些规则可迁移
@@ -903,7 +904,7 @@ WriteQueue 是进程级单例，在应用启动时初始化，所有需要写盘
 | TD-01 | MCP Schema 校验层：检索层增加校验装饰器，失败时标记"不可信来源" | v0.3 |
 | TD-02 | 动态知识缓存（project-kb.json）：缓存外部文档，需处理版本一致性 | v0.3 |
 | TD-03 | 向量嵌入模型选型：本地嵌入 vs API 嵌入的冷启动/网络依赖取舍 | 开发前确认 |
-| TD-04 | Playwright 会话加密存储：browser-profile/ 需加密 + 域名白名单 | 开发期 |
+| TD-04 | Playwright 会话加密存储：browser-profile/ 需加密；域名白名单不再默认限制显式 Playwright 行动 | 开发期 |
 | TD-05 | 策略选择器决策树形式化：选择哪个策略的决策树尚未形式化 | 开发期 |
 | TD-06 | 模式签名校准：反思代理生成签名的 prompt 需反复测试 | 开发期 |
 | TD-07 | Breaker 策略库版本化维护：策略库本身需要随时间更新，否则会退化 | Beta 阶段 |
