@@ -1,4 +1,3 @@
-import { createActor, createMachine } from 'xstate';
 import { DesignMemoryManager } from '../../memory/design/manager.js';
 import type { DesignCandidate, DesignCritique, DesignExtractionResult, StyleProfile } from '../../memory/design/types.js';
 import type { CandidateBreakerReport } from '../../memory/candidates/types.js';
@@ -15,59 +14,6 @@ export interface DesignStudyServiceOptions {
   critic?: VisualCriticLike;
   criticThreshold?: number;
   operationTimeoutMs?: number;
-}
-
-export interface DesignStudyMachineContext {
-  candidateId: string | null;
-  profileId: string | null;
-  failureReason: string | null;
-}
-
-type DesignStudyMachineEvent =
-  | { type: 'DESIGN_STUDY_REQUESTED' }
-  | { type: 'REFERENCE_OPENED' }
-  | { type: 'SCREENSHOTS_CAPTURED' }
-  | { type: 'STYLE_SAMPLES_EXTRACTED' }
-  | { type: 'PATTERNS_IDENTIFIED' }
-  | { type: 'BOUNDED_BREAKER_COMPLETE' }
-  | { type: 'CANDIDATE_WRITTEN' }
-  | { type: 'CRITIQUE_REQUESTED' }
-  | { type: 'LOCAL_SCREENSHOT_CAPTURED' }
-  | { type: 'CRITIQUE_COMPLETE' }
-  | { type: 'FAIL' };
-
-export function createDesignStudyMachine() {
-  return createMachine({
-    types: {} as {
-      context: DesignStudyMachineContext;
-      events: DesignStudyMachineEvent;
-    },
-    id: 'designStudy',
-    initial: 'idle',
-    context: {
-      candidateId: null,
-      profileId: null,
-      failureReason: null,
-    },
-    states: {
-      idle: {
-        on: {
-          DESIGN_STUDY_REQUESTED: 'open_reference_urls',
-          CRITIQUE_REQUESTED: 'playwright_screenshot_local_page',
-        },
-      },
-      open_reference_urls: timedState('capture_screenshots', 'REFERENCE_OPENED'),
-      capture_screenshots: timedState('extract_computed_style_samples', 'SCREENSHOTS_CAPTURED'),
-      extract_computed_style_samples: timedState('identify_component_patterns', 'STYLE_SAMPLES_EXTRACTED'),
-      identify_component_patterns: timedState('bounded_breaker_for_design_generalization', 'PATTERNS_IDENTIFIED'),
-      bounded_breaker_for_design_generalization: timedState('produce_style_profile_candidate', 'BOUNDED_BREAKER_COMPLETE'),
-      produce_style_profile_candidate: timedState('done', 'CANDIDATE_WRITTEN'),
-      playwright_screenshot_local_page: timedState('compare_with_style_profile', 'LOCAL_SCREENSHOT_CAPTURED'),
-      compare_with_style_profile: timedState('done', 'CRITIQUE_COMPLETE'),
-      done: { type: 'final' },
-      failed: { type: 'final' },
-    },
-  });
 }
 
 export class DesignStudyService {
@@ -92,33 +38,18 @@ export class DesignStudyService {
 
   async study(request: DesignStudyRunRequest): Promise<DesignCandidate> {
     assertReferenceStudyUrl(request.url);
-    const actor = createActor(createDesignStudyMachine()).start();
-    try {
-      actor.send({ type: 'DESIGN_STUDY_REQUESTED' });
-      actor.send({ type: 'REFERENCE_OPENED' });
-      actor.send({ type: 'SCREENSHOTS_CAPTURED' });
-      const extraction = await withTimeout(
-        (signal) => this.extractWithConfiguredBackend(request, signal),
-        this.operationTimeoutMs,
-        'Design study extraction timed out',
-      );
-      actor.send({ type: 'STYLE_SAMPLES_EXTRACTED' });
-      actor.send({ type: 'PATTERNS_IDENTIFIED' });
-      const breakerReport = createDesignBreakerReport(extraction);
-      actor.send({ type: 'BOUNDED_BREAKER_COMPLETE' });
-      const candidate = await this.memory.observeCandidate(extraction, {
-        taskId: request.taskId,
-        sessionRef: request.sessionRef,
-      });
-      const updated = await this.memory.recordBreakerReport(candidate.id, breakerReport);
-      actor.send({ type: 'CANDIDATE_WRITTEN' });
-      return updated ?? candidate;
-    } catch (err) {
-      actor.send({ type: 'FAIL' });
-      throw err;
-    } finally {
-      actor.stop();
-    }
+    const extraction = await withTimeout(
+      (signal) => this.extractWithConfiguredBackend(request, signal),
+      this.operationTimeoutMs,
+      'Design study extraction timed out',
+    );
+    const breakerReport = createDesignBreakerReport(extraction);
+    const candidate = await this.memory.observeCandidate(extraction, {
+      taskId: request.taskId,
+      sessionRef: request.sessionRef,
+    });
+    const updated = await this.memory.recordBreakerReport(candidate.id, breakerReport);
+    return updated ?? candidate;
   }
 
   async confirmCandidate(candidateId: string, taskId: string, sessionRef: string): Promise<StyleProfile> {
@@ -131,24 +62,13 @@ export class DesignStudyService {
 
   async critique(url: string, profile: StyleProfile, taskId: string, sessionRef: string): Promise<DesignCritique> {
     assertLocalDesignUrl(url);
-    const actor = createActor(createDesignStudyMachine()).start();
-    try {
-      actor.send({ type: 'CRITIQUE_REQUESTED' });
-      actor.send({ type: 'LOCAL_SCREENSHOT_CAPTURED' });
-      const critique = await withTimeout(
-        (signal) => this.critic.critique({ url, profile, taskId, sessionRef }, { signal }),
-        this.operationTimeoutMs,
-        'Design critique timed out',
-      );
-      await this.memory.appendCritique(critique);
-      actor.send({ type: 'CRITIQUE_COMPLETE' });
-      return critique;
-    } catch (err) {
-      actor.send({ type: 'FAIL' });
-      throw err;
-    } finally {
-      actor.stop();
-    }
+    const critique = await withTimeout(
+      (signal) => this.critic.critique({ url, profile, taskId, sessionRef }, { signal }),
+      this.operationTimeoutMs,
+      'Design critique timed out',
+    );
+    await this.memory.appendCritique(critique);
+    return critique;
   }
 
   private async extractWithConfiguredBackend(
@@ -226,18 +146,6 @@ export function createDesignBreakerReport(extraction: DesignExtractionResult): C
     unknown_risk_zones: unknownRiskZones,
     recommendation: hasMobile ? 'promote_with_caution' : 'reject',
     created_at: new Date().toISOString(),
-  };
-}
-
-function timedState(target: string, event: DesignStudyMachineEvent['type']) {
-  return {
-    after: {
-      120_000: 'failed',
-    },
-    on: {
-      [event]: target,
-      FAIL: 'failed',
-    },
   };
 }
 

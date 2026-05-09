@@ -2,10 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createActor } from 'xstate';
 import { WriteQueue } from '../../../core/write-queue.js';
 import { DesignMemoryManager } from '../../../memory/design/manager.js';
-import { DesignStudyService, createDesignStudyMachine } from '../service.js';
+import { DesignStudyService } from '../service.js';
 import type { DesignExtractor } from '../types.js';
 
 const extractor: DesignExtractor = {
@@ -40,15 +39,6 @@ describe('DesignStudyService', () => {
     DesignMemoryManager.resetInstance();
     WriteQueue.resetInstance();
     await rm(tmpDir, { recursive: true, force: true });
-  });
-
-  it('machine reaches style sample extraction through explicit events', () => {
-    const actor = createActor(createDesignStudyMachine()).start();
-    actor.send({ type: 'DESIGN_STUDY_REQUESTED' });
-    actor.send({ type: 'REFERENCE_OPENED' });
-    actor.send({ type: 'SCREENSHOTS_CAPTURED' });
-    expect(actor.getSnapshot().value).toBe('extract_computed_style_samples');
-    actor.stop();
   });
 
   it('studies a URL and persists a candidate', async () => {

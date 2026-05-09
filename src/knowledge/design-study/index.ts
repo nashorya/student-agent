@@ -5,7 +5,6 @@ export {
   assertLocalDesignUrl,
   assertReferenceStudyUrl,
   createDesignBreakerReport,
-  createDesignStudyMachine,
 } from './service.js';
 export { VisualCritic, scoreProfileMatch } from './visual-critic.js';
 export type {
