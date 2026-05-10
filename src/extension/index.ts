@@ -400,8 +400,18 @@ async function main(): Promise<void> {
 
           case 'design':
             tui.bridge.addMessage('system', '[DesignStudy] 正在处理设计命令…');
+            if (command.subcommand === 'study' || command.subcommand === 'merge') {
+              tui.bridge.addMessage(
+                'system',
+                `[DesignStudy] 风格/审美描述最多等待 ${formatSeconds(runtime.config.designStudy.styleDescriptionTimeoutMs)}；超时会跳过描述，候选仍会保存。`,
+              );
+            }
             try {
               tui.bridge.addMessage('system', await handleDesignCommand(command, runtime));
+              if (command.subcommand === 'use' && command.followUp) {
+                tui.bridge.addMessage('system', '[DesignStudy] 检测到后续任务，已启用风格，开始提交给 agent…');
+                await runTuiFollowUpPrompt(runtime, tui.bridge, command.followUp);
+              }
             } catch (err) {
               tui.bridge.addMessage('system', `[DesignStudy] 失败：${err instanceof Error ? err.message : String(err)}`);
             }
@@ -811,8 +821,15 @@ async function main(): Promise<void> {
 
           case 'design':
             console.log(chalk.dim('  [DesignStudy] 正在处理设计命令…'));
+            if (command.subcommand === 'study' || command.subcommand === 'merge') {
+              console.log(chalk.dim(`  [DesignStudy] 风格/审美描述最多等待 ${formatSeconds(runtime.config.designStudy.styleDescriptionTimeoutMs)}；超时会跳过描述，候选仍会保存。`));
+            }
             try {
               console.log(chalk.green(await handleDesignCommand(command, runtime)));
+              if (command.subcommand === 'use' && command.followUp) {
+                console.log(chalk.dim('  [DesignStudy] 检测到后续任务，已启用风格，开始提交给 agent…'));
+                await runConsoleFollowUpPrompt(runtime, command.followUp);
+              }
             } catch (err) {
               console.log(chalk.red(`[DesignStudy] 失败：${err instanceof Error ? err.message : String(err)}`));
             }
@@ -1086,6 +1103,56 @@ async function runConsoleFeedbackRepair(runtime: RuntimeState, feedback: string)
   }
 }
 
+async function runTuiFollowUpPrompt(
+  runtime: RuntimeState,
+  bridge: TUIBridge,
+  prompt: string,
+): Promise<void> {
+  const taskName = prompt.trim().slice(0, 60) || '后续任务';
+  currentTaskDescription = taskName;
+  runtime.escalation.initTask(taskName, CWD);
+  markReflectBaseline();
+  bridge.updateTaskStatus({
+    name: taskName,
+    phaseIndex: 0,
+    totalPhases: 1,
+    retryCount: 0,
+    toolCallCount: 0,
+    elapsedMs: 0,
+    state: 'running',
+  });
+
+  try {
+    runtime.resetFileGuard();
+    await runtime.session.prompt(prompt);
+    await runtime.agent.waitForIdle();
+    bridge.updateTaskStatus({ state: 'idle' });
+    const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
+    if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
+    if (runtime.agent.state.errorMessage) {
+      bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
+    }
+  } catch (err) {
+    bridge.updateTaskStatus({ state: 'failed' });
+    bridge.addMessage('system', `后续任务失败: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+async function runConsoleFollowUpPrompt(runtime: RuntimeState, prompt: string): Promise<void> {
+  const taskName = prompt.trim().slice(0, 60) || '后续任务';
+  currentTaskDescription = taskName;
+  runtime.escalation.initTask(taskName, CWD);
+  markReflectBaseline();
+  try {
+    await runTaskWithAbort(runtime, prompt);
+  } catch (err) {
+    console.error(
+      chalk.red('后续任务失败:'),
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
 function buildFeedbackRepairPrompt(taskName: string, feedback: string): string {
   return [
     '[用户负反馈返工]',
@@ -1219,7 +1286,7 @@ async function handleDesignCommand(
       });
       const [screenshotPaths, styleDescription] = await Promise.all([
         saveDesignScreenshots(candidate),
-        describeDesignStyle(candidate, runtime.model),
+        describeDesignStyle(candidate, runtime.model, runtime.config.designStudy.styleDescriptionTimeoutMs),
       ]);
       if (screenshotPaths.length > 0) {
         openScreenshots(screenshotPaths);
@@ -1241,14 +1308,15 @@ async function handleDesignCommand(
         screenshotHint,
         '',
         '风格描述：',
-        styleDescription,
+        styleDescription.text,
+        styleDescription.timedOut ? `提示：风格描述生成超时，候选已经保存；可以先 confirm，或稍后运行 /design describe ${candidate.id} 重试。` : '',
         '',
         '下一步：/design confirm <candidate-id> 确认为 StyleProfile。',
       ].filter(Boolean).join('\n');
     }
     case 'merge': {
       const merged = await runtime.designService.mergeCandidates(command.candidateIds, taskId, sessionRef, command.name);
-      const styleDescription = await describeDesignStyle(merged, runtime.model);
+      const styleDescription = await describeDesignStyle(merged, runtime.model, runtime.config.designStudy.styleDescriptionTimeoutMs);
       return [
         `已合并 ${command.candidateIds.length} 个候选 → 新候选：${merged.name}`,
         `candidate_id: ${merged.id}`,
@@ -1257,10 +1325,28 @@ async function handleDesignCommand(
         formatDesignEvidence(merged),
         '',
         '风格描述：',
-        styleDescription,
+        styleDescription.text,
+        styleDescription.timedOut ? `提示：风格描述生成超时，合并候选已经保存；可以先 confirm，或稍后运行 /design describe ${merged.id} 重试。` : '',
         '',
         '下一步：/design confirm <candidate-id> [--name <名字>] 确认为 StyleProfile。',
-      ].join('\n');
+      ].filter(Boolean).join('\n');
+    }
+    case 'describe': {
+      const candidate = await memory.findCandidate(command.candidateId);
+      if (!candidate) {
+        return `Design candidate not found: ${command.candidateId}`;
+      }
+      const timeoutMs = command.timeoutMs ?? runtime.config.designStudy.styleDescriptionTimeoutMs;
+      const description = await describeDesignStyle(candidate, runtime.model, timeoutMs);
+      return [
+        `候选：${candidate.name}`,
+        `candidate_id: ${candidate.id}`,
+        `审美描述等待上限：${formatSeconds(timeoutMs)}`,
+        '',
+        '风格描述：',
+        description.text,
+        description.timedOut ? `提示：描述仍然超时；可稍后重试，或用 /design describe ${candidate.id} --timeout 90 给更长时间。` : '',
+      ].filter(Boolean).join('\n');
     }
     case 'confirm': {
       const profile = await runtime.designService.confirmCandidate(command.candidateId, taskId, sessionRef, command.name);
@@ -1357,7 +1443,16 @@ function openScreenshots(paths: string[]): void {
   }
 }
 
-async function describeDesignStyle(candidate: DesignCandidate, model: Model<Api>): Promise<string> {
+interface StyleDescriptionResult {
+  text: string;
+  timedOut: boolean;
+}
+
+async function describeDesignStyle(
+  candidate: DesignCandidate,
+  model: Model<Api>,
+  timeoutMs: number,
+): Promise<StyleDescriptionResult> {
   const imageBlocks = candidate.screenshots
     .filter((s) => s.dataUrl)
     .map((s) => {
@@ -1373,14 +1468,39 @@ async function describeDesignStyle(candidate: DesignCandidate, model: Model<Api>
     }),
   };
   try {
-    const result = await completeSimple(model, {
-      systemPrompt: '你是设计系统分析师。根据截图和视觉 token，用简洁自然的中文描述这个设计风格的视觉特征，包括配色印象、插画或装饰风格、排版风格、组件外观和整体气质。控制在 120 字以内，用描述性语言，不要列举数值。',
-      messages: [{ role: 'user', content: [...imageBlocks, textBlock], timestamp: Date.now() }],
-    });
-    return result.content.find((c) => c.type === 'text')?.text?.trim() ?? '（描述生成失败）';
+    const result = await withDesignDescriptionTimeout(
+      completeSimple(model, {
+        systemPrompt: '你是设计系统分析师。根据截图和视觉 token，用简洁自然的中文描述这个设计风格的视觉特征，包括配色印象、插画或装饰风格、排版风格、组件外观和整体气质。控制在 120 字以内，用描述性语言，不要列举数值。',
+        messages: [{ role: 'user', content: [...imageBlocks, textBlock], timestamp: Date.now() }],
+      }),
+      timeoutMs,
+    );
+    if (result === 'timeout') {
+      return {
+        text: `（风格描述生成超过 ${formatSeconds(timeoutMs)}，已跳过）`,
+        timedOut: true,
+      };
+    }
+    return {
+      text: result.content.find((c) => c.type === 'text')?.text?.trim() ?? '（描述生成失败）',
+      timedOut: false,
+    };
   } catch {
-    return '（描述生成失败）';
+    return { text: '（描述生成失败）', timedOut: false };
   }
+}
+
+async function withDesignDescriptionTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | 'timeout'> {
+  return Promise.race([
+    promise,
+    new Promise<'timeout'>((resolve) => {
+      setTimeout(() => resolve('timeout'), timeoutMs);
+    }),
+  ]);
+}
+
+function formatSeconds(milliseconds: number): string {
+  return `${Math.round(milliseconds / 1000)}s`;
 }
 
 function isSparseColorPalette(tokens: DesignCandidate['tokens']): boolean {

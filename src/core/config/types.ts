@@ -42,6 +42,7 @@ export interface StudentAgentConfig {
     dembrandtCommand?: string;
     criticThreshold: number;
     maxCriticRetries: number;
+    styleDescriptionTimeoutMs: number;
     localUrl?: string;
   };
   subAgents: {
@@ -102,6 +103,7 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
     extractorMode: 'auto',
     criticThreshold: 0.8,
     maxCriticRetries: 1,
+    styleDescriptionTimeoutMs: 45_000,
   },
   subAgents: {
     maxConcurrency: 3,

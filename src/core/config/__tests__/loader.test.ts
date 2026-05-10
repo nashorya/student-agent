@@ -117,6 +117,7 @@ describe('student agent config loader', () => {
         STUDENT_AGENT_DESIGN_DEMBRANDT_COMMAND: 'dembrandt',
         STUDENT_AGENT_DESIGN_CRITIC_THRESHOLD: '0.9',
         STUDENT_AGENT_DESIGN_MAX_CRITIC_RETRIES: '3',
+        STUDENT_AGENT_DESIGN_STYLE_DESCRIPTION_TIMEOUT_MS: '90000',
         STUDENT_AGENT_DESIGN_LOCAL_URL: 'http://localhost:5173',
         CONTEXT7_TIMEOUT_MS: '2500',
         STUDENT_AGENT_LLM_REQUEST_TIMEOUT_MS: '180000',
@@ -134,6 +135,7 @@ describe('student agent config loader', () => {
     expect(config.designStudy.dembrandtCommand).toBe('dembrandt');
     expect(config.designStudy.criticThreshold).toBe(0.9);
     expect(config.designStudy.maxCriticRetries).toBe(3);
+    expect(config.designStudy.styleDescriptionTimeoutMs).toBe(90_000);
     expect(config.designStudy.localUrl).toBe('http://localhost:5173');
     expect(config.context7.timeoutMs).toBe(2_500);
     expect(config.llm.requestTimeoutMs).toBe(180_000);
@@ -197,5 +199,6 @@ describe('student agent config loader', () => {
     expect(config.playwright.navigationTimeoutMs).toBe(10_000);
     expect(config.designStudy.extractorMode).toBe('native');
     expect(config.designStudy.criticThreshold).toBe(0.8);
+    expect(config.designStudy.styleDescriptionTimeoutMs).toBe(45_000);
   });
 });

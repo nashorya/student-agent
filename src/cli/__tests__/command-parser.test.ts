@@ -136,6 +136,12 @@ describe('parseCommand', () => {
       subcommand: 'use',
       profileId: 'food-app',
     });
+    expect(parseCommand('/design use food-app 修改首页')).toEqual({
+      type: 'design',
+      subcommand: 'use',
+      profileId: 'food-app',
+      followUp: '修改首页',
+    });
     expect(parseCommand('/design globalize food-app')).toEqual({
       type: 'design',
       subcommand: 'globalize',
@@ -149,6 +155,18 @@ describe('parseCommand', () => {
       type: 'design',
       subcommand: 'use-global',
       profileId: 'food-app',
+    });
+    expect(parseCommand('/design merge design_cand_1 design_cand_1 design_cand_2 --name Mixed')).toEqual({
+      type: 'design',
+      subcommand: 'merge',
+      candidateIds: ['design_cand_1', 'design_cand_2'],
+      name: 'Mixed',
+    });
+    expect(parseCommand('/design describe design_cand_1 --timeout 90')).toEqual({
+      type: 'design',
+      subcommand: 'describe',
+      candidateId: 'design_cand_1',
+      timeoutMs: 90_000,
     });
     expect(parseCommand('/design local-url http://localhost:3000')).toEqual({
       type: 'design',
@@ -209,6 +227,7 @@ describe('COMMAND_COMPLETIONS', () => {
     expect(COMMAND_COMPLETIONS).toContain('/design study ');
     expect(COMMAND_COMPLETIONS).toContain('/design confirm ');
     expect(COMMAND_COMPLETIONS).toContain('/design globalize ');
+    expect(COMMAND_COMPLETIONS).toContain('/design describe ');
     expect(COMMAND_COMPLETIONS).toContain('/plan revision ');
     expect(COMMAND_COMPLETIONS).toContain('/feedback down ');
   });

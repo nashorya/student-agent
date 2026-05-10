@@ -162,6 +162,7 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       dembrandtCommand: readOptionalString(env.STUDENT_AGENT_DESIGN_DEMBRANDT_COMMAND),
       criticThreshold: readFloat(env.STUDENT_AGENT_DESIGN_CRITIC_THRESHOLD),
       maxCriticRetries: readInteger(env.STUDENT_AGENT_DESIGN_MAX_CRITIC_RETRIES),
+      styleDescriptionTimeoutMs: readInteger(env.STUDENT_AGENT_DESIGN_STYLE_DESCRIPTION_TIMEOUT_MS),
       localUrl: readOptionalString(env.STUDENT_AGENT_DESIGN_LOCAL_URL),
     }),
     subAgents: compactObject({
