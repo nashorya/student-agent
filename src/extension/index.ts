@@ -446,8 +446,9 @@ async function main(): Promise<void> {
       const feedbackSignal = detectNegativeFeedback(userInput);
       if (feedbackSignal.isNegative && activeTask) {
         automaticDesignCritiqueFailures = 0;
-        const phase = activeTask.phases[activeTask.active_phase_index];
         await tasksMgr.incrementRetry(activeTask.id, feedbackSignal.extractedText);
+        const updatedTask = await tasksMgr.getActive();
+        const phase = updatedTask?.phases[updatedTask.active_phase_index];
 
         let ctx7Docs = '';
         if (phase && phase.retry_count >= 2 && runtime.config.features.context7) {
@@ -458,25 +459,25 @@ async function main(): Promise<void> {
             projectKb: ProjectKbManager.getInstance(MEMORY_DIR),
           });
           ctx7Docs = await buildCtx7RetryContext(
-            activeTask.name,
+            updatedTask?.name ?? activeTask.name,
             phase.feedbacks,
             ctx7Client,
             runtime.model,
           );
         }
 
-        const taskContext = buildTaskContextPrefix(activeTask, ctx7Docs);
+        const taskContext = buildTaskContextPrefix(updatedTask ?? activeTask, ctx7Docs);
         const finalPrompt = taskContext + userInput;
 
-        currentTaskDescription = activeTask.name;
-        runtime.escalation.initTask(activeTask.name, CWD);
+        currentTaskDescription = updatedTask?.name ?? activeTask.name;
+        runtime.escalation.initTask(currentTaskDescription, CWD);
         markReflectBaseline();
 
         tui.bridge.updateTaskStatus({
-          name: activeTask.name,
-          phaseIndex: activeTask.active_phase_index,
-          totalPhases: activeTask.phases.length,
-          retryCount: activeTask.phases[activeTask.active_phase_index]?.retry_count ?? 0,
+          name: updatedTask?.name ?? activeTask.name,
+          phaseIndex: updatedTask?.active_phase_index ?? activeTask.active_phase_index,
+          totalPhases: updatedTask?.phases.length ?? activeTask.phases.length,
+          retryCount: phase?.retry_count ?? 0,
           toolCallCount: 0,
           elapsedMs: 0,
           state: 'running',
@@ -865,8 +866,9 @@ async function main(): Promise<void> {
       // 负反馈检测
       const feedbackSignal = detectNegativeFeedback(userInput);
       if (feedbackSignal.isNegative && activeTask) {
-        const phase = activeTask.phases[activeTask.active_phase_index];
         await tasksMgr.incrementRetry(activeTask.id, feedbackSignal.extractedText);
+        const updatedTask = await tasksMgr.getActive();
+        const phase = updatedTask?.phases[updatedTask.active_phase_index];
 
         // 第 3 次重试时查询 Context7
         let ctx7Docs = '';
@@ -878,7 +880,7 @@ async function main(): Promise<void> {
             projectKb: ProjectKbManager.getInstance(MEMORY_DIR),
           });
           ctx7Docs = await buildCtx7RetryContext(
-            activeTask.name,
+            updatedTask?.name ?? activeTask.name,
             phase.feedbacks,
             ctx7Client,
             runtime.model,
@@ -886,11 +888,11 @@ async function main(): Promise<void> {
         }
 
         // 注入任务上下文
-        const taskContext = buildTaskContextPrefix(activeTask, ctx7Docs);
+        const taskContext = buildTaskContextPrefix(updatedTask ?? activeTask, ctx7Docs);
         const finalPrompt = taskContext + userInput;
 
-        currentTaskDescription = activeTask.name;
-        runtime.escalation.initTask(activeTask.name, CWD);
+        currentTaskDescription = updatedTask?.name ?? activeTask.name;
+        runtime.escalation.initTask(currentTaskDescription, CWD);
         markReflectBaseline();
 
         try {
@@ -1057,16 +1059,18 @@ async function runTuiFeedbackRepair(
   bridge: TUIBridge,
   feedback: string,
 ): Promise<void> {
-  const taskName = currentTaskDescription || '用户反馈返工';
+  const retryContext = await recordFeedbackRetryForActivePhase(runtime, feedback);
+  const taskName = (retryContext.task?.name ?? currentTaskDescription) || '用户反馈返工';
   currentTaskDescription = taskName;
   runtime.escalation.initTask(taskName, CWD);
   markReflectBaseline();
+  const activePhase = retryContext.task?.phases[retryContext.task.active_phase_index];
 
   bridge.updateTaskStatus({
     name: taskName,
-    phaseIndex: 0,
-    totalPhases: 1,
-    retryCount: 0,
+    phaseIndex: retryContext.task?.active_phase_index ?? 0,
+    totalPhases: retryContext.task?.phases.length ?? 1,
+    retryCount: activePhase?.retry_count ?? 0,
     toolCallCount: 0,
     elapsedMs: 0,
     state: 'running',
@@ -1074,7 +1078,10 @@ async function runTuiFeedbackRepair(
 
   try {
     runtime.resetFileGuard();
-    await runtime.session.prompt(buildFeedbackRepairPrompt(taskName, feedback));
+    await runtime.session.prompt(
+      buildTaskContextPrefix(retryContext.task, retryContext.ctx7Docs)
+      + buildFeedbackRepairPrompt(taskName, feedback),
+    );
     await runtime.agent.waitForIdle();
     bridge.updateTaskStatus({ state: 'idle' });
     const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
@@ -1089,18 +1096,56 @@ async function runTuiFeedbackRepair(
 }
 
 async function runConsoleFeedbackRepair(runtime: RuntimeState, feedback: string): Promise<void> {
-  const taskName = currentTaskDescription || '用户反馈返工';
+  const retryContext = await recordFeedbackRetryForActivePhase(runtime, feedback);
+  const taskName = (retryContext.task?.name ?? currentTaskDescription) || '用户反馈返工';
   currentTaskDescription = taskName;
   runtime.escalation.initTask(taskName, CWD);
   markReflectBaseline();
   try {
-    await runTaskWithAbort(runtime, buildFeedbackRepairPrompt(taskName, feedback));
+    await runTaskWithAbort(
+      runtime,
+      buildTaskContextPrefix(retryContext.task, retryContext.ctx7Docs)
+      + buildFeedbackRepairPrompt(taskName, feedback),
+    );
   } catch (err) {
     console.error(
       chalk.red('反馈返工失败:'),
       err instanceof Error ? err.message : String(err),
     );
   }
+}
+
+async function recordFeedbackRetryForActivePhase(
+  runtime: RuntimeState,
+  feedback: string,
+): Promise<{ task: Task | null; ctx7Docs: string }> {
+  const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+  const activeTask = await tasksMgr.getActive();
+  if (!activeTask) {
+    return { task: null, ctx7Docs: '' };
+  }
+
+  await tasksMgr.incrementRetry(activeTask.id, feedback);
+  const updatedTask = await tasksMgr.getActive();
+  const phase = updatedTask?.phases[updatedTask.active_phase_index];
+  let ctx7Docs = '';
+
+  if (updatedTask && phase && phase.retry_count >= 2 && runtime.config.features.context7) {
+    const ctx7Client = new Context7Client({
+      apiKey: runtime.config.context7.apiKey,
+      timeoutMs: runtime.config.context7.timeoutMs,
+      maxDocsChars: runtime.config.context7.maxDocsChars,
+      projectKb: ProjectKbManager.getInstance(MEMORY_DIR),
+    });
+    ctx7Docs = await buildCtx7RetryContext(
+      updatedTask.name,
+      phase.feedbacks,
+      ctx7Client,
+      runtime.model,
+    );
+  }
+
+  return { task: updatedTask, ctx7Docs };
 }
 
 async function runTuiFollowUpPrompt(
