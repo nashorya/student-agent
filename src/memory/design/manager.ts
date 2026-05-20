@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { WriteQueue } from '../../core/write-queue.js';
+import { getProjectMemoryDir } from '../../core/paths.js';
 import type {
   DesignActiveProfileFile,
   DesignCandidate,
@@ -34,7 +35,7 @@ export class DesignMemoryManager {
   }
 
   static getInstance(memoryDir?: string): DesignMemoryManager {
-    const dir = memoryDir ?? `${process.cwd()}/memory`;
+    const dir = memoryDir ?? getProjectMemoryDir();
     if (!DesignMemoryManager.instance) {
       DesignMemoryManager.instance = new DesignMemoryManager(dir);
     }

@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { WriteQueue } from '../core/write-queue.js';
+import { getProjectMemoryDir } from '../core/paths.js';
 
 export type QualityRating = 'up' | 'down';
 
@@ -28,7 +29,7 @@ export class QualityFeedbackManager {
   }
 
   static getInstance(memoryDir?: string): QualityFeedbackManager {
-    const dir = memoryDir ?? `${process.cwd()}/memory`;
+    const dir = memoryDir ?? getProjectMemoryDir();
     if (!QualityFeedbackManager.instance) {
       QualityFeedbackManager.instance = new QualityFeedbackManager(dir);
     }

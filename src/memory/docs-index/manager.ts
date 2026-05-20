@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { WriteQueue } from '../../core/write-queue.js';
+import { getProjectMemoryDir } from '../../core/paths.js';
 import type {
   DocEntry,
   SearchResult,
@@ -115,7 +116,7 @@ export class DocsIndexManager {
     memoryDir?: string,
     embeddingProvider?: EmbeddingProvider,
   ): DocsIndexManager {
-    const dir = memoryDir ?? `${process.cwd()}/memory`;
+    const dir = memoryDir ?? getProjectMemoryDir();
     if (!DocsIndexManager.instance) {
       DocsIndexManager.instance = new DocsIndexManager(dir, embeddingProvider);
     }

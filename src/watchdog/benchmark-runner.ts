@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, mkdtemp, rm, cp } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { WriteQueue } from '../core/write-queue.js';
+import { getProjectMemoryDir } from '../core/paths.js';
 
 export interface BenchmarkTask {
   id: string;
@@ -53,7 +54,7 @@ export class BenchmarkResultsManager {
   }
 
   static getInstance(memoryDir?: string): BenchmarkResultsManager {
-    const dir = memoryDir ?? `${process.cwd()}/memory`;
+    const dir = memoryDir ?? getProjectMemoryDir();
     if (!BenchmarkResultsManager.instance) {
       BenchmarkResultsManager.instance = new BenchmarkResultsManager(dir);
     }

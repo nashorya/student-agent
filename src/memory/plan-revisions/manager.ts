@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { WriteQueue } from '../../core/write-queue.js';
+import { getProjectMemoryDir } from '../../core/paths.js';
 import type {
   PlanRevision,
   PlanRevisionAppendInput,
@@ -20,7 +21,7 @@ export class PlanRevisionManager {
   }
 
   static getInstance(memoryDir?: string): PlanRevisionManager {
-    const dir = memoryDir ?? `${process.cwd()}/memory`;
+    const dir = memoryDir ?? getProjectMemoryDir();
     if (!PlanRevisionManager.instance) {
       PlanRevisionManager.instance = new PlanRevisionManager(dir);
     }

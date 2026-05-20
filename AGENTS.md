@@ -2,17 +2,20 @@
 
 ## Project Structure & Module Organization
 
-This TypeScript, Node.js, XState v5 CLI coding agent builds on local `pi-mono` packages. Treat `codex.md` and `docs/student-agent-architecture-v0.3.md` as primary constraints.
+This TypeScript, Node.js, XState v5 CLI coding agent builds on local `pi-mono` packages. Treat `docs/student-agent-architecture-v0.3.md` as the primary architecture document.
 
 - `src/core/state-machine/`: XState machine, Stream Adapter, resources, diagnostics, and types.
-- `src/core/executor/`: tool execution, confirmation, risk checks, snapshot rollback.
+- `src/core/executor/`: confirmation, risk classification, and snapshot rollback.
+- `src/core/task-planner/`: task/phase signal parsing and planning prompts.
+- `src/extension/hooks/`: Pi before/after hooks such as file guard, risk guard, snapshot, memory, and failure escalation.
+- `src/tui/`: Ink/React terminal UI.
+- `src/reflect/`: reflection and bounded-breaker logic.
+- `src/knowledge/`: Context7, Playwright, and design-study retrieval.
 - `src/memory/questions/`: `questions.json` access through managers.
 - `src/**/__tests__/`: colocated Vitest tests.
 - `memory/`: runtime memory files; access only through the appropriate Manager.
 - `docs/`: architecture documents.
 - `pi-mono/`: upstream pi source. Do not modify it; import its APIs only.
-
-Add planned directories such as `planner/`, `preferences/`, `retrieval/`, `reflect/`, `skills/`, and `ui/` only when the current phase allows it.
 
 ## Build, Test, and Development Commands
 
@@ -31,7 +34,7 @@ Do not use `any`; use `unknown` plus narrowing. Async functions must handle fail
 
 Keep XState context limited to IDs and flags; resource instances belong in `ResourceManager`. `Stream Adapter` is the only bridge between Anthropic streaming output and XState events. Use XState `after(120000)` for timeouts.
 
-SQLite writes must go through singleton `WriteQueue`. Files under `memory/` must be accessed only through Manager classes. Executor worktree changes require a git snapshot first.
+SQLite writes must go through singleton `WriteQueue`. Files under `memory/` must be accessed only through Manager classes. Mutating executor worktree changes require a git snapshot first. High-risk tool calls must pass through RiskGuard confirmation before snapshot creation.
 
 ## Testing Guidelines
 

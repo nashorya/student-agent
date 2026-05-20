@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { WriteQueue } from '../../core/write-queue.js';
+import { getProjectMemoryDir } from '../../core/paths.js';
 import type { Task, TaskPhase, TasksFile } from './types.js';
 
 export class TasksManager {
@@ -16,7 +17,7 @@ export class TasksManager {
   }
 
   static getInstance(memoryDir?: string): TasksManager {
-    const dir = memoryDir ?? `${process.cwd()}/memory`;
+    const dir = memoryDir ?? getProjectMemoryDir();
     if (!TasksManager.instance) {
       TasksManager.instance = new TasksManager(dir);
     }

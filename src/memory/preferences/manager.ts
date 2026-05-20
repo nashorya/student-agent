@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { WriteQueue } from '../../core/write-queue.js';
+import { getProjectMemoryDir } from '../../core/paths.js';
 import type {
   PreferenceEntry,
   PreferenceProvenance,
@@ -31,7 +32,7 @@ export class PreferencesManager {
   }
 
   static getInstance(memoryDir?: string): PreferencesManager {
-    const dir = memoryDir ?? `${process.cwd()}/memory`;
+    const dir = memoryDir ?? getProjectMemoryDir();
     if (!PreferencesManager.instance) {
       PreferencesManager.instance = new PreferencesManager(dir);
     }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { WriteQueue } from '../../core/write-queue.js';
+import { getProjectMemoryDir } from '../../core/paths.js';
 import type { ProjectKbEntry, ProjectKbFile } from './types.js';
 
 const DEFAULT_TTL_DAYS = 14;
@@ -15,7 +16,7 @@ export class ProjectKbManager {
   }
 
   static getInstance(memoryDir?: string): ProjectKbManager {
-    const dir = memoryDir ?? `${process.cwd()}/memory`;
+    const dir = memoryDir ?? getProjectMemoryDir();
     if (!ProjectKbManager.instance) {
       ProjectKbManager.instance = new ProjectKbManager(dir);
     }

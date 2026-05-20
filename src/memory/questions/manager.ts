@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Question, QuestionsFile } from './types.js';
 import { WriteQueue } from '../../core/write-queue.js';
+import { getProjectMemoryDir } from '../../core/paths.js';
 
 export class QuestionsManager {
   private static instance: QuestionsManager | null = null;
@@ -12,7 +13,7 @@ export class QuestionsManager {
   }
 
   static getInstance(memoryDir?: string): QuestionsManager {
-    const dir = memoryDir ?? `${process.cwd()}/memory`;
+    const dir = memoryDir ?? getProjectMemoryDir();
     if (!QuestionsManager.instance) {
       QuestionsManager.instance = new QuestionsManager(dir);
     }

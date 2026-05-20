@@ -12,7 +12,8 @@ A CLI coding agent with memory, self-reflection, and a healthy awareness of its 
 
 - **TUI Interface** — Ink/React terminal UI with streaming output, status bar, and command history. Gracefully degrades to plain readline in non-TTY environments (CI, pipes).
 - **Memory & Reflection** — Learns from repeated patterns across sessions. Promotes validated preferences through a trust state machine; never auto-writes architecture-scope changes without confirmation.
-- **Failure Escalation** — Every execution is preceded by a git snapshot. On failure: rollback → retry with degraded strategy → escalate to user.
+- **Risk Guard** — High-risk tool calls require TTY/TUI confirmation; non-interactive sessions block them by default.
+- **Failure Escalation** — Mutating executions create git snapshots first. On failure: rollback when safe → retry with degraded strategy → escalate to user.
 - **Knowledge Retrieval** — Context7 for precise library documentation, optional Playwright for dynamic web pages.
 - **Quality Watchdog** — Passive degradation detection across sessions. Silent footer indicator, no full-screen interruptions.
 - **Orchestrator** — Concurrent sub-agent scheduling with write-intent conflict detection and git worktree isolation.
@@ -52,10 +53,13 @@ cp .env.example .env
 | `ANTHROPIC_BASE_URL` | Leave blank unless using a proxy |
 
 ```bash
-# 5. Register as a global CLI command
+# 5. Build packaged output
+npm run build
+
+# 6. Register as a global CLI command
 npm link
 
-# 6. Run from any directory
+# 7. Run from any directory
 student-agent
 ```
 
@@ -80,6 +84,7 @@ Runtime behavior can be tuned via `.env` or `.student-agent.json`. Key feature f
 | `STUDENT_AGENT_FEATURE_BOUNDED_BREAKER` | `true` | Pattern generalization with confidence scoring |
 | `STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG` | `true` | Passive quality degradation detection |
 | `STUDENT_AGENT_FEATURE_SUB_AGENTS` | `false` | Concurrent sub-agent orchestration |
+| `STUDENT_AGENT_FEATURE_RISK_GUARD` | `true` | Confirmation gate for high-risk tool calls |
 
 If Playwright browsers are not installed yet:
 
@@ -90,14 +95,15 @@ npx playwright install chromium
 ## Architecture
 
 ```
-Input → Core Agent (Planner → Executor → State Machine)
-             ↓                    ↓
-      Knowledge Retrieval   Failure Escalation
-      (Context7, Playwright) (snapshot → rollback → retry)
+Input → Pi Session + Hooks (FileGuard → RiskGuard → Snapshot)
              ↓
-      Memory Layer (preferences, candidates, reflect agent)
+      Planning / Task Phases / Tool Calls
              ↓
-      TUI (Ink/React status bar + streaming output)
+      Failure Escalation (rollback when safe → retry → user help)
+             ↓
+      Memory + Knowledge (preferences, reflect, Context7, Playwright)
+             ↓
+      TUI / Readline
 ```
 
 See [`docs/student-agent-architecture-v0.3.md`](docs/student-agent-architecture-v0.3.md) for the full design.

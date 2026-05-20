@@ -1,6 +1,17 @@
-#!/usr/bin/env bash
-SCRIPT_REAL="$(readlink -f "${BASH_SOURCE[0]}")"
-AGENT_DIR="$(cd "$(dirname "$SCRIPT_REAL")/.." && pwd)"
-export STUDENT_AGENT_CWD="$(pwd)"
-cd "$AGENT_DIR"
-exec node --loader ts-node/esm "$AGENT_DIR/src/extension/index.ts" "$@"
+#!/usr/bin/env node
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const binPath = fileURLToPath(import.meta.url);
+const agentDir = resolve(dirname(binPath), '..');
+const entryPath = resolve(agentDir, 'dist/extension/index.js');
+
+if (!existsSync(entryPath)) {
+  console.error('[student-agent] Missing dist/extension/index.js. Run `npm run build` before using the packaged CLI.');
+  process.exit(1);
+}
+
+process.env.STUDENT_AGENT_CWD ??= process.cwd();
+process.chdir(agentDir);
+await import(pathToFileURL(entryPath).href);
