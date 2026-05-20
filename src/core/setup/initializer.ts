@@ -13,8 +13,8 @@ const API_KEY_MAP: Record<string, string> = {
   'openai': 'OPENAI_API_KEY',
   'openai-codex': 'OPENAI_API_KEY',
   'deepseek': 'DEEPSEEK_API_KEY',
-  'google': 'GOOGLE_API_KEY',
-  'google-vertex': 'GOOGLE_API_KEY',
+  'google': 'GEMINI_API_KEY',
+  'google-vertex': 'GOOGLE_CLOUD_API_KEY',
   'groq': 'GROQ_API_KEY',
   'xai': 'XAI_API_KEY',
   'mistral': 'MISTRAL_API_KEY',
@@ -141,11 +141,14 @@ async function configureModelProvider(
     provider = apiFormat === 'anthropic-messages' ? 'anthropic' : 'openai';
   }
 
-  // ── Base URL（可选，空则使用 Provider 默认）────────────────────────
-  const existingBaseUrl = env['STUDENT_AGENT_BASE_URL'] ?? '';
-  const baseUrlHint = existingBaseUrl ? ` [${existingBaseUrl}，直接回车保留]` : ' [直接回车跳过]';
-  const baseUrlInput = (await prompt(`  Base URL${baseUrlHint}: `)).trim();
-  const baseUrl = baseUrlInput || existingBaseUrl || '';
+  // ── Base URL（仅自定义 provider 需要）─────────────────────────────
+  let baseUrl = '';
+  if (isCustomProvider) {
+    const existingBaseUrl = env['STUDENT_AGENT_BASE_URL'] ?? '';
+    const baseUrlHint = existingBaseUrl ? ` [${existingBaseUrl}，直接回车保留]` : ' [直接回车跳过]';
+    const baseUrlInput = (await prompt(`  Base URL${baseUrlHint}: `)).trim();
+    baseUrl = baseUrlInput || existingBaseUrl || '';
+  }
 
   // ── API Key ────────────────────────────────────────────────────────
   const apiKeyName = getApiKeyEnvName(provider);
@@ -174,6 +177,7 @@ async function configureModelProvider(
     configPatch.model = { ...configPatch.model, baseUrl };
     env['STUDENT_AGENT_BASE_URL'] = baseUrl;
   } else {
+    configPatch.model = { ...configPatch.model, baseUrl: undefined };
     delete env['STUDENT_AGENT_BASE_URL'];
   }
 
