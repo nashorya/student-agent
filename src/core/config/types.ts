@@ -21,6 +21,7 @@ export interface StudentAgentConfig {
     boundedBreaker: boolean;
     qualityWatchdog: boolean;
     subAgents: boolean;
+    riskGuard: boolean;
   };
   context7: {
     apiKey?: string;
@@ -29,6 +30,11 @@ export interface StudentAgentConfig {
   };
   setup: {
     suppressEmbeddingReminder: boolean;
+  };
+  fileGuard: {
+    planningMaxReads: number;
+    normalMaxReads: number;
+    readWindow: number;
   };
   playwright: {
     useStorageState: boolean;
@@ -64,6 +70,7 @@ export type StudentAgentConfigInput = Partial<{
   features: Partial<StudentAgentConfig['features']>;
   context7: Partial<StudentAgentConfig['context7']>;
   setup: Partial<StudentAgentConfig['setup']>;
+  fileGuard: Partial<StudentAgentConfig['fileGuard']>;
   playwright: Partial<StudentAgentConfig['playwright']>;
   designStudy: Partial<StudentAgentConfig['designStudy']>;
   subAgents: Partial<StudentAgentConfig['subAgents']>;
@@ -85,6 +92,7 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
     boundedBreaker: true,
     qualityWatchdog: true,
     subAgents: false,
+    riskGuard: true,
   },
   context7: {
     timeoutMs: 10_000,
@@ -92,6 +100,11 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
   },
   setup: {
     suppressEmbeddingReminder: false,
+  },
+  fileGuard: {
+    planningMaxReads: 3,
+    normalMaxReads: 15,
+    readWindow: 30,
   },
   playwright: {
     useStorageState: false,

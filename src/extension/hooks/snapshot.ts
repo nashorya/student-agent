@@ -11,6 +11,9 @@ import type { PreToolCallContext, PreToolCallDecision } from '../../core/pi-brid
 /** 最近一次快照 ID，供失败升级时回滚使用 */
 let lastSnapshotId: string | null = null;
 
+/** 工具调用 ID 到快照 ID 的映射，避免失败时回滚到其他工具的快照。 */
+const snapshotIdsByToolCall = new Map<string, string>();
+
 let snapshotManager: SnapshotManager | null = null;
 
 /** 已打印过的警告，避免重复刷屏 */
@@ -37,11 +40,10 @@ export function createSnapshotHook(cwd: string) {
     const manager = ensureManager(cwd);
     try {
       lastSnapshotId = await manager.create();
+      snapshotIdsByToolCall.set(ctx.toolCallId, lastSnapshotId);
     } catch (err) {
-      const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : '';
-      const message = err instanceof Error ? err.message : String(err);
       lastSnapshotId = null;
-      const warnKey = cause || message;
+      const warnKey = snapshotWarnKey(err);
       if (!warnedMessages.has(warnKey)) {
         warnedMessages.add(warnKey);
         console.warn(`[Snapshot] ${warnKey}（快照已跳过，无法回滚。输入 /init 可初始化 git 仓库）`);
@@ -54,29 +56,32 @@ export function createSnapshotHook(cwd: string) {
 }
 
 export function requiresSnapshot(ctx: PreToolCallContext): boolean {
-  const toolName = ctx.toolName.toLowerCase();
+  return toolMayMutate(ctx.toolName, ctx.args);
+}
 
-  if (READ_ONLY_TOOL_NAMES.has(toolName)) {
+export function toolMayMutate(toolName: string, args: unknown): boolean {
+  const normalizedToolName = normalizeToolName(toolName);
+
+  if (isReadOnlyTool(normalizedToolName)) {
     return false;
   }
 
-  if (WRITE_TOOL_NAMES.has(toolName) || WRITE_TOOL_PATTERNS.some((pattern) => pattern.test(toolName))) {
+  if (isWriteTool(normalizedToolName)) {
     return true;
   }
 
-  if (argsMayWrite(ctx.args)) {
-    return true;
+  if (SHELL_TOOL_NAMES.has(normalizedToolName)) {
+    return argsClearlyIndicateWrite(args);
   }
 
-  if (argsClearlyReadOnly(ctx.args)) {
-    return false;
-  }
-
-  return true;
+  return argsClearlyIndicateWrite(args);
 }
 
 /** 获取最近一次快照 ID */
-export function getLastSnapshotId(): string | null {
+export function getLastSnapshotId(toolCallId?: string): string | null {
+  if (toolCallId) {
+    return snapshotIdsByToolCall.get(toolCallId) ?? null;
+  }
   return lastSnapshotId;
 }
 
@@ -87,18 +92,28 @@ export async function restoreSnapshot(cwd: string, snapshotId: string): Promise<
   if (lastSnapshotId === snapshotId) {
     lastSnapshotId = null;
   }
+  for (const [toolCallId, id] of snapshotIdsByToolCall.entries()) {
+    if (id === snapshotId) {
+      snapshotIdsByToolCall.delete(toolCallId);
+    }
+  }
 }
 
 /** 仅测试用：重置模块状态 */
 export function _resetForTesting(): void {
   snapshotManager = null;
   lastSnapshotId = null;
+  snapshotIdsByToolCall.clear();
+  warnedMessages.clear();
 }
 
 const READ_ONLY_TOOL_NAMES = new Set([
   'read',
   'read_file',
+  'cat',
   'grep',
+  'rg',
+  'ripgrep',
   'glob',
   'list',
   'ls',
@@ -107,7 +122,11 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'context7',
   'context7_query',
   'get-library-docs',
+  'get_library_docs',
   'resolve-library-id',
+  'resolve_library_id',
+  'context_docs',
+  'docs',
 ]);
 
 const WRITE_TOOL_NAMES = new Set([
@@ -116,12 +135,17 @@ const WRITE_TOOL_NAMES = new Set([
   'edit',
   'edit_file',
   'apply_patch',
+  'patch',
   'delete_file',
   'remove_file',
   'move_file',
   'rename_file',
+  'create_file',
   'mkdir',
   'touch',
+]);
+
+const SHELL_TOOL_NAMES = new Set([
   'exec_command',
   'bash',
   'shell',
@@ -129,34 +153,146 @@ const WRITE_TOOL_NAMES = new Set([
 ]);
 
 const WRITE_TOOL_PATTERNS = [
-  /(^|[_-])(write|edit|patch|delete|remove|move|rename|mkdir|touch)([_-]|$)/,
+  /(^|[_-])(write|edit|patch|delete|remove|move|rename|create|mkdir|touch)([_-]|$)/,
+  /^(str_replace_editor|notebook_edit)$/,
 ];
 
-function argsMayWrite(args: unknown): boolean {
-  const text = stringifyArgs(args).toLowerCase();
-  return /\b(rm|mv|cp|mkdir|touch|chmod|chown|npm\s+install|pnpm\s+install|yarn\s+add|git\s+(commit|merge|rebase|reset|checkout|apply|am))\b/.test(text)
-    || />{1,2}/.test(text);
+const COMMAND_ARG_KEYS = new Set(['cmd', 'command', 'script']);
+const CONTENT_ARG_KEYS = new Set(['content', 'contents', 'newtext', 'oldtext', 'replacement']);
+const PATCH_ARG_KEYS = new Set(['patch', 'diff']);
+const MUTATING_ACTION_VALUES = /^(write|edit|patch|delete|remove|move|rename|create|mkdir|touch|update|upsert)$/i;
+
+function isReadOnlyTool(toolName: string): boolean {
+  return READ_ONLY_TOOL_NAMES.has(toolName)
+    || /^mcp__context7__/.test(toolName)
+    || /^context(7)?[_-]/.test(toolName);
 }
 
-function argsClearlyReadOnly(args: unknown): boolean {
-  const text = stringifyArgs(args).toLowerCase();
-  if (!text.trim()) {
+function isWriteTool(toolName: string): boolean {
+  return WRITE_TOOL_NAMES.has(toolName)
+    || WRITE_TOOL_PATTERNS.some((pattern) => pattern.test(toolName));
+}
+
+function argsClearlyIndicateWrite(args: unknown): boolean {
+  const command = extractCommand(args);
+  if (command) {
+    return commandLikelyMutates(command);
+  }
+
+  return objectArgsClearlyIndicateWrite(args);
+}
+
+function objectArgsClearlyIndicateWrite(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some((item) => objectArgsClearlyIndicateWrite(item));
+  }
+
+  if (!isRecord(value)) {
     return false;
   }
-  return /\b(cat|grep|rg|find|ls|pwd|git\s+(status|diff|log|show)|select)\b/.test(text);
+
+  if (hasPathAndWritePayload(value) || hasPatchPayload(value)) {
+    return true;
+  }
+
+  for (const [key, item] of Object.entries(value)) {
+    const normalizedKey = normalizeArgKey(key);
+    if (isMutatingActionArg(normalizedKey, item)) {
+      return true;
+    }
+    if (Array.isArray(item) || isRecord(item)) {
+      if (objectArgsClearlyIndicateWrite(item)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
-function stringifyArgs(args: unknown): string {
-  if (typeof args === 'string') {
-    return args;
+function hasPathAndWritePayload(obj: Record<string, unknown>): boolean {
+  const keys = new Set(Object.keys(obj).map(normalizeArgKey));
+  const hasPath = keys.has('path') || keys.has('filepath') || keys.has('file');
+  const hasContent = [...CONTENT_ARG_KEYS].some((key) => keys.has(key));
+  return hasPath && hasContent;
+}
+
+function hasPatchPayload(obj: Record<string, unknown>): boolean {
+  return Object.entries(obj).some(([key, value]) => {
+    const normalizedKey = normalizeArgKey(key);
+    if (!PATCH_ARG_KEYS.has(normalizedKey)) {
+      return false;
+    }
+    return typeof value === 'string' && value.trim().length > 0;
+  });
+}
+
+function isMutatingActionArg(key: string, value: unknown): boolean {
+  if (['action', 'operation', 'op', 'mode', 'type'].includes(key) && typeof value === 'string') {
+    return MUTATING_ACTION_VALUES.test(value);
   }
-  if (args === null || args === undefined) {
-    return '';
+  if (['write', 'edit', 'delete', 'remove', 'rename', 'move', 'create', 'update', 'upsert'].includes(key)) {
+    return value !== false && value !== null && value !== undefined;
+  }
+  return false;
+}
+
+function extractCommand(args: unknown): string | null {
+  if (typeof args === 'string') {
+    return args.trim() || null;
+  }
+  if (!isRecord(args)) {
+    return null;
+  }
+  for (const key of COMMAND_ARG_KEYS) {
+    const value = args[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function commandLikelyMutates(command: string): boolean {
+  const normalized = command.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return mutatingCommandRegexes.some((pattern) => pattern.test(normalized));
+}
+
+const mutatingCommandRegexes = [
+  /\b(rm|mv|cp|mkdir|touch|chmod|chown|ln|truncate)\b/,
+  /\b(?:npm|pnpm|yarn|bun)\s+(?:install|i|add|remove|uninstall)\b/,
+  /\bgit\s+(?:add|commit|merge|rebase|reset|checkout|switch|restore|apply|am|stash|clean)\b/,
+  /\b(?:sed|perl)\b(?=[^;&|]*\s-[A-Za-z]*i[A-Za-z]*\b)/,
+  /\b(?:prettier|eslint)\b(?=[^;&|]*(?:--write|--fix)\b)/,
+  /\b(?:apply_patch|patch)\b/,
+  /(?:^|\s)(?:\d*)>>?\s*(?!&\d\b|\/dev\/null\b)(?:['"]?)[^'"&;|\s]+/,
+  /(?:^|\s)&>\s*(?!\/dev\/null\b)(?:['"]?)[^'"&;|\s]+/,
+  /\btee\s+(?:-a\s+)?(?!\/dev\/null\b)\S+/,
+];
+
+function snapshotWarnKey(err: unknown): string {
+  const cause = err instanceof Error && err.cause instanceof Error ? err.cause : null;
+  const directCode = err instanceof Error ? (err as NodeJS.ErrnoException).code : undefined;
+  const code = directCode ?? (cause ? (cause as NodeJS.ErrnoException).code : undefined);
+  if (code) {
+    return code;
   }
 
-  try {
-    return JSON.stringify(args);
-  } catch {
-    return '';
-  }
+  const message = cause?.message ?? (err instanceof Error ? err.message : String(err));
+  return message.split('\n')[0] ?? message;
+}
+
+function normalizeToolName(toolName: string): string {
+  return toolName.trim().toLowerCase();
+}
+
+function normalizeArgKey(key: string): string {
+  return key.toLowerCase().replace(/[_-]/g, '');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

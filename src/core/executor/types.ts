@@ -11,8 +11,10 @@ export interface ToolResult {
   rolledBack: boolean;
 }
 
+export type ConfirmationDecision = boolean | 'always';
+
 export interface ConfirmationProvider {
-  confirm(op: { toolName: string; input: unknown; reason: string }): Promise<boolean>;
+  confirm(op: { toolName: string; input: unknown; reason: string }): Promise<ConfirmationDecision>;
 }
 
 export class ToolExecutionError extends Error {

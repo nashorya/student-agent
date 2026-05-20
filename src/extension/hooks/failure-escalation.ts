@@ -15,9 +15,26 @@ import type { AttemptRecord, ErrorCategory } from '../../core/state-machine/type
 import type { Context7Client, Context7DocsResult } from '../../knowledge/context7-client.js';
 import { QuestionsManager } from '../../memory/questions/manager.js';
 import type { Question } from '../../memory/questions/types.js';
+import { getProjectMemoryDir } from '../../core/paths.js';
+import { toolMayMutate } from './snapshot.js';
 
-// 只读工具成功不代表任务恢复，不重置失败计数
-const READONLY_TOOLS = new Set(['read', 'grep', 'ripgrep', 'ls']);
+// 这些工具的失败通常是探测未命中，不应触发失败升级。
+const READONLY_TOOLS = new Set([
+  'read',
+  'read_file',
+  'cat',
+  'grep',
+  'ripgrep',
+  'rg',
+  'ls',
+  'list',
+  'find',
+  'search',
+  'context7',
+  'context7_query',
+  'get-library-docs',
+  'resolve-library-id',
+]);
 
 type RollbackStatus =
   | { state: 'success'; snapshotId: string }
@@ -28,7 +45,7 @@ export interface FailureEscalationOptions {
   context7Client?: Pick<Context7Client, 'query'>;
   memoryDir?: string;
   /** 获取最近一次快照 ID 的回调 */
-  getLastSnapshotId?: () => string | null;
+  getLastSnapshotId?: (toolCallId?: string) => string | null;
   /** 回滚到指定快照的回调 */
   restoreSnapshot?: (cwd: string, snapshotId: string) => Promise<void>;
 }
@@ -45,12 +62,12 @@ export class FailureEscalationContext {
   private pendingQuestion: Question | null = null;
   private readonly context7Client?: Pick<Context7Client, 'query'>;
   private readonly memoryDir: string;
-  private readonly getLastSnapshotId: () => string | null;
+  private readonly getLastSnapshotId: (toolCallId?: string) => string | null;
   private readonly restoreSnapshotFn: (cwd: string, snapshotId: string) => Promise<void>;
 
   constructor(options: FailureEscalationOptions = {}) {
     this.context7Client = options.context7Client;
-    this.memoryDir = options.memoryDir ?? `${process.cwd()}/memory`;
+    this.memoryDir = options.memoryDir ?? getProjectMemoryDir();
     this.getLastSnapshotId = options.getLastSnapshotId ?? (() => null);
     this.restoreSnapshotFn = options.restoreSnapshot ?? (async () => {});
   }
@@ -75,16 +92,26 @@ export class FailureEscalationContext {
    * 创建失败升级 hook。
    * 返回一个可直接传给 StudentAgentHooks.onAfterToolCall 的函数。
    *
-   * 只在工具执行出错（isError === true）时介入。
-   * 只读工具（read/grep/ls）成功不重置计数。
+   * 只在真正的工具执行错误（isError === true）时介入。
+   * 任意工具成功都代表工具链路已恢复，重置连续失败计数。
    */
   createHook() {
     return async (ctx: PostToolCallContext): Promise<EscalationDecision | undefined> => {
       if (!ctx.isError) {
-        if (!READONLY_TOOLS.has(ctx.toolName)) {
-          this.consecutiveFailures = 0;
-        }
+        this.consecutiveFailures = 0;
         return undefined;
+      }
+
+      if (isSoftToolBlock(ctx)) {
+        return undefined;
+      }
+
+      if (isReadOnlyProbeFailure(ctx)) {
+        return {
+          overrideContent: buildReadOnlyProbeResult(ctx),
+          isError: false,
+          terminate: false,
+        };
       }
 
       this.consecutiveFailures++;
@@ -110,9 +137,9 @@ export class FailureEscalationContext {
     ctx: PostToolCallContext,
     classified: ClassifiedError,
   ): Promise<EscalationDecision> {
-    const snapshotId = this.getLastSnapshotId();
+    const snapshotId = this.getLastSnapshotId(ctx.toolCallId);
     let rollback: RollbackStatus = { state: 'unavailable' };
-    if (snapshotId && this.cwd) {
+    if (snapshotId && this.cwd && shouldRollback(ctx, classified)) {
       try {
         await this.restoreSnapshotFn(this.cwd, snapshotId);
         rollback = { state: 'success', snapshotId };
@@ -161,6 +188,14 @@ export class FailureEscalationContext {
     if (classified.subtype === 'edit-exact-text-mismatch') {
       return {
         overrideContent: buildEditMismatchRecovery(classified, ctx),
+        isError: true,
+        terminate: false,
+      };
+    }
+
+    if (!shouldQueryContext7ForToolFailure(ctx, classified)) {
+      return {
+        overrideContent: buildSecondFailureRecovery(classified),
         isError: true,
         terminate: false,
       };
@@ -237,6 +272,111 @@ export class FailureEscalationContext {
 
 // ── 辅助函数 ──────────────────────────────────────────
 
+export function isSoftToolBlock(ctx: PostToolCallContext): boolean {
+  const text = ctx.resultText.trim();
+  return text.includes('[FileGuard]')
+    || text.includes('FileGuard')
+    || text.includes('[RiskGuard]')
+    || text.includes('RiskGuard')
+    || text.startsWith('Tool execution was blocked');
+}
+
+function shouldRollback(ctx: PostToolCallContext, classified: ClassifiedError): boolean {
+  if (!toolMayMutate(ctx.toolName, ctx.args)) {
+    return false;
+  }
+
+  return ![
+    'edit-exact-text-mismatch',
+    'resource-not-found',
+    'write-parent-missing',
+    'selector-not-found',
+    'timeout',
+  ].includes(classified.subtype);
+}
+
+function isReadOnlyProbeFailure(ctx: PostToolCallContext): boolean {
+  const toolName = ctx.toolName.toLowerCase();
+  if (READONLY_TOOLS.has(toolName)) {
+    return true;
+  }
+
+  if (!['bash', 'shell', 'terminal', 'exec_command'].includes(toolName)) {
+    return false;
+  }
+
+  const command = extractCommand(ctx.args);
+  if (!command) return false;
+
+  return isReadOnlyShellCommand(command) && isProbeMiss(ctx.resultText);
+}
+
+function buildReadOnlyProbeResult(ctx: PostToolCallContext): string {
+  const command = extractCommand(ctx.args);
+  return [
+    '只读探测未命中，不作为工具故障处理。',
+    command ? `命令：${command}` : '',
+    '请根据这个结果继续缩小路径、关键词或检查候选文件是否存在；不要触发回滚或重新规划。',
+  ].filter(Boolean).join('\n');
+}
+
+function extractCommand(args: unknown): string | null {
+  if (typeof args === 'string') return args.trim() || null;
+  if (args === null || typeof args !== 'object') return null;
+  const obj = args as Record<string, unknown>;
+  for (const key of ['cmd', 'command', 'script']) {
+    if (typeof obj[key] === 'string' && obj[key].trim()) {
+      return obj[key].trim();
+    }
+  }
+  return null;
+}
+
+function isReadOnlyShellCommand(command: string): boolean {
+  const normalized = command.trim().toLowerCase();
+  if (/[>;]|&&|\|\|/.test(normalized)) return false;
+  return /^(rg|grep|find|ls|cat|pwd|wc|sed|nl|head|tail)\b/.test(normalized)
+    || /^git\s+(status|diff|log|show|grep)\b/.test(normalized)
+    || /^test\s+(-e|-f|-d)\b/.test(normalized);
+}
+
+function isProbeMiss(resultText: string): boolean {
+  const text = resultText.trim();
+  if (!text) return true;
+  return /command exited with code 1/i.test(text)
+    || /no such file or directory/i.test(text)
+    || /not found/i.test(text)
+    || /no matches?/i.test(text)
+    || /\(no output\)/i.test(text);
+}
+
+function shouldQueryContext7ForToolFailure(
+  ctx: PostToolCallContext,
+  classified: ClassifiedError,
+): boolean {
+  if (classified.category === 'environment') {
+    return true;
+  }
+
+  if (classified.category === 'model' || classified.category === 'user_input' || classified.category === 'state_conflict') {
+    return false;
+  }
+
+  const toolName = ctx.toolName.toLowerCase();
+  if (!['bash', 'shell', 'terminal', 'exec_command'].includes(toolName)) {
+    return false;
+  }
+
+  const command = extractCommand(ctx.args);
+  const text = [command ?? '', ctx.resultText].join('\n');
+  return isBuildOrRuntimeDiagnostic(text);
+}
+
+function isBuildOrRuntimeDiagnostic(text: string): boolean {
+  return /\b(tsc|npm\s+(run\s+)?(build|test)|pnpm\s+(run\s+)?(build|test)|yarn\s+(build|test)|vitest|jest|eslint|ts-node|vite|webpack|rollup)\b/i.test(text)
+    || /\b(TypeScript|TS\d{4}|SyntaxError|ReferenceError|TypeError|Cannot find module|Module not found|Failed to compile|Compilation failed|Build failed|Test Files\s+\d+\s+failed)\b/i.test(text);
+}
+
 function selectStrategy(category: ErrorCategory): string {
   switch (category) {
     case 'tool':
@@ -284,6 +424,9 @@ function buildRecoveryInstructions(
       if (classified.subtype === 'edit-exact-text-mismatch') {
         lines.push('建议：不要重复使用同一段 oldText。');
         lines.push('必须先重新读取目标文件当前内容，再用更小范围的精确替换或 apply_patch 修改。');
+      } else if (classified.subtype === 'write-parent-missing') {
+        lines.push('建议：目标路径的父目录不存在。');
+        lines.push('先创建父目录或改用已存在路径，再重新执行写入。');
       } else {
         lines.push('建议：尝试用不同的参数或方法重新执行。');
         lines.push('如果是文件操作，请检查路径是否存在。');
@@ -306,6 +449,20 @@ function buildRecoveryInstructions(
   }
 
   return lines.join('\n');
+}
+
+function buildSecondFailureRecovery(classified: ClassifiedError): string {
+  return [
+    `WARN: 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
+    `错误：${classified.message}`,
+    '',
+    '辅助诊断：这是工具操作问题，不触发 Context7 文档检索。',
+    '',
+    '建议：',
+    '1. 不要重复同一失败工具参数',
+    '2. 重新读取目标文件或缩小路径/关键词',
+    '3. 如果后续出现编译、类型检查、测试或运行时报错，再查询 Context7',
+  ].join('\n');
 }
 
 function buildEditMismatchRecovery(
@@ -338,10 +495,10 @@ async function buildContext7Context(
 ): Promise<string> {
   const query = extractContext7Query(ctx, classified, taskDescription);
   if (!query) {
-    return buildContext7Fallback(classified, '未能从任务或错误中提取明确的库名');
+    return buildContext7Fallback(classified, 'skipped', '未能从任务或错误中提取明确的库名');
   }
   if (!context7Client) {
-    return buildContext7Fallback(classified, 'Context7 客户端未配置');
+    return buildContext7Fallback(classified, 'skipped', 'Context7 客户端未配置，未执行文档检索');
   }
 
   try {
@@ -352,13 +509,13 @@ async function buildContext7Context(
     });
 
     if (!docs) {
-      return buildContext7Fallback(classified, `Context7 未找到与 ${query.libraryName} 相关的文档`);
+      return buildContext7Fallback(classified, 'attempted', `Context7 未找到与 ${query.libraryName} 相关的文档`);
     }
 
     return renderContext7Docs(classified, query, docs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return buildContext7Fallback(classified, `Context7 检索不可用：${message}`);
+    return buildContext7Fallback(classified, 'attempted', `Context7 检索不可用：${message}`);
   }
 }
 
@@ -385,12 +542,18 @@ function renderContext7Docs(
   ].join('\n');
 }
 
-function buildContext7Fallback(classified: ClassifiedError, reason?: string): string {
+function buildContext7Fallback(
+  classified: ClassifiedError,
+  status: 'attempted' | 'skipped',
+  reason?: string,
+): string {
   const lines = [
     `WARN: 第二次尝试仍失败（${classified.category}/${classified.subtype}）`,
     `错误：${classified.message}`,
     '',
-    '辅助诊断：已尝试触发 Context7 文档检索，但没有可用文档可注入。',
+    status === 'attempted'
+      ? '辅助诊断：已尝试触发 Context7 文档检索，但没有可用文档可注入。'
+      : '辅助诊断：未触发 Context7 文档检索。',
   ];
 
   if (reason) {

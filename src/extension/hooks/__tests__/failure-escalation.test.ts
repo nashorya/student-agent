@@ -13,6 +13,36 @@ function makeErrorContext(resultText: string): PostToolCallContext {
   };
 }
 
+function makeMutatingErrorContext(resultText: string): PostToolCallContext {
+  return {
+    toolName: 'exec_command',
+    toolCallId: 'tool_1',
+    args: { cmd: 'npm install playwright' },
+    isError: true,
+    resultText,
+  };
+}
+
+function makeFileGuardBlockContext(toolCallId: string): PostToolCallContext {
+  return {
+    toolName: 'read_file',
+    toolCallId,
+    args: { path: 'src/extension/hooks/file-guard.ts' },
+    isError: true,
+    resultText: '[FileGuard] 本轮已读取 16 个文件，超出上限 15。停止 read。',
+  };
+}
+
+function makeRiskGuardBlockContext(toolCallId: string): PostToolCallContext {
+  return {
+    toolName: 'exec_command',
+    toolCallId,
+    args: { cmd: 'rm -rf dist' },
+    isError: true,
+    resultText: '[RiskGuard] 用户拒绝或未确认，已阻断高风险工具调用。',
+  };
+}
+
 describe('failure escalation', () => {
   beforeEach(() => {
     resetSnapshotForTesting();
@@ -60,6 +90,109 @@ describe('failure escalation', () => {
     expect(decision?.overrideContent).toContain('Context7 检索不可用');
   });
 
+  it('FileGuard block 即使被 Pi 标记为 isError 也不进入失败升级', async () => {
+    const query = vi.fn();
+    const restoreSnapshot = vi.fn(async () => {});
+    const ctx = new FailureEscalationContext({
+      context7Client: { query },
+      getLastSnapshotId: () => 'snap_1',
+      restoreSnapshot,
+    });
+    ctx.initTask('测试任务', process.cwd());
+    const hook = ctx.createHook();
+
+    const firstBlock = await hook(makeFileGuardBlockContext('tool_block_1'));
+    const secondBlock = await hook(makeFileGuardBlockContext('tool_block_2'));
+    const realFailure = await hook(makeMutatingErrorContext('real failure'));
+
+    expect(firstBlock).toBeUndefined();
+    expect(secondBlock).toBeUndefined();
+    expect(query).not.toHaveBeenCalled();
+    expect(restoreSnapshot).toHaveBeenCalledTimes(1);
+    expect(realFailure?.terminate).toBe(false);
+    expect(realFailure?.overrideContent).not.toContain('Context7');
+    expect(realFailure?.overrideContent).toContain('恢复动作：已自动回滚到工具调用前的状态（snapshot: snap_1）');
+  });
+
+  it('RiskGuard block 即使被 Pi 标记为 isError 也不进入失败升级', async () => {
+    const query = vi.fn();
+    const restoreSnapshot = vi.fn(async () => {});
+    const ctx = new FailureEscalationContext({
+      context7Client: { query },
+      getLastSnapshotId: () => 'snap_1',
+      restoreSnapshot,
+    });
+    ctx.initTask('测试任务', process.cwd());
+    const hook = ctx.createHook();
+
+    const blocked = await hook(makeRiskGuardBlockContext('tool_risk_block'));
+    const realFailure = await hook(makeMutatingErrorContext('real failure'));
+
+    expect(blocked).toBeUndefined();
+    expect(query).not.toHaveBeenCalled();
+    expect(restoreSnapshot).toHaveBeenCalledTimes(1);
+    expect(realFailure?.overrideContent).not.toContain('Context7');
+    expect(realFailure?.overrideContent).toContain('恢复动作：已自动回滚到工具调用前的状态（snapshot: snap_1）');
+  });
+
+
+  it('Context7 未配置时明确说明未触发检索', async () => {
+    const ctx = new FailureEscalationContext();
+    ctx.initTask('修复 Playwright 测试失败', process.cwd());
+    const hook = ctx.createHook();
+
+    await hook(makeErrorContext('first Playwright failure'));
+    const decision = await hook(makeErrorContext('second Playwright failure'));
+
+    expect(decision?.overrideContent).toContain('辅助诊断：未触发 Context7 文档检索。');
+    expect(decision?.overrideContent).toContain('Context7 客户端未配置，未执行文档检索');
+    expect(decision?.overrideContent).not.toContain('已尝试触发 Context7');
+  });
+
+  it('第二次普通工具失败不触发 Context7', async () => {
+    const query = vi.fn();
+    const ctx = new FailureEscalationContext({
+      context7Client: { query },
+    });
+    ctx.initTask('读取项目文件', process.cwd());
+    const hook = ctx.createHook();
+    const ordinaryToolError: PostToolCallContext = {
+      toolName: 'apply_patch',
+      toolCallId: 'tool_patch',
+      args: { patch: 'bad patch' },
+      isError: true,
+      resultText: 'patch failed',
+    };
+
+    await hook(ordinaryToolError);
+    const decision = await hook({ ...ordinaryToolError, toolCallId: 'tool_patch_2', resultText: 'patch failed again' });
+
+    expect(query).not.toHaveBeenCalled();
+    expect(decision?.overrideContent).toContain('这是工具操作问题，不触发 Context7 文档检索');
+  });
+
+  it('第二次编译或测试报错会触发 Context7', async () => {
+    const query = vi.fn(async () => ({
+      libraryId: '/microsoft/typescript',
+      topic: 'unknown',
+      content: 'TypeScript docs snippet',
+      source: 'context7' as const,
+    }));
+    const ctx = new FailureEscalationContext({
+      context7Client: { query },
+    });
+    ctx.initTask('修复 TypeScript 编译错误', process.cwd());
+    const hook = ctx.createHook();
+
+    const compileError = 'npx tsc --noEmit\nsrc/index.ts(1,1): error TS2307: Cannot find module x';
+    await hook(makeErrorContext(compileError));
+    const decision = await hook(makeErrorContext(compileError));
+
+    expect(query).toHaveBeenCalled();
+    expect(decision?.overrideContent).toContain('辅助诊断：已触发 Context7 文档检索');
+    expect(decision?.overrideContent).toContain('TypeScript docs snippet');
+  });
+
   it('edit 精确文本失败时第二次不触发 Context7，要求重新读取目标文件', async () => {
     const query = vi.fn();
     const ctx = new FailureEscalationContext({
@@ -79,16 +212,101 @@ describe('failure escalation', () => {
   });
 
   it('第一次失败时显示回滚成功结果', async () => {
+    const getLastSnapshotId = vi.fn((toolCallId?: string) => toolCallId === 'tool_1' ? 'snap_1' : null);
     const ctx = new FailureEscalationContext({
-      getLastSnapshotId: () => 'snap_1',
+      getLastSnapshotId,
       restoreSnapshot: async () => {},
     });
     ctx.initTask('测试任务', process.cwd());
     const hook = ctx.createHook();
 
-    const decision = await hook(makeErrorContext('failure'));
+    const decision = await hook(makeMutatingErrorContext('failure'));
 
     expect(decision?.overrideContent).toContain('恢复动作：已自动回滚到工具调用前的状态（snapshot: snap_1）');
+    expect(getLastSnapshotId).toHaveBeenCalledWith('tool_1');
+  });
+
+  it('非写入命令失败即使存在快照也不执行回滚', async () => {
+    const restoreSnapshot = vi.fn(async () => {});
+    const ctx = new FailureEscalationContext({
+      getLastSnapshotId: () => 'snap_1',
+      restoreSnapshot,
+    });
+    ctx.initTask('测试任务', process.cwd());
+    const hook = ctx.createHook();
+
+    const decision = await hook(makeErrorContext('test failure'));
+
+    expect(restoreSnapshot).not.toHaveBeenCalled();
+    expect(decision?.overrideContent).toContain('恢复动作：没有可用快照，未执行自动回滚。');
+  });
+
+  it('失败工具没有自己的快照时不回滚最近一次其他工具快照', async () => {
+    const restoreSnapshot = vi.fn(async () => {});
+    const ctx = new FailureEscalationContext({
+      getLastSnapshotId: (toolCallId?: string) => toolCallId === 'tool_previous' ? 'snap_previous' : null,
+      restoreSnapshot,
+    });
+    ctx.initTask('测试任务', process.cwd());
+    const hook = ctx.createHook();
+
+    const decision = await hook(makeErrorContext('read failure'));
+
+    expect(restoreSnapshot).not.toHaveBeenCalled();
+    expect(decision?.overrideContent).toContain('恢复动作：没有可用快照，未执行自动回滚。');
+  });
+
+  it('只读 shell 探测未命中不计入失败升级，也不回滚', async () => {
+    const restoreSnapshot = vi.fn(async () => {});
+    const ctx = new FailureEscalationContext({
+      getLastSnapshotId: () => 'snap_1',
+      restoreSnapshot,
+    });
+    ctx.initTask('测试任务', process.cwd());
+    const hook = ctx.createHook();
+
+    const probeMiss = await hook({
+      toolName: 'exec_command',
+      toolCallId: 'tool_probe',
+      args: { cmd: 'rg 早餐 dist' },
+      isError: true,
+      resultText: 'Command exited with code 1',
+    });
+    const realFailure = await hook(makeMutatingErrorContext('real failure'));
+
+    expect(probeMiss).toEqual({
+      overrideContent: [
+        '只读探测未命中，不作为工具故障处理。',
+        '命令：rg 早餐 dist',
+        '请根据这个结果继续缩小路径、关键词或检查候选文件是否存在；不要触发回滚或重新规划。',
+      ].join('\n'),
+      isError: false,
+      terminate: false,
+    });
+    expect(realFailure?.overrideContent).not.toContain('Context7');
+    expect(restoreSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('只读工具失败不触发回滚或 Context7', async () => {
+    const restoreSnapshot = vi.fn(async () => {});
+    const ctx = new FailureEscalationContext({
+      getLastSnapshotId: () => 'snap_1',
+      restoreSnapshot,
+    });
+    ctx.initTask('测试任务', process.cwd());
+    const hook = ctx.createHook();
+
+    const decision = await hook({
+      toolName: 'read_file',
+      toolCallId: 'tool_read',
+      args: { path: 'missing.ts' },
+      isError: true,
+      resultText: 'ENOENT: no such file or directory',
+    });
+
+    expect(decision?.isError).toBe(false);
+    expect(decision?.overrideContent).toContain('只读探测未命中');
+    expect(restoreSnapshot).not.toHaveBeenCalled();
   });
 
   it('第一次失败时显示回滚失败原因', async () => {
@@ -101,7 +319,7 @@ describe('failure escalation', () => {
     ctx.initTask('测试任务', process.cwd());
     const hook = ctx.createHook();
 
-    const decision = await hook(makeErrorContext('failure'));
+    const decision = await hook(makeMutatingErrorContext('failure'));
 
     expect(decision?.overrideContent).toContain('恢复动作：自动回滚失败（snapshot: snap_2）：dirty worktree');
   });

@@ -65,6 +65,11 @@ export function mergeConfig(
       ...base.setup,
       ...override.setup,
     },
+    fileGuard: {
+      ...DEFAULT_STUDENT_AGENT_CONFIG.fileGuard,
+      ...base.fileGuard,
+      ...override.fileGuard,
+    },
     playwright: {
       ...DEFAULT_STUDENT_AGENT_CONFIG.playwright,
       ...base.playwright,
@@ -141,6 +146,7 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       boundedBreaker: readBoolean(env.STUDENT_AGENT_FEATURE_BOUNDED_BREAKER),
       qualityWatchdog: readBoolean(env.STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG),
       subAgents: readBoolean(env.STUDENT_AGENT_FEATURE_SUB_AGENTS),
+      riskGuard: readBoolean(env.STUDENT_AGENT_FEATURE_RISK_GUARD),
     }),
     context7: compactObject({
       apiKey: readOptionalString(env.CONTEXT7_API_KEY),
@@ -149,6 +155,11 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
     }),
     setup: compactObject({
       suppressEmbeddingReminder: readBoolean(env.STUDENT_AGENT_SUPPRESS_EMBEDDING_REMINDER),
+    }),
+    fileGuard: compactObject({
+      planningMaxReads: readInteger(env.STUDENT_AGENT_FILE_GUARD_PLANNING_MAX_READS),
+      normalMaxReads: readInteger(env.STUDENT_AGENT_FILE_GUARD_NORMAL_MAX_READS),
+      readWindow: readInteger(env.STUDENT_AGENT_FILE_GUARD_READ_WINDOW),
     }),
     playwright: compactObject({
       useStorageState: readBoolean(env.PLAYWRIGHT_USE_STORAGE_STATE),

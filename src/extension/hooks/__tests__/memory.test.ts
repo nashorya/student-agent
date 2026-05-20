@@ -61,6 +61,14 @@ describe('createMemoryHook plan revisions', () => {
     expect(prompt).toContain('oldText must match exactly');
     expect(prompt).toContain('优先用 apply_patch/patch 风格修改');
   });
+
+  it('does not inject task phase control markers globally', async () => {
+    const prompt = await createMemoryHook(tmpDir)();
+
+    expect(prompt).not.toContain('[TASK_START');
+    expect(prompt).not.toContain('[PHASE_DONE');
+    expect(prompt).not.toContain('任务管理输出格式');
+  });
 });
 
 function resetManagers(): void {

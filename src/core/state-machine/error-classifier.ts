@@ -16,6 +16,7 @@ const TOOL_SELECTOR_RE = /selector|element not found|node is detached|locator/i;
 const TOOL_TIMEOUT_RE = /timeout (waiting|exceeded)|timed out waiting/i;
 const TOOL_NOTFOUND_RE = /not found|404|ENOENT/i;
 const TOOL_EDIT_EXACT_TEXT_RE = /Could not find (the exact text|edits\[\d+\]).*oldText must match exactly|old text must match exactly/i;
+const TOOL_WRITE_PARENT_MISSING_RE = /\bENOENT\b.*\b(open|mkdir|stat)\b|no such file or directory/i;
 const MODEL_JSON_RE = /JSON|unexpected token|invalid schema|parse error/i;
 const USER_INPUT_RE = /ambiguous|需要澄清|task unclear|__user_input_error__/i;
 const STATE_CONFLICT_RE = /conflict|ECONFLICT|__state_conflict__/i;
@@ -72,10 +73,19 @@ export function classifyError(err: unknown, toolName?: string): ClassifiedError 
   if (TOOL_EDIT_EXACT_TEXT_RE.test(text)) {
     return { category: 'tool', subtype: 'edit-exact-text-mismatch', message: msg, stack, causeName };
   }
+  if (toolName && isWriteLikeTool(toolName) && TOOL_WRITE_PARENT_MISSING_RE.test(text)) {
+    return { category: 'tool', subtype: 'write-parent-missing', message: msg, stack, causeName };
+  }
   if (TOOL_NOTFOUND_RE.test(text) && toolName) {
     return { category: 'tool', subtype: 'resource-not-found', message: msg, stack, causeName };
   }
 
   // default
   return { category: 'tool', subtype: 'unknown', message: msg, stack, causeName };
+}
+
+function isWriteLikeTool(toolName: string): boolean {
+  const normalized = toolName.toLowerCase();
+  return /(^|[_-])(write|edit|patch|create|delete|remove|move|rename)([_-]|$)/.test(normalized)
+    || ['write', 'edit', 'apply_patch', 'str_replace_editor'].includes(normalized);
 }

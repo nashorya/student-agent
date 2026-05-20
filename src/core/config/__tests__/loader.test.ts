@@ -25,8 +25,14 @@ describe('student agent config loader', () => {
     expect(config.features.playwright).toBe(true);
     expect(config.features.designStudy).toBe(true);
     expect(config.features.subAgents).toBe(false);
+    expect(config.features.riskGuard).toBe(true);
     expect(config.context7.timeoutMs).toBe(10_000);
     expect(config.llm.requestTimeoutMs).toBe(300_000);
+    expect(config.fileGuard).toEqual({
+      planningMaxReads: 3,
+      normalMaxReads: 15,
+      readWindow: 30,
+    });
     expect(config.designStudy.extractorMode).toBe('auto');
     expect(config.designStudy.criticThreshold).toBe(0.8);
   });
@@ -40,6 +46,7 @@ describe('student agent config loader', () => {
         context7: false,
         playwright: true,
         designStudy: true,
+        riskGuard: false,
       },
       designStudy: {
         extractorMode: 'dembrandt',
@@ -55,6 +62,11 @@ describe('student agent config loader', () => {
         requestTimeoutMs: 120_000,
         maxOutputTokens: 4096,
       },
+      fileGuard: {
+        planningMaxReads: 5,
+        normalMaxReads: 20,
+        readWindow: 40,
+      },
     }));
 
     const config = await loadStudentAgentConfig({
@@ -66,6 +78,7 @@ describe('student agent config loader', () => {
     expect(config.features.context7).toBe(false);
     expect(config.features.playwright).toBe(true);
     expect(config.features.designStudy).toBe(true);
+    expect(config.features.riskGuard).toBe(false);
     expect(config.designStudy.extractorMode).toBe('dembrandt');
     expect(config.designStudy.dembrandtCommand).toBe('dembrandt');
     expect(config.designStudy.criticThreshold).toBe(0.75);
@@ -74,6 +87,9 @@ describe('student agent config loader', () => {
     expect(config.subAgents.maxConcurrency).toBe(2);
     expect(config.llm.requestTimeoutMs).toBe(120_000);
     expect(config.llm.maxOutputTokens).toBe(4096);
+    expect(config.fileGuard.planningMaxReads).toBe(5);
+    expect(config.fileGuard.normalMaxReads).toBe(20);
+    expect(config.fileGuard.readWindow).toBe(40);
   });
 
   it('支持 OpenAI Chat provider 配置', async () => {
@@ -113,6 +129,7 @@ describe('student agent config loader', () => {
         STUDENT_AGENT_FEATURE_CONTEXT7: 'true',
         STUDENT_AGENT_FEATURE_DESIGN_STUDY: 'true',
         STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG: 'true',
+        STUDENT_AGENT_FEATURE_RISK_GUARD: 'false',
         STUDENT_AGENT_DESIGN_EXTRACTOR_MODE: 'native',
         STUDENT_AGENT_DESIGN_DEMBRANDT_COMMAND: 'dembrandt',
         STUDENT_AGENT_DESIGN_CRITIC_THRESHOLD: '0.9',
@@ -124,6 +141,9 @@ describe('student agent config loader', () => {
         STUDENT_AGENT_LLM_MAX_OUTPUT_TOKENS: '8192',
         STUDENT_AGENT_LLM_MAX_RETRIES: '1',
         STUDENT_AGENT_LLM_MAX_RETRY_DELAY_MS: '30000',
+        STUDENT_AGENT_FILE_GUARD_PLANNING_MAX_READS: '4',
+        STUDENT_AGENT_FILE_GUARD_NORMAL_MAX_READS: '18',
+        STUDENT_AGENT_FILE_GUARD_READ_WINDOW: '25',
       },
     });
 
@@ -131,6 +151,7 @@ describe('student agent config loader', () => {
     expect(config.features.context7).toBe(true);
     expect(config.features.designStudy).toBe(true);
     expect(config.features.qualityWatchdog).toBe(true);
+    expect(config.features.riskGuard).toBe(false);
     expect(config.designStudy.extractorMode).toBe('native');
     expect(config.designStudy.dembrandtCommand).toBe('dembrandt');
     expect(config.designStudy.criticThreshold).toBe(0.9);
@@ -142,6 +163,9 @@ describe('student agent config loader', () => {
     expect(config.llm.maxOutputTokens).toBe(8192);
     expect(config.llm.maxRetries).toBe(1);
     expect(config.llm.maxRetryDelayMs).toBe(30_000);
+    expect(config.fileGuard.planningMaxReads).toBe(4);
+    expect(config.fileGuard.normalMaxReads).toBe(18);
+    expect(config.fileGuard.readWindow).toBe(25);
   });
 
   it('OpenAI provider 环境变量读取 OPENAI_BASE_URL', async () => {
@@ -187,6 +211,9 @@ describe('student agent config loader', () => {
         playwright: {
           renderWaitMs: 500,
         },
+        fileGuard: {
+          normalMaxReads: 25,
+        },
         designStudy: {
           extractorMode: 'native',
         },
@@ -195,8 +222,12 @@ describe('student agent config loader', () => {
 
     expect(config.features.context7).toBe(false);
     expect(config.features.boundedBreaker).toBe(true);
+    expect(config.features.riskGuard).toBe(true);
     expect(config.playwright.renderWaitMs).toBe(500);
     expect(config.playwright.navigationTimeoutMs).toBe(10_000);
+    expect(config.fileGuard.planningMaxReads).toBe(3);
+    expect(config.fileGuard.normalMaxReads).toBe(25);
+    expect(config.fileGuard.readWindow).toBe(30);
     expect(config.designStudy.extractorMode).toBe('native');
     expect(config.designStudy.criticThreshold).toBe(0.8);
     expect(config.designStudy.styleDescriptionTimeoutMs).toBe(45_000);
