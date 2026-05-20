@@ -52,4 +52,39 @@ describe('createBridge', () => {
       'ADD_MESSAGE',
     ]);
   });
+
+  it.each(['system', 'error'] as const)('preserves stream buffer across %s messages', (role) => {
+    const dispatch = vi.fn<(action: AppAction) => void>();
+    const bridge = createBridge(dispatch);
+
+    bridge.addMessage('assistant', 'hello');
+    bridge.addMessage(role, 'interleaved status');
+    bridge.updateLastMessage('hello');
+    bridge.updateLastMessage('hello world');
+
+    expect(dispatch.mock.calls.map((call) => call[0].type)).toEqual([
+      'ADD_MESSAGE',
+      'ADD_MESSAGE',
+      'UPDATE_LAST_MESSAGE',
+    ]);
+    expect(dispatch.mock.calls[2]?.[0]).toEqual({
+      type: 'UPDATE_LAST_MESSAGE',
+      content: 'hello world',
+    });
+  });
+
+  it.each(['user', 'tool'] as const)('clears stream buffer after %s messages', (role) => {
+    const dispatch = vi.fn<(action: AppAction) => void>();
+    const bridge = createBridge(dispatch);
+
+    bridge.addMessage('assistant', 'hello');
+    bridge.addMessage(role, 'new boundary');
+    bridge.updateLastMessage('hello');
+
+    expect(dispatch.mock.calls.map((call) => call[0].type)).toEqual([
+      'ADD_MESSAGE',
+      'ADD_MESSAGE',
+      'UPDATE_LAST_MESSAGE',
+    ]);
+  });
 });

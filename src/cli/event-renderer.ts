@@ -18,8 +18,10 @@ import type { AgentEvent } from '@mariozechner/pi-agent-core';
 import type { AssistantMessageEvent } from '@mariozechner/pi-ai';
 import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
+import stringWidth from 'string-width';
 import { renderMarkdown } from './markdown.js';
 import type { TUIBridge } from '../tui/bridge.js';
+import { stripPhaseSignals } from '../core/task-planner/phase-signal.js';
 
 /**
  * 从 message_update 事件的 assistantMessageEvent 中提取文本 delta。
@@ -44,16 +46,21 @@ export function formatDuration(ms: number): string {
 /**
  * 计算字符串在终端中占据的行数（近似值）。
  * 用于 ANSI 清屏重绘。
+ *
+ * 用 string-width 计算可见宽度：
+ *   - 自动剥 ANSI escape 序列
+ *   - 中日韩 / 全角字符按 2 列计算
+ *   - emoji 按 2 列计算
+ *
+ * 之前使用 .length 直接除会严重低估 CJK 行数，
+ * 导致 reRenderWithMarkdown 清屏不彻底，留下花屏。
  */
-function countTerminalLines(text: string): number {
-  const cols = process.stdout.columns || 80;
-  const lines = text.split('\n');
+export function countTerminalLines(text: string, columns?: number): number {
+  const cols = columns ?? process.stdout.columns ?? 80;
   let total = 0;
-  for (const line of lines) {
-    // 粗略估算：每行的可见字符数 / 终端宽度，向上取整
-    // 忽略 ANSI codes 的长度
-    const visibleLen = line.replace(/\x1b\[[0-9;]*m/g, '').length;
-    total += Math.max(1, Math.ceil(visibleLen / cols));
+  for (const line of text.split('\n')) {
+    const width = stringWidth(line);
+    total += Math.max(1, Math.ceil(width / cols));
   }
   return total;
 }
@@ -103,6 +110,10 @@ export class EventRenderer {
           this.isStreaming = true;
           this.streamBuffer = '';
           this.streamLineCount = 0;
+          // 关键：每条新 assistant 消息都要重置 hasOutput，
+          // 否则一个回合内的第二条消息（典型场景 assistant→tool→assistant）
+          // 不会触发 bridge.addMessage()，导致 updateLastMessage() 覆盖前一条。
+          this.hasOutput = false;
           if (!this.bridge) {
             process.stdout.write(chalk.cyan('Assistant: '));
           }
@@ -237,7 +248,13 @@ export class EventRenderer {
     }
 
     // 用 Markdown 渲染器重绘
-    const rendered = renderMarkdown(raw);
+    const visible = stripPhaseSignals(raw);
+    if (!visible) {
+      process.stdout.write('\n');
+      return;
+    }
+
+    const rendered = renderMarkdown(visible);
     process.stdout.write(chalk.cyan('Assistant: ') + rendered + '\n');
   }
 
@@ -266,7 +283,7 @@ export class EventRenderer {
       clearTimeout(this.bridgeFlushTimer);
       this.bridgeFlushTimer = null;
     }
-    this.bridge.updateLastMessage(this.streamBuffer);
+    this.bridge.updateLastMessage(stripPhaseSignals(this.streamBuffer));
   }
 }
 
@@ -327,12 +344,19 @@ function extractExitCode(text: string): string | null {
   return match?.[1] ?? null;
 }
 
+/**
+ * 匹配上游工具结果里 "(no output)" 这个显式标记。
+ * 必须带括号——上游就是这么生产的（参见 failure-escalation.ts isProbeMiss）。
+ * 不匹配 "expected: no output found in log" 这种含 "no output" 子串的正常 stderr，
+ * 避免把真实错误吞成简化的"无输出"提示。
+ */
+const NO_OUTPUT_TAG_RE = /\(no output\)/iu;
+const NO_OUTPUT_FALLBACK_TEXT = '命令没有 stdout/stderr（no output）。';
+
 function extractPrimaryError(lines: string[]): string | null {
   const errorLine = lines.find((line) => /^错误[：:]/u.test(line));
   if (errorLine) {
-    return /\(no output\)|no output/iu.test(errorLine)
-      ? '命令没有 stdout/stderr（no output）。'
-      : errorLine;
+    return NO_OUTPUT_TAG_RE.test(errorLine) ? NO_OUTPUT_FALLBACK_TEXT : errorLine;
   }
 
   const fallback = lines.find((line) =>
@@ -345,9 +369,7 @@ function extractPrimaryError(lines: string[]): string | null {
     && !/^Command exited with code/u.test(line)
   );
   if (!fallback) return null;
-  return /\(no output\)|no output/iu.test(fallback)
-    ? '命令没有 stdout/stderr（no output）。'
-    : fallback;
+  return NO_OUTPUT_TAG_RE.test(fallback) ? NO_OUTPUT_FALLBACK_TEXT : fallback;
 }
 
 function extractDiagnosticLines(lines: string[]): string[] {

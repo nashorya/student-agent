@@ -50,11 +50,19 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, messages: [...state.messages, action.message] };
     case 'UPDATE_LAST_MESSAGE': {
       const messages = [...state.messages];
-      if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
-        messages[messages.length - 1] = {
-          ...messages[messages.length - 1],
-          content: action.content,
-        };
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const message = messages[i];
+        if (!message) continue;
+        if (message.role === 'assistant') {
+          messages[i] = {
+            ...message,
+            content: action.content,
+          };
+          return { ...state, messages };
+        }
+        if (message.role === 'user' || message.role === 'tool') {
+          break;
+        }
       }
       return { ...state, messages };
     }

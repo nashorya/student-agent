@@ -17,7 +17,11 @@ export function createBridge(dispatch: (action: AppAction) => void): TUIBridge {
   return {
     dispatch,
     addMessage(role, content) {
-      lastMessageContent = role === 'assistant' ? content : '';
+      if (role === 'assistant') {
+        lastMessageContent = content;
+      } else if (role === 'user' || role === 'tool') {
+        lastMessageContent = '';
+      }
       dispatch({
         type: 'ADD_MESSAGE',
         message: { role, content, timestamp: Date.now() },

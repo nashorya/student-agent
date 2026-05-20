@@ -2,6 +2,7 @@ import React from 'react';
 import { render } from 'ink';
 import { App } from './app.js';
 import { createBridge, type TUIBridge } from './bridge.js';
+import { redirectConsoleForTUI } from './console-redirect.js';
 import type { AppAction } from './state.js';
 
 export interface TUIHandle {
@@ -15,6 +16,10 @@ export function startTUI(options: {
   onAbort: () => void;
 }): TUIHandle {
   const { onSubmit, onAbort } = options;
+
+  // 关键：劫持 console.* 必须在 ink render 之前，
+  // 否则任何在 import 期间或第一帧渲染时打出的日志会污染 ink 屏幕区。
+  const restoreConsole = redirectConsoleForTUI();
 
   let dispatchRef: ((action: AppAction) => void) | null = null;
 
@@ -34,7 +39,10 @@ export function startTUI(options: {
   return {
     bridge,
     waitForExit: waitUntilExit,
-    unmount,
+    unmount: () => {
+      unmount();
+      restoreConsole();
+    },
   };
 }
 
