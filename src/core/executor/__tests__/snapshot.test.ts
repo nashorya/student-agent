@@ -82,6 +82,36 @@ describe("SnapshotManager", () => {
     }
   });
 
+  it("restore() restores pre-existing untracked files to snapshot content", async () => {
+    const { dir, cleanup } = await makeTmpRepo();
+    try {
+      await writeFile(join(dir, "draft.txt"), "before");
+      const manager = new SnapshotManager(dir);
+      const sha = await manager.create();
+      await writeFile(join(dir, "draft.txt"), "after");
+      await manager.restore(sha);
+      const content = await readFile(join(dir, "draft.txt"), "utf8");
+      expect(content).toBe("before");
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("restore() restores pre-existing untracked files after deletion", async () => {
+    const { dir, cleanup } = await makeTmpRepo();
+    try {
+      await writeFile(join(dir, "draft.txt"), "before");
+      const manager = new SnapshotManager(dir);
+      const sha = await manager.create();
+      await rm(join(dir, "draft.txt"));
+      await manager.restore(sha);
+      const content = await readFile(join(dir, "draft.txt"), "utf8");
+      expect(content).toBe("before");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("restore() with empty sha returns early without error", async () => {
     const { dir, cleanup } = await makeTmpRepo();
     try {

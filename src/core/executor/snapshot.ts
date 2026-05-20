@@ -1,12 +1,13 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { simpleGit, SimpleGit } from 'simple-git';
 
 interface SnapshotRecord {
   sha: string;
   stagedPatch: string;
   untrackedFiles: Set<string>;
+  untrackedFileContents: Map<string, Buffer>;
 }
 
 export class SnapshotManager {
@@ -29,11 +30,13 @@ export class SnapshotManager {
         this.git.raw(['diff', '--cached', '--binary']),
         this.listUntrackedFiles(),
       ]);
+      const untrackedFileContents = await this.backupUntrackedFiles(untrackedFiles);
       const id = `snapshot_${Date.now()}_${this.sequence++}`;
       this.snapshots.set(id, {
         sha: result.trim() || 'HEAD',
         stagedPatch,
         untrackedFiles,
+        untrackedFileContents,
       });
       return id;
     } catch (err) {
@@ -49,12 +52,14 @@ export class SnapshotManager {
       sha: snapshotId,
       stagedPatch: '',
       untrackedFiles: await this.listUntrackedFiles(),
+      untrackedFileContents: new Map(),
     };
 
     await this.restoreTrackedFiles(snapshot.sha);
     await this.resetIndexToHead();
     await this.restoreStagedPatch(snapshot.stagedPatch);
     await this.removeUntrackedFilesCreatedAfter(snapshot.untrackedFiles);
+    await this.restoreUntrackedFiles(snapshot.untrackedFileContents);
     this.snapshots.delete(snapshotId);
   }
 
@@ -98,6 +103,30 @@ export class SnapshotManager {
 
     for (const file of createdAfterSnapshot) {
       await this.removeRepoFile(file);
+    }
+  }
+
+  private async backupUntrackedFiles(files: Set<string>): Promise<Map<string, Buffer>> {
+    const result = new Map<string, Buffer>();
+    for (const file of files) {
+      try {
+        result.set(file, await readFile(join(this.repoPath, file)));
+      } catch (err) {
+        throw new Error(`SnapshotManager.backupUntrackedFiles() failed for ${file}`, { cause: err });
+      }
+    }
+    return result;
+  }
+
+  private async restoreUntrackedFiles(files: Map<string, Buffer>): Promise<void> {
+    for (const [file, content] of files.entries()) {
+      const absolutePath = join(this.repoPath, file);
+      try {
+        await mkdir(dirname(absolutePath), { recursive: true });
+        await writeFile(absolutePath, content);
+      } catch (err) {
+        throw new Error(`SnapshotManager.restoreUntrackedFiles() failed for ${file}`, { cause: err });
+      }
     }
   }
 
