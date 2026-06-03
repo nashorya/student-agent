@@ -279,6 +279,8 @@ describe('EventRenderer TUI 多消息回合', () => {
       updateTaskStatus: vi.fn(),
       clearTaskStatus: vi.fn(),
       setCurrentTool: vi.fn(),
+      setStatus: vi.fn(),
+      clearStatus: vi.fn(),
       promptSettings: vi.fn(async () => ''),
     } satisfies TUIBridge;
   }

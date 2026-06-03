@@ -12,16 +12,23 @@
  *   message_end       → 清屏重绘 Markdown + 换行
  *   tool_execution_*  → 工具状态 + 参数提示
  *   agent_end         → 清理，显示耗时
+ *
+ * TUI 模式下：
+ *   - tool error 必须通过 bridge.addMessage('error', ...) append 到 transcriptMessages
+ *   - 工具状态通过 bridge.setStatus() / bridge.setCurrentTool() 走状态栏
+ *   - 禁止直接 console.log
  */
 
-import type { AgentEvent } from '@mariozechner/pi-agent-core';
-import type { AssistantMessageEvent } from '@mariozechner/pi-ai';
-import chalk from 'chalk';
-import ora, { type Ora } from 'ora';
-import stringWidth from 'string-width';
-import { renderMarkdown } from './markdown.js';
-import type { TUIBridge } from '../tui/bridge.js';
-import { stripPhaseSignals } from '../core/task-planner/phase-signal.js';
+import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import type { AssistantMessageEvent } from "@mariozechner/pi-ai";
+import chalk from "chalk";
+import ora, { type Ora } from "ora";
+import stringWidth from "string-width";
+import { renderMarkdown } from "./markdown.js";
+import type { TUIBridge } from "../tui/bridge.js";
+import { stripPhaseSignals } from "../core/task-planner/phase-signal.js";
+import { recordDebugEvent } from "../tui/debug-events.js";
+import { logger } from "../tui/logger.js";
 
 /**
  * 从 message_update 事件的 assistantMessageEvent 中提取文本 delta。
@@ -30,7 +37,7 @@ import { stripPhaseSignals } from '../core/task-planner/phase-signal.js';
 export function extractTextDelta(
   assistantEvent: AssistantMessageEvent,
 ): string | null {
-  if (assistantEvent.type === 'text_delta') {
+  if (assistantEvent.type === "text_delta") {
     return assistantEvent.delta;
   }
   return null;
@@ -58,7 +65,7 @@ export function formatDuration(ms: number): string {
 export function countTerminalLines(text: string, columns?: number): number {
   const cols = columns ?? process.stdout.columns ?? 80;
   let total = 0;
-  for (const line of text.split('\n')) {
+  for (const line of text.split("\n")) {
     const width = stringWidth(line);
     total += Math.max(1, Math.ceil(width / cols));
   }
@@ -74,17 +81,17 @@ export class EventRenderer {
   private bridge?: TUIBridge;
 
   // 流式输出缓冲区，用于 message_end 时的 markdown 重绘
-  private streamBuffer = '';
+  private streamBuffer = "";
   private streamLineCount = 0;
   private bridgeFlushTimer: ReturnType<typeof setTimeout> | null = null;
   private bridgeMessageStarted = false;
-  private pendingAssistantText = '';
+  private pendingAssistantText = "";
 
   constructor(bridge?: TUIBridge) {
     this.bridge = bridge;
     this.spinner = ora({
-      spinner: 'dots',
-      color: 'cyan',
+      spinner: "dots",
+      color: "cyan",
     });
   }
 
@@ -94,25 +101,25 @@ export class EventRenderer {
    */
   handleEvent(event: AgentEvent): void {
     switch (event.type) {
-      case 'agent_start':
+      case "agent_start":
         this.isStreaming = false;
         this.hasOutput = false;
         this.toolCount = 0;
-        this.streamBuffer = '';
+        this.streamBuffer = "";
         this.streamLineCount = 0;
         this.bridgeMessageStarted = false;
-        this.pendingAssistantText = '';
+        this.pendingAssistantText = "";
         this.startTime = Date.now();
         if (!this.bridge) {
-          this.spinner.start(chalk.dim('思考中...'));
+          this.spinner.start(chalk.dim("思考中..."));
         }
         break;
 
-      case 'message_start':
-        if (event.message.role === 'assistant') {
+      case "message_start":
+        if (event.message.role === "assistant") {
           this.spinner.stop();
           this.isStreaming = true;
-          this.streamBuffer = '';
+          this.streamBuffer = "";
           this.streamLineCount = 0;
           this.bridgeMessageStarted = false;
           // 关键：每条新 assistant 消息都要重置 hasOutput，
@@ -120,14 +127,14 @@ export class EventRenderer {
           // 不会触发 bridge.addMessage()，导致 updateLastMessage() 覆盖前一条。
           this.hasOutput = false;
           if (!this.bridge) {
-            process.stdout.write(chalk.cyan('Assistant: '));
+            process.stdout.write(chalk.cyan("Assistant: "));
           }
           // TUI 模式下延迟到第一个 text_delta 才添加消息，
           // 避免工具调用轮次留下空白 Assistant 消息
         }
         break;
 
-      case 'message_update': {
+      case "message_update": {
         if (!this.isStreaming) break;
         const delta = extractTextDelta(event.assistantMessageEvent);
         if (delta) {
@@ -142,7 +149,7 @@ export class EventRenderer {
         break;
       }
 
-      case 'message_end':
+      case "message_end":
         this.flushBridgeBuffer();
         if (this.bridge) {
           this.capturePendingAssistantText();
@@ -157,18 +164,20 @@ export class EventRenderer {
         this.isStreaming = false;
         break;
 
-      case 'tool_execution_start':
+      case "tool_execution_start":
         this.toolCount++;
         if (this.bridge) {
           this.bridge.setCurrentTool(event.toolName);
+          this.bridge.setStatus(`正在调用 ${event.toolName}`);
         } else {
           this.spinner.start(chalk.dim(`Tool: ${event.toolName}`));
         }
         break;
 
-      case 'tool_execution_end':
+      case "tool_execution_end":
         if (this.bridge) {
           this.bridge.setCurrentTool(null);
+          this.bridge.clearStatus();
         } else {
           this.spinner.stop();
         }
@@ -177,19 +186,26 @@ export class EventRenderer {
           const rawDetail = extractToolErrorDetail(ev);
           const messages = formatToolFailureMessages(event.toolName, rawDetail, ev.args ?? ev.toolArgs);
           if (this.bridge) {
+            // 所有 tool error 必须 append 到 transcriptMessages
             for (const message of messages) {
               this.bridge.addMessage(message.role, message.content);
             }
+            recordDebugEvent("toolResult", {
+              toolName: event.toolName,
+              isError: true,
+              messageCount: messages.length,
+            });
           } else {
             for (const message of messages) {
-              const color = message.role === 'error' ? chalk.red : chalk.dim;
-              console.log(color(`  ${message.content}`));
+              const color = message.role === "error" ? chalk.red : chalk.dim;
+              // 非 TUI 模式：直接写 stderr，不用 console.log
+              process.stderr.write(color(`  ${message.content}\n`));
             }
           }
         }
         break;
 
-      case 'agent_end': {
+      case "agent_end": {
         this.flushBridgeBuffer();
         if (this.bridge) {
           this.capturePendingAssistantText();
@@ -202,7 +218,7 @@ export class EventRenderer {
         }
         if (this.bridge) {
           this.bridge.setCurrentTool(null);
-          this.bridge.updateTaskStatus({ state: 'idle' });
+          this.bridge.updateTaskStatus({ state: "idle" });
         } else {
           this.spinner.stop();
         }
@@ -215,7 +231,7 @@ export class EventRenderer {
           parts.push(`${this.toolCount} 个工具调用`);
         }
         if (!this.bridge) {
-          console.log(chalk.dim(`\n  DONE: ${parts.join(' | ')}`));
+          process.stderr.write(chalk.dim(`\n  DONE: ${parts.join(" | ")}\n`));
         }
         break;
       }
@@ -234,12 +250,12 @@ export class EventRenderer {
   private reRenderWithMarkdown(): void {
     const raw = this.streamBuffer.trim();
     if (!raw) {
-      process.stdout.write('\n');
+      process.stdout.write("\n");
       return;
     }
 
     // 计算已输出的行数（包含 Assistant: 前缀那行）
-    const rawWithPrefix = 'Assistant: ' + raw;
+    const rawWithPrefix = "Assistant: " + raw;
     const lineCount = countTerminalLines(rawWithPrefix);
 
     // 用 ANSI escape 回退并清除
@@ -248,30 +264,30 @@ export class EventRenderer {
     if (lineCount > 1) {
       process.stdout.write(`\x1b[${lineCount - 1}F`); // 移到第一行
     } else {
-      process.stdout.write('\r'); // 回到行首
+      process.stdout.write("\r"); // 回到行首
     }
     for (let i = 0; i < lineCount; i++) {
-      process.stdout.write('\x1b[2K'); // 清除当前行
+      process.stdout.write("\x1b[2K"); // 清除当前行
       if (i < lineCount - 1) {
-        process.stdout.write('\x1b[1E'); // 下移一行
+        process.stdout.write("\x1b[1E"); // 下移一行
       }
     }
     // 回到第一行
     if (lineCount > 1) {
       process.stdout.write(`\x1b[${lineCount - 1}F`);
     } else {
-      process.stdout.write('\r');
+      process.stdout.write("\r");
     }
 
     // 用 Markdown 渲染器重绘
     const visible = stripPhaseSignals(raw);
     if (!visible) {
-      process.stdout.write('\n');
+      process.stdout.write("\n");
       return;
     }
 
     const rendered = renderMarkdown(visible);
-    process.stdout.write(chalk.cyan('Assistant: ') + rendered + '\n');
+    process.stdout.write(chalk.cyan("Assistant: ") + rendered + "\n");
   }
 
   /** 创建可传给 agent.subscribe() 的回调函数。 */
@@ -309,7 +325,7 @@ export class EventRenderer {
     const visible = stripPhaseSignals(this.streamBuffer);
     if (!visible && !this.bridgeMessageStarted) return;
     if (!this.bridgeMessageStarted) {
-      this.bridge.addMessage('assistant', '');
+      this.bridge.addMessage("assistant", "");
       this.bridgeMessageStarted = true;
     }
     this.bridge.updateLastMessage(visible);
@@ -324,8 +340,8 @@ export class EventRenderer {
   private commitPendingAssistantText(): void {
     if (!this.bridge || !this.pendingAssistantText) return;
     const content = this.pendingAssistantText;
-    this.pendingAssistantText = '';
-    this.bridge.addMessage('assistant', content);
+    this.pendingAssistantText = "";
+    this.bridge.addMessage("assistant", content);
     this.bridge.endAssistantMessage();
   }
 }
@@ -336,18 +352,18 @@ function extractToolErrorDetail(ev: Record<string, unknown>): string {
   const resultContent = (ev.result as Record<string, unknown> | undefined)?.content;
   if (Array.isArray(resultContent) && resultContent.length > 0) {
     const text = (resultContent[0] as Record<string, unknown>)?.text;
-    if (typeof text === 'string' && text.trim()) return text.trim();
+    if (typeof text === "string" && text.trim()) return text.trim();
   }
   // 路径2: resultText
-  if (typeof ev.resultText === 'string' && ev.resultText.trim()) return ev.resultText.trim();
+  if (typeof ev.resultText === "string" && ev.resultText.trim()) return ev.resultText.trim();
   // 路径3: error
-  if (typeof ev.error === 'string' && ev.error.trim()) return ev.error.trim();
+  if (typeof ev.error === "string" && ev.error.trim()) return ev.error.trim();
   if (ev.error instanceof Error) return ev.error.message;
-  return '';
+  return "";
 }
 
 export interface ToolFailureMessage {
-  role: 'error' | 'system';
+  role: "error" | "system";
   content: string;
 }
 
@@ -363,20 +379,20 @@ export function formatToolFailureMessages(
   const primaryError = extractPrimaryError(lines);
 
   const primary = [
-    `主错误：${toolName} 失败${exitCode ? `（exit code ${exitCode}）` : ''}`,
+    `主错误：${toolName} 失败${exitCode ? `（exit code ${exitCode}）` : ""}`,
     ...contextLines,
-    primaryError ?? '命令没有 stdout/stderr（no output）。',
-  ].join('\n');
+    primaryError ?? "命令没有 stdout/stderr（no output）。",
+  ].join("\n");
 
-  const messages: ToolFailureMessage[] = [{ role: 'error', content: primary }];
+  const messages: ToolFailureMessage[] = [{ role: "error", content: primary }];
   const diagnostics = extractDiagnosticLines(lines);
   if (diagnostics.length > 0) {
-    messages.push({ role: 'system', content: ['辅助诊断：', ...diagnostics].join('\n') });
+    messages.push({ role: "system", content: ["辅助诊断：", ...diagnostics].join("\n") });
   }
 
   const recovery = extractRecoveryLines(lines);
   if (recovery.length > 0) {
-    messages.push({ role: 'system', content: ['恢复动作：', ...recovery].join('\n') });
+    messages.push({ role: "system", content: ["恢复动作：", ...recovery].join("\n") });
   }
 
   return messages;
@@ -394,7 +410,7 @@ function extractExitCode(text: string): string | null {
  * 避免把真实错误吞成简化的"无输出"提示。
  */
 const NO_OUTPUT_TAG_RE = /\(no output\)/iu;
-const NO_OUTPUT_FALLBACK_TEXT = '命令没有 stdout/stderr（no output）。';
+const NO_OUTPUT_FALLBACK_TEXT = "命令没有 stdout/stderr（no output）。";
 
 function extractPrimaryError(lines: string[]): string | null {
   const errorLine = lines.find((line) => /^错误[：:]/u.test(line));
@@ -456,8 +472,8 @@ function extractRecoveryLines(lines: string[]): string[] {
 
 function summarizeToolArgs(args: unknown): string[] {
   if (!isRecord(args)) return [];
-  const command = pickString(args, ['cmd', 'command']);
-  const cwd = pickString(args, ['cwd', 'workdir']);
+  const command = pickString(args, ["cmd", "command"]);
+  const cwd = pickString(args, ["cwd", "workdir"]);
   const lines: string[] = [];
   if (command) lines.push(`命令：${limitLine(command)}`);
   if (cwd) lines.push(`目录：${cwd}`);
@@ -467,17 +483,17 @@ function summarizeToolArgs(args: unknown): string[] {
 function pickString(record: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const value = record[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === "string" && value.trim()) return value.trim();
   }
   return null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function stripLabel(line: string): string {
-  return line.replace(/^[^：:]+[：:]\s*/u, '');
+  return line.replace(/^[^：:]+[：:]\s*/u, "");
 }
 
 function uniqueLines(lines: string[]): string[] {

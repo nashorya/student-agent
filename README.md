@@ -2,115 +2,406 @@
 
 > **A true master is an eternal student.**
 
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Evals](https://img.shields.io/badge/evals-10%2F10%20pass-success)](evals/)
+
 A CLI coding agent with memory, self-reflection, and a healthy awareness of its own limits. Built on [pi](https://github.com/badlogic/pi-mono), focused on programming tasks.
 
-[中文版 README](README.zh.md)
+[中文文档 →](README.zh.md)
 
 ---
 
-## Features
+## Table of Contents
 
-- **TUI Interface** — Ink/React terminal UI with streaming output, status bar, and command history. Gracefully degrades to plain readline in non-TTY environments (CI, pipes).
-- **Memory & Reflection** — Learns from repeated patterns across sessions. Promotes validated preferences through a trust state machine; never auto-writes architecture-scope changes without confirmation.
-- **Risk Guard** — High-risk tool calls require TTY/TUI confirmation; non-interactive sessions block them by default.
-- **Failure Escalation** — Mutating executions create git snapshots first. On failure: rollback when safe → retry with degraded strategy → escalate to user.
-- **Knowledge Retrieval** — Context7 for precise library documentation, optional Playwright for dynamic web pages.
-- **Quality Watchdog** — Passive degradation detection across sessions. Silent footer indicator, no full-screen interruptions.
-- **Orchestrator** — Concurrent sub-agent scheduling with write-intent conflict detection and git worktree isolation.
+- [Getting Started](#getting-started)
+- [Features](#features)
+- [Technology Stack](#technology-stack)
+- [Architecture Overview](#architecture-overview)
+- [Project Structure](#project-structure)
+- [Configuration](#configuration)
+- [Development Workflow](#development-workflow)
+- [Testing & Eval](#testing--eval)
+  - [Unit Tests](#unit-tests)
+  - [Eval Harness Design](#eval-harness-design)
+  - [Scoring System](#scoring-system)
+  - [Task Catalogue](#task-catalogue)
+  - [Running Evals](#running-evals)
+  - [Interpreting Results](#interpreting-results)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Prerequisites
+---
+
+## Getting Started
+
+### Prerequisites
 
 - Node.js 20+
-- The upstream `pi-mono` repo cloned locally:
+- Git
+
+### Install
 
 ```bash
-git clone https://github.com/badlogic/pi-mono pi-mono
-```
-
-## Quick Start
-
-```bash
-# 1. Clone
-git clone <this-repo> student-agent
+# 1. Clone this repo
+git clone https://github.com/<your-username>/student-agent.git
 cd student-agent
 
-# 2. Clone pi-mono dependency
+# 2. Clone the pi-mono dependency (required)
 git clone https://github.com/badlogic/pi-mono pi-mono
 
-# 3. Install
+# 3. Install dependencies
 npm install
 
-# 4. Configure
+# 4. Configure environment
 cp .env.example .env
 # Edit .env — at minimum set ANTHROPIC_API_KEY
 ```
 
-**Minimum `.env` required:**
+### Minimum `.env`
 
-| Variable | Description |
-|---|---|
-| `ANTHROPIC_API_KEY` | Your Anthropic API key |
-| `ANTHROPIC_BASE_URL` | Leave blank unless using a proxy |
-
-```bash
-# 5. Build packaged output
-npm run build
-
-# 6. Register as a global CLI command
-npm link
-
-# 7. Run from any directory
-student-agent
+```env
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-## Commands
+### Run
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Start agent (TUI in TTY, plain REPL otherwise) |
-| `npm run build` | Compile TypeScript |
-| `npm test` | Run Vitest tests |
-| `tsc --noEmit` | Type-check (run after every code change) |
+```bash
+# Development (TUI in TTY, readline fallback in CI/pipes)
+npm run dev
 
-## Configuration
+# Or build and register globally
+npm run build
+npm link
+student-agent          # run from any directory
+```
 
-Runtime behavior can be tuned via `.env` or `.student-agent.json`. Key feature flags:
+Type a natural-language task and press Enter. The agent plans, executes, and reflects — you'll see each phase in the status bar. Use `/exit` or `Ctrl-C` to quit.
 
-| Setting | Default | Description |
-|---|---|---|
-| `STUDENT_AGENT_EXECUTION_MODE` | `yolo` | `yolo` skips confirmation gates and auto-runs phases; `safe` keeps explicit confirmations |
+### Optional: Playwright browser
 
-| Flag | Default | Description |
-|---|---|---|
-| `STUDENT_AGENT_FEATURE_CONTEXT7` | `true` | Library documentation lookup |
-| `STUDENT_AGENT_FEATURE_PLAYWRIGHT` | `true` | Dynamic web page reading |
-| `STUDENT_AGENT_FEATURE_DESIGN_STUDY` | `true` | Visual style learning from reference pages and local UI critique |
-| `STUDENT_AGENT_FEATURE_BOUNDED_BREAKER` | `true` | Pattern generalization with confidence scoring |
-| `STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG` | `true` | Passive quality degradation detection |
-| `STUDENT_AGENT_FEATURE_SUB_AGENTS` | `false` | Concurrent sub-agent orchestration |
-| `STUDENT_AGENT_FEATURE_RISK_GUARD` | `true` | Confirmation gate for high-risk tool calls in `safe` mode |
-
-If Playwright browsers are not installed yet:
+Required only if `STUDENT_AGENT_FEATURE_PLAYWRIGHT=true` (default):
 
 ```bash
 npx playwright install chromium
 ```
 
-## Architecture
+---
+
+## Features
+
+| Feature | Description |
+|---|---|
+| **Terminal UI** | Ink/React TUI with streaming output, status bar, and slash-command picker. Gracefully degrades to plain readline in non-TTY environments (CI, pipes). |
+| **Layered Memory** | Learns preferences across sessions through dual channels: implicit (behavior observation via Reflect Agent) and explicit (user instruction). Versioned storage with provenance tracking. |
+| **Bounded Breaker** | When generalizing patterns, actively generates known failure boundaries instead of blindly promoting rules. Confidence-scored reports surface uncertainty to the user. |
+| **Failure Escalation** | Mutating operations snapshot first (git stash). On failure: rollback → retry with degraded strategy → inject web search → escalate with structured diagnosis. |
+| **Risk Guard** | High-risk tool calls (delete, external API, DB write) require confirmation. Configurable exemptions via `project-rules.md`. |
+| **Knowledge Retrieval** | Context7 for precise library docs, Playwright for JS-rendered pages with persistent login sessions. |
+| **Design Study** | Visual style learner: captures StyleProfiles from reference URLs, self-critiques local implementations against them. |
+| **Quality Watchdog** | Dual-signal degradation detection — user feedback (footer indicator, no interrupts) + background benchmark calibration. |
+| **Sub-agent Orchestration** | Optional concurrent sub-agents with write-intent conflict detection and git worktree isolation. Disabled by default. |
+| **Task/Plan Workflow** | Progressive disclosure: simple tasks stay lightweight; complex multi-step work enters a full plan → execute → verify → user-accept loop. |
+
+---
+
+## Technology Stack
+
+| Layer | Choice | Version | Reason |
+|---|---|---|---|
+| Runtime | Node.js / TypeScript | 20+ / 5.x | Consistent with existing toolchain |
+| Base framework | [pi (badlogic/pi-mono)](https://github.com/badlogic/pi-mono) | local | CLI REPL, tool dispatch, MCP client skeleton |
+| LLM | Anthropic Claude (via SDK) | claude-sonnet-4-6 | Native prompt cache, extended thinking |
+| Vector store | sqlite-vec | 0.1.9 | Zero dependencies, precompiled binary, cross-platform |
+| MCP | @modelcontextprotocol/sdk | — | Standard protocol; Context7 and Web Search plug in directly |
+| Web reader | Playwright + @mozilla/readability | 1.59.1 / 0.6.0 | JS-rendered pages, persistent login sessions |
+| State machine | XState v5 | 5.x | Explicit state constraints, `after` timeouts, context holds IDs only |
+| Concurrency | p-queue (WriteQueue singleton) | 9.x | SQLite serial writes, no lock contention |
+| Terminal UI | Ink (React for terminal) | 5.x | Streaming render, footer indicator, sub-agent progress |
+| Git snapshots | simple-git | 3.x | Low-overhead pre-execution snapshots and rollback |
+| Test runner | Vitest | 2.x | Fast, ESM-native, co-located `__tests__/` |
+
+---
+
+## Architecture Overview
 
 ```
-Input → Pi Session + Hooks (FileGuard → RiskGuard → Snapshot)
-             ↓
-      Planning / Task Phases / Tool Calls
-             ↓
-      Failure Escalation (rollback when safe → retry → user help)
-             ↓
-      Memory + Knowledge (preferences, reflect, Context7, Playwright)
-             ↓
-      TUI / Readline
+Input (natural language / URL / file path)
+        │
+        ▼
+┌───────────────────────────────────┐
+│           CORE AGENT              │
+│  Planner → Executor → XState v5   │
+│  Stream Adapter (buffer rounds)   │
+│  Risk Guard + Snapshot hooks      │
+└────────────┬──────────────────────┘
+             │
+     ┌───────┴────────┐
+     ▼                ▼
+Knowledge       Failure Escalation
+Retrieval       ─────────────────
+─────────       Attempt 1: rollback + retry
+Context7        Attempt 2: web search inject
+Playwright      Attempt 3: structured diagnosis
+Design Study    → user question (questions.json)
+             │
+             ▼
+     Layered Memory
+     ─────────────
+     project-rules.md          (highest priority, manual)
+     preferences.md            (versioned, provenance-tagged)
+     preference-candidates.json (trust state machine)
+     questions.json            (failure case library)
+     docs-index/               (sqlite-vec embeddings)
+             │
+             ▼
+     Reflect Agent + Bounded Breaker (async)
+     Quality Watchdog (background)
+     Sub-agent Orchestrator (optional)
+             │
+             ▼
+     TUI / Readline output
 ```
 
-See [`docs/student-agent-architecture-v0.3.md`](docs/student-agent-architecture-v0.3.md) for the full design.
+For the full design, see [`docs/student-agent-architecture-v0.31.md`](docs/student-agent-architecture-v0.31.md) and [`docs/student-agent-task-plan-workflow.md`](docs/student-agent-task-plan-workflow.md).
+
+---
+
+## Project Structure
+
+```
+student-agent/
+├── src/
+│   ├── cli/            # Banner, command parser, event renderer, markdown
+│   ├── core/           # Config, env, executor, state machine, task planner, write queue
+│   ├── evals/          # Eval harness: agent runner, baseline runner, scorer, sandbox
+│   ├── extension/      # Pi hooks (FileGuard, RiskGuard, Snapshot)
+│   ├── knowledge/      # Context7, Playwright, Design Study, MCP schema validator
+│   ├── memory/         # Candidates, design, docs-index, preferences, questions, tasks
+│   ├── orchestrator/   # Sub-agent orchestration, Merge Agent
+│   ├── reflect/        # Reflect Agent, Bounded Breaker
+│   ├── tui/            # Ink components (App, InputLine, OutputArea, StatusBar)
+│   ├── types/          # Shared TypeScript types
+│   └── watchdog/       # Quality Watchdog
+├── evals/
+│   ├── tasks/          # Eval task definitions (instruction, environment, tests, solution)
+│   ├── results/        # Baseline run outputs (git-ignored)
+│   ├── product-rubric.md  # Grading calibration guide
+│   └── README.md       # Eval harness reference
+├── memory/             # Runtime memory files (git-ignored except project-rules.md)
+├── docs/               # Architecture and workflow design docs
+├── scripts/            # Eval harness scripts
+└── bin/                # CLI entry point
+```
+
+---
+
+## Configuration
+
+All settings can be set in `.env` or `.student-agent.json`.
+
+### Core settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — | Required. Your Anthropic API key. |
+| `STUDENT_AGENT_PROVIDER` | `anthropic` | LLM provider (`anthropic` or OpenAI-compatible). |
+| `STUDENT_AGENT_MODEL` | `claude-sonnet-4-6` | Model identifier. |
+| `STUDENT_AGENT_EXECUTION_MODE` | `yolo` | `yolo` = auto-run phases; `safe` = explicit confirmation gates. |
+
+### Feature flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `STUDENT_AGENT_FEATURE_CONTEXT7` | `true` | Library documentation lookup via Context7 MCP. |
+| `STUDENT_AGENT_FEATURE_PLAYWRIGHT` | `true` | JS-rendered page reading. |
+| `STUDENT_AGENT_FEATURE_DESIGN_STUDY` | `true` | Visual style learning from reference URLs. |
+| `STUDENT_AGENT_FEATURE_BOUNDED_BREAKER` | `true` | Confidence-scored pattern generalization. |
+| `STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG` | `true` | Passive quality degradation detection. |
+| `STUDENT_AGENT_FEATURE_SUB_AGENTS` | `false` | Concurrent sub-agent orchestration. |
+
+### High-risk operation exemptions
+
+Create `memory/project-rules.md` and add a `[confirmation-exempt]` section:
+
+```markdown
+[confirmation-exempt]
+- delete-file
+- external-api
+```
+
+---
+
+## Development Workflow
+
+```bash
+npm run dev          # Start agent (TUI in TTY, readline otherwise)
+npm run build        # Compile TypeScript → dist/
+npm test             # Run Vitest unit tests
+tsc --noEmit         # Type-check without emitting
+```
+
+Run `tsc --noEmit` after every change — it catches type errors that tests don't cover. Run `npm test` before committing. Both must be clean before a PR.
+
+---
+
+## Testing & Eval
+
+### Unit Tests
+
+Unit tests live alongside source files in `__tests__/` directories and run with Vitest:
+
+```bash
+npm test
+```
+
+Tests cover configuration loading, executor logic, state machine transitions, memory managers, scorer heuristics, and more.
+
+---
+
+### Eval Harness Design
+
+The eval system (`src/evals/`, `evals/`) is a purpose-built agent evaluation harness. Each task is a self-contained unit with four components:
+
+| Component | Path | Purpose |
+|---|---|---|
+| Instruction | `instruction.md` | Natural-language prompt sent to the agent — identical to real user input |
+| Environment | `environment/` | Starting file tree copied into a clean sandbox before each trial |
+| Verifier | `tests/test.sh` | Shell script that checks outcomes deterministically — exit 0 = pass |
+| Reference solution | `solution/solve.sh` | Known-working solution used by `eval:validate` to confirm the task is solvable |
+
+**Environment isolation.** Each trial runs in a fresh sandbox directory. Shared state between runs (leftover files, cached data) would introduce correlated failures unrelated to agent performance. The harness takes before/after file snapshots to detect unexpected changes.
+
+**Two execution modes** reflect real agent usage patterns:
+
+- `direct` — the agent works without task lifecycle overhead. Used for mechanical file tasks.
+- `task` — the agent uses the full TaskCreate/TaskUpdate workflow. The scorer verifies the task state reaches `completed`.
+
+**Multiple trials surface non-determinism.** LLM outputs vary between runs. Use `--trials N` to run multiple trials on the same task. This supports two complementary reliability perspectives:
+
+- **pass@k** — did at least one trial succeed? Useful when any correct solution is acceptable.
+- **pass^k** — did every trial succeed? The stricter bar for user-facing reliability.
+
+```bash
+npm run eval:baseline -- --trials 5
+```
+
+---
+
+### Scoring System
+
+Each trial produces two scores that separate *what was produced* from *how the agent behaved* — a multi-grader approach that avoids conflating outcome quality with process quality.
+
+#### `correctness_score` — primary, product-facing
+
+Outcome-based. Set by the verifier script via one of:
+
+- **Exit code** — exit 0 = `1.0`, non-zero = `0.0`
+- **`reward.txt`** — a float in `[0, 1]` written by the verifier for partial credit
+- **`reward.json`** — structured `{ "score": 0.8 }` format
+
+If the agent modifies files outside `expected_files`, `correctness_score` is forced to `0` regardless of the verifier result. Scope violations are a hard failure.
+
+#### `behavior_score` — diagnostic, engineering-facing
+
+Transcript-based. Starts at `1.0` and decreases by `0.12` per finding. The scorer checks tool call traces for:
+
+| Finding | What it catches |
+|---|---|
+| `edit mutated X before a matching read` | Missing read-before-edit discipline |
+| `bash used for file read/search/list` | Using `bash cat/grep/find` instead of file tools |
+| `edit retried the same failing arguments` | Looping without changing strategy |
+| `task mode did not finish with completed task state` | Incomplete task lifecycle |
+| `write overwrote N existing file(s)` | Clobbering files instead of editing |
+| `unexpected changed file(s)` | Scope violation (also zeroes `correctness_score`) |
+
+`behavior_score` is an **engineering diagnostic**, not a product gate. A task can pass with a sub-1.0 behavior score if the outcome is correct. See [`evals/product-rubric.md`](evals/product-rubric.md) for calibration guidance.
+
+Safety metrics (dangerous bash commands, path escape attempts) are tracked separately and always surfaced in results.
+
+---
+
+### Task Catalogue
+
+The suite covers both the behaviors that *should* occur and those that *should not*, avoiding one-sided optimization.
+
+**Mechanical correctness** — judged primarily by `correctness_score`:
+
+| Task | Tags | What it measures |
+|---|---|---|
+| `precise-edit` | `edit`, `read-before-edit` | Single-location file edit without touching surrounding content |
+| `write-new-file` | `write` | Creating a new file from scratch |
+| `multi-file-patch` | `edit`, `multi-file` | Coordinated changes across multiple files |
+| `test-driven-bug` | `bash`, `edit` | Fix a bug guided by a verifier script |
+| `search-before-read` | `grep`, `read` | Use search to locate the target before reading |
+| `targeted-read-large-file` | `read`, `offset` | Offset reads on a large file — don't read everything |
+
+**Strategy & experience** — judged by correctness + behavior diagnostics:
+
+| Task | Tags | What it measures |
+|---|---|---|
+| `task-phase-flow` | `task-mode` | TaskCreate → execute → TaskUpdate lifecycle completion |
+| `failure-recovery-edit-mismatch` | `edit`, `recovery` | Recover when an edit anchor is ambiguous or fails |
+| `bash-timeout` | `bash`, `timeout` | Handle a hanging verifier script without freezing |
+| `avoid-overwrite-existing` | `write`, `json` | Update a JSON file without clobbering existing keys |
+
+**Latest baseline: all 10 tasks pass with `correctness_score: 1.0`.**
+
+---
+
+### Running Evals
+
+```bash
+# Deterministic fixture validation — no model call, instant
+npm run eval:validate
+
+# Full baseline run (all 10 tasks, 1 trial each)
+npm run eval:baseline
+
+# Run a single task
+npm run eval:baseline -- --task precise-edit
+
+# Run multiple trials (surfaces non-determinism)
+npm run eval:baseline -- --trials 5
+
+# Combine: 5 trials on one task
+npm run eval:baseline -- --task task-phase-flow --trials 5
+```
+
+Results are written to `evals/results/` (git-ignored). Each result file contains the `correctness_score`, `behavior_score`, full `efficiencyMetrics`, `safetyMetrics`, `behaviorFindings`, and the complete `toolCalls` trace.
+
+---
+
+### Interpreting Results
+
+**Read the transcripts.** A score alone doesn't tell you whether the agent made a genuine mistake or whether the grader rejected a valid solution. Examine the `toolCalls` array in result files when scores stall or a task unexpectedly fails.
+
+**Failures should feel fair.** If a task fails, the trace should make it obvious what went wrong and why. A 0% pass rate across many trials almost always indicates a broken task specification — check `expected_files`, the verifier script, and the instruction for ambiguity before concluding the agent is at fault.
+
+**Run `eval:validate` before `eval:baseline`.** Validation runs verifier scripts against reference solutions without any model call. If validation fails, the task is broken. Fix it before spending API budget.
+
+**Watch for saturation.** As baseline scores approach 100%, the suite shifts from a *capability eval* (what can the agent do?) to a *regression suite* (does it still do what it used to?). Add harder tasks when the suite saturates to preserve a signal for improvement.
+
+---
+
+## Contributing
+
+Contributions are welcome. A few things to know before sending a PR:
+
+**Read the architecture doc first.** [`docs/student-agent-architecture-v0.31.md`](docs/student-agent-architecture-v0.31.md) covers the provenance system, Bounded Breaker, and failure escalation ladder. PRs that bypass these invariants will be asked to revise.
+
+**Type-check before submitting.** Run `tsc --noEmit` and fix all errors. The project enforces strict TypeScript throughout.
+
+**Add or update evals for behavior changes.** If your PR changes agent behavior (tool selection, task lifecycle, memory writes), add a matching eval task or update an existing one. Each new task needs: `instruction.md`, `task.toml`, `environment/`, `tests/test.sh`, and optionally `solution/solve.sh`. Run `eval:validate` to confirm the task is solvable before submitting.
+
+**Keep memory writes auditable.** Any new code writing to `memory/` must include a `provenance` field. Long-term memory writes require user confirmation — no silent auto-writes.
+
+**Gate experimental features.** New capabilities that aren't ready for all users should be behind a `STUDENT_AGENT_FEATURE_*` flag.
+
+**Commit message format:** `type(scope): description` in English. Common types: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`.
+
+---
 
 ## License
 

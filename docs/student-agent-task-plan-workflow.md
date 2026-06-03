@@ -1,5 +1,7 @@
 # Student-Agent Task/Plan Workflow Design
 
+配套阅读：[架构设计文档](student-agent-architecture-v0.31.md) | [入职指南](onboarding.md)
+
 ## Problem
 
 Student-Agent 当前已经有轻量 task 能力：`TasksManager` 记录 `active`、`completed`、`cancelled`，phase 通过文本信号推进，eval baseline 已能验证 task 闭环不回退。下一步的问题不是继续加一组 CRUD 工具，而是定义 task/plan 在产品和工程上的边界。

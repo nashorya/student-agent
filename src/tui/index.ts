@@ -1,9 +1,9 @@
-import React from 'react';
-import { render } from 'ink';
-import { App } from './app.js';
-import { createBridge, type TUIBridge } from './bridge.js';
-import { redirectConsoleForTUI } from './console-redirect.js';
-import type { AppAction } from './state.js';
+import React from "react";
+import { render } from "ink";
+import { App } from "./app.js";
+import { createBridge, type TUIBridge } from "./bridge.js";
+import { redirectConsoleForTUI } from "./console-redirect.js";
+import type { AppAction } from "./state.js";
 
 export interface TUIHandle {
   bridge: TUIBridge;

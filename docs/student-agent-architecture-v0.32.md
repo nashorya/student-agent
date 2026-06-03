@@ -4,40 +4,7 @@
 >
 > **"A true master is an eternal student."**
 
----
-
-**v0.31 变更摘要**
-- 修正一：SQLite 并发写入冲突防护，新增 WriteQueue 单例
-- 修正二：Quality Watchdog 反馈疲劳，改为 Footer 常驻静默图标，取消全屏打断
-- 修正三：Bounded Breaker 冷启动防护，任务数 < 20 时统一提升合并阈值至 ≥4 次
-- 修正四：新增 Stream Adapter，解决流式输出与 XState 的阻抗匹配问题
-- 修正五：Stream Adapter 超时兜底，XState after 120s 接管，超时重试上下文注入规范
-- 合并发布：Design Study Skill / Visual Style Learner，支持显式网页风格学习、StyleProfile 记忆和本地视觉自评
-- 子代理硬化：Merge Agent 定位为 Orchestrator 内部 Synchronizer；SubAgentTask 增加 readIntent，调度前执行 reader-writer/write-write 锁检查
-- 技术债收敛：Context7/MCP 响应增加 schema 校验；新增 project-kb.json TTL 缓存；Breaker 报告写入 strategy_version
-- 开放问题收敛：questions.json 引入 decay_factor；/why 默认展示直接来源，/why --trace 展示完整溯源；/review 接入质量反馈主路径
-
-**v0.3 变更摘要**
-- 新增 Bounded Breaker：仅在语义合并/抽象泛化时触发，生成置信度报告替代机械的通过/不通过判定
-- 新增主动生成 unknown_risk_zones：分析泛化后规则适用域扩大的部分，优先进入策略库
-- confidence_level: high 的自动合并强制附带完整 Breaker 报告，支持 /why 追溯
-- Breaker 策略库本身需要版本化维护，登记为技术债 TD-07
-- 范式升级说明：不证明规则正确，只标注已知失败边界
-
-**v0.21 变更摘要**
-- 新增质量监控层（Quality Watchdog）：用户反馈主路径 + 基准任务低频校准，双信号源冗余
-- 新增原型阶段验证边界警告：明确原型能验证什么、不能验证什么
-
-**v0.2 变更摘要**
-- 新增信息可信度体系（provenance + 信任状态机）
-- 新增隐式策略漂移防护（preferences 版本化 + 决策来源追溯）
-- 明确快照粒度（每次 Executor 执行前快照）
-- 新增 Planner 依赖分析边界声明
-- 新增子代理 Write Intent 主动防护
-- 新增搜索意图提取失败分支
-- 新增中断处理状态（Ctrl+C / /cancel）
-- 新增高风险操作确认机制
-- 新增记忆清理策略
+本文档覆盖 student-agent 的核心系统设计：整体架构、信息可信度体系、分层记忆、失败升级、子代理、Bounded Breaker、Stream Adapter、质量监控等。配套阅读：[Task/Plan 工作流设计](student-agent-task-plan-workflow.md) | [入职指南](onboarding.md)。
 
 ---
 
@@ -921,7 +888,40 @@ WriteQueue 是进程级单例，在应用启动时初始化，所有需要写盘
 ---
 
 *文档版本：v0.31 | 已进入开发阶段，大部分设计已实现；细节可能落后于 src/ 源码，以源码为准*
-*v0.1 → v0.2：根据 DeepSeek + ChatGPT + Claude 三方审阅意见更新*
-*v0.2 → v0.21：新增质量监控层与原型验证边界警告（ChatGPT 主要贡献）*
-*v0.21 → v0.3：新增 Bounded Breaker，范式从"验证正确"升级为"标注失败边界"*
-*v0.3 → v0.31：Gemini 审阅五条落地修正（WriteQueue / Footer反馈 / 冷启动保护 / Stream Adapter / 超时契约）*
+
+---
+
+## 附录：版本变更摘要
+
+**v0.31**
+- 修正一：SQLite 并发写入冲突防护，新增 WriteQueue 单例
+- 修正二：Quality Watchdog 反馈疲劳，改为 Footer 常驻静默图标，取消全屏打断
+- 修正三：Bounded Breaker 冷启动防护，任务数 < 20 时统一提升合并阈值至 ≥4 次
+- 修正四：新增 Stream Adapter，解决流式输出与 XState 的阻抗匹配问题
+- 修正五：Stream Adapter 超时兜底，XState after 120s 接管，超时重试上下文注入规范
+- 合并发布：Design Study Skill / Visual Style Learner，支持显式网页风格学习、StyleProfile 记忆和本地视觉自评
+- 子代理硬化：Merge Agent 定位为 Orchestrator 内部 Synchronizer；SubAgentTask 增加 readIntent，调度前执行 reader-writer/write-write 锁检查
+- 技术债收敛：Context7/MCP 响应增加 schema 校验；新增 project-kb.json TTL 缓存；Breaker 报告写入 strategy_version
+- 开放问题收敛：questions.json 引入 decay_factor；/why 默认展示直接来源，/why --trace 展示完整溯源；/review 接入质量反馈主路径（*Gemini 审阅*）
+
+**v0.3**
+- 新增 Bounded Breaker：仅在语义合并/抽象泛化时触发，生成置信度报告替代机械的通过/不通过判定
+- 新增主动生成 unknown_risk_zones：分析泛化后规则适用域扩大的部分，优先进入策略库
+- confidence_level: high 的自动合并强制附带完整 Breaker 报告，支持 /why 追溯
+- Breaker 策略库本身需要版本化维护，登记为技术债 TD-07
+- 范式升级说明：不证明规则正确，只标注已知失败边界
+
+**v0.21**
+- 新增质量监控层（Quality Watchdog）：用户反馈主路径 + 基准任务低频校准，双信号源冗余
+- 新增原型阶段验证边界警告：明确原型能验证什么、不能验证什么（*ChatGPT 主要贡献*）
+
+**v0.2**
+- 新增信息可信度体系（provenance + 信任状态机）
+- 新增隐式策略漂移防护（preferences 版本化 + 决策来源追溯）
+- 明确快照粒度（每次 Executor 执行前快照）
+- 新增 Planner 依赖分析边界声明
+- 新增子代理 Write Intent 主动防护
+- 新增搜索意图提取失败分支
+- 新增中断处理状态（Ctrl+C / /cancel）
+- 新增高风险操作确认机制
+- 新增记忆清理策略（*DeepSeek + ChatGPT + Claude 三方审阅*）

@@ -47,6 +47,8 @@ import { printBanner } from '../cli/banner.js';
 import { startTUI, isTTY } from '../tui/index.js';
 import { createInputQueue } from '../tui/input-queue.js';
 import type { TUIBridge } from '../tui/bridge.js';
+import { initLogger, logger, setTuiMode } from '../tui/logger.js';
+import { initDebugEvents } from '../tui/debug-events.js';
 import { TasksManager } from '../memory/tasks/manager.js';
 import type { Task } from '../memory/tasks/types.js';
 import { PlanRevisionManager } from '../memory/plan-revisions/manager.js';
@@ -306,19 +308,22 @@ async function main(): Promise<void> {
 
   if (isTTY()) {
     // ── TUI 模式 ──────────────────────────────────────
+    initLogger();
+    initDebugEvents({ enabled: process.env.STUDENT_AGENT_DEBUG_UI === '1' });
+    setTuiMode(true);
     const inputQueue = createInputQueue((value) => {
       tui.bridge.addMessage('user', value);
-      tui.bridge.addMessage('system', '当前任务仍在运行，消息已排队。');
+      tui.bridge.setStatus('当前任务仍在运行，消息已排队');
     });
 
     const abortCurrentRun = () => {
       if (!runtime.agent.state.isStreaming) {
-        tui.bridge.addMessage('system', '当前没有运行中的任务。');
+        tui.bridge.setStatus('当前没有运行中的任务');
         return;
       }
       tui.bridge.updateTaskStatus({ state: 'aborting' });
       runtime.session.abort().catch(() => {});
-      tui.bridge.addMessage('system', '已请求中止当前任务。');
+      tui.bridge.setStatus('已请求中止当前任务');
     };
 
     const tui = startTUI({
@@ -373,7 +378,7 @@ async function main(): Promise<void> {
 
           case 'model': {
             if (runtime.agent.state.isStreaming) {
-              tui.bridge.addMessage('system', '当前任务仍在运行，不能切换模型。');
+              tui.bridge.setStatus('当前任务仍在运行，不能切换模型');
               continue;
             }
             let modelLog = '';
@@ -394,16 +399,16 @@ async function main(): Promise<void> {
               runtime.unsubscribe();
               runtime = await createRuntime(await reloadConfig());
               bindRuntimeToTui(runtime, tui.bridge);
-              tui.bridge.addMessage('system', `OK: 模型已切换为 ${runtime.config.model.provider}/${runtime.config.model.name}`);
+              tui.bridge.setStatus(`OK: 模型已切换为 ${runtime.config.model.provider}/${runtime.config.model.name}`);
             } else {
-              tui.bridge.addMessage('system', '已取消。');
+              tui.bridge.setStatus('已取消');
             }
             continue;
           }
 
           case 'setting': {
             if (runtime.agent.state.isStreaming) {
-              tui.bridge.addMessage('system', '当前任务仍在运行，不能修改设置。');
+              tui.bridge.setStatus('当前任务仍在运行，不能修改设置');
               continue;
             }
             // log() 调用的内容累积到 pendingLog，在下一次 prompt() 时拼入问题头部显示
@@ -421,7 +426,7 @@ async function main(): Promise<void> {
             );
             const trimmed = targetAnswer.trim().toLowerCase();
             if (trimmed === 'q' || trimmed === 'quit' || trimmed === 'cancel') {
-              tui.bridge.addMessage('system', '已取消设置。');
+              tui.bridge.setStatus('已取消设置');
               continue;
             }
             const forceEmbedding = trimmed === '2' || trimmed === 'embedding';
@@ -437,7 +442,7 @@ async function main(): Promise<void> {
             runtime.unsubscribe();
             runtime = await createRuntime(await reloadConfig());
             bindRuntimeToTui(runtime, tui.bridge);
-            tui.bridge.addMessage('system', `OK: 已应用设置：${runtime.config.model.provider}/${runtime.config.model.name}`);
+            tui.bridge.setStatus(`OK: 已应用设置：${runtime.config.model.provider}/${runtime.config.model.name}`);
             continue;
           }
 
@@ -446,32 +451,32 @@ async function main(): Promise<void> {
             const activeTask = await tasksMgr.getActive();
             if (command.subcommand === 'status') {
               if (!activeTask) {
-                tui.bridge.addMessage('system', '当前无活跃任务。');
+                tui.bridge.setStatus('当前无活跃任务');
               } else {
                 tui.bridge.addMessage('system', formatTaskStatus(activeTask));
               }
             } else if (command.subcommand === 'rename') {
               if (!activeTask) {
-                tui.bridge.addMessage('system', '当前无活跃任务。');
+                tui.bridge.setStatus('当前无活跃任务');
               } else {
                 await tasksMgr.renameTask(activeTask.id, command.name);
-                tui.bridge.addMessage('system', `已重命名为：${command.name}`);
+                tui.bridge.setStatus(`已重命名为：${command.name}`);
               }
             } else if (command.subcommand === 'cancel') {
               const cancelled = await tasksMgr.cancelActiveTask();
               if (!cancelled) {
-                tui.bridge.addMessage('system', '当前无活跃任务。');
+                tui.bridge.setStatus('当前无活跃任务');
               } else {
                 lastPlanSnapshot = null;
                 tui.bridge.clearTaskStatus();
-                tui.bridge.addMessage('system', `已丢弃当前任务：${cancelled.name}`);
+                tui.bridge.setStatus(`已丢弃当前任务：${cancelled.name}`);
               }
             }
             continue;
           }
 
           case 'candidates':
-            tui.bridge.addMessage('system', '候选查看功能待实现');
+            tui.bridge.setStatus('候选查看功能待实现');
             continue;
 
           case 'init': {
@@ -485,7 +490,7 @@ async function main(): Promise<void> {
               await run('git', ['init']);
               await run('git', ['add', '-A']);
               await run('git', ['commit', '--allow-empty', '-m', 'chore: initial commit by student-agent']);
-              tui.bridge.addMessage('system', 'git 仓库已初始化并创建初始提交，快照回滚已启用。');
+              tui.bridge.setStatus('git 仓库已初始化，快照回滚已启用');
             } catch (e) {
               tui.bridge.addMessage('system', `/init 失败: ${e instanceof Error ? e.message : e}`);
             }
@@ -519,17 +524,16 @@ async function main(): Promise<void> {
             continue;
 
           case 'design':
-            tui.bridge.addMessage('system', '[DesignStudy] 正在处理设计命令…');
+            tui.bridge.setStatus('[DesignStudy] 正在处理设计命令…');
             if (command.subcommand === 'study' || command.subcommand === 'merge') {
-              tui.bridge.addMessage(
-                'system',
-                `[DesignStudy] 风格/审美描述最多等待 ${formatSeconds(runtime.config.designStudy.styleDescriptionTimeoutMs)}；超时会跳过描述，候选仍会保存。`,
+              tui.bridge.setStatus(
+                `[DesignStudy] 风格描述最多等待 ${formatSeconds(runtime.config.designStudy.styleDescriptionTimeoutMs)}`,
               );
             }
             try {
               tui.bridge.addMessage('system', await handleDesignCommand(command, runtime));
               if (command.subcommand === 'use' && command.followUp) {
-                tui.bridge.addMessage('system', '[DesignStudy] 检测到后续任务，已启用风格，开始提交给 agent…');
+                tui.bridge.setStatus('[DesignStudy] 检测到后续任务，已启用风格');
                 await runTuiFollowUpPrompt(runtime, tui.bridge, command.followUp);
               }
             } catch (err) {
@@ -656,7 +660,7 @@ async function main(): Promise<void> {
           markReflectBaseline();
 
           // ── 阶段 0：规划（planning 模式，最多读 3 个文件）──────────
-          tui.bridge.addMessage('system', '[规划中] 正在分析任务并制定执行计划…');
+          tui.bridge.setStatus('[规划中] 正在分析任务并制定执行计划…');
           tui.bridge.updateTaskStatus({
             name: currentTaskDescription,
             phaseIndex: 0,

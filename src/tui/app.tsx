@@ -1,8 +1,9 @@
-import React, { useReducer, useEffect } from 'react';
-import { Box } from 'ink';
-import { AppStateContext, appReducer, initialAppState } from './state.js';
-import { OutputArea } from './components/OutputArea.js';
-import { InputLine } from './components/InputLine.js';
+import React, { useReducer, useEffect } from "react";
+import { Box } from "ink";
+import { AppStateContext, appReducer, initialAppState } from "./state.js";
+import { OutputArea } from "./components/OutputArea.js";
+import { StatusBar } from "./components/StatusBar.js";
+import { InputLine } from "./components/InputLine.js";
 
 interface AppProps {
   onSubmit: (value: string) => void;
@@ -24,6 +25,7 @@ export function App({ onSubmit, onAbort }: AppProps) {
         <Box flexGrow={1} flexDirection="column">
           <OutputArea />
         </Box>
+        <StatusBar />
         <InputLine onSubmit={onSubmit} onAbort={onAbort} />
       </Box>
     </AppStateContext.Provider>
