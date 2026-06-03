@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 
 export interface Message {
+  id: string;
   role: 'user' | 'assistant' | 'tool' | 'system' | 'error';
   content: string;
   timestamp: number;
@@ -10,6 +11,16 @@ export interface TaskStatus {
   name: string;
   phaseIndex: number;
   totalPhases: number;
+  workflowStatus?: string;
+  level?: 0 | 1 | 2 | 3 | 4;
+  goal?: string;
+  acceptanceCriteria?: string[];
+  constraints?: string[];
+  openQuestions?: string[];
+  userPreferences?: string[];
+  verificationSummary?: string[];
+  requiresUserAcceptance?: boolean;
+  requiresVisualReview?: boolean;
   retryCount: number;
   toolCallCount: number;
   elapsedMs: number;
@@ -23,6 +34,14 @@ export interface SettingsPrompt {
 
 export interface AppState {
   messages: Message[];
+  activeAssistantMessageId: string | null;
+  /**
+   * 已"完成"的消息 ID 列表，按完成时间顺序排列（OutputArea 把它喂给 ink <Static>）。
+   * 非 assistant 消息在 ADD_MESSAGE 时立即入列；
+   * assistant 消息在 END_ASSISTANT_MESSAGE 时入列。
+   * 不可被打乱：Static 只递增 commit，乱序会导致重复或丢失。
+   */
+  completedMessageIds: string[];
   taskStatus: TaskStatus | null;
   currentTool: string | null;
   inputValue: string;
@@ -34,7 +53,11 @@ export interface AppState {
 
 export type AppAction =
   | { type: 'ADD_MESSAGE'; message: Message }
-  | { type: 'UPDATE_LAST_MESSAGE'; content: string }
+  | { type: 'UPDATE_ASSISTANT_MESSAGE'; messageId: string; content: string }
+  | { type: 'END_ASSISTANT_MESSAGE'; messageId: string }
+  | { type: 'HIDE_ACTIVE_ASSISTANT'; messageId: string }
+  | { type: 'DISCARD_ACTIVE_ASSISTANT'; messageId: string }
+  | { type: 'COMMIT_ASSISTANT_TO_STATIC'; messageId: string }
   | { type: 'UPDATE_TASK_STATUS'; status: Partial<TaskStatus> }
   | { type: 'CLEAR_TASK_STATUS' }
   | { type: 'SET_CURRENT_TOOL'; name: string | null }
@@ -46,25 +69,71 @@ export type AppAction =
 
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
-    case 'ADD_MESSAGE':
-      return { ...state, messages: [...state.messages, action.message] };
-    case 'UPDATE_LAST_MESSAGE': {
-      const messages = [...state.messages];
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const message = messages[i];
-        if (!message) continue;
-        if (message.role === 'assistant') {
-          messages[i] = {
-            ...message,
-            content: action.content,
-          };
-          return { ...state, messages };
-        }
-        if (message.role === 'user' || message.role === 'tool') {
-          break;
-        }
+    case 'ADD_MESSAGE': {
+      const activeAssistantMessageId =
+        action.message.role === 'assistant'
+          ? action.message.id
+          : state.activeAssistantMessageId;
+      // 非 assistant 消息在添加时即视为"完成"，进入 Static 提交队列；assistant 要等流式结束。
+      const completedMessageIds =
+        action.message.role === 'assistant'
+          ? state.completedMessageIds
+          : [...state.completedMessageIds, action.message.id];
+      return {
+        ...state,
+        activeAssistantMessageId,
+        messages: [...state.messages, action.message],
+        completedMessageIds,
+      };
+    }
+    case 'UPDATE_ASSISTANT_MESSAGE': {
+      if (state.activeAssistantMessageId !== action.messageId) return state;
+      let didChange = false;
+      const messages = state.messages.map((message) => {
+        if (message.id !== action.messageId || message.role !== 'assistant') return message;
+        if (message.content === action.content) return message;
+        didChange = true;
+        return { ...message, content: action.content };
+      });
+      return didChange ? { ...state, messages } : state;
+    }
+    case 'END_ASSISTANT_MESSAGE': {
+      // 兼容旧路径（直接调用，例如测试 / cleanup）：一帧内同时 hide + commit。
+      // 注意：bridge.endAssistantMessage() 默认会拆成 HIDE + 下一帧的 COMMIT 两步，
+      // 避免 ink <Static> append 与动态区收缩同帧发生时的清除错位（鬼影 bug）。
+      if (state.activeAssistantMessageId !== action.messageId) {
+        return state;
       }
-      return { ...state, messages };
+      const completedMessageIds = state.completedMessageIds.includes(action.messageId)
+        ? state.completedMessageIds
+        : [...state.completedMessageIds, action.messageId];
+      return { ...state, activeAssistantMessageId: null, completedMessageIds };
+    }
+    case 'HIDE_ACTIVE_ASSISTANT': {
+      // 第 1 步：把流式消息从动态区移除（active=null），但不入 Static。
+      // 这一帧 ink 只看到"动态区缩短"，可以正确清除上一帧占用的行。
+      if (state.activeAssistantMessageId !== action.messageId) return state;
+      return { ...state, activeAssistantMessageId: null };
+    }
+    case 'DISCARD_ACTIVE_ASSISTANT': {
+      if (state.activeAssistantMessageId !== action.messageId) return state;
+      return {
+        ...state,
+        activeAssistantMessageId: null,
+        messages: state.messages.filter((message) => message.id !== action.messageId),
+        completedMessageIds: state.completedMessageIds.filter((id) => id !== action.messageId),
+      };
+    }
+    case 'COMMIT_ASSISTANT_TO_STATIC': {
+      // 第 2 步（下一帧）：再把消息 append 到 Static。
+      // 此时动态区已稳定在新高度，ink 只 append scrollback，不再触碰动态区，因此不会错位。
+      if (state.completedMessageIds.includes(action.messageId)) return state;
+      // 必须确认该消息确实存在；否则 reducer 不该改变 state（保持引用相等）。
+      if (!state.messages.some((m) => m.id === action.messageId)) return state;
+      return {
+        ...state,
+        completedMessageIds: [...state.completedMessageIds, action.messageId],
+      };
     }
     case 'UPDATE_TASK_STATUS':
       return {
@@ -115,6 +184,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
 export const initialAppState: AppState = {
   messages: [],
+  activeAssistantMessageId: null,
+  completedMessageIds: [],
   taskStatus: null,
   currentTool: null,
   inputValue: '',

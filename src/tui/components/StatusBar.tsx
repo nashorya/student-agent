@@ -14,15 +14,26 @@ export function StatusBar() {
     );
   }
 
-  const { name, phaseIndex, totalPhases, retryCount, toolCallCount, elapsedMs, state: taskState } = taskStatus;
+  const {
+    name,
+    phaseIndex,
+    totalPhases,
+    retryCount,
+    toolCallCount,
+    elapsedMs,
+    workflowStatus,
+    state: taskState,
+  } = taskStatus;
   const elapsed = formatElapsed(elapsedMs);
   const retryText = retryCount > 0 ? ` · 重试:${retryCount}` : '';
   const stateIndicator = getStateIndicator(taskState);
+  const workflowText = workflowStatus ? ` · ${workflowStatus}` : '';
 
   return (
     <Box borderStyle="single" borderColor="gray">
       <Text>
         [{truncate(name, 20)}] Phase {phaseIndex + 1}/{totalPhases}
+        {workflowText}
         <Text color={retryCount > 0 ? 'yellow' : undefined}>{retryText}</Text>
         {' · '}工具:{toolCallCount} · {elapsed} · {stateIndicator}
       </Text>

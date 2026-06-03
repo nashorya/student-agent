@@ -77,6 +77,8 @@ export class EventRenderer {
   private streamBuffer = '';
   private streamLineCount = 0;
   private bridgeFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  private bridgeMessageStarted = false;
+  private pendingAssistantText = '';
 
   constructor(bridge?: TUIBridge) {
     this.bridge = bridge;
@@ -98,6 +100,8 @@ export class EventRenderer {
         this.toolCount = 0;
         this.streamBuffer = '';
         this.streamLineCount = 0;
+        this.bridgeMessageStarted = false;
+        this.pendingAssistantText = '';
         this.startTime = Date.now();
         if (!this.bridge) {
           this.spinner.start(chalk.dim('思考中...'));
@@ -110,6 +114,7 @@ export class EventRenderer {
           this.isStreaming = true;
           this.streamBuffer = '';
           this.streamLineCount = 0;
+          this.bridgeMessageStarted = false;
           // 关键：每条新 assistant 消息都要重置 hasOutput，
           // 否则一个回合内的第二条消息（典型场景 assistant→tool→assistant）
           // 不会触发 bridge.addMessage()，导致 updateLastMessage() 覆盖前一条。
@@ -126,10 +131,6 @@ export class EventRenderer {
         if (!this.isStreaming) break;
         const delta = extractTextDelta(event.assistantMessageEvent);
         if (delta) {
-          if (this.bridge && !this.hasOutput) {
-            // 第一个 text_delta：此时才在 TUI 中创建 assistant 消息
-            this.bridge.addMessage('assistant', '');
-          }
           this.streamBuffer += delta;
           this.hasOutput = true;
           if (this.bridge) {
@@ -143,6 +144,12 @@ export class EventRenderer {
 
       case 'message_end':
         this.flushBridgeBuffer();
+        if (this.bridge) {
+          this.capturePendingAssistantText();
+          if (this.bridgeMessageStarted) {
+            this.bridge.discardAssistantMessage();
+          }
+        }
         if (this.isStreaming && this.hasOutput && !this.bridge) {
           // 清除裸文本输出，用 Markdown 格式化后重绘（仅非 TUI 模式）
           this.reRenderWithMarkdown();
@@ -184,6 +191,15 @@ export class EventRenderer {
 
       case 'agent_end': {
         this.flushBridgeBuffer();
+        if (this.bridge) {
+          this.capturePendingAssistantText();
+          if (this.isStreaming && this.bridgeMessageStarted) {
+            this.bridge.discardAssistantMessage();
+          }
+          this.commitPendingAssistantText();
+        } else if (this.isStreaming && this.bridgeMessageStarted) {
+          // Non-TUI rendering writes directly to stdout and does not use bridge commits.
+        }
         if (this.bridge) {
           this.bridge.setCurrentTool(null);
           this.bridge.updateTaskStatus({ state: 'idle' });
@@ -266,6 +282,13 @@ export class EventRenderer {
   /** 停止 spinner（用于 REPL 退出时的清理）。 */
   cleanup(): void {
     this.flushBridgeBuffer();
+    if (this.bridge) {
+      this.capturePendingAssistantText();
+      if (this.isStreaming && this.bridgeMessageStarted) this.bridge.discardAssistantMessage();
+      this.commitPendingAssistantText();
+    } else if (this.isStreaming && this.bridgeMessageStarted) {
+      // Non-TUI rendering writes directly to stdout and does not use bridge commits.
+    }
     this.spinner.stop();
   }
 
@@ -283,7 +306,27 @@ export class EventRenderer {
       clearTimeout(this.bridgeFlushTimer);
       this.bridgeFlushTimer = null;
     }
-    this.bridge.updateLastMessage(stripPhaseSignals(this.streamBuffer));
+    const visible = stripPhaseSignals(this.streamBuffer);
+    if (!visible && !this.bridgeMessageStarted) return;
+    if (!this.bridgeMessageStarted) {
+      this.bridge.addMessage('assistant', '');
+      this.bridgeMessageStarted = true;
+    }
+    this.bridge.updateLastMessage(visible);
+  }
+
+  private capturePendingAssistantText(): void {
+    if (!this.bridge || !this.hasOutput) return;
+    const visible = stripPhaseSignals(this.streamBuffer);
+    if (visible) this.pendingAssistantText = visible;
+  }
+
+  private commitPendingAssistantText(): void {
+    if (!this.bridge || !this.pendingAssistantText) return;
+    const content = this.pendingAssistantText;
+    this.pendingAssistantText = '';
+    this.bridge.addMessage('assistant', content);
+    this.bridge.endAssistantMessage();
   }
 }
 

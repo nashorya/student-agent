@@ -274,6 +274,8 @@ describe('EventRenderer TUI 多消息回合', () => {
       dispatch: vi.fn(),
       addMessage: vi.fn(),
       updateLastMessage: vi.fn(),
+      endAssistantMessage: vi.fn(),
+      discardAssistantMessage: vi.fn(),
       updateTaskStatus: vi.fn(),
       clearTaskStatus: vi.fn(),
       setCurrentTool: vi.fn(),
@@ -293,7 +295,7 @@ describe('EventRenderer TUI 多消息回合', () => {
     } as unknown as AgentEvent;
   }
 
-  it('assistant→tool→assistant 序列下，每条 assistant 消息都独立添加而非互相覆盖', async () => {
+  it('TUI 中只提交最后一段 assistant 回复，丢弃工具间碎碎念', async () => {
     const bridge = createFakeBridge();
     const renderer = new EventRenderer(bridge);
 
@@ -326,18 +328,34 @@ describe('EventRenderer TUI 多消息回合', () => {
     renderer.handleEvent({ type: 'message_end' } as unknown as AgentEvent);
     renderer.handleEvent({ type: 'agent_end' } as unknown as AgentEvent);
 
-    // 关键断言：addMessage 必须被调用两次（每条 assistant 消息一次），
-    // 而不是只调一次然后 updateLastMessage 把 A 改写成 B。
     const addAssistantCalls = bridge.addMessage.mock.calls.filter(
-      ([role]) => role === 'assistant',
+      ([role, content]) => role === 'assistant' && content !== '',
     );
-    expect(addAssistantCalls).toHaveLength(2);
+    expect(addAssistantCalls).toEqual([['assistant', 'B']]);
 
-    // updateLastMessage 应该分别看到 'A' 和 'B'，
-    // 而不是一次性看到 'AB'（说明 buffer 被正确重置过）。
     const lastUpdates = bridge.updateLastMessage.mock.calls.map(([content]) => content);
     expect(lastUpdates).toContain('A');
     expect(lastUpdates).toContain('B');
     expect(lastUpdates).not.toContain('AB');
+    expect(bridge.discardAssistantMessage).toHaveBeenCalledTimes(2);
+    expect(bridge.endAssistantMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('TUI 中不会为纯 TASK_START 协议信号创建空 assistant 消息', () => {
+    const bridge = createFakeBridge();
+    const renderer = new EventRenderer(bridge);
+
+    renderer.handleEvent({ type: 'agent_start' } as unknown as AgentEvent);
+    renderer.handleEvent({
+      type: 'message_start',
+      message: { role: 'assistant' },
+    } as unknown as AgentEvent);
+    renderer.handleEvent(textDeltaEvent(`[TASK_START name="修复渲染"]\nPhase 1: 定位\n`));
+    renderer.handleEvent(textDeltaEvent('[/TASK_START]'));
+    renderer.handleEvent({ type: 'message_end' } as unknown as AgentEvent);
+
+    expect(bridge.addMessage).not.toHaveBeenCalledWith('assistant', expect.anything());
+    expect(bridge.updateLastMessage).not.toHaveBeenCalled();
+    expect(bridge.endAssistantMessage).not.toHaveBeenCalled();
   });
 });

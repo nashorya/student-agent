@@ -155,13 +155,7 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
           </Box>
         )}
         {!settingsPrompt && showStatus && (
-          <Box>
-            <Text dimColor>
-              {truncate(taskStatus.name, 20)} · Phase {taskStatus.phaseIndex + 1}/{taskStatus.totalPhases}
-              {taskStatus.retryCount > 0 ? ` · 重试:${taskStatus.retryCount}` : ''}
-              {' · '}工具:{taskStatus.toolCallCount} · {formatElapsed(taskStatus.elapsedMs)} · {getStateText(taskStatus.state)}
-            </Text>
-          </Box>
+          <TaskStatusPanel taskStatus={taskStatus} />
         )}
         {!settingsPrompt && currentTool && (
           <Box>
@@ -175,6 +169,52 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
       </Box>
     </Box>
   );
+}
+
+function TaskStatusPanel({ taskStatus }: { taskStatus: NonNullable<ReturnType<typeof useAppState>['state']['taskStatus']> }) {
+  const reviewText = taskStatus.requiresVisualReview || taskStatus.requiresUserAcceptance
+    ? ` · review:${taskStatus.requiresVisualReview ? 'visual' : ''}${taskStatus.requiresUserAcceptance ? '+user' : ''}`
+    : '';
+  const levelText = taskStatus.level !== undefined ? ` · L${taskStatus.level}` : '';
+  const workflowText = taskStatus.workflowStatus ? ` · ${taskStatus.workflowStatus}` : '';
+  const details = buildTaskDetailLines(taskStatus);
+
+  return (
+    <Box flexDirection="column">
+      <Box>
+        <Text dimColor>
+          {truncate(taskStatus.name, 20)} · Phase {taskStatus.phaseIndex + 1}/{taskStatus.totalPhases}
+          {workflowText}{levelText}{reviewText}
+          {taskStatus.retryCount > 0 ? ` · 重试:${taskStatus.retryCount}` : ''}
+          {' · '}工具:{taskStatus.toolCallCount} · {formatElapsed(taskStatus.elapsedMs)} · {getStateText(taskStatus.state)}
+        </Text>
+      </Box>
+      {details.map((line) => (
+        <Box key={line}>
+          <Text dimColor>{line}</Text>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function buildTaskDetailLines(taskStatus: NonNullable<ReturnType<typeof useAppState>['state']['taskStatus']>): string[] {
+  if ((taskStatus.level ?? 0) < 2) return [];
+  const lines: string[] = [];
+  if (taskStatus.goal) lines.push(`Goal: ${truncate(taskStatus.goal, 60)}`);
+  if (taskStatus.acceptanceCriteria?.length) {
+    lines.push(`Acceptance: ${truncate(taskStatus.acceptanceCriteria.join(' | '), 60)}`);
+  }
+  if (taskStatus.constraints?.length) {
+    lines.push(`Constraints: ${truncate(taskStatus.constraints.join(' | '), 60)}`);
+  }
+  if (taskStatus.openQuestions?.length) {
+    lines.push(`Open: ${truncate(taskStatus.openQuestions.join(' | '), 60)}`);
+  }
+  if (taskStatus.verificationSummary?.length) {
+    lines.push(`Verification: ${truncate(taskStatus.verificationSummary.slice(-2).join(' | '), 60)}`);
+  }
+  return lines.slice(0, 4);
 }
 
 function InputText({ value, cursor }: { value: string; cursor: number }) {
