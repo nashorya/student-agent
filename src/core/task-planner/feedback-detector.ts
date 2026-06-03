@@ -3,22 +3,11 @@ export interface FeedbackSignal {
   extractedText: string;
 }
 
-const NEGATIVE_PATTERNS = [
-  /还是(不行|不对|这[个样]?样子|没变|错的|有问题)/,
-  /没有?效果/,
-  /没用/,
-  /不对[，,。]?/,
-  /改了但没?变/,
-  /这不是我想要的/,
-  /不是这个意思/,
-  /看起来(还是|仍然)(不对|有问题)/,
-  /还是(原来的|旧的|之前的)/,
-  /(报错|错误|异常|失败|崩了|打不开)/,
-  /Failed to load/i,
-  /net::ERR_[A-Z_]+/,
-];
+import { getLocale } from '../i18n/messages.js';
+import { NEGATIVE_PATTERNS_BY_LOCALE } from '../i18n/patterns.js';
 
 export function detectNegativeFeedback(input: string): FeedbackSignal {
-  const isNegative = NEGATIVE_PATTERNS.some((re) => re.test(input));
+  const patterns = NEGATIVE_PATTERNS_BY_LOCALE[getLocale()] ?? NEGATIVE_PATTERNS_BY_LOCALE['zh-CN'];
+  const isNegative = patterns.some((re) => re.test(input));
   return { isNegative, extractedText: input };
 }

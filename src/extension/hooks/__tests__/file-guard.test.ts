@@ -30,6 +30,19 @@ describe('file guard', () => {
     expect(abort).not.toHaveBeenCalled();
   });
 
+  it('allows the documented pi-mono coding-agent README exception', async () => {
+    const guard = createFileGuardHook({ abort: vi.fn() });
+
+    await expect(guard.hook(makeContext('read_file', {
+      path: 'pi-mono/packages/coding-agent/README.md',
+    }))).resolves.toBeUndefined();
+
+    const blocked = await guard.hook(makeContext('read_file', {
+      path: 'pi-mono/packages/coding-agent/src/core/tools/edit.ts',
+    }));
+    expect(blocked).toMatchObject({ block: true });
+  });
+
   it('uses configured planning and normal read limits', async () => {
     const guard = createFileGuardHook(
       { abort: vi.fn() },

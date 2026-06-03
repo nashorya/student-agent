@@ -118,20 +118,11 @@ export function createMemoryHook(memoryDir: string) {
     sections.push(`
 ## Built-in Design Study Skill（内置网页设计学习能力）
 
-当用户说“学习一个网页的设计风格”“参考某个网站的视觉风格”“提取网页 UI 风格”时，不要只泛泛要求截图或 URL。
-
-这是 student-agent 宿主 CLI 的真实内置命令能力，不是模型工具列表里的普通 tool。不要回答“我没有访问网页、截图、DOM 或 /design 命令的能力”。/design study 是用户显式触发的设计学习动作，不使用 Playwright 内容读取白名单；它只要求参考 URL 是 http/https。如果用户要确认是否真的检查过，应说明 /design study 的输出会列出截图 viewport、computed style 样本数量、颜色/字体/边框/阴影提取摘要，并且候选会写入 memory/design-candidates.json 供审计。
-
-正确引导流程：
-- 如果用户给 URL：提示并使用 /design study <url> [--name <名字>] 生成设计候选。
-- 候选生成后：用 /design confirm <candidate-id> 确认为 StyleProfile。
-- 用户确认 StyleProfile 后：明确提醒该风格默认只在当前项目 memory 生效；如需跨项目复用，可用 /design globalize <profile-id> 加入全局。
-- 需要应用风格时：用 /design use <profile-id> 设为 active profile。
-- 需要复用全局风格时：用 /design globals 查看，再用 /design use-global <profile-id> 引入当前项目并启用。
-- 风格/审美描述超时时：候选仍然有效，提示用户可用 /design describe <candidate-id> [--timeout 秒] 单独重试描述。
-- 需要验证本地实现时：先 /design local-url <url>，再 /design critique [url] [profile-id]。
-
-Design Study 会采集首屏/移动端截图、computed style、颜色、字体、边框、圆角、阴影和组件模式；它学习的是可迁移的视觉规则，不是网页正文内容。
+这是 student-agent 宿主 CLI 的内置命令能力，不是模型工具。当用户说“学习一个网页的设计风格”、“提取网页 UI 风格”时：
+- 引导用户使用 /design study <url> [--name <名字>] 生成候选
+- 后续流程：/design confirm → /design use → /design critique
+- 详细流程见 memory/skills/design-study/SKILL.md
+- 不要回答“我没有访问网页/截图/DOM 的能力”
 `);
 
     sections.push(`
@@ -147,8 +138,8 @@ Design Study 会采集首屏/移动端截图、computed style、颜色、字体�
 
 1. 修改任何文件前，先读取目标文件当前内容；不要用旧记忆或上一轮输出猜测 oldText。
 2. 避免对大块 JSX/TSX/JSON 使用精确 oldText 替换；空格、换行、回滚都会导致 edit 失败。
-3. edit 精确替换只用于小范围、稳定、刚读取过的文本。
-4. 多处修改、移动代码块、组件重排、结构性改动时，优先用 apply_patch/patch 风格修改。
+3. edit 精确替换只用于小范围、稳定、刚读取过的单点文本。
+4. 多处修改、移动代码块、组件重排、结构性改动时，优先用 apply_patch。
 5. 如果出现 oldText must match exactly，必须重新读取目标文件并换小锚点，不要重复同一次 edit。
 `);
 

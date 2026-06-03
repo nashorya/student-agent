@@ -157,15 +157,15 @@ describe('failure escalation', () => {
     ctx.initTask('读取项目文件', process.cwd());
     const hook = ctx.createHook();
     const ordinaryToolError: PostToolCallContext = {
-      toolName: 'apply_patch',
-      toolCallId: 'tool_patch',
-      args: { patch: 'bad patch' },
+      toolName: 'write',
+      toolCallId: 'tool_write',
+      args: { path: 'src/output.ts', content: 'bad content' },
       isError: true,
-      resultText: 'patch failed',
+      resultText: 'write failed',
     };
 
     await hook(ordinaryToolError);
-    const decision = await hook({ ...ordinaryToolError, toolCallId: 'tool_patch_2', resultText: 'patch failed again' });
+    const decision = await hook({ ...ordinaryToolError, toolCallId: 'tool_write_2', resultText: 'write failed again' });
 
     expect(query).not.toHaveBeenCalled();
     expect(decision?.overrideContent).toContain('这是工具操作问题，不触发 Context7 文档检索');
@@ -209,6 +209,7 @@ describe('failure escalation', () => {
     expect(decision?.overrideContent).toContain('跳过 Context7');
     expect(decision?.overrideContent).toContain('先重新读取 src/pages/home/index.tsx');
     expect(decision?.overrideContent).toContain('不要再次提交同一段 oldText');
+    expect(decision?.overrideContent).toContain('改用 apply_patch');
   });
 
   it('第一次失败时显示回滚成功结果', async () => {

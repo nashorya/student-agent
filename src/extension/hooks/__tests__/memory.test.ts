@@ -50,7 +50,7 @@ describe('createMemoryHook plan revisions', () => {
 
     expect(prompt).toContain('Built-in Design Study Skill');
     expect(prompt).toContain('/design study <url>');
-    expect(prompt).toContain('/design confirm <candidate-id>');
+    expect(prompt).toContain('/design confirm');
     expect(prompt).toContain('/design critique');
   });
 
@@ -59,7 +59,8 @@ describe('createMemoryHook plan revisions', () => {
 
     expect(prompt).toContain('文件修改规则');
     expect(prompt).toContain('oldText must match exactly');
-    expect(prompt).toContain('优先用 apply_patch/patch 风格修改');
+    expect(prompt).toContain('优先用 apply_patch');
+    expect(prompt).toContain('edit 精确替换只用于小范围');
   });
 
   it('does not inject task phase control markers globally', async () => {

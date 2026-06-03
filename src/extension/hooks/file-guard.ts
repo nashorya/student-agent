@@ -6,7 +6,7 @@
  *   normal    执行阶段：read 上限 15 次，连续 block 会持续给出软拒绝
  *
  * 拦截规则：
- *   1. 任何工具访问 pi-mono/ → block
+ *   1. 除 coding-agent README 外，任何工具访问 pi-mono/ → block
  *   2. 列举类工具（ls/glob/find）目标为项目根目录 → block
  *   3. Glob 模式以 ** 开头且无具体目录前缀 → block
  *   4. read 调用超过当前模式限制 → block
@@ -30,6 +30,8 @@ const LISTING_TOOLS = new Set(['ls', 'list', 'list_directory', 'glob', 'find']);
 const READ_TOOLS    = new Set(['read', 'read_file', 'cat']);
 const ROOT_PATH_RE  = /^(?:\.\/?)?\s*$|^\/$/;
 const BROAD_GLOB_RE = /(?:^|["'\s])(?:\.\/)?(?:\*\*[/\\]|\*\.)/;
+const PI_MONO_PATH_RE = /(?:^|["'\s:{,[/\\])pi-mono(?:[/\\]|$)/;
+const ALLOWED_PI_MONO_README_RE = /(?:^|["'\s:{,[/\\])pi-mono[/\\]packages[/\\]coding-agent[/\\]README\.md(?:["'\s,}\]]|$)/;
 
 export interface FileGuard {
   hook: (ctx: PreToolCallContext) => Promise<PreToolCallDecision | undefined>;
@@ -60,8 +62,8 @@ export function createFileGuardHook(_abortRef: { abort: () => void }, options: F
 
     const maxReads = mode === 'planning' ? limits.planningMaxReads : limits.normalMaxReads;
 
-    // 规则 1：禁止访问 pi-mono/
-    if (/(?:^|[/\\])pi-mono(?:[/\\]|$)/.test(argsText)) {
+    // 规则 1：禁止访问 pi-mono/，但允许查阅 coding-agent README。
+    if (PI_MONO_PATH_RE.test(argsText) && !ALLOWED_PI_MONO_README_RE.test(argsText)) {
       return block(
         '[FileGuard] pi-mono/ 是只读参考包，不要直接读取其文件。' +
         '通过 import 使用其导出 API，如需了解能力请查阅 pi-mono/packages/coding-agent/README.md。',

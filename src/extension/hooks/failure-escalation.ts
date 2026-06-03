@@ -17,6 +17,7 @@ import { QuestionsManager } from '../../memory/questions/manager.js';
 import type { Question } from '../../memory/questions/types.js';
 import { getProjectMemoryDir } from '../../core/paths.js';
 import { toolMayMutate } from './snapshot.js';
+import { t } from '../../core/i18n/messages.js';
 
 // 这些工具的失败通常是探测未命中，不应触发失败升级。
 const READONLY_TOOLS = new Set([
@@ -238,10 +239,15 @@ export class FailureEscalationContext {
       id: `q_${Date.now()}`,
       error_type: classified.category,
       error_subtype: classified.subtype,
-      context: `任务「${this.taskDescription}」三次自动恢复失败（${classified.category}/${classified.subtype}）。${classified.message}`,
+      context: t('escalation.question_context', {
+        taskDescription: this.taskDescription,
+        category: classified.category,
+        subtype: classified.subtype,
+        message: classified.message,
+      }),
       attempts: this.attempts.map((a) => ({
         strategy: a.strategy,
-        result: '失败' as const,
+        result: t('escalation.attempt_result') as '失败',
         reason: a.reason,
       })),
       status: 'unverified',
@@ -314,9 +320,9 @@ function isReadOnlyProbeFailure(ctx: PostToolCallContext): boolean {
 function buildReadOnlyProbeResult(ctx: PostToolCallContext): string {
   const command = extractCommand(ctx.args);
   return [
-    '只读探测未命中，不作为工具故障处理。',
+    t('probe.miss'),
     command ? `命令：${command}` : '',
-    '请根据这个结果继续缩小路径、关键词或检查候选文件是否存在；不要触发回滚或重新规划。',
+    t('probe.guidance'),
   ].filter(Boolean).join('\n');
 }
 
@@ -406,15 +412,15 @@ function buildRecoveryInstructions(
 
   switch (rollback.state) {
     case 'success':
-      lines.push(`恢复动作：已自动回滚到工具调用前的状态（snapshot: ${rollback.snapshotId}）。`);
+      lines.push(t('recovery.success', { snapshotId: rollback.snapshotId }));
       lines.push('');
       break;
     case 'failed':
-      lines.push(`恢复动作：自动回滚失败（snapshot: ${rollback.snapshotId}）：${rollback.reason}`);
+      lines.push(t('recovery.failed', { snapshotId: rollback.snapshotId, reason: rollback.reason }));
       lines.push('');
       break;
     case 'unavailable':
-      lines.push('恢复动作：没有可用快照，未执行自动回滚。');
+      lines.push(t('recovery.unavailable'));
       lines.push('');
       break;
   }
@@ -422,29 +428,24 @@ function buildRecoveryInstructions(
   switch (classified.category) {
     case 'tool':
       if (classified.subtype === 'edit-exact-text-mismatch') {
-        lines.push('建议：不要重复使用同一段 oldText。');
-        lines.push('必须先重新读取目标文件当前内容，再用更小范围的精确替换或 apply_patch 修改。');
+        lines.push(t('recovery.advice.edit'));
       } else if (classified.subtype === 'write-parent-missing') {
-        lines.push('建议：目标路径的父目录不存在。');
-        lines.push('先创建父目录或改用已存在路径，再重新执行写入。');
+        lines.push(t('recovery.advice.write'));
       } else {
-        lines.push('建议：尝试用不同的参数或方法重新执行。');
-        lines.push('如果是文件操作，请检查路径是否存在。');
+        lines.push(t('recovery.advice.generic'));
       }
       break;
     case 'model':
-      lines.push('建议：将当前步骤拆分为更小的子步骤。');
-      lines.push('避免一次性输出过多内容。');
+      lines.push(t('recovery.advice.model'));
       break;
     case 'environment':
-      lines.push('建议：检查网络连接和 API 凭据。');
-      lines.push('可以尝试使用备用方案。');
+      lines.push(t('recovery.advice.env'));
       break;
     case 'user_input':
-      lines.push('建议：向用户请求澄清。');
+      lines.push(t('recovery.advice.user_input'));
       break;
     case 'state_conflict':
-      lines.push('建议：检查是否有并发操作修改同一文件。');
+      lines.push(t('recovery.advice.conflict'));
       break;
   }
 
@@ -482,7 +483,7 @@ function buildEditMismatchRecovery(
       ? `1. 先重新读取 ${targetPath} 的当前内容，确认真实上下文。`
       : '1. 先重新读取目标文件当前内容，确认真实上下文。',
     '2. 不要再次提交同一段 oldText。',
-    '3. 优先使用更小的锚点替换；如果要改大块结构，改用 apply_patch 或按当前文件内容重构 patch。',
+    '3. 单点小改可以换更小的 edit 锚点；如果要改大块结构或多处位置，改用 apply_patch。',
     '4. 修改后再继续当前 Phase，不要重新规划整个任务。',
   ].filter(Boolean).join('\n');
 }
