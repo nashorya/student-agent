@@ -15,6 +15,19 @@ import {
 } from '@mariozechner/pi-coding-agent';
 import type { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import type { Api, Model } from '@mariozechner/pi-ai';
+import { createApplyPatchToolDefinition } from './apply-patch-tool.js';
+import { createStudentBashToolDefinition } from './bash-timeout-tool.js';
+import {
+  createStudentGlobToolDefinition,
+  createStudentListFilesToolDefinition,
+  createStudentReadManyToolDefinition,
+  createStudentSearchFilesToolDefinition,
+} from './student-discovery-tools.js';
+import {
+  createStudentEditToolDefinition,
+  createStudentReadToolDefinition,
+  createStudentWriteToolDefinition,
+} from './student-file-tools.js';
 import {
   toPreToolCallContext,
   toPostToolCallContext,
@@ -85,11 +98,25 @@ export async function createStudentSession(
 ): Promise<CreateStudentSessionResult> {
   const { cwd = process.cwd(), model, hooks, llm, apiKey, piOptions = {} } = options;
 
+  const customTools: CreateAgentSessionOptions['customTools'] = [
+    ...(piOptions.customTools ?? []),
+    createStudentListFilesToolDefinition(cwd),
+    createStudentGlobToolDefinition(cwd),
+    createStudentSearchFilesToolDefinition(cwd),
+    createStudentReadManyToolDefinition(cwd),
+    createStudentBashToolDefinition(cwd),
+    createStudentReadToolDefinition(cwd),
+    createStudentEditToolDefinition(cwd),
+    createStudentWriteToolDefinition(cwd),
+    createApplyPatchToolDefinition(cwd),
+  ] as CreateAgentSessionOptions['customTools'];
+
   const agentOptions: CreateAgentSessionOptions = {
     cwd,
     model,
     sessionManager: piOptions.sessionManager ?? SessionManager.inMemory(),
     ...piOptions,
+    customTools,
   };
 
   if (hooks.buildMemoryPrompt) {
