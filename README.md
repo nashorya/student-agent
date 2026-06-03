@@ -76,6 +76,10 @@ student-agent
 
 Runtime behavior can be tuned via `.env` or `.student-agent.json`. Key feature flags:
 
+| Setting | Default | Description |
+|---|---|---|
+| `STUDENT_AGENT_EXECUTION_MODE` | `yolo` | `yolo` skips confirmation gates and auto-runs phases; `safe` keeps explicit confirmations |
+
 | Flag | Default | Description |
 |---|---|---|
 | `STUDENT_AGENT_FEATURE_CONTEXT7` | `true` | Library documentation lookup |
@@ -84,7 +88,7 @@ Runtime behavior can be tuned via `.env` or `.student-agent.json`. Key feature f
 | `STUDENT_AGENT_FEATURE_BOUNDED_BREAKER` | `true` | Pattern generalization with confidence scoring |
 | `STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG` | `true` | Passive quality degradation detection |
 | `STUDENT_AGENT_FEATURE_SUB_AGENTS` | `false` | Concurrent sub-agent orchestration |
-| `STUDENT_AGENT_FEATURE_RISK_GUARD` | `true` | Confirmation gate for high-risk tool calls |
+| `STUDENT_AGENT_FEATURE_RISK_GUARD` | `true` | Confirmation gate for high-risk tool calls in `safe` mode |
 
 If Playwright browsers are not installed yet:
 

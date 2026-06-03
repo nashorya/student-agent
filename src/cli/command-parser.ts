@@ -7,6 +7,7 @@ export type SlashCommand =
   | { type: 'quit' }
   | { type: 'help' }
   | { type: 'status' }
+  | { type: 'abort' }
   | { type: 'setting' }
   | { type: 'model' }
   | { type: 'clear' }
@@ -19,6 +20,7 @@ export type SlashCommand =
   | { type: 'plan'; subcommand: 'revisions'; query: string }
   | { type: 'task'; subcommand: 'rename'; name: string }
   | { type: 'task'; subcommand: 'status' }
+  | { type: 'task'; subcommand: 'cancel' }
   | { type: 'design'; subcommand: 'study'; url: string; name?: string; mode?: 'screenshot' }
   | { type: 'design'; subcommand: 'confirm'; candidateId: string; name?: string }
   | { type: 'design'; subcommand: 'use'; profileId: string; followUp?: string }
@@ -39,6 +41,7 @@ export const COMMANDS = [
   '/exit',
   '/q',
   '/status',
+  '/abort',
   '/setting',
   '/model',
   '/clear',
@@ -65,6 +68,7 @@ export const COMMAND_COMPLETIONS = [
   '/plan revisions ',
   '/task status',
   '/task rename ',
+  '/task cancel',
   '/design study ',
   '/design study <url> --name ',
   '/design study <url> --screenshot',
@@ -106,6 +110,11 @@ export function parseCommand(input: string): SlashCommand | null {
 
     case 'status':
       return { type: 'status' };
+
+    case 'abort':
+    case 'stop':
+    case 'cancel':
+      return { type: 'abort' };
 
     case 'setting':
     case 'settings':
@@ -160,6 +169,9 @@ export function parseCommand(input: string): SlashCommand | null {
       if (args[0] === 'rename' && args.length >= 2) {
         return { type: 'task', subcommand: 'rename', name: args.slice(1).join(' ') };
       }
+      if (args[0] === 'cancel' || args[0] === 'clear') {
+        return { type: 'task', subcommand: 'cancel' };
+      }
       return { type: 'task', subcommand: 'status' };
     }
 
@@ -181,6 +193,7 @@ export function getHelpText(): string {
     '    /help, /h, /?         显示此帮助',
     '    /quit, /exit, /q      退出',
     '    /status               显示当前状态',
+    '    /abort                中止当前运行中的任务（TUI 中也可按 Esc）',
     '    /setting              重新配置 Provider / API Key',
     '    /model                快速切换模型（保持其他设置不变）',
     '    /clear                清空屏幕',
@@ -193,6 +206,7 @@ export function getHelpText(): string {
     '    /plan revisions [关键词]    查看计划修订记忆',
     '    /task                 查看当前任务状态',
     '    /task rename <名字>   重命名当前任务',
+    '    /task cancel          丢弃当前活跃任务',
     '    /design study <url> [--name <名字>] [--screenshot]  学习参考网页视觉风格（--screenshot 使用像素色彩分析）',
     '    /design confirm <candidate-id> [--name <名字>]  确认设计候选为 Profile',
     '    /design use <profile-id>             使用指定 StyleProfile',

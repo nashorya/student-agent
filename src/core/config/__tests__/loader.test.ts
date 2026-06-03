@@ -26,6 +26,7 @@ describe('student agent config loader', () => {
     expect(config.features.designStudy).toBe(true);
     expect(config.features.subAgents).toBe(false);
     expect(config.features.riskGuard).toBe(true);
+    expect(config.executionMode).toBe('yolo');
     expect(config.context7.timeoutMs).toBe(10_000);
     expect(config.llm.requestTimeoutMs).toBe(300_000);
     expect(config.fileGuard).toEqual({
@@ -42,6 +43,7 @@ describe('student agent config loader', () => {
       model: {
         name: 'claude-sonnet-4-7',
       },
+      executionMode: 'safe',
       features: {
         context7: false,
         playwright: true,
@@ -75,6 +77,7 @@ describe('student agent config loader', () => {
     });
 
     expect(config.model.name).toBe('claude-sonnet-4-7');
+    expect(config.executionMode).toBe('safe');
     expect(config.features.context7).toBe(false);
     expect(config.features.playwright).toBe(true);
     expect(config.features.designStudy).toBe(true);
@@ -126,6 +129,7 @@ describe('student agent config loader', () => {
       cwd: tmpDir,
       env: {
         STUDENT_AGENT_MODEL: 'claude-opus-4-1',
+        STUDENT_AGENT_EXECUTION_MODE: 'safe',
         STUDENT_AGENT_FEATURE_CONTEXT7: 'true',
         STUDENT_AGENT_FEATURE_DESIGN_STUDY: 'true',
         STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG: 'true',
@@ -148,6 +152,7 @@ describe('student agent config loader', () => {
     });
 
     expect(config.model.name).toBe('claude-opus-4-1');
+    expect(config.executionMode).toBe('safe');
     expect(config.features.context7).toBe(true);
     expect(config.features.designStudy).toBe(true);
     expect(config.features.qualityWatchdog).toBe(true);
@@ -221,6 +226,7 @@ describe('student agent config loader', () => {
     );
 
     expect(config.features.context7).toBe(false);
+    expect(config.executionMode).toBe('yolo');
     expect(config.features.boundedBreaker).toBe(true);
     expect(config.features.riskGuard).toBe(true);
     expect(config.playwright.renderWaitMs).toBe(500);

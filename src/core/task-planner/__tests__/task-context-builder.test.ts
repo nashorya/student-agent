@@ -12,6 +12,23 @@ const makeTask = (overrides: Partial<Task> = {}): Task => ({
       feedbacks: ['颜色还是不对', '微信里还是灰色'], created_at: '' },
   ],
   status: 'active',
+  workflow_status: 'executing',
+  level: 3,
+  working_memory: {
+    goal: '让首页颜色更清晰',
+    acceptance_criteria: ['颜色符合设计'],
+    constraints: ['不改路由'],
+    user_preferences: [],
+    project_facts: [],
+    open_questions: [],
+    decisions: [],
+    design_feedback: [],
+    verification_results: ['build passed'],
+    changed_files: ['src/App.tsx'],
+  },
+  requires_user_acceptance: true,
+  requires_visual_review: true,
+  verification_results: [],
   created_at: '',
   ...overrides,
 });
@@ -32,6 +49,14 @@ describe('buildTaskContextPrefix', () => {
   it('includes previous feedbacks', () => {
     const prefix = buildTaskContextPrefix(makeTask());
     expect(prefix).toContain('颜色还是不对');
+  });
+
+  it('includes working memory and workflow status', () => {
+    const prefix = buildTaskContextPrefix(makeTask());
+    expect(prefix).toContain('[工作流状态] executing');
+    expect(prefix).toContain('[目标] 让首页颜色更清晰');
+    expect(prefix).toContain('颜色符合设计');
+    expect(prefix).toContain('build passed');
   });
 
   it('returns empty string when task is null', () => {

@@ -1,7 +1,9 @@
 export type StudentAgentProvider = string;
+export type StudentAgentExecutionMode = 'safe' | 'yolo';
 
 export interface StudentAgentConfig {
   envFile: string;
+  executionMode: StudentAgentExecutionMode;
   model: {
     provider: StudentAgentProvider;
     name: string;
@@ -65,6 +67,7 @@ export interface StudentAgentModelInput {
 
 export type StudentAgentConfigInput = Partial<{
   envFile: string;
+  executionMode: StudentAgentExecutionMode;
   model: StudentAgentModelInput;
   llm: Partial<StudentAgentConfig['llm']>;
   features: Partial<StudentAgentConfig['features']>;
@@ -78,6 +81,7 @@ export type StudentAgentConfigInput = Partial<{
 
 export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
   envFile: '.env',
+  executionMode: 'yolo',
   model: {
     provider: 'anthropic',
     name: 'claude-sonnet-4-6',

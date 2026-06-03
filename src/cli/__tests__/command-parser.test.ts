@@ -25,6 +25,12 @@ describe('parseCommand', () => {
     expect(parseCommand('/status')).toEqual({ type: 'status' });
   });
 
+  it('解析 abort 命令及别名', () => {
+    expect(parseCommand('/abort')).toEqual({ type: 'abort' });
+    expect(parseCommand('/stop')).toEqual({ type: 'abort' });
+    expect(parseCommand('/cancel')).toEqual({ type: 'abort' });
+  });
+
   it('解析 setting 命令及别名', () => {
     expect(parseCommand('/setting')).toEqual({ type: 'setting' });
     expect(parseCommand('/settings')).toEqual({ type: 'setting' });
@@ -116,6 +122,14 @@ describe('parseCommand', () => {
       type: 'task',
       subcommand: 'rename',
       name: '多个 词 的 名字',
+    });
+    expect(parseCommand('/task cancel')).toEqual({
+      type: 'task',
+      subcommand: 'cancel',
+    });
+    expect(parseCommand('/task clear')).toEqual({
+      type: 'task',
+      subcommand: 'cancel',
     });
   });
 
@@ -210,6 +224,7 @@ describe('getHelpText', () => {
     expect(help).toContain('/help');
     expect(help).toContain('/quit');
     expect(help).toContain('/status');
+    expect(help).toContain('/abort');
     expect(help).toContain('/setting');
     expect(help).toContain('/clear');
     expect(help).toContain('/candidates');
@@ -218,6 +233,7 @@ describe('getHelpText', () => {
     expect(help).toContain('/why');
     expect(help).toContain('/plan');
     expect(help).toContain('/task');
+    expect(help).toContain('/task cancel');
     expect(help).toContain('/design');
   });
 });

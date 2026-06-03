@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   DEFAULT_STUDENT_AGENT_CONFIG,
+  type StudentAgentExecutionMode,
   type StudentAgentConfig,
   type StudentAgentConfigInput,
   type StudentAgentProvider,
@@ -44,6 +45,7 @@ export function mergeConfig(
 ): StudentAgentConfig {
   return {
     envFile: override.envFile ?? base.envFile ?? DEFAULT_STUDENT_AGENT_CONFIG.envFile,
+    executionMode: normalizeExecutionMode(override.executionMode ?? base.executionMode),
     model: mergeModelConfig(base, override),
     llm: {
       ...DEFAULT_STUDENT_AGENT_CONFIG.llm,
@@ -107,6 +109,10 @@ function normalizeProvider(provider: string | undefined): StudentAgentProvider {
   return provider ?? DEFAULT_STUDENT_AGENT_CONFIG.model.provider;
 }
 
+function normalizeExecutionMode(mode: StudentAgentExecutionMode | undefined): StudentAgentExecutionMode {
+  return mode ?? DEFAULT_STUDENT_AGENT_CONFIG.executionMode;
+}
+
 async function readConfigFile(
   cwd: string,
   filename: string,
@@ -127,6 +133,7 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
   const provider = readProviderEnv(env);
   return {
     envFile: env.STUDENT_AGENT_ENV_FILE,
+    executionMode: readExecutionMode(env.STUDENT_AGENT_EXECUTION_MODE ?? env.STUDENT_AGENT_MODE),
     model: compactObject({
       provider,
       baseUrl: readModelBaseUrl(env, provider),
@@ -180,6 +187,13 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       maxConcurrency: readInteger(env.SUB_AGENT_MAX_CONCURRENCY),
     }),
   };
+}
+
+function readExecutionMode(value: string | undefined): StudentAgentExecutionMode | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'safe' || normalized === 'yolo') return normalized;
+  return undefined;
 }
 
 function readProviderEnv(env: NodeJS.ProcessEnv): StudentAgentProvider | undefined {

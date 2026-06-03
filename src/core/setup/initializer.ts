@@ -455,6 +455,53 @@ export function getApiKeyEnvName(provider: StudentAgentProvider): string {
   return API_KEY_MAP[provider] ?? `${provider.toUpperCase().replace(/-/g, '_')}_API_KEY`;
 }
 
+export interface NormalizeProviderApiKeyEnvResult {
+  apiKeyEnvName: string;
+  changed: boolean;
+  copiedFrom?: string;
+  removedEnvKeys: string[];
+}
+
+export function normalizeProviderApiKeyEnv(
+  provider: StudentAgentProvider,
+  env: NodeJS.ProcessEnv = process.env,
+): NormalizeProviderApiKeyEnvResult {
+  const apiKeyEnvName = getApiKeyEnvName(provider);
+  const result: NormalizeProviderApiKeyEnvResult = {
+    apiKeyEnvName,
+    changed: false,
+    removedEnvKeys: [],
+  };
+
+  if (provider !== 'google') {
+    return result;
+  }
+
+  const geminiKey = 'GEMINI_API_KEY';
+  const googleKey = 'GOOGLE_API_KEY';
+  const geminiValue = env[geminiKey];
+  const googleValue = env[googleKey];
+
+  if (hasValue(geminiValue)) {
+    if (googleKey in env) {
+      delete env[googleKey];
+      result.changed = true;
+      result.removedEnvKeys.push(googleKey);
+    }
+    return result;
+  }
+
+  if (hasValue(googleValue)) {
+    env[geminiKey] = googleValue;
+    delete env[googleKey];
+    result.changed = true;
+    result.copiedFrom = googleKey;
+    result.removedEnvKeys.push(googleKey);
+  }
+
+  return result;
+}
+
 function readEnvLineKey(line: string): string | null {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith('#')) {
