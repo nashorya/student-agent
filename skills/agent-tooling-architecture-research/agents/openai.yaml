@@ -1,0 +1,6 @@
+interface:
+  display_name: "Agent Tooling Research"
+  short_description: "Research agent tools before refactoring"
+  default_prompt: "Use $agent-tooling-architecture-research to diagnose this coding-agent tool/task architecture problem before proposing implementation."
+policy:
+  allow_implicit_invocation: true
