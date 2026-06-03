@@ -22,7 +22,13 @@ import { loadEnvFile } from '../core/env.js';
 import { getProjectCwd } from '../core/paths.js';
 import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
-import { createReadlinePrompt, runStartupInitializer, switchModelName, getApiKeyEnvName } from '../core/setup/initializer.js';
+import {
+  createReadlinePrompt,
+  runStartupInitializer,
+  switchModelName,
+  getApiKeyEnvName,
+  normalizeProviderApiKeyEnv,
+} from '../core/setup/initializer.js';
 import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/session-factory.js';
 import { Context7Client } from '../knowledge/context7-client.js';
 import { createSnapshotHook, getLastSnapshotId, restoreSnapshot } from './hooks/snapshot.js';
@@ -52,12 +58,46 @@ import { DesignStudyService, NativePlaywrightExtractor, assertLocalDesignUrl } f
 import { parsePhaseSignal } from '../core/task-planner/phase-signal.js';
 import { createPlanSnapshot, detectPlanRevisionIntent, type PlanSnapshot } from '../core/task-planner/plan-revision-detector.js';
 import { detectNegativeFeedback } from '../core/task-planner/feedback-detector.js';
-import { classifyIntent } from '../core/task-planner/intent-classifier.js';
+import { detectNaturalReviewResponse } from '../core/task-planner/review-detector.js';
+import { classifyIntent, isInformationalFollowUp } from '../core/task-planner/intent-classifier.js';
 import { buildTaskContextPrefix } from '../core/task-planner/task-context-builder.js';
 import { buildCtx7RetryContext } from '../core/task-planner/ctx7-retry-builder.js';
 import { buildPlanningPrompt, buildPhaseExecutionPrompt } from '../core/task-planner/planning-prompt.js';
 import { PromptConfirmationProvider } from '../core/executor/confirmation.js';
 import type { ConfirmationProvider } from '../core/executor/types.js';
+
+// ── 早期诊断：捕获模块加载/启动阶段的未处理异常 ────────
+// 目的是把 "[Object: null prototype] { Symbol(util.inspect.custom): ... }" 这种没有 stack 的崩溃
+// 还原成可读的错误信息（含来源、类型、属性），避免 Node 默认的"对象 toString"丢栈。
+process.on('uncaughtException', (err) => {
+  // 优先尝试 Error 标准字段
+  // eslint-disable-next-line no-console
+  console.error('\n[StudentAgent] uncaughtException');
+  try {
+    if (err instanceof Error) {
+      console.error('  name   :', err.name);
+      console.error('  message:', err.message);
+      console.error('  stack  :', err.stack);
+    } else {
+      console.error('  typeof :', typeof err);
+      console.error('  keys   :', Object.getOwnPropertyNames(err ?? {}));
+      console.error('  raw    :', err);
+      try { console.error('  json   :', JSON.stringify(err, Object.getOwnPropertyNames(err ?? {}))); } catch {}
+    }
+  } catch (innerErr) {
+    console.error('  (handler failed)', innerErr);
+  }
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('\n[StudentAgent] unhandledRejection');
+  if (reason instanceof Error) {
+    console.error('  ', reason.stack ?? reason.message);
+  } else {
+    console.error('  typeof:', typeof reason, 'keys:', Object.getOwnPropertyNames(reason ?? {}));
+    console.error('  raw   :', reason);
+  }
+});
 
 // ── 配置 ──────────────────────────────────────────────
 
@@ -79,6 +119,7 @@ let automaticDesignCritiqueFailures = 0;
 let lastPlanSnapshot: PlanSnapshot | null = null;
 
 const PLAN_CONFIRM_RE = /^(确认|开始|执行|继续|go|yes|y)$/i;
+const ACTIVE_TASK_CONTINUE_RE = /^(继续|继续当前任务|继续这个任务|继续执行|下一步|执行下一步|执行当前\s*phase|执行当前阶段|开始当前任务|go|yes|y)$/i;
 
 interface RuntimeState {
   config: StudentAgentConfig;
@@ -187,7 +228,7 @@ function buildHooks(
 
   const fileGuard = createFileGuardHook(abortRef, config.fileGuard);
   const riskGuard = createRiskGuardHook({
-    enabled: config.features.riskGuard,
+    enabled: config.features.riskGuard && config.executionMode !== 'yolo',
     confirmationProviderRef: riskConfirmationRef,
   });
   const snapshotHook = createSnapshotHook(CWD);
@@ -222,6 +263,14 @@ function bindTuiRiskConfirmation(runtime: RuntimeState, bridge: TUIBridge): void
     prompt: bridge.promptSettings,
     isInteractive: () => process.stdin.isTTY === true && process.stdout.isTTY === true,
   }));
+}
+
+function bindRuntimeToTui(runtime: RuntimeState, bridge: TUIBridge): void {
+  runtime.renderer.cleanup();
+  runtime.unsubscribe();
+  runtime.renderer = new EventRenderer(bridge);
+  runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
+  bindTuiRiskConfirmation(runtime, bridge);
 }
 
 function bindConsoleRiskConfirmation(
@@ -262,19 +311,29 @@ async function main(): Promise<void> {
       tui.bridge.addMessage('system', '当前任务仍在运行，消息已排队。');
     });
 
+    const abortCurrentRun = () => {
+      if (!runtime.agent.state.isStreaming) {
+        tui.bridge.addMessage('system', '当前没有运行中的任务。');
+        return;
+      }
+      tui.bridge.updateTaskStatus({ state: 'aborting' });
+      runtime.session.abort().catch(() => {});
+      tui.bridge.addMessage('system', '已请求中止当前任务。');
+    };
+
     const tui = startTUI({
-      onSubmit: inputQueue.enqueueSubmit,
-      onAbort: () => {
-        tui.bridge.updateTaskStatus({ state: 'aborting' });
-        runtime.session.abort().catch(() => {});
+      onSubmit: (value) => {
+        if (parseCommand(value)?.type === 'abort') {
+          tui.bridge.addMessage('user', value);
+          abortCurrentRun();
+          return;
+        }
+        inputQueue.enqueueSubmit(value);
       },
+      onAbort: abortCurrentRun,
     });
 
-    // 注入 TUIBridge 到 EventRenderer
-    runtime.unsubscribe();
-    runtime.renderer = new EventRenderer(tui.bridge);
-    runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
-    bindTuiRiskConfirmation(runtime, tui.bridge);
+    bindRuntimeToTui(runtime, tui.bridge);
 
     while (true) {
       const submitted = await inputQueue.waitForSubmit();
@@ -304,8 +363,12 @@ async function main(): Promise<void> {
 
           case 'status':
             tui.bridge.addMessage('system',
-              `任务: ${currentTaskDescription || '(无)'}\n模型: ${runtime.config.model.provider}/${runtime.config.model.name}\nLLM 超时: ${runtime.config.llm.requestTimeoutMs}ms`
+              `任务: ${currentTaskDescription || '(无)'}\n模式: ${runtime.config.executionMode}\n模型: ${runtime.config.model.provider}/${runtime.config.model.name}\nLLM 超时: ${runtime.config.llm.requestTimeoutMs}ms`
             );
+            continue;
+
+          case 'abort':
+            abortCurrentRun();
             continue;
 
           case 'model': {
@@ -330,9 +393,7 @@ async function main(): Promise<void> {
               runtime.renderer.cleanup();
               runtime.unsubscribe();
               runtime = await createRuntime(await reloadConfig());
-              runtime.renderer = new EventRenderer(tui.bridge);
-              runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
-              bindTuiRiskConfirmation(runtime, tui.bridge);
+              bindRuntimeToTui(runtime, tui.bridge);
               tui.bridge.addMessage('system', `OK: 模型已切换为 ${runtime.config.model.provider}/${runtime.config.model.name}`);
             } else {
               tui.bridge.addMessage('system', '已取消。');
@@ -375,9 +436,7 @@ async function main(): Promise<void> {
             runtime.renderer.cleanup();
             runtime.unsubscribe();
             runtime = await createRuntime(await reloadConfig());
-            runtime.renderer = new EventRenderer(tui.bridge);
-            runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
-            bindTuiRiskConfirmation(runtime, tui.bridge);
+            bindRuntimeToTui(runtime, tui.bridge);
             tui.bridge.addMessage('system', `OK: 已应用设置：${runtime.config.model.provider}/${runtime.config.model.name}`);
             continue;
           }
@@ -389,10 +448,7 @@ async function main(): Promise<void> {
               if (!activeTask) {
                 tui.bridge.addMessage('system', '当前无活跃任务。');
               } else {
-                const phase = activeTask.phases[activeTask.active_phase_index];
-                tui.bridge.addMessage('system',
-                  `任务：${activeTask.name}\nPhase ${activeTask.active_phase_index + 1}/${activeTask.phases.length}：${phase?.description ?? ''}\n重试次数：${phase?.retry_count ?? 0}`
-                );
+                tui.bridge.addMessage('system', formatTaskStatus(activeTask));
               }
             } else if (command.subcommand === 'rename') {
               if (!activeTask) {
@@ -400,6 +456,15 @@ async function main(): Promise<void> {
               } else {
                 await tasksMgr.renameTask(activeTask.id, command.name);
                 tui.bridge.addMessage('system', `已重命名为：${command.name}`);
+              }
+            } else if (command.subcommand === 'cancel') {
+              const cancelled = await tasksMgr.cancelActiveTask();
+              if (!cancelled) {
+                tui.bridge.addMessage('system', '当前无活跃任务。');
+              } else {
+                lastPlanSnapshot = null;
+                tui.bridge.clearTaskStatus();
+                tui.bridge.addMessage('system', `已丢弃当前任务：${cancelled.name}`);
               }
             }
             continue;
@@ -435,8 +500,14 @@ async function main(): Promise<void> {
             continue;
 
           case 'review':
-            await recordReviewCommand(command, currentTaskDescription);
-            tui.bridge.addMessage('system', 'OK: 已记录本轮信心投票');
+            {
+              const reviewResult = await handleReviewCommand(command, currentTaskDescription);
+              if (reviewResult.completedTask) {
+                lastPlanSnapshot = null;
+                tui.bridge.clearTaskStatus();
+              }
+              tui.bridge.addMessage('system', reviewResult.message);
+            }
             continue;
 
           case 'why':
@@ -487,6 +558,23 @@ async function main(): Promise<void> {
 
       const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
       const activeTask = await tasksMgr.getActive();
+      if (activeTask && isAwaitingUserReview(activeTask)) {
+        const reviewResult = await maybeHandleNaturalReviewResponse(userInput, currentTaskDescription);
+        if (reviewResult) {
+          if (reviewResult.completedTask) {
+            lastPlanSnapshot = null;
+            tui.bridge.clearTaskStatus();
+          } else {
+            const updatedTask = await tasksMgr.getActive();
+            if (updatedTask) {
+              tui.bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
+            }
+          }
+          tui.bridge.addMessage('system', reviewResult.message);
+          continue;
+        }
+      }
+
       const automaticRevisionMessage = await maybeRecordAutomaticPlanRevision(userInput, activeTask);
       if (automaticRevisionMessage) {
         tui.bridge.addMessage('system', automaticRevisionMessage);
@@ -501,6 +589,9 @@ async function main(): Promise<void> {
       if (feedbackSignal.isNegative && activeTask) {
         automaticDesignCritiqueFailures = 0;
         await tasksMgr.incrementRetry(activeTask.id, feedbackSignal.extractedText);
+        await tasksMgr.updateWorkingMemory(activeTask.id, {
+          design_feedback: [feedbackSignal.extractedText],
+        });
         const updatedTask = await tasksMgr.getActive();
         const phase = updatedTask?.phases[updatedTask.active_phase_index];
 
@@ -558,7 +649,7 @@ async function main(): Promise<void> {
           runtime.model,
         );
 
-        if (intent.type === 'new_task') {
+        if (intent.type === 'new_task' && intent.requiresPlan) {
           automaticDesignCritiqueFailures = 0;
           currentTaskDescription = intent.taskName ?? userInput;
           runtime.escalation.initTask(currentTaskDescription, CWD);
@@ -570,6 +661,10 @@ async function main(): Promise<void> {
             name: currentTaskDescription,
             phaseIndex: 0,
             totalPhases: 1,
+            workflowStatus: 'planning',
+            level: intent.level,
+            requiresUserAcceptance: intent.requiresUserAcceptance,
+            requiresVisualReview: intent.requiresVisualReview,
             retryCount: 0,
             toolCallCount: 0,
             elapsedMs: 0,
@@ -584,43 +679,59 @@ async function main(): Promise<void> {
             }
           });
 
+          let planningError: unknown;
           try {
             runtime.setFileGuardMode('planning');
             await runtime.session.prompt(buildPlanningPrompt(userInput));
             await runtime.agent.waitForIdle();
           } catch (err) {
-            tui.bridge.updateTaskStatus({ state: 'failed' });
-            tui.bridge.addMessage('system', `规划失败: ${err instanceof Error ? err.message : String(err)}`);
-            runtime.setFileGuardMode('normal');
-            planUnsub();
-            continue;
+            planningError = err;
           } finally {
+            runtime.setFileGuardMode('normal');
             planUnsub();
           }
 
-          runtime.setFileGuardMode('normal');
+          if (planningError) {
+            if (isInformationalFollowUp(userInput)) {
+              tui.bridge.clearTaskStatus();
+              await runTuiPlainAnswer(runtime, tui.bridge, userInput);
+            } else {
+              tui.bridge.updateTaskStatus({ state: 'failed' });
+              tui.bridge.addMessage('system', `规划失败: ${planningError instanceof Error ? planningError.message : String(planningError)}`);
+            }
+            continue;
+          }
+
           tui.bridge.updateTaskStatus({ state: 'idle' });
 
           const planText = planOutputs.join('');
           const planSignal = parsePhaseSignal(planText);
 
           if (!planSignal || planSignal.type !== 'task_start' || planSignal.phases.length === 0) {
-            tui.bridge.addMessage('system', '[规划失败] Agent 未输出 TASK_START 信号，请重试或换个描述方式。');
+            if (isInformationalFollowUp(userInput)) {
+              tui.bridge.clearTaskStatus();
+              await runTuiPlainAnswer(runtime, tui.bridge, userInput);
+            } else {
+              tui.bridge.addMessage('system', '[规划失败] Agent 未输出 TASK_START 信号，请重试或换个描述方式。');
+            }
             continue;
           }
 
-          const newTask = await tasksMgr.createTask(planSignal.name, planSignal.phases);
+          const newTask = await tasksMgr.createTask(
+            planSignal.name,
+            planSignal.phases,
+            buildTaskCreateOptions(intent, planSignal.context, isYoloMode(runtime)),
+          );
           lastPlanSnapshot = createPlanSnapshot(newTask);
-          tui.bridge.addMessage('system', formatPlanAwaitingConfirmation(planSignal.name, planSignal.phases));
-          tui.bridge.updateTaskStatus({
-            name: planSignal.name,
-            phaseIndex: 0,
-            totalPhases: planSignal.phases.length,
-            retryCount: 0,
-            toolCallCount: 0,
-            elapsedMs: 0,
-            state: 'idle',
-          });
+          tui.bridge.addMessage('system', formatPlanAwaitingConfirmation(
+            planSignal.name,
+            planSignal.phases,
+            isYoloMode(runtime),
+          ));
+          tui.bridge.updateTaskStatus(buildTaskStatusUpdate(newTask, 'idle'));
+          if (isYoloMode(runtime)) {
+            await runTuiActivePhase(runtime, tui.bridge, newTask);
+          }
         } else {
           const agentOutputs: string[] = [];
           const tempUnsubscribe = runtime.agent.subscribe((event) => {
@@ -632,23 +743,20 @@ async function main(): Promise<void> {
             }
           });
 
-          const taskContext = activeTask ? buildTaskContextPrefix(activeTask) : '';
+          const useActiveTaskContext = Boolean(activeTask && shouldUseActiveTaskContext(userInput));
+          const taskContext = useActiveTaskContext && activeTask ? buildTaskContextPrefix(activeTask) : '';
           const finalPrompt = taskContext + userInput;
 
-          currentTaskDescription = activeTask?.name ?? userInput;
+          currentTaskDescription = useActiveTaskContext && activeTask
+            ? activeTask.name
+            : intent.type === 'new_task'
+              ? intent.taskName ?? userInput
+              : userInput;
           runtime.escalation.initTask(currentTaskDescription, CWD);
           markReflectBaseline();
 
-          if (activeTask) {
-            tui.bridge.updateTaskStatus({
-              name: activeTask.name,
-              phaseIndex: activeTask.active_phase_index,
-              totalPhases: activeTask.phases.length,
-              retryCount: activeTask.phases[activeTask.active_phase_index]?.retry_count ?? 0,
-              toolCallCount: 0,
-              elapsedMs: 0,
-              state: 'running',
-            });
+          if (useActiveTaskContext && activeTask) {
+            tui.bridge.updateTaskStatus(buildTaskStatusUpdate(activeTask, 'running'));
           }
 
           try {
@@ -668,15 +776,24 @@ async function main(): Promise<void> {
             tempUnsubscribe();
           }
 
-          if (activeTask) {
+          if (useActiveTaskContext && activeTask) {
             const fullOutput = agentOutputs.join('');
             const signal = parsePhaseSignal(fullOutput);
 
             if (signal?.type === 'phase_done') {
               await tasksMgr.completePhase(activeTask.id);
               const updatedTask = await tasksMgr.getActive();
-              if (updatedTask) {
-                tui.bridge.addMessage('system', `[Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`);
+              if (updatedTask && hasExecutableCurrentPhase(updatedTask)) {
+                if (isYoloMode(runtime)) {
+                  tui.bridge.addMessage('system', `[Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}，YOLO 自动继续。`);
+                  await runTuiActivePhase(runtime, tui.bridge, updatedTask);
+                } else {
+                  tui.bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
+                  tui.bridge.addMessage('system', `[Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`);
+                }
+              } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+                tui.bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
+                tui.bridge.addMessage('system', formatAwaitingReviewMessage(updatedTask));
               } else {
                 tui.bridge.addMessage('system', `[任务完成] ${activeTask.name}`);
                 tui.bridge.clearTaskStatus();
@@ -736,8 +853,18 @@ async function main(): Promise<void> {
 
           case 'status':
             console.log(chalk.dim(`  任务: ${currentTaskDescription || '(无)'}`));
+            console.log(chalk.dim(`  模式: ${runtime.config.executionMode}`));
             console.log(chalk.dim(`  模型: ${runtime.config.model.provider}/${runtime.config.model.name}`));
             console.log(chalk.dim(`  LLM 超时: ${runtime.config.llm.requestTimeoutMs}ms`));
+            continue;
+
+          case 'abort':
+            if (!runtime.agent.state.isStreaming) {
+              console.log(chalk.dim('  当前没有运行中的任务。'));
+            } else {
+              await runtime.session.abort();
+              console.log(chalk.yellow('  已请求中止当前任务。'));
+            }
             continue;
 
           case 'model': {
@@ -772,10 +899,7 @@ async function main(): Promise<void> {
               if (!activeTask) {
                 console.log(chalk.dim('  当前无活跃任务。'));
               } else {
-                const phase = activeTask.phases[activeTask.active_phase_index];
-                console.log(chalk.cyan(`  任务：${activeTask.name}`));
-                console.log(chalk.dim(`  Phase ${activeTask.active_phase_index + 1}/${activeTask.phases.length}：${phase?.description}`));
-                console.log(chalk.dim(`  当前 Phase 重试次数：${phase?.retry_count ?? 0}`));
+                console.log(chalk.cyan(formatTaskStatus(activeTask)));
               }
             } else if (command.subcommand === 'rename') {
               if (!activeTask) {
@@ -783,6 +907,14 @@ async function main(): Promise<void> {
               } else {
                 await tasksMgr.renameTask(activeTask.id, command.name);
                 console.log(chalk.green(`  已重命名为：${command.name}`));
+              }
+            } else if (command.subcommand === 'cancel') {
+              const cancelled = await tasksMgr.cancelActiveTask();
+              if (!cancelled) {
+                console.log(chalk.yellow('  当前无活跃任务。'));
+              } else {
+                lastPlanSnapshot = null;
+                console.log(chalk.green(`  已丢弃当前任务：${cancelled.name}`));
               }
             }
             continue;
@@ -818,8 +950,13 @@ async function main(): Promise<void> {
             continue;
 
           case 'review':
-            await recordReviewCommand(command, currentTaskDescription);
-            console.log(chalk.green('  OK: 已记录本轮信心投票'));
+            {
+              const reviewResult = await handleReviewCommand(command, currentTaskDescription);
+              if (reviewResult.completedTask) {
+                lastPlanSnapshot = null;
+              }
+              console.log(chalk.green(`  ${reviewResult.message}`));
+            }
             continue;
 
           case 'why':
@@ -868,6 +1005,17 @@ async function main(): Promise<void> {
 
       const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
       const activeTask = await tasksMgr.getActive();
+      if (activeTask && isAwaitingUserReview(activeTask)) {
+        const reviewResult = await maybeHandleNaturalReviewResponse(userInput, currentTaskDescription);
+        if (reviewResult) {
+          if (reviewResult.completedTask) {
+            lastPlanSnapshot = null;
+          }
+          console.log(chalk.green(`  ${reviewResult.message}`));
+          continue;
+        }
+      }
+
       const automaticRevisionMessage = await maybeRecordAutomaticPlanRevision(userInput, activeTask);
       if (automaticRevisionMessage) {
         console.log(chalk.dim(`  ${automaticRevisionMessage}`));
@@ -882,6 +1030,9 @@ async function main(): Promise<void> {
       const feedbackSignal = detectNegativeFeedback(userInput);
       if (feedbackSignal.isNegative && activeTask) {
         await tasksMgr.incrementRetry(activeTask.id, feedbackSignal.extractedText);
+        await tasksMgr.updateWorkingMemory(activeTask.id, {
+          design_feedback: [feedbackSignal.extractedText],
+        });
         const updatedTask = await tasksMgr.getActive();
         const phase = updatedTask?.phases[updatedTask.active_phase_index];
 
@@ -926,7 +1077,7 @@ async function main(): Promise<void> {
           runtime.model,
         );
 
-        if (intent.type === 'new_task') {
+        if (intent.type === 'new_task' && intent.requiresPlan) {
           // 新任务：收集 agent 输出，解析信号
           const agentOutputs: string[] = [];
           const tempUnsubscribe = runtime.agent.subscribe((event) => {
@@ -942,15 +1093,27 @@ async function main(): Promise<void> {
           runtime.escalation.initTask(currentTaskDescription, CWD);
           markReflectBaseline();
 
+          let planningError: unknown;
           try {
-            await runTaskWithAbort(runtime, userInput);
+            runtime.setFileGuardMode('planning');
+            await runTaskWithAbort(runtime, buildPlanningPrompt(userInput));
           } catch (err) {
-            console.error(
-              chalk.red('Task error:'),
-              err instanceof Error ? err.message : String(err),
-            );
+            planningError = err;
           } finally {
+            runtime.setFileGuardMode('normal');
             tempUnsubscribe();
+          }
+
+          if (planningError) {
+            if (isInformationalFollowUp(userInput)) {
+              await runConsolePlainAnswer(runtime, userInput);
+            } else {
+              console.error(
+                chalk.red('规划失败:'),
+                planningError instanceof Error ? planningError.message : String(planningError),
+              );
+            }
+            continue;
           }
 
           // 解析信号
@@ -959,21 +1122,47 @@ async function main(): Promise<void> {
 
           if (signal?.type === 'task_start') {
             if (signal.phases.length === 0) {
-              console.log(chalk.red('\n  [规划失败] Agent 未输出有效 Phase 行，请重试或换个描述方式。'));
+              if (isInformationalFollowUp(userInput)) {
+                await runConsolePlainAnswer(runtime, userInput);
+              } else {
+                console.log(chalk.red('\n  [规划失败] Agent 未输出有效 Phase 行，请重试或换个描述方式。'));
+              }
               continue;
             }
-            const newTask = await tasksMgr.createTask(signal.name, signal.phases);
+            const newTask = await tasksMgr.createTask(
+              signal.name,
+              signal.phases,
+              buildTaskCreateOptions(intent, signal.context, isYoloMode(runtime)),
+            );
             lastPlanSnapshot = createPlanSnapshot(newTask);
-            console.log(chalk.green('\n' + formatPlanAwaitingConfirmation(signal.name, signal.phases)));
+            console.log(chalk.green('\n' + formatPlanAwaitingConfirmation(
+              signal.name,
+              signal.phases,
+              isYoloMode(runtime),
+            )));
+            if (isYoloMode(runtime)) {
+              await runConsoleActivePhase(runtime, newTask);
+            }
           } else if (signal?.type === 'phase_done' && activeTask) {
             await tasksMgr.completePhase(activeTask.id);
             const updatedTask = await tasksMgr.getActive();
-            if (updatedTask) {
-              console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
+            if (updatedTask && hasExecutableCurrentPhase(updatedTask)) {
+              if (isYoloMode(runtime)) {
+                console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}，YOLO 自动继续。`));
+                await runConsoleActivePhase(runtime, updatedTask);
+              } else {
+                console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
+              }
+            } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+              console.log(chalk.green('\n  ' + formatAwaitingReviewMessage(updatedTask)));
             } else {
               console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
               lastPlanSnapshot = null;
             }
+          } else if (isInformationalFollowUp(userInput)) {
+            await runConsolePlainAnswer(runtime, userInput);
+          } else {
+            console.log(chalk.red('\n  [规划失败] Agent 未输出 TASK_START 信号，请重试或换个描述方式。'));
           }
         } else {
           // 继续当前任务或其他操作
@@ -987,10 +1176,15 @@ async function main(): Promise<void> {
             }
           });
 
-          const taskContext = activeTask ? buildTaskContextPrefix(activeTask) : '';
+          const useActiveTaskContext = Boolean(activeTask && shouldUseActiveTaskContext(userInput));
+          const taskContext = useActiveTaskContext && activeTask ? buildTaskContextPrefix(activeTask) : '';
           const finalPrompt = taskContext + userInput;
 
-          currentTaskDescription = activeTask?.name ?? userInput;
+          currentTaskDescription = useActiveTaskContext && activeTask
+            ? activeTask.name
+            : intent.type === 'new_task'
+              ? intent.taskName ?? userInput
+              : userInput;
           runtime.escalation.initTask(currentTaskDescription, CWD);
           markReflectBaseline();
 
@@ -1006,15 +1200,22 @@ async function main(): Promise<void> {
           }
 
           // 检查是否有 phase_done 信号
-          if (activeTask) {
+          if (useActiveTaskContext && activeTask) {
             const fullOutput = agentOutputs.join('');
             const signal = parsePhaseSignal(fullOutput);
 
             if (signal?.type === 'phase_done') {
               await tasksMgr.completePhase(activeTask.id);
               const updatedTask = await tasksMgr.getActive();
-              if (updatedTask) {
-                console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
+              if (updatedTask && hasExecutableCurrentPhase(updatedTask)) {
+                if (isYoloMode(runtime)) {
+                  console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}，YOLO 自动继续。`));
+                  await runConsoleActivePhase(runtime, updatedTask);
+                } else {
+                  console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
+                }
+              } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+                console.log(chalk.green('\n  ' + formatAwaitingReviewMessage(updatedTask)));
               } else {
                 console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
                 lastPlanSnapshot = null;
@@ -1139,24 +1340,19 @@ async function runTuiActivePhase(
   bridge: TUIBridge,
   task: Task,
 ): Promise<void> {
-  const phase = task.phases[task.active_phase_index];
+  const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+  await tasksMgr.updateWorkflowStatus(task.id, 'executing');
+  const activeTask = await tasksMgr.getTask(task.id) ?? task;
+  const phase = activeTask.phases[activeTask.active_phase_index];
   if (!phase) {
-    bridge.addMessage('system', `[任务错误] ${task.name} 没有可执行的当前 Phase。`);
+    bridge.addMessage('system', `[任务错误] ${activeTask.name} 没有可执行的当前 Phase。`);
     return;
   }
 
-  currentTaskDescription = task.name;
-  runtime.escalation.initTask(task.name, CWD);
+  currentTaskDescription = activeTask.name;
+  runtime.escalation.initTask(activeTask.name, CWD);
   markReflectBaseline();
-  bridge.updateTaskStatus({
-    name: task.name,
-    phaseIndex: task.active_phase_index,
-    totalPhases: task.phases.length,
-    retryCount: phase.retry_count,
-    toolCallCount: 0,
-    elapsedMs: 0,
-    state: 'running',
-  });
+  bridge.updateTaskStatus(buildTaskStatusUpdate(activeTask, 'running'));
 
   const outputs: string[] = [];
   const unsub = runtime.agent.subscribe((event) => {
@@ -1168,7 +1364,10 @@ async function runTuiActivePhase(
 
   try {
     runtime.resetFileGuard();
-    await runtime.session.prompt(buildPhaseExecutionPrompt(task.name, phase.description, task.active_phase_index, task.phases.length));
+    await runtime.session.prompt(
+      buildTaskContextPrefix(activeTask)
+      + buildPhaseExecutionPrompt(activeTask.name, phase.description, activeTask.active_phase_index, activeTask.phases.length),
+    );
     await runtime.agent.waitForIdle();
     bridge.updateTaskStatus({ state: 'idle' });
     const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
@@ -1178,7 +1377,7 @@ async function runTuiActivePhase(
     }
   } catch (err) {
     bridge.updateTaskStatus({ state: 'failed' });
-    bridge.addMessage('system', `Phase ${task.active_phase_index + 1} 执行失败: ${err instanceof Error ? err.message : String(err)}`);
+    bridge.addMessage('system', `Phase ${activeTask.active_phase_index + 1} 执行失败: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     unsub();
   }
@@ -1186,27 +1385,38 @@ async function runTuiActivePhase(
   const signal = parsePhaseSignal(outputs.join(''));
   if (signal?.type !== 'phase_done') return;
 
-  const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
-  await tasksMgr.completePhase(task.id);
+  await tasksMgr.completePhase(activeTask.id);
   const updatedTask = await tasksMgr.getActive();
-  if (updatedTask) {
-    bridge.addMessage('system', `[Phase ${task.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`);
+  if (updatedTask && hasExecutableCurrentPhase(updatedTask)) {
+    if (isYoloMode(runtime)) {
+      bridge.addMessage('system', `[Phase ${activeTask.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}，YOLO 自动继续。`);
+      await runTuiActivePhase(runtime, bridge, updatedTask);
+      return;
+    }
+    bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
+    bridge.addMessage('system', `[Phase ${activeTask.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`);
+  } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+    bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
+    bridge.addMessage('system', formatAwaitingReviewMessage(updatedTask));
   } else {
-    bridge.addMessage('system', `[任务完成] ${task.name}`);
+    bridge.addMessage('system', `[任务完成] ${activeTask.name}`);
     bridge.clearTaskStatus();
     lastPlanSnapshot = null;
   }
 }
 
 async function runConsoleActivePhase(runtime: RuntimeState, task: Task): Promise<void> {
-  const phase = task.phases[task.active_phase_index];
+  const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+  await tasksMgr.updateWorkflowStatus(task.id, 'executing');
+  const activeTask = await tasksMgr.getTask(task.id) ?? task;
+  const phase = activeTask.phases[activeTask.active_phase_index];
   if (!phase) {
-    console.log(chalk.red(`\n  [任务错误] ${task.name} 没有可执行的当前 Phase。`));
+    console.log(chalk.red(`\n  [任务错误] ${activeTask.name} 没有可执行的当前 Phase。`));
     return;
   }
 
-  currentTaskDescription = task.name;
-  runtime.escalation.initTask(task.name, CWD);
+  currentTaskDescription = activeTask.name;
+  runtime.escalation.initTask(activeTask.name, CWD);
   markReflectBaseline();
 
   const outputs: string[] = [];
@@ -1218,10 +1428,14 @@ async function runConsoleActivePhase(runtime: RuntimeState, task: Task): Promise
   });
 
   try {
-    await runTaskWithAbort(runtime, buildPhaseExecutionPrompt(task.name, phase.description, task.active_phase_index, task.phases.length));
+    await runTaskWithAbort(
+      runtime,
+      buildTaskContextPrefix(activeTask)
+      + buildPhaseExecutionPrompt(activeTask.name, phase.description, activeTask.active_phase_index, activeTask.phases.length),
+    );
   } catch (err) {
     console.error(
-      chalk.red(`Phase ${task.active_phase_index + 1} 执行失败:`),
+      chalk.red(`Phase ${activeTask.active_phase_index + 1} 执行失败:`),
       err instanceof Error ? err.message : String(err),
     );
   } finally {
@@ -1231,28 +1445,132 @@ async function runConsoleActivePhase(runtime: RuntimeState, task: Task): Promise
   const signal = parsePhaseSignal(outputs.join(''));
   if (signal?.type !== 'phase_done') return;
 
-  const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
-  await tasksMgr.completePhase(task.id);
+  await tasksMgr.completePhase(activeTask.id);
   const updatedTask = await tasksMgr.getActive();
-  if (updatedTask) {
-    console.log(chalk.green(`\n  [Phase ${task.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
+  if (updatedTask && hasExecutableCurrentPhase(updatedTask)) {
+    if (isYoloMode(runtime)) {
+      console.log(chalk.green(`\n  [Phase ${activeTask.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}，YOLO 自动继续。`));
+      await runConsoleActivePhase(runtime, updatedTask);
+      return;
+    }
+    console.log(chalk.green(`\n  [Phase ${activeTask.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
+  } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+    console.log(chalk.green('\n  ' + formatAwaitingReviewMessage(updatedTask)));
   } else {
-    console.log(chalk.green(`\n  [任务完成] ${task.name}`));
+    console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
     lastPlanSnapshot = null;
   }
+}
+
+function isYoloMode(runtime: RuntimeState): boolean {
+  return runtime.config.executionMode === 'yolo';
 }
 
 function isPlanConfirmationInput(input: string): boolean {
   return PLAN_CONFIRM_RE.test(input.trim());
 }
 
-function formatPlanAwaitingConfirmation(name: string, phases: string[]): string {
+function shouldUseActiveTaskContext(input: string): boolean {
+  return ACTIVE_TASK_CONTINUE_RE.test(input.trim());
+}
+
+function hasExecutableCurrentPhase(task: Task): boolean {
+  return task.status === 'active'
+    && task.workflow_status === 'executing'
+    && task.phases[task.active_phase_index]?.status === 'in_progress';
+}
+
+function isAwaitingUserReview(task: Task): boolean {
+  return task.workflow_status === 'user_review' || task.workflow_status === 'visual_review';
+}
+
+function formatAwaitingReviewMessage(task: Task): string {
+  return [
+    `[等待验收] ${task.name} 已完成执行，当前状态：${task.workflow_status}。`,
+    '可以直接回复“可以/满意/就这样”完成任务；也可以直接说修改意见，例如“按钮太挤了”。',
+    '快捷命令：/review ok 接受，/review down <反馈> 请求修订。',
+  ].join('\n');
+}
+
+function buildTaskStatusUpdate(task: Task, state: 'running' | 'aborting' | 'idle' | 'failed') {
+  const phase = task.phases[task.active_phase_index];
+  return {
+    name: task.name,
+    phaseIndex: task.active_phase_index,
+    totalPhases: task.phases.length,
+    workflowStatus: task.workflow_status,
+    level: task.level,
+    goal: task.working_memory.goal,
+    acceptanceCriteria: task.working_memory.acceptance_criteria,
+    constraints: task.working_memory.constraints,
+    openQuestions: task.working_memory.open_questions,
+    userPreferences: task.working_memory.user_preferences,
+    verificationSummary: task.working_memory.verification_results,
+    requiresUserAcceptance: task.requires_user_acceptance,
+    requiresVisualReview: task.requires_visual_review,
+    retryCount: phase?.retry_count ?? 0,
+    toolCallCount: 0,
+    elapsedMs: 0,
+    state,
+  };
+}
+
+function formatPlanAwaitingConfirmation(name: string, phases: string[], yoloMode = false): string {
   const lines = [
     `[规划完成] ${name}，共 ${phases.length} 个 Phase。`,
     ...phases.map((phase, index) => `Phase ${index + 1}: ${phase}`),
-    '回复“确认”或“开始”后执行 Phase 1；也可以先提出修改计划。',
+    yoloMode
+      ? 'YOLO 模式：自动执行 Phase 1，并在每个 Phase 完成后继续推进。'
+      : '回复“确认”或“开始”后执行 Phase 1；也可以先提出修改计划。',
   ];
   return lines.join('\n');
+}
+
+function formatTaskStatus(task: Task): string {
+  const phase = task.phases[task.active_phase_index];
+  const memory = task.working_memory;
+  const lines = [
+    `任务：${task.name}`,
+    `Workflow：${task.workflow_status} · Level ${task.level} · status=${task.status}`,
+    `Phase ${task.active_phase_index + 1}/${task.phases.length}：${phase?.description ?? ''}`,
+    `当前 Phase 状态：${phase?.status ?? 'unknown'} · 重试次数：${phase?.retry_count ?? 0}`,
+  ];
+
+  if (memory.goal) lines.push(`Goal：${memory.goal}`);
+  appendStatusList(lines, 'Acceptance Criteria', memory.acceptance_criteria);
+  appendStatusList(lines, 'Constraints', memory.constraints);
+  appendStatusList(lines, 'Open Questions', memory.open_questions);
+  appendStatusList(lines, 'User Preferences', memory.user_preferences);
+  appendStatusList(lines, 'Design Feedback', memory.design_feedback);
+  appendStatusList(lines, 'Verification', memory.verification_results);
+  appendStatusList(lines, 'Changed Files', memory.changed_files);
+
+  if (task.requires_visual_review || task.requires_user_acceptance) {
+    lines.push(`Review：visual=${task.requires_visual_review ? 'required' : 'not-required'} · user=${task.requires_user_acceptance ? 'required' : 'not-required'}`);
+  }
+
+  return lines.join('\n');
+}
+
+function appendStatusList(lines: string[], label: string, values: string[]): void {
+  if (values.length === 0) return;
+  lines.push(`${label}：`);
+  values.slice(-6).forEach((value) => lines.push(`- ${value}`));
+}
+
+function buildTaskCreateOptions(intent: Awaited<ReturnType<typeof classifyIntent>>, context: Extract<ReturnType<typeof parsePhaseSignal>, { type: 'task_start' }>['context'] | undefined, yoloMode: boolean) {
+  return {
+    level: intent.level,
+    workflowStatus: yoloMode ? 'executing' as const : 'awaiting_plan_approval' as const,
+    requiresUserAcceptance: intent.requiresUserAcceptance || context?.requires_user_acceptance === true,
+    requiresVisualReview: intent.requiresVisualReview || context?.requires_visual_review === true,
+    workingMemory: {
+      goal: context?.goal || intent.taskName || '',
+      acceptance_criteria: context?.acceptance_criteria ?? [],
+      constraints: context?.constraints ?? [],
+      open_questions: context?.open_questions ?? [],
+    },
+  };
 }
 
 async function recordFeedbackRetryForActivePhase(
@@ -1286,6 +1604,47 @@ async function recordFeedbackRetryForActivePhase(
   }
 
   return { task: updatedTask, ctx7Docs };
+}
+
+async function runTuiPlainAnswer(
+  runtime: RuntimeState,
+  bridge: TUIBridge,
+  prompt: string,
+): Promise<void> {
+  currentTaskDescription = prompt.trim().slice(0, 60) || '普通回答';
+  runtime.escalation.initTask(currentTaskDescription, CWD);
+  markReflectBaseline();
+  bridge.clearTaskStatus();
+
+  try {
+    runtime.resetFileGuard();
+    await runtime.session.prompt(prompt);
+    await runtime.agent.waitForIdle();
+    bridge.updateTaskStatus({ state: 'idle' });
+    const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
+    if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
+    if (runtime.agent.state.errorMessage) {
+      bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
+    }
+  } catch (err) {
+    bridge.updateTaskStatus({ state: 'failed' });
+    bridge.addMessage('system', `Task error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+async function runConsolePlainAnswer(runtime: RuntimeState, prompt: string): Promise<void> {
+  currentTaskDescription = prompt.trim().slice(0, 60) || '普通回答';
+  runtime.escalation.initTask(currentTaskDescription, CWD);
+  markReflectBaseline();
+
+  try {
+    await runTaskWithAbort(runtime, prompt);
+  } catch (err) {
+    console.error(
+      chalk.red('Task error:'),
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 }
 
 async function runTuiFollowUpPrompt(
@@ -1362,6 +1721,51 @@ async function recordReviewCommand(command: ReviewCommand, taskDescription: stri
       ? `ok${command.comment ? `: ${command.comment}` : ''}`
       : command.comment,
   });
+}
+
+async function maybeHandleNaturalReviewResponse(
+  input: string,
+  taskDescription: string,
+): Promise<{ message: string; completedTask: boolean } | null> {
+  const signal = detectNaturalReviewResponse(input);
+  if (signal.type === 'ambiguous') {
+    return null;
+  }
+
+  const command: ReviewCommand = signal.type === 'accepted'
+    ? { type: 'review', rating: 'ok', comment: signal.text }
+    : { type: 'review', rating: 'down', comment: signal.text };
+
+  return handleReviewCommand(command, taskDescription);
+}
+
+async function handleReviewCommand(
+  command: ReviewCommand,
+  taskDescription: string,
+): Promise<{ message: string; completedTask: boolean }> {
+  await recordReviewCommand(command, taskDescription);
+
+  const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+  const activeTask = await tasksMgr.getActive();
+  if (!activeTask || !isAwaitingUserReview(activeTask)) {
+    return { message: 'OK: 已记录本轮信心投票', completedTask: false };
+  }
+
+  const comment = command.comment.trim();
+  if (command.rating === 'down') {
+    await tasksMgr.requestRevision(activeTask.id, comment || '用户未接受当前结果，需要继续修订。');
+    return {
+      message: `已记录用户未接受当前结果，任务进入 revision_requested：${comment || '请继续补充修改意见。'}`,
+      completedTask: false,
+    };
+  }
+
+  await tasksMgr.acceptTask(activeTask.id, comment || `用户 /review ${command.rating}`);
+  await tasksMgr.completeTask(activeTask.id, comment || 'User accepted task result.');
+  return {
+    message: `用户已验收任务：${activeTask.name}`,
+    completedTask: true,
+  };
 }
 
 async function renderWhyCommand(command: WhyCommand): Promise<string> {
@@ -1780,7 +2184,9 @@ async function reloadConfig(): Promise<StudentAgentConfig> {
   await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: true });
   const initialConfig = await loadStudentAgentConfig({ cwd: CWD });
   await loadEnvFile({ cwd: CWD, filename: initialConfig.envFile, override: true });
-  return loadStudentAgentConfig({ cwd: CWD });
+  const config = await loadStudentAgentConfig({ cwd: CWD });
+  normalizeProviderApiKeyEnv(config.model.provider);
+  return config;
 }
 
 async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> {

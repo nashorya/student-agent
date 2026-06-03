@@ -1,10 +1,16 @@
 import { completeSimple, type Model, type Api } from '@mariozechner/pi-ai';
 
 export type IntentType = 'new_task' | 'continue';
+export type WorkflowLevel = 0 | 1 | 2 | 3 | 4;
 
 export interface IntentResult {
   type: IntentType;
   taskName?: string;
+  level: WorkflowLevel;
+  reason: string;
+  requiresPlan: boolean;
+  requiresUserAcceptance: boolean;
+  requiresVisualReview: boolean;
 }
 
 const SYSTEM_PROMPT = `你是一个意图分类器。判断用户输入属于哪种意图：
@@ -20,8 +26,9 @@ export async function classifyIntent(
   currentTaskName: string | null,
   model: Model<Api>,
 ): Promise<IntentResult> {
-  if (isMetaQuestion(input)) {
-    return { type: 'continue' };
+  const deterministic = classifyWorkflowIntent(input, currentTaskName);
+  if (deterministic) {
+    return deterministic;
   }
 
   const context = currentTaskName
@@ -36,16 +43,113 @@ export async function classifyIntent(
 
     const text = result.content.find((c) => c.type === 'text')?.text ?? '';
     const jsonMatch = /\{[\s\S]*\}/.exec(text);
-    if (!jsonMatch) return { type: 'continue' };
+    if (!jsonMatch) return continueResult('llm-output-without-json');
 
     const parsed = JSON.parse(jsonMatch[0]) as { type: string; task_name?: string };
     if (parsed.type === 'new_task') {
-      return { type: 'new_task', taskName: parsed.task_name };
+      return newTaskResult({
+        input,
+        taskName: parsed.task_name,
+        level: 2,
+        reason: 'llm-classified-new-task',
+        requiresPlan: false,
+      });
     }
-    return { type: 'continue' };
+    return continueResult('llm-classified-continue');
   } catch {
-    return { type: 'continue' };
+    return continueResult('llm-error');
   }
+}
+
+export function classifyWorkflowIntent(input: string, currentTaskName: string | null): IntentResult | null {
+  const text = input.trim();
+  if (!text) return continueResult('empty-input');
+
+  if (isMetaQuestion(text) || isInformationalFollowUp(text)) {
+    return continueResult('question-or-analysis-only');
+  }
+
+  if (currentTaskName && /^(继续|开始|确认|好的|可以|下一步|go|start)$/iu.test(text)) {
+    return continueResult('active-task-continuation');
+  }
+
+  if (/(跨\s*session|跨会话|长期任务|后台任务|subagent|子代理|long[- ]?running)/iu.test(text)) {
+    return newTaskResult({
+      input: text,
+      level: 4,
+      reason: 'long-running-or-subagent-request',
+      requiresPlan: true,
+      requiresUserAcceptance: true,
+    });
+  }
+
+  if (EXPLICIT_PLAN_REQUEST_RE.test(text)) {
+    return newTaskResult({
+      input: text,
+      level: 3,
+      reason: 'explicit-plan-or-task-request',
+      requiresPlan: true,
+      requiresUserAcceptance: true,
+      requiresVisualReview: isVisualTask(text),
+    });
+  }
+
+  if (isVisualTask(text) && isActionRequest(text)) {
+    return newTaskResult({
+      input: text,
+      level: 3,
+      reason: 'frontend-or-visual-task',
+      requiresPlan: true,
+      requiresUserAcceptance: true,
+      requiresVisualReview: true,
+    });
+  }
+
+  if (/(多文件|重构|迁移|架构|模块|端到端|完整实现|接入|改造|新增.*功能|实现.*功能|修复.*测试|baseline|eval|状态机|runtime)/iu.test(text)) {
+    return newTaskResult({
+      input: text,
+      level: 3,
+      reason: 'multi-step-engineering-task',
+      requiresPlan: true,
+      requiresUserAcceptance: true,
+    });
+  }
+
+  if (/(不确定|模糊|帮我想|一起|澄清|需求|验收|偏好)/u.test(text) && isActionRequest(text)) {
+    return newTaskResult({
+      input: text,
+      level: 2,
+      reason: 'needs-clarification-or-working-memory',
+      requiresPlan: false,
+      requiresUserAcceptance: true,
+    });
+  }
+
+  if (isActionRequest(text)) {
+    return newTaskResult({
+      input: text,
+      level: 1,
+      reason: 'simple-action-request',
+      requiresPlan: false,
+    });
+  }
+
+  return null;
+}
+
+const ANALYSIS_ONLY_RE = /(只分析|只解释|只回答|先别改|不要改|不修改|不要执行|只是问|想了解)/u;
+const INFORMATION_QUESTION_RE = /[?？]|吗|呢|是不是|是否|哪些|哪(?:一)?部分|多少|主要是|是什么|为什么|为啥|怎么回事|介绍|说明|解释|统计|总结/iu;
+const INFORMATION_TOPIC_RE = /(测试|eval|baseline|task|plan|runtime|状态机|代码量|commit|提交|代码|文件|改动|工具|命令|流程|用法|能力|结果|报告|输出|诊断|trace)/iu;
+const EXPLICIT_PLAN_REQUEST_RE = /(制定计划|分阶段|开任务|进入\s*task|task\s*模式|计划一下|先规划|plan\b|规划模式)/iu;
+
+export function isInformationalFollowUp(input: string): boolean {
+  const text = input.trim();
+  if (!text) return false;
+  if (ANALYSIS_ONLY_RE.test(text)) return true;
+  if (isActionRequest(text) || (EXPLICIT_PLAN_REQUEST_RE.test(text) && !INFORMATION_QUESTION_RE.test(text))) {
+    return false;
+  }
+  return INFORMATION_QUESTION_RE.test(text) && INFORMATION_TOPIC_RE.test(text);
 }
 
 export function isMetaQuestion(input: string): boolean {
@@ -55,4 +159,51 @@ export function isMetaQuestion(input: string): boolean {
   const asksCapability = /(能不能|可以吗|是否可以|是不是|是什么|介绍|说明|流程|用法|命令|技能|能力|design|设计|学习|网站|网页)/i.test(text);
   const questionMark = /[?？]$/.test(text);
   return (asksHow && asksCapability) || (questionMark && asksCapability);
+}
+
+function newTaskResult(options: {
+  input: string;
+  taskName?: string;
+  level: WorkflowLevel;
+  reason: string;
+  requiresPlan: boolean;
+  requiresUserAcceptance?: boolean;
+  requiresVisualReview?: boolean;
+}): IntentResult {
+  return {
+    type: 'new_task',
+    taskName: options.taskName ?? summarizeTaskName(options.input),
+    level: options.level,
+    reason: options.reason,
+    requiresPlan: options.requiresPlan,
+    requiresUserAcceptance: options.requiresUserAcceptance ?? false,
+    requiresVisualReview: options.requiresVisualReview ?? false,
+  };
+}
+
+function continueResult(reason: string): IntentResult {
+  return {
+    type: 'continue',
+    level: 0,
+    reason,
+    requiresPlan: false,
+    requiresUserAcceptance: false,
+    requiresVisualReview: false,
+  };
+}
+
+function isVisualTask(input: string): boolean {
+  return /(前端|页面|界面|UI|视觉|样式|颜色|布局|响应式|截图|设计|组件|按钮|卡片|CSS|TSX|React)/iu.test(input);
+}
+
+function isActionRequest(input: string): boolean {
+  return /(帮我|请|实现|修复|修改|新增|添加|改|做|创建|生成|调整|优化|接入|完善|更新|补上|落地|执行|跑|implement|fix|add|update|create|run)/iu.test(input);
+}
+
+function summarizeTaskName(input: string): string {
+  return input
+    .replace(/^(请|帮我|麻烦|可以)?/u, '')
+    .replace(/[。！？?!].*$/u, '')
+    .trim()
+    .slice(0, 15) || '新任务';
 }

@@ -18,19 +18,61 @@ ${userRequest}
 你现在处于规划阶段。要求严格遵守以下规则：
 
 1. **只允许读取最多 3 个文件**，仅限结构性文件（如 CLAUDE.md、package.json）。
+   如果已有项目结构/规则上下文，优先直接使用已有上下文，不要为了确认而读文件。
+   如果 CLAUDE.md 或 AGENTS.md 不存在，不要反复探测；可只读取 package.json 或直接规划。
    不要读取任何 src/ 下的源代码文件。
 2. **不要编写任何代码，不要修改任何文件。**
-3. 将任务拆分为 2 至 5 个聚焦的 Phase。每个 Phase 描述应足够具体，
+3. 将任务拆分为 2 至 5 个聚焦的 Phase。即使任务很小，也必须至少拆成“执行”和“验证”两个 Phase。
+   每个 Phase 描述应足够具体，
    使执行时只需读取 3-5 个相关文件即可完成。
-4. **必须**以下列格式输出计划，不要输出其他任何内容：
+4. Phase 内容必须是自然语言目标，不能包含 TASK_START、PHASE_DONE 或任何控制标记。
+   每个 Phase 必须彼此不同，不能用同一句话重复凑数。
+5. 可以在 TASK_START 前输出一个 TASK_CONTEXT 块，记录任务理解；如果信息未知，留空即可。
+6. **必须**以下列格式输出计划，不要输出其他任何内容：
 
+[TASK_CONTEXT]
+goal: 用户想达成的结果
+acceptance_criteria: 验收标准 1 | 验收标准 2
+constraints: 约束 1 | 约束 2
+open_questions:
+requires_user_acceptance: false
+requires_visual_review: false
+[/TASK_CONTEXT]
 [TASK_START name="简短任务名称"]
 Phase 1: 具体描述，说明要做什么、涉及哪些文件
 Phase 2: 具体描述
 Phase 3: 具体描述（如有必要）
 [/TASK_START]
 
-现在请查看 CLAUDE.md 了解项目结构，然后输出计划。`;
+现在请基于已有上下文输出计划；只有在缺少必要结构信息时，才读取最多 1 个结构性文件。`;
+}
+
+export function buildPlanningRepairPrompt(userRequest: string): string {
+  return `[规划修正模式 — 上一轮规划无效，请重新输出计划]
+
+用户请求：
+${userRequest}
+
+上一轮输出没有形成 2 至 5 个有效 Phase。请严格修正：
+
+1. 不要读取文件，不要调用工具，不要修改文件。
+2. 必须拆成 2 至 5 个互不重复的 Phase；小任务也要至少包含“执行”和“验证”两个 Phase。
+3. Phase 内容只能是自然语言目标，不能包含 TASK_START、PHASE_DONE 或任何控制标记。
+4. 可输出最小 TASK_CONTEXT 块；TASK_START 是必需的。
+5. 只输出下面格式，不要输出解释：
+
+[TASK_CONTEXT]
+goal: 用户想达成的结果
+acceptance_criteria:
+constraints:
+open_questions:
+requires_user_acceptance: false
+requires_visual_review: false
+[/TASK_CONTEXT]
+[TASK_START name="简短任务名称"]
+Phase 1: 具体描述
+Phase 2: 具体描述
+[/TASK_START]`;
 }
 
 export function buildPhaseExecutionPrompt(phaseName: string, phaseDesc: string, phaseIndex: number, totalPhases: number): string {
@@ -42,8 +84,12 @@ export function buildPhaseExecutionPrompt(phaseName: string, phaseDesc: string, 
 请专注执行上述 Phase 目标：
 - 只读取与本 Phase 直接相关的文件（不超过 5 个）
 - 修改文件前必须先读取目标文件的当前内容，不能凭旧上下文猜测
-- 避免对大块 JSX/TSX 使用精确 oldText 替换；多处或结构性改动优先使用 apply_patch/patch 风格修改
-- 如果使用 edit 精确替换，只替换小范围、稳定、刚读到的文本锚点
-- 完成后输出 [PHASE_DONE phase=${phaseIndex + 1}] 信号（Phase 编号从 1 开始）
+- 避免对大块 JSX/TSX 使用 edit 精确 oldText 替换；多处或结构性改动优先使用 apply_patch
+- edit 只用于小范围、稳定、刚读到的单点文本替换
+- 如果任何工具调用失败，最终说明必须区分“已验证事实”和“失败/未验证检查”，不要仅凭失败工具输出给出确定审计结论
+- 完成后输出完整信号（Phase 编号从 1 开始）：
+  [PHASE_DONE phase=${phaseIndex + 1}]
+  已完成：简短说明本 Phase 实际完成了什么
+  [/PHASE_DONE]
 - 不要提前做其他 Phase 的工作`;
 }
