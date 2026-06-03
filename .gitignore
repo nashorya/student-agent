@@ -14,6 +14,8 @@ CLAUDE.md
 CLAUDE*.md
 codex.md
 *.Zone.Identifier
+.DS_Store
+vitest.config.ts.timestamp-*.mjs
 __pycache__/
 *.pyc
 docs/superpowers/
