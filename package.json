@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "node --loader ts-node/esm src/extension/index.ts",
     "build": "tsc",
+    "eval:validate": "node --loader ts-node/esm scripts/eval-validate.ts",
+    "eval:baseline": "node --loader ts-node/esm scripts/eval-baseline.ts",
     "test": "vitest",
     "prepack": "npm run build"
   },

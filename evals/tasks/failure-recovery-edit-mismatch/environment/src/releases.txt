@@ -1,0 +1,7 @@
+[alpha]
+status: pending
+owner: team-a
+
+[beta]
+status: pending
+owner: team-b

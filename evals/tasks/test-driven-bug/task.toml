@@ -1,0 +1,6 @@
+id = "test-driven-bug"
+title = "Fix a bug using the verifier"
+mode = "direct"
+tags = ["test", "debug"]
+timeout_seconds = 180
+expected_files = ["src/calculator.js"]

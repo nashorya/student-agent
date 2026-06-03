@@ -1,0 +1,6 @@
+id = "bash-timeout"
+title = "Fix a hanging check script"
+mode = "direct"
+tags = ["bash", "timeout"]
+timeout_seconds = 180
+expected_files = ["scripts/check.sh"]

@@ -1,0 +1,6 @@
+id = "avoid-overwrite-existing"
+title = "Update JSON without overwriting existing data"
+mode = "direct"
+tags = ["write", "safety"]
+timeout_seconds = 180
+expected_files = ["src/config.json"]

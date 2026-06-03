@@ -1,0 +1,6 @@
+id = "write-new-file"
+title = "Create a new file"
+mode = "direct"
+tags = ["write"]
+timeout_seconds = 180
+expected_files = ["docs/summary.md"]

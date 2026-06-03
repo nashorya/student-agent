@@ -1,0 +1,6 @@
+id = "search-before-read"
+title = "Search before reading target file"
+mode = "direct"
+tags = ["search", "read"]
+timeout_seconds = 180
+expected_files = ["src/features/target.ts"]

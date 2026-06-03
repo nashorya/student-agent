@@ -1,0 +1,6 @@
+id = "task-phase-flow"
+title = "Task phase flow completion"
+mode = "task"
+tags = ["task", "phase"]
+timeout_seconds = 240
+expected_files = ["project.txt"]

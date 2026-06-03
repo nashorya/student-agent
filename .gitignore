@@ -14,6 +14,8 @@ CLAUDE.md
 CLAUDE*.md
 codex.md
 *.Zone.Identifier
+__pycache__/
+*.pyc
 docs/superpowers/
 
 # memory/ 运行时数据（project-rules.md 手动维护，不忽略）
@@ -25,3 +27,5 @@ memory/questions.json
 memory/breaker-logs/
 memory/benchmark-results/
 
+# Eval runtime output
+evals/results/

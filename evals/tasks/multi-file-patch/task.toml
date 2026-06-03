@@ -1,0 +1,6 @@
+id = "multi-file-patch"
+title = "Multi-file structural update"
+mode = "direct"
+tags = ["patch", "multi-file"]
+timeout_seconds = 180
+expected_files = ["src/alpha.txt", "src/beta.txt"]
