@@ -1,11 +1,11 @@
 # student-agent
 
-> **真正的高手，永远是学生。**
+> **真正的大师，永远都怀着一颗学徒的心**
 
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Evals](https://img.shields.io/badge/evals-10%2F10%20pass-success)](evals/)
+[![Eval Fixtures](https://img.shields.io/badge/eval%20fixtures-10%2F10%20validate-success)](evals/)
 
 一个具备记忆、自我反思和边界感知的 CLI 编程代理。基于 [pi](https://github.com/badlogic/pi-mono) 构建，专注于编程任务。
 
@@ -45,7 +45,7 @@
 
 ```bash
 # 1. 克隆本仓库
-git clone https://github.com/<your-username>/student-agent.git
+git clone https://github.com/nashorya/student-agent.git
 cd student-agent
 
 # 2. 克隆 pi-mono 依赖（必须）
@@ -54,16 +54,25 @@ git clone https://github.com/badlogic/pi-mono pi-mono
 # 3. 安装依赖
 npm install
 
-# 4. 配置环境变量
+# 4. 配置环境变量，或首次启动时按引导完成设置
 cp .env.example .env
-# 编辑 .env，至少填写 ANTHROPIC_API_KEY
+# 编辑 .env，或运行 npm run dev 后按提示选择 provider/model
 ```
 
 ### 最小 `.env` 配置
 
 ```env
+# Anthropic
 ANTHROPIC_API_KEY=sk-ant-...
+
+# 或 OpenAI 兼容接口
+STUDENT_AGENT_PROVIDER=openai
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-...
+STUDENT_AGENT_MODEL=gpt-4o
 ```
+
+如果启动时没有检测到可用模型密钥，首次启动引导会帮你选择 Provider、API 格式、可选 Base URL、API Key 和模型，并写入本地/全局 student-agent 配置。
 
 ### 启动
 
@@ -78,6 +87,18 @@ student-agent          # 在任意目录启动
 ```
 
 用自然语言描述任务并回车，代理会规划、执行并反思——每个阶段会在状态栏中显示。输入 `/exit` 或按 `Ctrl-C` 退出。
+
+常用斜杠命令：
+
+| 命令 | 用途 |
+|---|---|
+| `/help` | 查看可用命令。 |
+| `/status` | 查看当前任务/运行时状态。 |
+| `/model` | 在保持当前 provider/API 设置不变的情况下快速切换模型。 |
+| `/setting` 或 `/settings` | 重新进入模型或 embedding 设置流程。 |
+| `/task status` | 查看活跃任务详情。 |
+| `/review up|ok|down` | 记录质量反馈。 |
+| `/design study <url>` | 在启用 Design Study 时从参考页面学习视觉风格。 |
 
 ### 可选：Playwright 浏览器
 
@@ -100,8 +121,8 @@ npx playwright install chromium
 | **风险守卫** | 高风险操作（删除、外部 API、数据库写入）默认需要确认。可通过 `project-rules.md` 配置豁免。 |
 | **知识检索** | Context7 精确库文档检索，Playwright 处理 JS 渲染页面并保持持久化登录会话。 |
 | **设计学习** | 视觉风格学习器：从参考 URL 提取 StyleProfile，并对本地实现进行视觉自评。 |
-| **质量监控** | 双信号退化检测——用户反馈（Footer 静默图标，不全屏打断）+ 后台基准任务定期校准。 |
-| **子代理编排** | 可选并发子代理，带写意图冲突检测和 git worktree 隔离。默认关闭。 |
+| **质量监控** | 双信号退化检测——用户反馈提示 + 后台基准任务定期校准。UI 展示仍在稳定中。 |
+| **子代理编排** | 实验性并发子代理，带写意图冲突检测。默认关闭。 |
 | **任务/计划工作流** | 渐进式披露：简单任务保持轻量；复杂多步任务进入完整的计划 → 执行 → 验证 → 用户验收流程。 |
 
 ---
@@ -112,13 +133,13 @@ npx playwright install chromium
 |---|---|---|---|
 | 运行时 | Node.js / TypeScript | 20+ / 5.x | 与现有工具链一致 |
 | 基础框架 | [pi (badlogic/pi-mono)](https://github.com/badlogic/pi-mono) | local | CLI REPL、工具调用、MCP Client 骨架 |
-| LLM | Anthropic Claude（SDK） | claude-sonnet-4-6 | 原生 prompt cache、extended thinking |
+| LLM 运行时 | Pi SDK model registry | 可配置 | 使用 Pi 的 `Model<Api>` registry，支持 Anthropic 和 OpenAI 兼容 provider。 |
 | 向量存储 | sqlite-vec | 0.1.9 | 零依赖，预编译二进制，跨平台 |
 | MCP | @modelcontextprotocol/sdk | — | 标准协议；Context7、Web Search 直接接入 |
 | 页面读取 | Playwright + @mozilla/readability | 1.59.1 / 0.6.0 | JS 渲染页面，持久化登录会话 |
 | 状态机 | XState v5 | 5.x | 显式状态约束，`after` 超时，context 只存 ID |
 | 并发写入 | p-queue（WriteQueue 单例） | 9.x | SQLite 串行写入，防并发锁竞争 |
-| 终端 UI | Ink（React for terminal） | 5.x | 流式渲染、Footer 图标、子代理进度展示 |
+| 终端 UI | Ink（React for terminal） | 5.x | 流式渲染、状态栏、斜杠命令输入 |
 | Git 快照 | simple-git | 3.x | 低开销执行前快照与回滚 |
 | 测试框架 | Vitest | 2.x | 快速、ESM 原生，与源码同目录的 `__tests__/` |
 
@@ -163,7 +184,7 @@ Design Study      第3次：结构化诊断 → 升级给用户
      TUI / Readline 输出
 ```
 
-完整设计见 [`docs/student-agent-architecture-v0.31.md`](docs/student-agent-architecture-v0.31.md) 和 [`docs/student-agent-task-plan-workflow.md`](docs/student-agent-task-plan-workflow.md)。
+完整设计见 [`docs/student-agent-architecture-v0.32.md`](docs/student-agent-architecture-v0.32.md)、[`docs/student-agent-task-plan-workflow.md`](docs/student-agent-task-plan-workflow.md) 和 [`docs/onboarding.md`](docs/onboarding.md)。
 
 ---
 
@@ -207,6 +228,10 @@ student-agent/
 | `ANTHROPIC_API_KEY` | — | 必填。Anthropic API 密钥。 |
 | `STUDENT_AGENT_PROVIDER` | `anthropic` | LLM 提供商（`anthropic` 或 OpenAI 兼容接口）。 |
 | `STUDENT_AGENT_MODEL` | `claude-sonnet-4-6` | 模型标识符。 |
+| `ANTHROPIC_BASE_URL` | — | 可选 Anthropic 兼容 relay/proxy URL。 |
+| `OPENAI_API_KEY` | — | 当 `STUDENT_AGENT_PROVIDER=openai` 时必填。 |
+| `OPENAI_BASE_URL` | — | 可选 OpenAI Chat Completions 兼容端点。 |
+| `STUDENT_AGENT_MODEL_BASE_URL` | — | 跨 provider 的模型 Base URL 覆盖项。 |
 | `STUDENT_AGENT_EXECUTION_MODE` | `yolo` | `yolo` = 自动执行各阶段；`safe` = 每阶段显式确认。 |
 
 ### 功能开关
@@ -237,11 +262,11 @@ student-agent/
 ```bash
 npm run dev          # 启动代理（TTY 下 TUI，否则 readline）
 npm run build        # 编译 TypeScript → dist/
-npm test             # 运行 Vitest 单元测试
-tsc --noEmit         # 类型检查
+npm test -- --run    # 单次运行 Vitest 单元测试
+npm run eval:validate # 不调用模型，验证 eval fixture
 ```
 
-每次改完代码跑 `tsc --noEmit`——它能捕获测试覆盖不到的类型错误。提交前跑 `npm test`。两者都干净才能发 PR。
+每次改完代码跑 `npm run build`——它能捕获测试覆盖不到的类型错误。提交前跑 `npm test -- --run`。两者都干净才能发 PR。
 
 ---
 
@@ -252,7 +277,7 @@ tsc --noEmit         # 类型检查
 单元测试与源码同目录存放于 `__tests__/` 中，使用 Vitest 运行：
 
 ```bash
-npm test
+npm test -- --run
 ```
 
 覆盖配置加载、执行器逻辑、状态机转换、记忆管理器、scorer 启发式规则等。
@@ -345,7 +370,7 @@ npm run eval:baseline -- --trials 5
 | `bash-timeout` | `bash`、`timeout` | 处理挂起的验证器脚本而不冻结 |
 | `avoid-overwrite-existing` | `write`、`json` | 更新 JSON 文件而不覆盖现有键 |
 
-**最新基准：10 个任务全部通过，`correctness_score: 1.0`。**
+**Fixture 状态：** 10 个任务全部通过 `eval:validate`（`initial: 0`、`solution: 1`）。模型基线会受 provider 额度、网络和模型行为影响；发布时请记录实际运行的命令和结果。
 
 ---
 
@@ -355,7 +380,7 @@ npm run eval:baseline -- --trials 5
 # 确定性固定用例验证——不调用模型，即时完成
 npm run eval:validate
 
-# 全量基准运行（10 个任务，每个 1 次试验）
+# 全量模型基线运行（10 个任务，每个 1 次试验）
 npm run eval:baseline
 
 # 运行单个任务
@@ -388,9 +413,9 @@ npm run eval:baseline -- --task task-phase-flow --trials 5
 
 欢迎贡献。提交 PR 前需了解以下几点：
 
-**先阅读架构文档。** [`docs/student-agent-architecture-v0.31.md`](docs/student-agent-architecture-v0.31.md) 涵盖了来源追溯系统、Bounded Breaker 和失败升级阶梯。绕过这些不变量的 PR 会被要求修改。
+**先阅读架构文档。** [`docs/student-agent-architecture-v0.32.md`](docs/student-agent-architecture-v0.32.md) 涵盖了来源追溯系统、Bounded Breaker 和失败升级阶梯。绕过这些不变量的 PR 会被要求修改。
 
-**提交前进行类型检查。** 运行 `tsc --noEmit` 并修复所有错误。项目全程使用严格 TypeScript。
+**提交前进行类型检查。** 运行 `npm run build` 并修复所有错误。项目全程使用严格 TypeScript。
 
 **行为变更需要添加或更新评测任务。** 如果 PR 改变了代理行为（工具选择、任务生命周期、记忆写入），需要添加对应的评测任务或更新现有任务。每个新任务需要：`instruction.md`、`task.toml`、`environment/`、`tests/test.sh`，以及可选的 `solution/solve.sh`。提交前运行 `eval:validate` 确认任务可解。
 

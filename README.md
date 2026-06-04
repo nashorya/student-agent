@@ -5,7 +5,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Evals](https://img.shields.io/badge/evals-10%2F10%20pass-success)](evals/)
+[![Eval Fixtures](https://img.shields.io/badge/eval%20fixtures-10%2F10%20validate-success)](evals/)
 
 A CLI coding agent with memory, self-reflection, and a healthy awareness of its own limits. Built on [pi](https://github.com/badlogic/pi-mono), focused on programming tasks.
 
@@ -45,7 +45,7 @@ A CLI coding agent with memory, self-reflection, and a healthy awareness of its 
 
 ```bash
 # 1. Clone this repo
-git clone https://github.com/<your-username>/student-agent.git
+git clone https://github.com/nashorya/student-agent.git
 cd student-agent
 
 # 2. Clone the pi-mono dependency (required)
@@ -54,16 +54,25 @@ git clone https://github.com/badlogic/pi-mono pi-mono
 # 3. Install dependencies
 npm install
 
-# 4. Configure environment
+# 4. Configure environment, or let first-run setup guide you
 cp .env.example .env
-# Edit .env — at minimum set ANTHROPIC_API_KEY
+# Edit .env, or run npm run dev and follow the setup prompts
 ```
 
 ### Minimum `.env`
 
 ```env
+# Anthropic
 ANTHROPIC_API_KEY=sk-ant-...
+
+# Or OpenAI-compatible
+STUDENT_AGENT_PROVIDER=openai
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-...
+STUDENT_AGENT_MODEL=gpt-4o
 ```
+
+If no usable model key is found, first-run setup will guide you through provider selection, API format, optional Base URL, API key, and model selection. The setup writes local/global student-agent config so you do not have to edit every setting by hand.
 
 ### Run
 
@@ -78,6 +87,18 @@ student-agent          # run from any directory
 ```
 
 Type a natural-language task and press Enter. The agent plans, executes, and reflects — you'll see each phase in the status bar. Use `/exit` or `Ctrl-C` to quit.
+
+Useful slash commands:
+
+| Command | Purpose |
+|---|---|
+| `/help` | Show available commands. |
+| `/status` | Show current task/runtime status. |
+| `/model` | Quickly switch model while keeping the current provider/API settings. |
+| `/setting` or `/settings` | Re-run setup for model or embedding settings. |
+| `/task status` | Show active task details. |
+| `/review up|ok|down` | Record quality feedback. |
+| `/design study <url>` | Learn a visual style from a reference page when Design Study is enabled. |
 
 ### Optional: Playwright browser
 
@@ -100,8 +121,8 @@ npx playwright install chromium
 | **Risk Guard** | High-risk tool calls (delete, external API, DB write) require confirmation. Configurable exemptions via `project-rules.md`. |
 | **Knowledge Retrieval** | Context7 for precise library docs, Playwright for JS-rendered pages with persistent login sessions. |
 | **Design Study** | Visual style learner: captures StyleProfiles from reference URLs, self-critiques local implementations against them. |
-| **Quality Watchdog** | Dual-signal degradation detection — user feedback (footer indicator, no interrupts) + background benchmark calibration. |
-| **Sub-agent Orchestration** | Optional concurrent sub-agents with write-intent conflict detection and git worktree isolation. Disabled by default. |
+| **Quality Watchdog** | Dual-signal degradation detection — user feedback prompts + background benchmark calibration. UI surfacing is still being stabilized. |
+| **Sub-agent Orchestration** | Experimental concurrent sub-agents with write-intent conflict detection. Disabled by default. |
 | **Task/Plan Workflow** | Progressive disclosure: simple tasks stay lightweight; complex multi-step work enters a full plan → execute → verify → user-accept loop. |
 
 ---
@@ -112,13 +133,13 @@ npx playwright install chromium
 |---|---|---|---|
 | Runtime | Node.js / TypeScript | 20+ / 5.x | Consistent with existing toolchain |
 | Base framework | [pi (badlogic/pi-mono)](https://github.com/badlogic/pi-mono) | local | CLI REPL, tool dispatch, MCP client skeleton |
-| LLM | Anthropic Claude (via SDK) | claude-sonnet-4-6 | Native prompt cache, extended thinking |
+| LLM runtime | Pi SDK model registry | configurable | Uses Pi's `Model<Api>` registry; supports Anthropic and OpenAI-compatible providers. |
 | Vector store | sqlite-vec | 0.1.9 | Zero dependencies, precompiled binary, cross-platform |
 | MCP | @modelcontextprotocol/sdk | — | Standard protocol; Context7 and Web Search plug in directly |
 | Web reader | Playwright + @mozilla/readability | 1.59.1 / 0.6.0 | JS-rendered pages, persistent login sessions |
 | State machine | XState v5 | 5.x | Explicit state constraints, `after` timeouts, context holds IDs only |
 | Concurrency | p-queue (WriteQueue singleton) | 9.x | SQLite serial writes, no lock contention |
-| Terminal UI | Ink (React for terminal) | 5.x | Streaming render, footer indicator, sub-agent progress |
+| Terminal UI | Ink (React for terminal) | 5.x | Streaming render, status bar, slash-command input |
 | Git snapshots | simple-git | 3.x | Low-overhead pre-execution snapshots and rollback |
 | Test runner | Vitest | 2.x | Fast, ESM-native, co-located `__tests__/` |
 
@@ -164,7 +185,7 @@ Design Study    → user question (questions.json)
      TUI / Readline output
 ```
 
-For the full design, see [`docs/student-agent-architecture-v0.31.md`](docs/student-agent-architecture-v0.31.md) and [`docs/student-agent-task-plan-workflow.md`](docs/student-agent-task-plan-workflow.md).
+For the full design, see [`docs/student-agent-architecture-v0.32.md`](docs/student-agent-architecture-v0.32.md), [`docs/student-agent-task-plan-workflow.md`](docs/student-agent-task-plan-workflow.md), and [`docs/onboarding.md`](docs/onboarding.md).
 
 ---
 
@@ -208,6 +229,10 @@ All settings can be set in `.env` or `.student-agent.json`.
 | `ANTHROPIC_API_KEY` | — | Required. Your Anthropic API key. |
 | `STUDENT_AGENT_PROVIDER` | `anthropic` | LLM provider (`anthropic` or OpenAI-compatible). |
 | `STUDENT_AGENT_MODEL` | `claude-sonnet-4-6` | Model identifier. |
+| `ANTHROPIC_BASE_URL` | — | Optional Anthropic-compatible relay/proxy URL. |
+| `OPENAI_API_KEY` | — | Required when `STUDENT_AGENT_PROVIDER=openai`. |
+| `OPENAI_BASE_URL` | — | Optional OpenAI Chat Completions-compatible endpoint. |
+| `STUDENT_AGENT_MODEL_BASE_URL` | — | Provider-agnostic model Base URL override. |
 | `STUDENT_AGENT_EXECUTION_MODE` | `yolo` | `yolo` = auto-run phases; `safe` = explicit confirmation gates. |
 
 ### Feature flags
@@ -238,11 +263,11 @@ Create `memory/project-rules.md` and add a `[confirmation-exempt]` section:
 ```bash
 npm run dev          # Start agent (TUI in TTY, readline otherwise)
 npm run build        # Compile TypeScript → dist/
-npm test             # Run Vitest unit tests
-tsc --noEmit         # Type-check without emitting
+npm test -- --run    # Run Vitest unit tests once
+npm run eval:validate # Validate eval fixtures without model calls
 ```
 
-Run `tsc --noEmit` after every change — it catches type errors that tests don't cover. Run `npm test` before committing. Both must be clean before a PR.
+Run `npm run build` after code changes — it catches type errors that tests don't cover. Run `npm test -- --run` before committing. Both must be clean before a PR.
 
 ---
 
@@ -253,7 +278,7 @@ Run `tsc --noEmit` after every change — it catches type errors that tests don'
 Unit tests live alongside source files in `__tests__/` directories and run with Vitest:
 
 ```bash
-npm test
+npm test -- --run
 ```
 
 Tests cover configuration loading, executor logic, state machine transitions, memory managers, scorer heuristics, and more.
@@ -346,7 +371,7 @@ The suite covers both the behaviors that *should* occur and those that *should n
 | `bash-timeout` | `bash`, `timeout` | Handle a hanging verifier script without freezing |
 | `avoid-overwrite-existing` | `write`, `json` | Update a JSON file without clobbering existing keys |
 
-**Latest baseline: all 10 tasks pass with `correctness_score: 1.0`.**
+**Fixture status:** all 10 tasks pass `eval:validate` (`initial: 0`, `solution: 1`). Model baselines depend on provider quota/network/model behavior; record the exact command and result when publishing a release.
 
 ---
 
@@ -356,7 +381,7 @@ The suite covers both the behaviors that *should* occur and those that *should n
 # Deterministic fixture validation — no model call, instant
 npm run eval:validate
 
-# Full baseline run (all 10 tasks, 1 trial each)
+# Full model baseline run (all 10 tasks, 1 trial each)
 npm run eval:baseline
 
 # Run a single task
@@ -389,9 +414,9 @@ Results are written to `evals/results/` (git-ignored). Each result file contains
 
 Contributions are welcome. A few things to know before sending a PR:
 
-**Read the architecture doc first.** [`docs/student-agent-architecture-v0.31.md`](docs/student-agent-architecture-v0.31.md) covers the provenance system, Bounded Breaker, and failure escalation ladder. PRs that bypass these invariants will be asked to revise.
+**Read the architecture doc first.** [`docs/student-agent-architecture-v0.32.md`](docs/student-agent-architecture-v0.32.md) covers the provenance system, Bounded Breaker, and failure escalation ladder. PRs that bypass these invariants will be asked to revise.
 
-**Type-check before submitting.** Run `tsc --noEmit` and fix all errors. The project enforces strict TypeScript throughout.
+**Type-check before submitting.** Run `npm run build` and fix all errors. The project enforces strict TypeScript throughout.
 
 **Add or update evals for behavior changes.** If your PR changes agent behavior (tool selection, task lifecycle, memory writes), add a matching eval task or update an existing one. Each new task needs: `instruction.md`, `task.toml`, `environment/`, `tests/test.sh`, and optionally `solution/solve.sh`. Run `eval:validate` to confirm the task is solvable before submitting.
 

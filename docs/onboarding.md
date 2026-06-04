@@ -86,8 +86,8 @@ Skip this if you set `STUDENT_AGENT_FEATURE_PLAYWRIGHT=false` in `.env`.
 ### 6. Verify setup
 
 ```bash
-tsc --noEmit   # should produce no errors
-npm test       # all tests should pass
+npm run build  # should produce no errors
+npm test -- --run # all tests should pass
 ```
 
 ---
@@ -221,7 +221,7 @@ All SQLite writes go through `WriteQueue` — a `p-queue` singleton in `src/core
 
 1. Write the unit test first in the relevant `__tests__/` directory.
 2. Implement in `src/`.
-3. Run `tsc --noEmit` — fix all type errors before moving on.
+3. Run `npm run build` — fix all type errors before moving on.
 4. Run `npm test` — all existing tests must still pass.
 5. If the feature changes agent behavior (tool selection, task lifecycle, memory writes), add a matching eval task (see below).
 6. Gate experimental features behind `STUDENT_AGENT_FEATURE_<NAME>` in `.env.example` and `.student-agent.example.json`.
@@ -268,7 +268,7 @@ diff evals/results/before.txt evals/results/after.txt
 ### Unit tests
 
 ```bash
-npm test              # run all tests
+npm test -- --run     # run all tests once
 npm test -- --watch   # watch mode during development
 ```
 
@@ -313,7 +313,7 @@ See `evals/product-rubric.md` for how to interpret `correctness_score` vs `behav
 
 **`pi-mono` must be a sibling directory.** The `package.json` references it as `file:./pi-mono/packages/...`. If you clone `student-agent` without also cloning `pi-mono` next to it, `npm install` will fail with a module resolution error.
 
-**`tsc --noEmit` after every change.** The project uses strict TypeScript. Type errors that don't show up at runtime will block your PR. Make it a habit before committing.
+**`npm run build` after every change.** The project uses strict TypeScript. Type errors that don't show up at runtime will block your PR. Make it a habit before committing.
 
 **`WriteQueue` is a singleton.** If you write a test that creates a `WriteQueue` and doesn't drain it, subsequent tests that touch the same queue will see stale state. Use `await WriteQueue.getInstance().onIdle()` in `afterEach` if your test enqueues writes.
 
@@ -340,7 +340,7 @@ See `evals/product-rubric.md` for how to interpret `correctness_score` vs `behav
 | TUI | `src/tui/` |
 | Knowledge retrieval | `src/knowledge/` |
 | Sub-agent orchestration | `src/orchestrator/` |
-| Architecture deep-dive | `docs/student-agent-architecture-v0.31.md` |
+| Architecture deep-dive | `docs/student-agent-architecture-v0.32.md` |
 | Task/plan workflow | `docs/student-agent-task-plan-workflow.md` |
 | Eval rubric | `evals/product-rubric.md` |
 

@@ -1,6 +1,6 @@
 # Student-Agent Task/Plan Workflow Design
 
-配套阅读：[架构设计文档](student-agent-architecture-v0.31.md) | [入职指南](onboarding.md)
+配套阅读：[架构设计文档](student-agent-architecture-v0.32.md) | [入职指南](onboarding.md)
 
 ## Problem
 
