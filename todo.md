@@ -15,19 +15,22 @@
 
 # Pending
 
-## 2. 禁止业务层直接 console.log
+## 2. ✅ 禁止业务层直接 console.log
 - TUI 模式：`console-redirect.ts` 已劫持 console 输出到 debug 日志
 - Readline 回退模式：extension/index.ts 中斜杠命令仍使用 console.log（可接受，因无 TUI bridge）
-- 待做：审计并清理 hooks/ 中的 console.warn 调用
+- ✅ hooks/、executor/、memory/docs-index/、reflect/ 中的 console.warn 已全部替换为 logger.warn
 
-## 3. tool error 必须持久化到 transcript
-- 待调研：工具调用错误是否已持久化到 transcript，或仅闪现到 status
+## 3. ✅ tool error 已经持久化到 transcript
+- 单个工具调用的错误（isError=true）通过 Pi tool_result 消息机制始终在 transcript 中，LLM 可见
+- agent.state.errorMessage（高级别 agent 错误）通过 bridge.addMessage('system', ...) 写入了 transcript
+- 无需额外修改
 
 ## 📦 新的 eval task：preference-aware-edit
 - 创建时间：2026-06-05
 - 目的：测试 agent 是否能主动读取 project-rules.md 并遵循其中的代码风格约定
 - 指令含中文，测试双引号规则遵循
 - 状态：✅ `eval:validate` 通过（initial: 0, solution: 1）
+- 状态：✅ `eval:baseline` 通过（correctness: 1, behavior: 1, 4 tool calls, 0 failed）
 - TODO：
-  - [ ] 运行 baseline 确认 agent 实际行为
+  - [x] 运行 baseline 确认 agent 实际行为
   - [ ] 考虑添加更多偏好相关的 eval task（如类型标注偏好）

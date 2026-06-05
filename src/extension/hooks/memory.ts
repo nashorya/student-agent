@@ -144,6 +144,12 @@ export function createMemoryHook(memoryDir: string) {
 `);
 
     sections.push(`
+## 输出风格（必须遵守）
+
+不要在回复中使用 emoji（表情符号）。保持纯文字、简洁、专业的风格。
+`);
+
+    sections.push(`
 ## 文件探索规则（必须遵守）
 
 **永远不要在不知道目标文件的情况下批量 read 文件。** 正确流程：

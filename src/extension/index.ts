@@ -1577,6 +1577,7 @@ function buildTaskStatusUpdate(task: Task, state: 'running' | 'aborting' | 'idle
     level: task.level,
     goal: task.working_memory.goal,
     acceptanceCriteria: task.working_memory.acceptance_criteria,
+    phases: task.phases.map((p) => ({ description: p.description, status: p.status })),
     constraints: task.working_memory.constraints,
     openQuestions: task.working_memory.open_questions,
     userPreferences: task.working_memory.user_preferences,

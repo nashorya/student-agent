@@ -21,7 +21,7 @@ export function renderStatusLine(state: TUIV2State, width: number): string {
   const tool = state.status.currentTool ? ` · ${state.status.currentTool}` : '';
   const streaming = state.streaming ? ' · streaming…' : '';
   const rawRight = state.status.transient || `student-agent${streaming || ` · ready`}${tool}${queue}`;
-  const isError = rawRight.startsWith('error') || rawRight.startsWith('Error');
+  const isError = /失败|error|Error/i.test(rawRight);
   const rightColor = isError ? RED : state.streaming ? YELLOW : CYAN;
   const right = rightColor + rawRight + RESET;
   const rightLen = visibleLength(rawRight);

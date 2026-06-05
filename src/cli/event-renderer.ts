@@ -163,6 +163,9 @@ export class EventRenderer {
         if (this.bridge && this.bridgeMessageStarted) {
           this.finishBridgeAssistantMessage();
         }
+        // 重置 hasOutput，防止晚于 message_end 触发的 50ms flush 定时器
+        // 看到 hasOutput=true + bridgeMessageStarted=false 后重建同内容的重复消息
+        this.hasOutput = false;
         this.isStreaming = false;
         break;
 
@@ -188,10 +191,11 @@ export class EventRenderer {
           const rawDetail = extractToolErrorDetail(ev);
           const messages = formatToolFailureMessages(event.toolName, rawDetail, ev.args ?? ev.toolArgs);
           if (this.bridge) {
-            // 所有 tool error 必须 append 到 transcriptMessages
-            for (const message of messages) {
-              this.bridge.addMessage(message.role, message.content);
-            }
+            // TUI 模式：tool 错误只在状态栏短暂显示，不污染用户可见的 transcript
+            const summary = rawDetail
+              ? `${event.toolName} 失败: ${rawDetail.slice(0, 60)}${rawDetail.length > 60 ? '…' : ''}`
+              : `${event.toolName} 调用失败`;
+            this.bridge.setStatus(summary);
             recordDebugEvent("toolResult", {
               toolName: event.toolName,
               isError: true,
@@ -208,7 +212,10 @@ export class EventRenderer {
         break;
 
       case "agent_end": {
-        this.flushBridgeBuffer();
+        // Only flush+commit if message_end didn't already do it (bridgeMessageStarted still true)
+        if (this.bridgeMessageStarted) {
+          this.flushBridgeBuffer();
+        }
         if (this.bridge) {
           this.finishBridgeAssistantMessage();
         } else if (this.isStreaming && this.bridgeMessageStarted) {

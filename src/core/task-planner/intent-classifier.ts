@@ -53,6 +53,7 @@ export async function classifyIntent(
         level: 2,
         reason: 'llm-classified-new-task',
         requiresPlan: false,
+        requiresUserAcceptance: true, // LLM 分类的新任务必须经用户确认才执行
       });
     }
     return continueResult('llm-classified-continue');
@@ -140,7 +141,7 @@ export function classifyWorkflowIntent(input: string, currentTaskName: string | 
 const ANALYSIS_ONLY_RE = /(只分析|只解释|只回答|先别改|不要改|不修改|不要执行|只是问|想了解)/u;
 const INFORMATION_QUESTION_RE = /[?？]|吗|呢|是不是|是否|哪些|哪(?:一)?部分|多少|主要是|是什么|为什么|为啥|怎么回事|介绍|说明|解释|统计|总结/iu;
 const INFORMATION_TOPIC_RE = /(测试|eval|baseline|task|plan|runtime|状态机|代码量|commit|提交|代码|文件|改动|工具|命令|流程|用法|能力|结果|报告|输出|诊断|trace)/iu;
-const EXPLICIT_PLAN_REQUEST_RE = /(制定计划|分阶段|开任务|进入\s*task|task\s*模式|计划一下|先规划|plan\b|规划模式)/iu;
+const EXPLICIT_PLAN_REQUEST_RE = /(制定计划|分阶段|开任务|进入\s*task|task\s*模式|计划一下|先规划|plan\b|规划模式|给自己.*task|给你自己.*task|为自己.*task|制定.*task|自己定.*task|自己.*制定.*task)/iu;
 
 export function isInformationalFollowUp(input: string): boolean {
   const text = input.trim();
@@ -155,6 +156,8 @@ export function isInformationalFollowUp(input: string): boolean {
 export function isMetaQuestion(input: string): boolean {
   const text = input.trim();
   if (!text) return false;
+  // 「让 agent 自己决定做什么」类请求 — 没有具体目标，不应触发规划
+  if (/(给自己|为自己|给你自己|你自己).*?(task|任务|目标|计划)/iu.test(text)) return true;
   const asksHow = /(怎么|如何|怎样|该怎么|要怎么|怎么办|怎么做|如何做|怎么用|如何使用|怎么触发|怎么操作|what|how)/i.test(text);
   const asksCapability = /(能不能|可以吗|是否可以|是不是|是什么|介绍|说明|流程|用法|命令|技能|能力|design|设计|学习|网站|网页)/i.test(text);
   const questionMark = /[?？]$/.test(text);

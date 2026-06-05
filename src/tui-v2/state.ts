@@ -34,6 +34,7 @@ export interface TUIV2TaskPanelState {
   name?: string;
   phaseIndex?: number;
   totalPhases?: number;
+  phases?: import('./events.js').TUIV2PhaseInfo[];
   workflowStatus?: string;
   level?: 0 | 1 | 2 | 3 | 4;
   goal?: string;

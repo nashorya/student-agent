@@ -2,10 +2,16 @@ export type TUIV2Role = 'user' | 'assistant' | 'tool' | 'system' | 'error';
 
 export type TUIV2TaskState = 'running' | 'aborting' | 'idle' | 'failed';
 
+export interface TUIV2PhaseInfo {
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked' | 'skipped';
+}
+
 export interface TUIV2TaskStatusUpdate {
   name?: string;
   phaseIndex?: number;
   totalPhases?: number;
+  phases?: TUIV2PhaseInfo[];
   workflowStatus?: string;
   level?: 0 | 1 | 2 | 3 | 4;
   goal?: string;
