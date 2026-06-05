@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { WriteQueue } from '../../core/write-queue.js';
+import { logger } from '../../tui/logger.js';
 import { getProjectMemoryDir } from '../../core/paths.js';
 import type {
   DocEntry,
@@ -45,7 +46,7 @@ class OpenAICompatibleEmbeddingProvider implements EmbeddingProvider {
       ?? process.env.OPENAI_API_KEY
       ?? '';
     if (!key) {
-      console.warn('[DocsIndex] STUDENT_AGENT_EMBEDDING_API_KEY / OPENAI_API_KEY 未设置，嵌入功能将不可用');
+      logger.warn('[DocsIndex] STUDENT_AGENT_EMBEDDING_API_KEY / OPENAI_API_KEY 未设置，嵌入功能将不可用');
     }
     this.apiKey = key;
   }

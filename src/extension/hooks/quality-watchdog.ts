@@ -4,6 +4,7 @@ import { QualityWatchdog } from '../../watchdog/watchdog.js';
 import { PreferenceCandidatesManager } from '../../memory/candidates/manager.js';
 import { DesignMemoryManager } from '../../memory/design/manager.js';
 import type { SessionEndContext } from '../../core/pi-bridge/types.js';
+import { logger } from '../../tui/logger.js';
 
 let taskCount = 0;
 
@@ -51,7 +52,7 @@ export function createQualityWatchdogHook(memoryDir: string) {
     });
 
     if (evaluation.report) {
-      console.warn(evaluation.report);
+      logger.warn(evaluation.report);
     }
   };
 }

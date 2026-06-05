@@ -7,6 +7,7 @@
 
 import { SnapshotManager } from '../../core/executor/snapshot.js';
 import type { PreToolCallContext, PreToolCallDecision } from '../../core/pi-bridge/types.js';
+import { logger } from '../../tui/logger.js';
 
 /** 最近一次快照 ID，供失败升级时回滚使用 */
 let lastSnapshotId: string | null = null;
@@ -46,7 +47,7 @@ export function createSnapshotHook(cwd: string) {
       const warnKey = snapshotWarnKey(err);
       if (!warnedMessages.has(warnKey)) {
         warnedMessages.add(warnKey);
-        console.warn(`[Snapshot] ${warnKey}（快照已跳过，无法回滚。输入 /init 可初始化 git 仓库）`);
+        logger.warn(`[Snapshot] ${warnKey}（快照已跳过，无法回滚。输入 /init 可初始化 git 仓库）`);
       }
       return undefined;
     }

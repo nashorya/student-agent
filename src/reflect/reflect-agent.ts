@@ -13,6 +13,7 @@ import { PreferencesManager } from '../memory/preferences/manager.js';
 import { extractPatterns } from './pattern-rules.js';
 import type { ExtractedPattern } from './pattern-rules.js';
 import { BoundedBreaker } from './bounded-breaker.js';
+import { logger } from '../tui/logger.js';
 import { BreakerLogManager } from './breaker-log-manager.js';
 
 export interface ReflectInput {
@@ -126,7 +127,7 @@ export class ReflectAgent {
               report: breakerDecision.report,
             });
           } catch (err) {
-            console.warn(
+            logger.warn(
               '[ReflectAgent] breaker log append failed:',
               err instanceof Error ? err.message : String(err),
             );
