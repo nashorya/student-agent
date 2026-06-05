@@ -3,6 +3,7 @@ import { renderPromptLines } from './components/prompt.js';
 import { renderSeparator, renderStatusLine, fitLine } from './components/status.js';
 import { renderTaskPanelLines } from './components/task-panel.js';
 import { renderTranscriptLines } from './components/transcript.js';
+import { renderCompletionLines } from './components/completions.js';
 import type { TUIV2State } from './state.js';
 
 export function renderFrame(
@@ -20,12 +21,16 @@ export function renderFrame(
   const input = options.inputFocused
     ? renderFocusedInputLines(state, columns, options.cursorMarker ?? '')
     : renderInputLines(state, columns);
+  const completions = state.input.promptQuestion === null
+    ? renderCompletionLines(state.input.value, state.input.completionIndex, columns)
+    : [];
   const footer = [
     renderSeparator(columns),
     ...taskPanel,
     ...prompt,
-    ...input,
+    ...completions,
     renderStatusLine(state, columns),
+    ...input,
   ];
   const transcriptRows = Math.max(0, rows - footer.length);
 

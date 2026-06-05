@@ -50,4 +50,6 @@ export type TUIV2Action =
   | { type: 'BEGIN_PROMPT'; question: string; kind?: TUIV2PromptKind }
   | { type: 'END_PROMPT' }
   | { type: 'SCROLL'; delta: number }
-  | { type: 'CLEAR_SCREEN' };
+  | { type: 'CLEAR_SCREEN' }
+  | { type: 'COMPLETION_NAVIGATE'; direction: 'up' | 'down' }
+  | { type: 'COMPLETION_RESET' };

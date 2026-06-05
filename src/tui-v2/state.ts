@@ -67,6 +67,7 @@ export interface TUIV2InputState {
   history: string[];
   historyIndex: number;
   promptQuestion: string | null;
+  completionIndex: number; // -1 = none selected, 0+ = index in filtered list
 }
 
 export interface TUIV2State {
@@ -95,6 +96,7 @@ export const initialTUIV2State: TUIV2State = {
     history: [],
     historyIndex: 0,
     promptQuestion: null,
+    completionIndex: -1,
   },
 };
 
@@ -104,11 +106,13 @@ export function tuiV2Reducer(state: TUIV2State, action: TUIV2Action): TUIV2State
       return { ...appendMessage(state, action.role, action.content), scrollOffset: 0 };
 
     case 'STREAM_START':
-      return { ...startStream(state, action.id), scrollOffset: 0 };
+      // Keep scroll position — user may be reading; only auto-scroll when already at bottom
+      return startStream(state, action.id);
 
     case 'STREAM_UPDATE':
       if (state.streaming?.id !== action.id) return state;
-      return { ...updateMessageContent(state, state.streaming.messageId, action.text), scrollOffset: 0 };
+      // Never reset scroll during streaming — user may be reading earlier content
+      return updateMessageContent(state, state.streaming.messageId, action.text);
 
     case 'STREAM_DISCARD':
       return state.streaming?.id === action.id
@@ -150,6 +154,7 @@ export function tuiV2Reducer(state: TUIV2State, action: TUIV2Action): TUIV2State
           ...state.input,
           value: action.value,
           cursor: clampCursor(action.value, action.cursor),
+          completionIndex: -1,
         },
       };
 
@@ -161,8 +166,19 @@ export function tuiV2Reducer(state: TUIV2State, action: TUIV2Action): TUIV2State
           value: '',
           cursor: 0,
           generation: state.input.generation + 1,
+          completionIndex: -1,
         },
       };
+
+    case 'COMPLETION_NAVIGATE': {
+      return { ...state, input: { ...state.input, completionIndex: action.direction === 'up'
+        ? state.input.completionIndex - 1
+        : state.input.completionIndex + 1 } };
+    }
+
+    case 'COMPLETION_RESET':
+      return state.input.completionIndex === -1 ? state
+        : { ...state, input: { ...state.input, completionIndex: -1 } };
 
     case 'MOVE_CURSOR': {
       const nextCursor = action.direction === 'left'
@@ -214,6 +230,7 @@ export function tuiV2Reducer(state: TUIV2State, action: TUIV2Action): TUIV2State
           cursor: 0,
           generation: state.input.generation + 1,
           promptQuestion: action.question,
+          completionIndex: -1,
         },
       };
 
@@ -227,6 +244,7 @@ export function tuiV2Reducer(state: TUIV2State, action: TUIV2Action): TUIV2State
           cursor: 0,
           generation: state.input.generation + 1,
           promptQuestion: null,
+          completionIndex: -1,
         },
       };
 
@@ -251,6 +269,7 @@ export function tuiV2Reducer(state: TUIV2State, action: TUIV2Action): TUIV2State
           cursor: 0,
           generation: state.input.generation + 1,
           promptQuestion: null,
+          completionIndex: -1,
         },
       };
   }

@@ -1,6 +1,7 @@
 import { matchesKey } from '@earendil-works/pi-tui';
 import type { TUIV2Action } from './events.js';
 import type { TUIV2State } from './state.js';
+import { getCompletions, clampCompletionIndex } from './components/completions.js';
 
 const BRACKETED_PASTE_START = '\x1b[200~';
 const BRACKETED_PASTE_END = '\x1b[201~';
@@ -47,6 +48,11 @@ export function createInputController(options: {
       resolvePrompt('');
       return;
     }
+    // If completions are open, close them without clearing input
+    if (state.input.completionIndex >= 0) {
+      options.dispatch({ type: 'COMPLETION_RESET' });
+      return;
+    }
     if (state.input.value) {
       options.dispatch({ type: 'CLEAR_INPUT' });
       return;
@@ -69,6 +75,23 @@ export function createInputController(options: {
       return;
     }
     (options.onExit ?? options.onAbort)();
+  };
+
+  // Apply the currently-selected (or first) completion item
+  const applyCompletion = (): boolean => {
+    const state = options.getState();
+    const items = getCompletions(state.input.value);
+    if (items.length === 0) return false;
+    const idx = state.input.completionIndex >= 0
+      ? clampCompletionIndex(items, state.input.completionIndex)
+      : 0;
+    const completion = items[idx]!;
+    options.dispatch({
+      type: 'SET_INPUT',
+      value: completion,
+      cursor: Array.from(completion).length,
+    });
+    return true;
   };
 
   const handleData = (chunk: string) => {
@@ -107,12 +130,16 @@ export function createInputController(options: {
   };
 
   const handleKey = (key: string) => {
-    if (key === '\u0003') {
+    if (key === '') {
       handleInterrupt();
       return;
     }
     if (key === '\x1b') {
       handleEscape();
+      return;
+    }
+    if (key === '\t') {
+      applyCompletion();
       return;
     }
     if (key === '\r' || key === '\n') {
@@ -207,11 +234,23 @@ export function createInputController(options: {
       return;
     }
     if (matchesKey(sequence, 'up')) {
-      options.dispatch({ type: 'NAVIGATE_HISTORY', direction: 'up' });
+      // Navigate completions if visible, else history
+      const state = options.getState();
+      if (getCompletions(state.input.value).length > 0) {
+        options.dispatch({ type: 'COMPLETION_NAVIGATE', direction: 'up' });
+      } else {
+        options.dispatch({ type: 'NAVIGATE_HISTORY', direction: 'up' });
+      }
       return;
     }
     if (matchesKey(sequence, 'down')) {
-      options.dispatch({ type: 'NAVIGATE_HISTORY', direction: 'down' });
+      // Navigate completions if visible, else history
+      const state = options.getState();
+      if (getCompletions(state.input.value).length > 0) {
+        options.dispatch({ type: 'COMPLETION_NAVIGATE', direction: 'down' });
+      } else {
+        options.dispatch({ type: 'NAVIGATE_HISTORY', direction: 'down' });
+      }
     }
   }
 }
