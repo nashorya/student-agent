@@ -221,4 +221,39 @@ describe("appReducer", () => {
       expect(initialAppState.currentStatus).toBe("");
     });
   });
+
+  describe("inputValue（输入框内容）", () => {
+    it("CLEAR_INPUT clears text and advances the input generation", () => {
+      const typed = appReducer(initialAppState, {
+        type: "SET_INPUT",
+        value: "旧的粘贴内容",
+      });
+      const generationBeforeClear = typed.inputGeneration ?? 0;
+
+      const cleared = appReducer(typed, { type: "CLEAR_INPUT" } as any);
+
+      expect(cleared.inputValue).toBe("");
+      expect(cleared.cursorPos).toBe(0);
+      expect(cleared.inputGeneration).toBe(generationBeforeClear + 1);
+    });
+
+    it("ignores a stale deferred SET_INPUT after the input has been cleared", () => {
+      const typed = appReducer(initialAppState, {
+        type: "SET_INPUT",
+        value: "旧的粘贴内容",
+      });
+      const scheduledGeneration = typed.inputGeneration ?? 0;
+      const cleared = appReducer(typed, { type: "CLEAR_INPUT" } as any);
+
+      const staleFlush = appReducer(cleared, {
+        type: "SET_INPUT",
+        value: "旧的粘贴内容",
+        cursorPos: "旧的粘贴内容".length,
+        generation: scheduledGeneration,
+      } as any);
+
+      expect(staleFlush.inputValue).toBe("");
+      expect(staleFlush.cursorPos).toBe(0);
+    });
+  });
 });

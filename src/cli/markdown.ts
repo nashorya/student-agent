@@ -8,6 +8,7 @@
 
 import { Marked, type Token, type Tokens } from 'marked';
 import chalk from 'chalk';
+import stringWidth from 'string-width';
 
 const parser = new Marked();
 
@@ -18,7 +19,7 @@ export function renderMarkdown(text: string, width?: number): string {
   if (!text || !text.trim()) return '';
 
   const contentWidth = width ?? process.stdout.columns ?? 80;
-  const tokens = parser.lexer(text.replace(/\t/g, '   '));
+  const tokens = parser.lexer(preprocessMarkdown(text).replace(/\t/g, '   '));
   const lines: string[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -169,11 +170,17 @@ function wrapText(text: string, width: number): string[] {
 }
 
 function visibleLength(text: string): number {
-  return stripAnsi(text).length;
+  return stringWidth(stripAnsi(text));
 }
 
 function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+function preprocessMarkdown(text: string): string {
+  // marked 会把 CLI 菜单里的 "1)" 解析成有序列表，并把后续 "q)" 当作上一项续行。
+  // 只转义行首数字右括号，保留常见 Markdown 的 "1." 有序列表行为。
+  return text.replace(/^(\s*\d+)\)/gm, '$1\\)');
 }
 
 function renderInline(tokens: Token[]): string {

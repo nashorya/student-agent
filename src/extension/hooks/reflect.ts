@@ -11,6 +11,7 @@ import { PreferenceCandidatesManager } from '../../memory/candidates/manager.js'
 import { PreferencesManager } from '../../memory/preferences/manager.js';
 import { BreakerLogManager } from '../../reflect/breaker-log-manager.js';
 import type { SessionEndContext } from '../../core/pi-bridge/types.js';
+import { safeStdout } from '../../tui/logger.js';
 
 let taskCount = 0;
 let baselineRef = 'HEAD';
@@ -56,12 +57,19 @@ export function createReflectHook(
     });
 
     if (result.patternsExtracted > 0) {
-      console.log(
-        chalk.dim(`  [Reflect] 提取 ${result.patternsExtracted} 个模式，升级 ${result.promoted.length} 条偏好`),
-      );
+      emitReflectSummary({
+        patternsExtracted: result.patternsExtracted,
+        promotedCount: result.promoted.length,
+      });
     }
   };
 }
+
+function emitReflectSummary(summary: { patternsExtracted: number; promotedCount: number }): void {
+  safeStdout(chalk.dim(`  [Reflect] 提取 ${summary.patternsExtracted} 个模式，升级 ${summary.promotedCount} 条偏好\n`));
+}
+
+export const emitReflectSummaryForTesting = emitReflectSummary;
 
 /** 标记一次用户任务开始前的 git 基线，用于会话结束后提取本次任务 diff。 */
 export function markReflectBaseline(): void {

@@ -75,4 +75,19 @@ describe('renderMarkdown', () => {
     const result = renderMarkdown('---');
     expect(result).toContain('─');
   });
+
+  it('保留 CLI 菜单中的 1) / q) 标记，不误渲染为 markdown 有序列表', () => {
+    const result = renderMarkdown([
+      '设置项：',
+      '  1) 模型 Provider / API Key',
+      '  2) 向量模型',
+      '  q) 取消',
+    ].join('\n'));
+
+    expect(result).toContain('1) 模型 Provider / API Key');
+    expect(result).toContain('2) 向量模型');
+    expect(result).toContain('q) 取消');
+    expect(result).not.toContain('1. 模型 Provider');
+    expect(result).not.toContain('2.   q) 取消');
+  });
 });

@@ -38,14 +38,28 @@ import { FailureEscalationContext } from './hooks/failure-escalation.js';
 import { createMemoryHook } from './hooks/memory.js';
 import { createReflectHook, markReflectBaseline } from './hooks/reflect.js';
 import { createQualityWatchdogHook } from './hooks/quality-watchdog.js';
+import { buildSettingTargetPrompt, parseSettingTargetAnswer, type SettingTarget } from './setting-target.js';
+import { shouldShowAgentErrorMessage } from './tui-message-policy.js';
+import {
+  buildPlanningRecoveryPromptQuestion,
+  buildPlanningRetryRequest,
+  buildPlanningRevisionQuestion,
+  classifyPlanningFailure,
+  mergePlanningRevision,
+  parsePlanningRecoveryAnswer,
+  type PlanningFailureInfo,
+} from './planning-recovery.js';
 import { QualityFeedbackManager, parseFeedbackCommand } from '../watchdog/feedback-collector.js';
 import { QuestionsManager } from '../memory/questions/manager.js';
 import { WhyManager } from '../memory/why/manager.js';
 import { EventRenderer } from '../cli/event-renderer.js';
 import { parseCommand, getHelpText, COMMAND_COMPLETIONS, type SlashCommand } from '../cli/command-parser.js';
 import { printBanner } from '../cli/banner.js';
-import { startTUI, isTTY } from '../tui/index.js';
+import { startSelectedTUI, isTTY } from '../tui-runtime.js';
 import { createInputQueue } from '../tui/input-queue.js';
+import { createPasteBuffer } from '../tui/paste-buffer.js';
+import { createBufferedPromptLog } from '../tui/prompt-log.js';
+import { clearTerminalViewport } from '../tui/terminal.js';
 import type { TUIBridge } from '../tui/bridge.js';
 import { initLogger, logger, setTuiMode } from '../tui/logger.js';
 import { initDebugEvents } from '../tui/debug-events.js';
@@ -57,7 +71,7 @@ import { DesignMemoryManager } from '../memory/design/manager.js';
 import type { DesignCandidate } from '../memory/design/types.js';
 import { ProjectKbManager } from '../memory/project-kb/manager.js';
 import { DesignStudyService, NativePlaywrightExtractor, assertLocalDesignUrl } from '../knowledge/design-study/index.js';
-import { parsePhaseSignal } from '../core/task-planner/phase-signal.js';
+import { parsePhaseSignal, type PhaseSignal } from '../core/task-planner/phase-signal.js';
 import { createPlanSnapshot, detectPlanRevisionIntent, type PlanSnapshot } from '../core/task-planner/plan-revision-detector.js';
 import { detectNegativeFeedback } from '../core/task-planner/feedback-detector.js';
 import { detectNaturalReviewResponse } from '../core/task-planner/review-detector.js';
@@ -304,16 +318,20 @@ async function main(): Promise<void> {
 
   // ── REPL ─────────────────────────────────────────
 
-  printBanner();
-
   if (isTTY()) {
     // ── TUI 模式 ──────────────────────────────────────
+    clearTerminalViewport(output);
+    printBanner();
     initLogger();
     initDebugEvents({ enabled: process.env.STUDENT_AGENT_DEBUG_UI === '1' });
     setTuiMode(true);
+    const pasteBuffer = createPasteBuffer();
+    let hasExitedTUI = false;
+    let tui: ReturnType<typeof startSelectedTUI>;
     const inputQueue = createInputQueue((value) => {
       tui.bridge.addMessage('user', value);
-      tui.bridge.setStatus('当前任务仍在运行，消息已排队');
+      tui.bridge.dispatch({ type: 'SET_PENDING_MESSAGE_COUNT', count: inputQueue.pendingCount() });
+      tui.bridge.setStatus(`当前任务仍在运行，已排队 ${inputQueue.pendingCount()} 条`);
     });
 
     const abortCurrentRun = () => {
@@ -326,23 +344,47 @@ async function main(): Promise<void> {
       tui.bridge.setStatus('已请求中止当前任务');
     };
 
-    const tui = startTUI({
+    const exitTUI = () => {
+      if (hasExitedTUI) return;
+      hasExitedTUI = true;
+      runtime.renderer.cleanup();
+      runtime.unsubscribe();
+      tui.unmount();
+      process.exit(0);
+    };
+
+    tui = startSelectedTUI({
       onSubmit: (value) => {
-        if (parseCommand(value)?.type === 'abort') {
-          tui.bridge.addMessage('user', value);
+        const pasteResult = pasteBuffer.handle(value);
+        if (pasteResult.type === 'status') {
+          tui.bridge.setStatus(pasteResult.text);
+          return;
+        }
+
+        const submittedValue = pasteResult.value;
+        if (pasteResult.source === 'input' && parseCommand(submittedValue)?.type === 'abort') {
+          tui.bridge.addMessage('user', submittedValue);
           abortCurrentRun();
           return;
         }
-        inputQueue.enqueueSubmit(value);
+        inputQueue.enqueueSubmit(submittedValue);
       },
       onAbort: abortCurrentRun,
+      onExit: exitTUI,
     });
 
     bindRuntimeToTui(runtime, tui.bridge);
 
     while (true) {
       const submitted = await inputQueue.waitForSubmit();
-      const userInput = submitted.value;
+      let userInput = submitted.value;
+
+      // 消费了一条排队消息后更新计数
+      tui.bridge.dispatch({ type: 'SET_PENDING_MESSAGE_COUNT', count: inputQueue.pendingCount() });
+      // 队列清空时清除瞬态状态
+      if (inputQueue.pendingCount() === 0) {
+        tui.bridge.clearStatus();
+      }
 
       if (!submitted.alreadyDisplayed) {
         tui.bridge.addMessage('user', userInput);
@@ -353,17 +395,25 @@ async function main(): Promise<void> {
       const command = parseCommand(userInput);
       if (command) {
         switch (command.type) {
+          case 'paste':
+            userInput = command.content;
+            break;
+
           case 'quit':
-            runtime.renderer.cleanup();
-            runtime.unsubscribe();
-            tui.unmount();
-            return;
+            exitTUI();
 
           case 'help':
             tui.bridge.addMessage('system', getHelpText());
             continue;
 
           case 'clear':
+            if ('clear' in tui.bridge && typeof tui.bridge.clear === 'function') {
+              tui.bridge.clear();
+            } else {
+              clearTerminalViewport(output);
+              tui.bridge.clearStatus();
+              tui.bridge.dispatch({ type: 'CLEAR_INPUT' });
+            }
             continue;
 
           case 'status':
@@ -381,18 +431,14 @@ async function main(): Promise<void> {
               tui.bridge.setStatus('当前任务仍在运行，不能切换模型');
               continue;
             }
-            let modelLog = '';
-            const tuiModelPrompt = (question: string) => {
-              const fullQuestion = modelLog.trim()
-                ? modelLog.trimEnd() + '\n' + question
-                : question;
-              modelLog = '';
-              return tui.bridge.promptSettings(fullQuestion);
-            };
+            const promptLog = createBufferedPromptLog({
+              writeLog: (message) => tui.bridge.addMessage('system', message),
+              prompt: tui.bridge.promptSettings,
+            });
             const newName = await switchModelName({
               config: runtime.config,
-              prompt: tuiModelPrompt,
-              log: (msg) => { modelLog += msg + '\n'; },
+              prompt: promptLog.prompt,
+              log: promptLog.log,
             });
             if (newName) {
               runtime.renderer.cleanup();
@@ -411,32 +457,25 @@ async function main(): Promise<void> {
               tui.bridge.setStatus('当前任务仍在运行，不能修改设置');
               continue;
             }
-            // log() 调用的内容累积到 pendingLog，在下一次 prompt() 时拼入问题头部显示
-            let pendingLog = '';
-            const tuiLog = (msg: string) => { pendingLog += msg + '\n'; };
-            const tuiPrompt = (question: string) => {
-              const fullQuestion = pendingLog.trim()
-                ? pendingLog.trimEnd() + '\n' + question
-                : question;
-              pendingLog = '';
-              return tui.bridge.promptSettings(fullQuestion);
-            };
-            const targetAnswer = await tuiPrompt(
-              '设置项：\n  1) 模型 Provider / API Key\n  2) 向量模型\n  q) 取消\n选择 [1]: '
-            );
-            const trimmed = targetAnswer.trim().toLowerCase();
-            if (trimmed === 'q' || trimmed === 'quit' || trimmed === 'cancel') {
+            const promptLog = createBufferedPromptLog({
+              writeLog: (message) => tui.bridge.addMessage('system', message),
+              prompt: tui.bridge.promptSettings,
+            });
+            const targetPrompt = buildSettingTargetPrompt();
+            promptLog.log(targetPrompt.menu);
+            const targetAnswer = await promptLog.prompt(targetPrompt.question);
+            const target = parseSettingTargetAnswer(targetAnswer);
+            if (target === 'cancel') {
               tui.bridge.setStatus('已取消设置');
               continue;
             }
-            const forceEmbedding = trimmed === '2' || trimmed === 'embedding';
             await runStartupInitializer({
               cwd: CWD,
               config: runtime.config,
-              prompt: tuiPrompt,
-              log: tuiLog,
-              forceModelProviderSetup: !forceEmbedding,
-              forceEmbeddingSetup: forceEmbedding,
+              prompt: promptLog.prompt,
+              log: promptLog.log,
+              forceModelProviderSetup: target === 'model',
+              forceEmbeddingSetup: target === 'embedding',
             });
             runtime.renderer.cleanup();
             runtime.unsubscribe();
@@ -639,7 +678,7 @@ async function main(): Promise<void> {
           tui.bridge.updateTaskStatus({ state: 'idle' });
           const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
           if (critiqueMessage) tui.bridge.addMessage('system', critiqueMessage);
-          if (runtime.agent.state.errorMessage) {
+          if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
             tui.bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
           }
         } catch (err) {
@@ -675,48 +714,60 @@ async function main(): Promise<void> {
             state: 'running',
           });
 
-          const planOutputs: string[] = [];
-          const planUnsub = runtime.agent.subscribe((event) => {
-            if (event.type === 'message_update' && event.message.role === 'assistant') {
-              const textContent = event.message.content.find((c) => c.type === 'text');
-              if (textContent && textContent.type === 'text') planOutputs.push(textContent.text);
+          let effectiveUserInput = userInput;
+          let planSignal: Extract<PhaseSignal, { type: 'task_start' }> | null = null;
+          let lastPlanningFailure: PlanningFailureInfo | null = null;
+          let planningAbandoned = false;
+
+          for (let planningAttempt = 0; planningAttempt < 2 && !planSignal; planningAttempt += 1) {
+            if (planningAttempt > 0) {
+              tui.bridge.setStatus('[规划中] 正在根据恢复选择重新规划…');
+              tui.bridge.updateTaskStatus({ state: 'running', retryCount: planningAttempt });
             }
-          });
 
-          let planningError: unknown;
-          try {
-            runtime.setFileGuardMode('planning');
-            await runtime.session.prompt(buildPlanningPrompt(userInput));
-            await runtime.agent.waitForIdle();
-          } catch (err) {
-            planningError = err;
-          } finally {
-            runtime.setFileGuardMode('normal');
-            planUnsub();
-          }
+            const planningResult = await runTuiPlanningAttempt(runtime, effectiveUserInput);
 
-          if (planningError) {
+            if (planningResult.outcome === 'task_start') {
+              planSignal = planningResult.signal;
+              tui.bridge.updateTaskStatus({ state: 'idle' });
+              break;
+            }
+
+            lastPlanningFailure = planningResult.failure;
             if (isInformationalFollowUp(userInput)) {
               tui.bridge.clearTaskStatus();
               await runTuiPlainAnswer(runtime, tui.bridge, userInput);
+              planningAbandoned = true;
+              break;
+            }
+
+            const recoveryAction = await promptTuiPlanningRecovery(tui.bridge, planningResult.failure);
+            if (recoveryAction === 'cancel') {
+              tui.bridge.clearTaskStatus();
+              tui.bridge.setStatus('已取消规划');
+              planningAbandoned = true;
+              break;
+            }
+
+            if (recoveryAction === 'revise') {
+              const revision = await tui.bridge.promptSettings(buildPlanningRevisionQuestion(planningResult.failure));
+              if (!revision.trim()) {
+                tui.bridge.clearTaskStatus();
+                tui.bridge.setStatus('已取消规划');
+                planningAbandoned = true;
+                break;
+              }
+              effectiveUserInput = mergePlanningRevision(userInput, revision);
+              currentTaskDescription = intent.taskName ?? effectiveUserInput;
             } else {
+              effectiveUserInput = buildPlanningRetryRequest(effectiveUserInput, planningResult.failure);
+            }
+          }
+
+          if (!planSignal) {
+            if (!planningAbandoned) {
               tui.bridge.updateTaskStatus({ state: 'failed' });
-              tui.bridge.addMessage('system', `规划失败: ${planningError instanceof Error ? planningError.message : String(planningError)}`);
-            }
-            continue;
-          }
-
-          tui.bridge.updateTaskStatus({ state: 'idle' });
-
-          const planText = planOutputs.join('');
-          const planSignal = parsePhaseSignal(planText);
-
-          if (!planSignal || planSignal.type !== 'task_start' || planSignal.phases.length === 0) {
-            if (isInformationalFollowUp(userInput)) {
-              tui.bridge.clearTaskStatus();
-              await runTuiPlainAnswer(runtime, tui.bridge, userInput);
-            } else {
-              tui.bridge.addMessage('system', '[规划失败] Agent 未输出 TASK_START 信号，请重试或换个描述方式。');
+              tui.bridge.setStatus(`规划仍未完成：${lastPlanningFailure?.userSummary ?? '请换个描述重试'}`);
             }
             continue;
           }
@@ -770,7 +821,7 @@ async function main(): Promise<void> {
             tui.bridge.updateTaskStatus({ state: 'idle' });
             const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
             if (critiqueMessage) tui.bridge.addMessage('system', critiqueMessage);
-            if (runtime.agent.state.errorMessage) {
+            if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
               tui.bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
             }
           } catch (err) {
@@ -816,6 +867,7 @@ async function main(): Promise<void> {
     }
   } else {
     // ── 非 TUI 模式（readline 降级）──────────────────
+    printBanner();
 
     const rl = createInterface({
       input,
@@ -828,7 +880,7 @@ async function main(): Promise<void> {
     bindConsoleRiskConfirmation(runtime, rl);
 
     while (true) {
-      const userInput = await rl.question(chalk.cyan('\n> '));
+      let userInput = await rl.question(chalk.cyan('\n> '));
       if (!userInput.trim()) continue;
 
       // 清除刚才用户输入的行，用灰色背景重新打印全宽
@@ -841,11 +893,15 @@ async function main(): Promise<void> {
       const command = parseCommand(userInput);
       if (command) {
         switch (command.type) {
+          case 'paste':
+            userInput = command.content;
+            break;
+
           case 'quit':
             runtime.renderer.cleanup();
             runtime.unsubscribe();
             rl.close();
-            return;
+            process.exit(0);
 
           case 'help':
             console.log(getHelpText());
@@ -1097,6 +1153,11 @@ async function main(): Promise<void> {
           runtime.escalation.initTask(currentTaskDescription, CWD);
           markReflectBaseline();
 
+          // 保存规划前的消息数量，临时取消 EventRenderer 订阅
+          // 避免规划失败时把规划消息残留到 transcript
+          const savedMessageCount = runtime.agent.state.messages.length;
+          runtime.unsubscribe();
+
           let planningError: unknown;
           try {
             runtime.setFileGuardMode('planning');
@@ -1106,9 +1167,13 @@ async function main(): Promise<void> {
           } finally {
             runtime.setFileGuardMode('normal');
             tempUnsubscribe();
+            // 重新订阅 EventRenderer
+            runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
           }
 
           if (planningError) {
+            // 规划失败：恢复 agent 消息到规划前状态
+            runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
             if (isInformationalFollowUp(userInput)) {
               await runConsolePlainAnswer(runtime, userInput);
             } else {
@@ -1126,6 +1191,8 @@ async function main(): Promise<void> {
 
           if (signal?.type === 'task_start') {
             if (signal.phases.length === 0) {
+              // 规划失败：恢复 agent 消息到规划前状态
+              runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
               if (isInformationalFollowUp(userInput)) {
                 await runConsolePlainAnswer(runtime, userInput);
               } else {
@@ -1164,8 +1231,12 @@ async function main(): Promise<void> {
               lastPlanSnapshot = null;
             }
           } else if (isInformationalFollowUp(userInput)) {
+            // 规划未输出 TASK_START：恢复 agent 消息到规划前状态
+            runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
             await runConsolePlainAnswer(runtime, userInput);
           } else {
+            // 规划未输出 TASK_START：恢复 agent 消息到规划前状态
+            runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
             console.log(chalk.red('\n  [规划失败] Agent 未输出 TASK_START 信号，请重试或换个描述方式。'));
           }
         } else {
@@ -1310,7 +1381,7 @@ async function runTuiFeedbackRepair(
     bridge.updateTaskStatus({ state: 'idle' });
     const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
     if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
-    if (runtime.agent.state.errorMessage) {
+    if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
       bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
     }
   } catch (err) {
@@ -1376,7 +1447,7 @@ async function runTuiActivePhase(
     bridge.updateTaskStatus({ state: 'idle' });
     const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
     if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
-    if (runtime.agent.state.errorMessage) {
+    if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
       bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
     }
   } catch (err) {
@@ -1577,6 +1648,75 @@ function buildTaskCreateOptions(intent: Awaited<ReturnType<typeof classifyIntent
   };
 }
 
+type TuiPlanningAttemptResult =
+  | { outcome: 'task_start'; signal: Extract<PhaseSignal, { type: 'task_start' }> }
+  | { outcome: 'failure'; failure: PlanningFailureInfo };
+
+async function runTuiPlanningAttempt(
+  runtime: RuntimeState,
+  userInput: string,
+): Promise<TuiPlanningAttemptResult> {
+  const planOutputs: string[] = [];
+  const planUnsub = runtime.agent.subscribe((event) => {
+    if (event.type === 'message_update' && event.message.role === 'assistant') {
+      const textContent = event.message.content.find((c) => c.type === 'text');
+      if (textContent && textContent.type === 'text') planOutputs.push(textContent.text);
+    }
+  });
+
+  const savedMessageCount = runtime.agent.state.messages.length;
+  runtime.unsubscribe();
+
+  let planningError: unknown;
+  try {
+    runtime.setFileGuardMode('planning');
+    await runtime.session.prompt(buildPlanningPrompt(userInput));
+    await runtime.agent.waitForIdle();
+  } catch (err) {
+    planningError = err;
+  } finally {
+    runtime.setFileGuardMode('normal');
+    planUnsub();
+    runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
+  }
+
+  const planText = planOutputs.join('');
+  if (planningError) {
+    runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
+    return {
+      outcome: 'failure',
+      failure: classifyPlanningFailure({ reason: 'error', detail: planningError, planText }),
+    };
+  }
+
+  const signal = parsePhaseSignal(planText);
+  if (!signal || signal.type !== 'task_start') {
+    runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
+    return {
+      outcome: 'failure',
+      failure: classifyPlanningFailure({ reason: 'missing-task-start', planText }),
+    };
+  }
+  if (signal.phases.length === 0) {
+    runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
+    return {
+      outcome: 'failure',
+      failure: classifyPlanningFailure({ reason: 'empty-phases', planText }),
+    };
+  }
+
+  return { outcome: 'task_start', signal };
+}
+
+async function promptTuiPlanningRecovery(
+  bridge: TUIBridge,
+  failure: PlanningFailureInfo,
+) {
+  bridge.updateTaskStatus({ state: 'failed' });
+  const answer = await bridge.promptSettings(buildPlanningRecoveryPromptQuestion(failure));
+  return parsePlanningRecoveryAnswer(answer);
+}
+
 async function recordFeedbackRetryForActivePhase(
   runtime: RuntimeState,
   feedback: string,
@@ -1627,7 +1767,7 @@ async function runTuiPlainAnswer(
     bridge.updateTaskStatus({ state: 'idle' });
     const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
     if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
-    if (runtime.agent.state.errorMessage) {
+    if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
       bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
     }
   } catch (err) {
@@ -1677,7 +1817,7 @@ async function runTuiFollowUpPrompt(
     bridge.updateTaskStatus({ state: 'idle' });
     const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
     if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
-    if (runtime.agent.state.errorMessage) {
+    if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
       bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
     }
   } catch (err) {
@@ -2290,24 +2430,10 @@ async function runSettingFlow(
 
 async function chooseSettingTarget(
   rl: Awaited<ReturnType<typeof createInterface>>,
-): Promise<'model' | 'embedding' | 'cancel'> {
-  const answer = (await rl.question(
-    [
-      '设置项：',
-      '  1) 模型 Provider / API Key',
-      '  2) 向量模型',
-      '  q) 取消',
-      '选择 [1]: ',
-    ].join('\n'),
-  )).trim().toLowerCase();
-
-  if (answer === 'q' || answer === 'quit' || answer === 'cancel') {
-    return 'cancel';
-  }
-  if (answer === '2' || answer === 'embedding' || answer === 'vector' || answer === '向量模型') {
-    return 'embedding';
-  }
-  return 'model';
+): Promise<SettingTarget> {
+  const targetPrompt = buildSettingTargetPrompt();
+  const answer = await rl.question(`${targetPrompt.menu}\n${targetPrompt.question}`);
+  return parseSettingTargetAnswer(answer);
 }
 
 async function runTaskWithAbort(runtime: RuntimeState, userInput: string): Promise<void> {

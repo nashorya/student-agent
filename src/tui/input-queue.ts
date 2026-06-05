@@ -6,6 +6,8 @@ export interface QueuedInput {
 export interface InputQueue {
   waitForSubmit: () => Promise<QueuedInput>;
   enqueueSubmit: (value: string) => boolean;
+  /** 当前排队等待处理的消息数量 */
+  pendingCount: () => number;
 }
 
 export function createInputQueue(onQueued?: (value: string) => void): InputQueue {
@@ -34,6 +36,10 @@ export function createInputQueue(onQueued?: (value: string) => void): InputQueue
       pendingInputs.push({ value, alreadyDisplayed: true });
       onQueued?.(value);
       return true;
+    },
+
+    pendingCount() {
+      return pendingInputs.length;
     },
   };
 }

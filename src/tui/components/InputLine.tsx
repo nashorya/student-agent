@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Box, Text, useInput } from "ink";
+import stringWidth from "string-width";
 import { useAppState } from "../state.js";
 import { getCommandCompletions } from "../command-completions.js";
 
@@ -14,7 +15,7 @@ interface InputLineProps {
  */
 export function InputLine({ onSubmit, onAbort }: InputLineProps) {
   const { state, dispatch } = useAppState();
-  const { inputValue, cursorPos, settingsPrompt } = state;
+  const { inputValue, inputGeneration, cursorPos, settingsPrompt } = state;
 
   const [menuIndex, setMenuIndex] = useState(0);
   const pendingInputRef = useRef<{ value: string; cursorPos: number } | null>(null);
@@ -24,6 +25,7 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
     ? getCommandCompletions(inputValue)
     : [];
   const showMenu = menuItems.length > 0;
+  const inputPrefix = settingsPrompt ? formatSettingsPromptPrefix(settingsPrompt.question) : "> ";
 
   // 输入变化时重置菜单选中到第一项
   useEffect(() => {
@@ -31,16 +33,22 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
   }, [inputValue]);
 
   useInput((input, key) => {
+    const bufferedInput = pendingInputRef.current ?? { value: inputValue, cursorPos };
+    const clearInput = () => {
+      pendingInputRef.current = null;
+      dispatch({ type: "CLEAR_INPUT" });
+    };
+
     // Settings prompt 模式：Enter 提交答案，Escape 取消（空答案）
     if (settingsPrompt) {
       if (key.return) {
         settingsPrompt.resolve(inputValue);
-        dispatch({ type: "SET_INPUT", value: "" });
+        clearInput();
         return;
       }
       if (key.escape) {
         settingsPrompt.resolve("");
-        dispatch({ type: "SET_INPUT", value: "" });
+        clearInput();
         return;
       }
       if (key.backspace || key.delete) {
@@ -55,8 +63,8 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
     }
 
     if (key.escape) {
-      if (showMenu || inputValue) {
-        dispatch({ type: "SET_INPUT", value: "" });
+      if (showMenu || bufferedInput.value) {
+        clearInput();
       } else {
         onAbort();
       }
@@ -64,18 +72,20 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
     }
 
     if (key.return) {
-      if (inputValue.trim()) {
-        onSubmit(inputValue);
-        dispatch({ type: "ADD_TO_HISTORY", value: inputValue });
-        dispatch({ type: "SET_INPUT", value: "" });
+      const submittedValue = bufferedInput.value;
+      if (submittedValue.trim()) {
+        onSubmit(submittedValue);
+        dispatch({ type: "ADD_TO_HISTORY", value: submittedValue });
+        clearInput();
       }
       return;
     }
 
     if (key.backspace || key.delete) {
-      if (cursorPos > 0) {
-        const newValue = inputValue.slice(0, cursorPos - 1) + inputValue.slice(cursorPos);
-        dispatch({ type: "SET_INPUT", value: newValue, cursorPos: cursorPos - 1 });
+      if (bufferedInput.cursorPos > 0) {
+        const newValue = bufferedInput.value.slice(0, bufferedInput.cursorPos - 1) + bufferedInput.value.slice(bufferedInput.cursorPos);
+        pendingInputRef.current = null;
+        dispatch({ type: "SET_INPUT", value: newValue, cursorPos: bufferedInput.cursorPos - 1 });
       }
       return;
     }
@@ -92,6 +102,7 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
       }
       if (key.tab) {
         const selected = menuItems[menuIndex] ?? menuItems[0];
+        pendingInputRef.current = null;
         dispatch({ type: "SET_INPUT", value: selected, cursorPos: selected.length });
         return;
       }
@@ -126,10 +137,16 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
       };
       if (!flushScheduledRef.current) {
         flushScheduledRef.current = true;
+        const scheduledGeneration = inputGeneration;
         setImmediate(() => {
           flushScheduledRef.current = false;
           if (pendingInputRef.current) {
-            dispatch({ type: "SET_INPUT", value: pendingInputRef.current.value, cursorPos: pendingInputRef.current.cursorPos });
+            dispatch({
+              type: "SET_INPUT",
+              value: pendingInputRef.current.value,
+              cursorPos: pendingInputRef.current.cursorPos,
+              generation: scheduledGeneration,
+            });
             pendingInputRef.current = null;
           }
         });
@@ -151,23 +168,39 @@ export function InputLine({ onSubmit, onAbort }: InputLineProps) {
         </Box>
       )}
       <Box borderStyle="single" borderColor={settingsPrompt ? "yellow" : "gray"}>
-        {settingsPrompt && (
-          <Box>
-            <Text color="yellow">{settingsPrompt.question}</Text>
-          </Box>
-        )}
         <Box>
-          <Text color={settingsPrompt ? "yellow" : "cyan"}>&gt; </Text>
-          <InputText value={inputValue} cursor={cursorPos} />
+          <InputText
+            value={inputValue}
+            cursor={cursorPos}
+            promptWidth={stringWidth(inputPrefix)}
+            prefix={inputPrefix}
+            prefixColor={settingsPrompt ? "yellow" : "cyan"}
+          />
         </Box>
       </Box>
     </Box>
   );
 }
 
-function InputText({ value, cursor }: { value: string; cursor: number }) {
+export function formatSettingsPromptPrefix(question: string): string {
+  const normalized = question.replace(/\s+/g, " ").trim();
+  return normalized ? `${normalized} > ` : "> ";
+}
+
+function InputText({
+  value,
+  cursor,
+  promptWidth,
+  prefix,
+  prefixColor,
+}: {
+  value: string;
+  cursor: number;
+  promptWidth: number;
+  prefix: string;
+  prefixColor: "yellow" | "cyan";
+}) {
   const termWidth = process.stdout.columns ?? 80;
-  const promptWidth = 2; // "> "
   const borderWidth = 2; // left + right border
   const viewWidth = Math.max(10, termWidth - promptWidth - borderWidth);
 
@@ -181,10 +214,11 @@ function InputText({ value, cursor }: { value: string; cursor: number }) {
   const localCursor = cursor - windowStart;
 
   return (
-    <>
+    <Text>
+      <Text color={prefixColor}>{prefix}</Text>
       <Text>{visible.slice(0, localCursor)}</Text>
       <Text inverse>{visible[localCursor] ?? " "}</Text>
       <Text>{visible.slice(localCursor + 1)}</Text>
-    </>
+    </Text>
   );
 }

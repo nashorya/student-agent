@@ -13,7 +13,7 @@ import { useAppState } from "../state.js";
  */
 export function StatusBar() {
   const { state } = useAppState();
-  const { currentStatus, taskStatus, currentTool } = state;
+  const { currentStatus, taskStatus, currentTool, pendingMessageCount } = state;
 
   const columns = process.stdout.columns ?? 80;
   // 留出边框 2 列 + 内边距 2 列 = 4 列
@@ -30,9 +30,10 @@ export function StatusBar() {
 
   if (!taskStatus?.name) {
     const toolText = currentTool ? ` · ${currentTool}` : "";
+    const queueText = pendingMessageCount > 0 ? ` · 已排队 ${pendingMessageCount} 条` : "";
     return (
       <Box borderStyle="single" borderColor="gray">
-        <Text dimColor>student-agent · 就绪{toolText}</Text>
+        <Text dimColor>student-agent · 就绪{toolText}{queueText}</Text>
       </Box>
     );
   }
@@ -50,6 +51,7 @@ export function StatusBar() {
   const elapsed = formatElapsed(elapsedMs);
   const retryText = retryCount > 0 ? ` · 重试:${retryCount}` : "";
   const toolText = currentTool ? ` · ${currentTool}` : "";
+  const queueText = pendingMessageCount > 0 ? ` · 已排队 ${pendingMessageCount} 条` : "";
   const stateText = getStateText(taskState);
 
   const statusLine = [
@@ -60,7 +62,7 @@ export function StatusBar() {
     stateText,
   ].join(" · ");
 
-  const fullLine = `${statusLine}${retryText}${toolText}`;
+  const fullLine = `${statusLine}${retryText}${toolText}${queueText}`;
 
   return (
     <Box borderStyle="single" borderColor="gray">

@@ -13,6 +13,7 @@ export type SlashCommand =
   | { type: 'clear' }
   | { type: 'candidates' }
   | { type: 'init' }
+  | { type: 'paste'; content: string }
   | { type: 'feedback'; rating: 'up' | 'down'; comment: string }
   | { type: 'review'; rating: 'up' | 'ok' | 'down'; comment: string }
   | { type: 'why'; query: string; trace: boolean }
@@ -47,6 +48,7 @@ export const COMMANDS = [
   '/clear',
   '/candidates',
   '/init',
+  '/paste',
   '/feedback',
   '/review',
   '/why',
@@ -93,6 +95,9 @@ export const COMMAND_COMPLETIONS = [
 export function parseCommand(input: string): SlashCommand | null {
   const trimmed = input.trim();
   if (!trimmed.startsWith('/')) return null;
+  if (/^\/paste(?:\s|$)/iu.test(trimmed)) {
+    return parsePasteCommand(trimmed);
+  }
 
   const [cmd, ...args] = trimmed.slice(1).split(/\s+/);
   const commandName = cmd.toLowerCase();
@@ -199,6 +204,7 @@ export function getHelpText(): string {
     '    /clear                清空屏幕',
     '    /candidates           查看偏好候选',
     '    /init                     将当前目录初始化为 git 仓库（启用快照回滚）',
+    '    /paste ... /end           粘贴多行内容并作为一条消息提交',
     '    /feedback up|down [评论]  提交质量反馈',
     '    /review up|ok|down [评论]  静默记录本轮信心投票',
     '    /why [关键词] [--trace]    查看决策来源',
@@ -219,6 +225,20 @@ export function getHelpText(): string {
     '    /design critique [url] [profile-id]  运行视觉自评',
     '',
   ].join('\n');
+}
+
+function parsePasteCommand(trimmed: string): SlashCommand {
+  const normalized = trimmed.replace(/\r\n/g, '\n');
+  const afterPaste = normalized.replace(/^\/paste[ \t]*/iu, '').replace(/^\n/u, '');
+  const lines = afterPaste.split('\n');
+  const endIndex = lines.findIndex((line) => line.trim().toLowerCase() === '/end');
+  if (endIndex < 0) {
+    return { type: 'unknown', raw: trimmed };
+  }
+  return {
+    type: 'paste',
+    content: lines.slice(0, endIndex).join('\n'),
+  };
 }
 
 function stripAngleBrackets(value: string): string {

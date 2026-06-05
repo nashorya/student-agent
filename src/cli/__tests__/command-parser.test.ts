@@ -44,6 +44,24 @@ describe('parseCommand', () => {
     expect(parseCommand('/candidates')).toEqual({ type: 'candidates' });
   });
 
+  it('解析单次提交的 /paste 多行块', () => {
+    expect(parseCommand('/paste\n第一行\n第二行\n/end')).toEqual({
+      type: 'paste',
+      content: '第一行\n第二行',
+    });
+    expect(parseCommand('/paste 第一行\n第二行\n/end')).toEqual({
+      type: 'paste',
+      content: '第一行\n第二行',
+    });
+  });
+
+  it('/paste 缺少 /end 返回 unknown', () => {
+    expect(parseCommand('/paste\n第一行')).toEqual({
+      type: 'unknown',
+      raw: '/paste\n第一行',
+    });
+  });
+
   it('解析 feedback 命令', () => {
     expect(parseCommand('/feedback up 很好')).toEqual({
       type: 'feedback',

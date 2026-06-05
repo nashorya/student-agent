@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { collectTaskDiff } from '../reflect.js';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { collectTaskDiff, emitReflectSummaryForTesting } from '../reflect.js';
+import { setTuiMode } from '../../../tui/logger.js';
+
+afterEach(() => {
+  setTuiMode(false);
+  vi.restoreAllMocks();
+});
 
 describe('reflect diff collection', () => {
   it('collectTaskDiff 包含 base、staged、unstaged 和 untracked 文件', () => {
@@ -32,5 +38,19 @@ describe('reflect diff collection', () => {
     expect(diff).toContain('+staged');
     expect(diff).toContain('+++ b/untracked.txt');
     expect(diff).toContain('+untracked');
+  });
+
+  it('TUI 模式下 Reflect 摘要不直接写 console/stdout', () => {
+    setTuiMode(true);
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    emitReflectSummaryForTesting({
+      patternsExtracted: 1,
+      promotedCount: 0,
+    });
+
+    expect(consoleLog).not.toHaveBeenCalled();
+    expect(stdoutWrite).not.toHaveBeenCalled();
   });
 });

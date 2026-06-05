@@ -331,15 +331,40 @@ describe('EventRenderer TUI 多消息回合', () => {
     renderer.handleEvent({ type: 'agent_end' } as unknown as AgentEvent);
 
     const addAssistantCalls = bridge.addMessage.mock.calls.filter(
-      ([role, content]) => role === 'assistant' && content !== '',
+      ([role]) => role === 'assistant',
     );
-    expect(addAssistantCalls).toEqual([['assistant', 'B']]);
+    expect(addAssistantCalls).toEqual([
+      ['assistant', ''],
+      ['assistant', ''],
+    ]);
 
     const lastUpdates = bridge.updateLastMessage.mock.calls.map(([content]) => content);
     expect(lastUpdates).toContain('A');
     expect(lastUpdates).toContain('B');
     expect(lastUpdates).not.toContain('AB');
-    expect(bridge.discardAssistantMessage).toHaveBeenCalledTimes(2);
+    expect(bridge.discardAssistantMessage).toHaveBeenCalledTimes(1);
+    expect(bridge.endAssistantMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('TUI bridge stream commits once without final duplicate add', () => {
+    const bridge = createFakeBridge();
+    const renderer = new EventRenderer(bridge);
+
+    renderer.handleEvent({ type: 'agent_start' } as unknown as AgentEvent);
+    renderer.handleEvent({
+      type: 'message_start',
+      message: { role: 'assistant' },
+    } as unknown as AgentEvent);
+    renderer.handleEvent(textDeltaEvent('hello'));
+    renderer.handleEvent({ type: 'message_end' } as unknown as AgentEvent);
+    renderer.handleEvent({ type: 'agent_end' } as unknown as AgentEvent);
+
+    const addAssistantCalls = bridge.addMessage.mock.calls.filter(
+      ([role]) => role === 'assistant',
+    );
+    expect(addAssistantCalls).toEqual([['assistant', '']]);
+    expect(bridge.updateLastMessage).toHaveBeenLastCalledWith('hello');
+    expect(bridge.discardAssistantMessage).not.toHaveBeenCalled();
     expect(bridge.endAssistantMessage).toHaveBeenCalledTimes(1);
   });
 

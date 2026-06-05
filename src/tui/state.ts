@@ -67,8 +67,11 @@ export interface AppState {
   currentTool: string | null;
   /** currentStatus: 底部状态栏瞬态文本，单行截断，不进正文 */
   currentStatus: string;
+  /** 排队等待处理的消息数量（运行中用户输入） */
+  pendingMessageCount: number;
   /** inputValue: 输入框内容 */
   inputValue: string;
+  inputGeneration: number;
   cursorPos: number;
   inputHistory: string[];
   historyIndex: number;
@@ -89,7 +92,10 @@ export type AppAction =
   | { type: "SET_STATUS"; text: string }
   /** currentStatus: 清除底部状态栏瞬态文本 */
   | { type: "CLEAR_STATUS" }
-  | { type: "SET_INPUT"; value: string; cursorPos?: number }
+  /** 设置排队消息数量 */
+  | { type: "SET_PENDING_MESSAGE_COUNT"; count: number }
+  | { type: "SET_INPUT"; value: string; cursorPos?: number; generation?: number }
+  | { type: "CLEAR_INPUT" }
   | { type: "MOVE_CURSOR"; direction: "left" | "right" }
   | { type: "ADD_TO_HISTORY"; value: string }
   | { type: "NAVIGATE_HISTORY"; direction: "up" | "down" }
@@ -178,10 +184,22 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, currentStatus: action.text };
     case "CLEAR_STATUS":
       return { ...state, currentStatus: "" };
+    case "SET_PENDING_MESSAGE_COUNT":
+      return { ...state, pendingMessageCount: action.count };
     case "SET_INPUT": {
+      if (action.generation !== undefined && action.generation !== state.inputGeneration) {
+        return state;
+      }
       const cursorPos = action.cursorPos ?? action.value.length;
       return { ...state, inputValue: action.value, cursorPos };
     }
+    case "CLEAR_INPUT":
+      return {
+        ...state,
+        inputValue: "",
+        cursorPos: 0,
+        inputGeneration: state.inputGeneration + 1,
+      };
     case "MOVE_CURSOR": {
       const newPos = action.direction === "left"
         ? Math.max(0, state.cursorPos - 1)
@@ -221,7 +239,9 @@ export const initialAppState: AppState = {
   taskStatus: null,
   currentTool: null,
   currentStatus: "",
+  pendingMessageCount: 0,
   inputValue: "",
+  inputGeneration: 0,
   cursorPos: 0,
   inputHistory: [],
   historyIndex: 0,

@@ -20,17 +20,22 @@ describe('createInputQueue', () => {
     const onQueued = vi.fn();
     const queue = createInputQueue(onQueued);
 
+    expect(queue.pendingCount()).toBe(0);
     expect(queue.enqueueSubmit('第一条')).toBe(true);
+    expect(queue.pendingCount()).toBe(1);
     expect(queue.enqueueSubmit('第二条')).toBe(true);
+    expect(queue.pendingCount()).toBe(2);
 
     await expect(queue.waitForSubmit()).resolves.toEqual({
       value: '第一条',
       alreadyDisplayed: true,
     });
+    expect(queue.pendingCount()).toBe(1);
     await expect(queue.waitForSubmit()).resolves.toEqual({
       value: '第二条',
       alreadyDisplayed: true,
     });
+    expect(queue.pendingCount()).toBe(0);
     expect(onQueued).toHaveBeenNthCalledWith(1, '第一条');
     expect(onQueued).toHaveBeenNthCalledWith(2, '第二条');
   });
