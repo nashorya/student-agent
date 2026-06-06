@@ -52,4 +52,5 @@ export type TUIV2Action =
   | { type: 'SCROLL'; delta: number }
   | { type: 'CLEAR_SCREEN' }
   | { type: 'COMPLETION_NAVIGATE'; direction: 'up' | 'down' }
-  | { type: 'COMPLETION_RESET' };
+  | { type: 'COMPLETION_RESET' }
+  | { type: 'FORCE_REDRAW' };

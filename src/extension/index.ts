@@ -590,14 +590,14 @@ async function main(): Promise<void> {
               tui.bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
             }
           }
-          tui.bridge.addMessage('system', reviewResult.message);
+          tui.bridge.setStatus(reviewResult.message);
           continue;
         }
       }
 
       const automaticRevisionMessage = await maybeRecordAutomaticPlanRevision(userInput, activeTask);
       if (automaticRevisionMessage) {
-        tui.bridge.addMessage('system', automaticRevisionMessage);
+        tui.bridge.setStatus(automaticRevisionMessage);
       }
 
       if (activeTask && isPlanConfirmationInput(userInput)) {
@@ -657,11 +657,13 @@ async function main(): Promise<void> {
           tui.bridge.addMessage('system', `Task error: ${err instanceof Error ? err.message : String(err)}`);
         }
       } else {
+        tui.bridge.setStatus('分析任务中…');
         const intent = await classifyIntent(
           userInput,
           activeTask?.name ?? null,
           runtime.model,
         );
+        tui.bridge.clearStatus();
 
         if (intent.type === 'new_task' && intent.requiresPlan) {
           currentTaskDescription = intent.taskName ?? userInput;
@@ -808,17 +810,17 @@ async function main(): Promise<void> {
               const updatedTask = await tasksMgr.getActive();
               if (updatedTask && hasExecutableCurrentPhase(updatedTask)) {
                 if (isYoloMode(runtime)) {
-                  tui.bridge.addMessage('system', `[Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}，YOLO 自动继续。`);
+                  tui.bridge.setStatus(`Phase ${signal.phaseIndex + 1} 完成，自动继续…`);
                   await runTuiActivePhase(runtime, tui.bridge, updatedTask);
                 } else {
                   tui.bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
-                  tui.bridge.addMessage('system', `[Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`);
+                  tui.bridge.setStatus(`Phase ${signal.phaseIndex + 1} 完成 → 回复”继续”执行 Phase ${updatedTask.active_phase_index + 1}`);
                 }
               } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
                 tui.bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
                 tui.bridge.addMessage('system', formatAwaitingReviewMessage(updatedTask));
               } else {
-                tui.bridge.addMessage('system', `[任务完成] ${activeTask.name}`);
+                tui.bridge.setStatus(`✓ 任务完成：${activeTask.name}`);
                 tui.bridge.clearTaskStatus();
                 lastPlanSnapshot = null;
               }

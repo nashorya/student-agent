@@ -78,7 +78,7 @@ export function createPiTUIV2Runtime(options: TUIV2PiRuntimeOptions): TUIV2PiHan
 
   const dispatch = (action: TUIV2Action) => {
     state = tuiV2Reducer(state, action);
-    render(action.type === 'CLEAR_SCREEN');
+    render(action.type === 'CLEAR_SCREEN' || action.type === 'FORCE_REDRAW');
   };
 
   const inputController = createInputController({

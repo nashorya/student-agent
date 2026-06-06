@@ -8,6 +8,7 @@ export type TUIV2DispatchAction = TUIV2Action | AppAction;
 export interface TUIV2Bridge extends Omit<TUIBridge, 'dispatch'> {
   dispatch: (action: TUIV2DispatchAction) => void;
   clear: () => void;
+  forceRedraw: () => void;
 }
 
 export function createTUIV2Bridge(options: {
@@ -91,6 +92,10 @@ export function createTUIV2Bridge(options: {
     clear() {
       options.dispatch({ type: 'CLEAR_SCREEN' });
     },
+
+    forceRedraw() {
+      options.dispatch({ type: 'FORCE_REDRAW' });
+    },
   };
 }
 
@@ -136,6 +141,7 @@ function mapExternalAction(action: TUIV2DispatchAction): TUIV2Action | null {
     case 'END_PROMPT':
     case 'SCROLL':
     case 'CLEAR_SCREEN':
+    case 'FORCE_REDRAW':
       return action;
     case 'SET_SETTINGS_PROMPT':
       return action.prompt

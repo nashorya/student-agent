@@ -3,6 +3,24 @@ import type { TUIV2Action } from './events.js';
 import type { TUIV2State } from './state.js';
 import { getCompletions, clampCompletionIndex } from './components/completions.js';
 
+const SHORTCUTS_HELP = `**快捷键**
+  Enter        发送消息
+  Tab          自动补全命令
+  ↑ / ↓        历史记录 / 补全导航
+  Esc          清空输入 / 取消提示
+  Ctrl+C       中止当前任务 / 退出
+
+**常用命令**
+  /task status      查看当前任务状态
+  /task cancel      取消当前任务
+  /plan             查看/修订执行计划
+  /review up        验收当前任务结果
+  /review down [原因]  拒绝并要求修订
+  /feedback [内容]  发送质量反馈
+  /why              解释上一步的决策
+  /quit             退出`;
+
+
 const BRACKETED_PASTE_START = '\x1b[200~';
 const BRACKETED_PASTE_END = '\x1b[201~';
 
@@ -148,6 +166,15 @@ export function createInputController(options: {
     }
     if (key === '\x7f' || key === '\b') {
       deleteBeforeCursor();
+      return;
+    }
+    // '?' with empty input → show shortcuts help in transcript
+    if (key === '?' && options.getState().input.value === '' && options.getState().input.promptQuestion === null) {
+      options.dispatch({
+        type: 'APPEND_MESSAGE',
+        role: 'system',
+        content: SHORTCUTS_HELP,
+      });
       return;
     }
     if (!/[\x00-\x1F\x7F]/u.test(key)) {

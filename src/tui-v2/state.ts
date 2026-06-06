@@ -254,6 +254,9 @@ export function tuiV2Reducer(state: TUIV2State, action: TUIV2Action): TUIV2State
       return { ...state, scrollOffset: next };
     }
 
+    case 'FORCE_REDRAW':
+      return state; // state unchanged; pi-runtime forces re-render on this action type
+
     case 'CLEAR_SCREEN':
       return {
         transcript: { messages: [], nextMessageSeq: state.transcript.nextMessageSeq },

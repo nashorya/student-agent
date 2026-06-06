@@ -183,6 +183,11 @@ export class EventRenderer {
         if (this.bridge) {
           this.bridge.setCurrentTool(null);
           this.bridge.clearStatus();
+          // Force full redraw: bash tools write progress bars directly to stdout,
+          // corrupting the TUI. A forced re-render cleans up the screen.
+          if ('forceRedraw' in this.bridge && typeof (this.bridge as Record<string, unknown>).forceRedraw === 'function') {
+            (this.bridge as { forceRedraw: () => void }).forceRedraw();
+          }
         } else {
           this.spinner.stop();
         }
