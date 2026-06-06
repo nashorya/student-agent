@@ -1,20 +1,26 @@
-import { addItem, removeItem, getTotal } from "./cart.js";
+import { addItem, removeItem, getSubtotal, checkout } from "./cart.js";
 import { products } from "./products.js";
-import type { CartItem } from "./types.js";
+import type { CartItem, Coupon } from "./types.js";
 
 // 初始购物车为空
 let cart: CartItem[] = [];
 
-// 添加商品
-cart = addItem(cart, "apple", 2);
-cart = addItem(cart, "banana", 3);
-cart = addItem(cart, "cherry", 1);
+// Phase 1-2：添加和移除商品
+cart = addItem(cart, "apple", 3);
+cart = addItem(cart, "milk", 2);
+cart = addItem(cart, "bread", 1);
+cart = removeItem(cart, "apple", 1);
 
-// 移除部分商品
-cart = removeItem(cart, "banana", 1);
-
-// 计算总价（含 8% 税）
-const total = getTotal(cart, products);
-
+const subtotal = getSubtotal(cart, products);
 console.log(`购物车中有 ${cart.length} 种商品`);
-console.log(`总价（含税）: ¥${total}`);
+console.log(`小计: ¥${subtotal}`);
+
+// Phase 3：使用优惠券结账
+const coupon: Coupon = {
+  code: "WELCOME10",
+  type: "percentage",
+  value: 10,
+  minAmount: 10,
+};
+const total = checkout(cart, products, coupon);
+console.log(`总价（含 8% 税，已应用优惠券）: ¥${total}`);

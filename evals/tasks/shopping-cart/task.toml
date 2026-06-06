@@ -1,5 +1,5 @@
 id = "shopping-cart"
-title = "购物车功能实现"
+title = "购物车功能实现（新版）"
 mode = "task"
 tags = ["task", "phase", "typescript", "multi-file", "shopping-cart"]
 timeout_seconds = 360

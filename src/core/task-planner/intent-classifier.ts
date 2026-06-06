@@ -136,15 +136,7 @@ export function classifyWorkflowIntent(input: string, currentTaskName: string | 
     });
   }
 
-  if (isActionRequest(text)) {
-    return newTaskResult({
-      input: text,
-      level: 1,
-      reason: 'simple-action-request',
-      requiresPlan: false,
-    });
-  }
-
+  // 不再兜底判 level 1 — 让 LLM 决定复杂度，避免"做一个完整系统"被错判成简单任务
   return null;
 }
 
