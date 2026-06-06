@@ -56,11 +56,12 @@ function renderToken(token: Token, nextType?: string, contentWidth = process.std
     }
 
     case 'code': {
-      lines.push(chalk.dim(`\`\`\`${token.lang || ''}`));
+      const lang = token.lang ? chalk.dim(` ${token.lang}`) : '';
+      lines.push(chalk.dim('┌─') + lang);
       for (const codeLine of token.text.split('\n')) {
-        lines.push(chalk.cyan(`  ${codeLine}`));
+        lines.push(chalk.dim('│ ') + chalk.cyan(codeLine));
       }
-      lines.push(chalk.dim('```'));
+      lines.push(chalk.dim('└─'));
       if (nextType && nextType !== 'space') lines.push('');
       break;
     }

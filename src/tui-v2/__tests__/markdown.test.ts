@@ -16,7 +16,7 @@ describe('renderMarkdownLines', () => {
     const lines = renderMarkdownLines('```ts\nconst x = 1', { width: 40, streaming: true });
     const text = stripAnsi(lines.join('\n'));
 
-    expect(text).toContain('```ts');
+    expect(text).toContain('┌─ ts');
     expect(text).toContain('const x = 1');
   });
 

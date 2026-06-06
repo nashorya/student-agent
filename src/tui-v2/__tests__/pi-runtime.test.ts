@@ -14,7 +14,7 @@ describe('Pi TUI v2 runtime', () => {
 
     await runtime.flush();
 
-    expect(runtime.frame().at(-2)).toContain('student-agent');
+    expect(runtime.frame().at(-3)).toContain('student-agent');
     expect(runtime.frame().at(-1)).toContain('> ');
     expect(runtime.output()).toContain('\x1b[?2026h');
 

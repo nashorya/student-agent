@@ -27,9 +27,11 @@ export function renderFrame(
   const footer = [
     renderSeparator(columns),
     ...taskPanel,
+    ...(taskPanel.length > 0 ? [renderSeparator(columns)] : []),
     ...prompt,
     ...completions,
     renderStatusLine(state, columns),
+    renderSeparator(columns),
     ...input,
   ];
   const transcriptRows = Math.max(0, rows - footer.length);

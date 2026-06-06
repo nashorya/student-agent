@@ -17,7 +17,7 @@ describe('renderFrame', () => {
 
     const frame = renderFrame(state, { columns: 30, rows: 6 });
 
-    expect(frame.at(-2)).toContain('busy');
+    expect(frame.at(-3)).toContain('busy');
     expect(stripAnsi(frame.at(-1) ?? '')).toContain('> draft');
     expect(stripAnsi(frame.join('\n'))).toContain('> hello');
     for (const line of frame) expect(visibleLength(line)).toBe(30);
@@ -27,7 +27,7 @@ describe('renderFrame', () => {
     const frame = renderFrame(initialTUIV2State, { columns: 24, rows: 4 });
 
     expect(frame).toHaveLength(4);
-    expect(frame.at(-2)).toContain('student-agent');
+    expect(frame.at(-3)).toContain('student-agent');
     expect(stripAnsi(frame.at(-1) ?? '')).toContain('> ');
     for (const line of frame) expect(visibleLength(line)).toBe(24);
   });
@@ -51,7 +51,7 @@ describe('renderFrame', () => {
     expect(output).toContain('`/quit` 退出');
     expect(output).toContain('重新跑');
     expect(output).toContain('一遍');
-    expect(frame.at(-4)).toContain('student-agent');
+    expect(frame.at(-5)).toContain('student-agent');
     for (const line of frame) expect(visibleLength(line)).toBe(42);
   });
 
@@ -98,7 +98,7 @@ describe('renderFrame', () => {
       streaming: { id: 's1', messageId: 'msg_1' },
     };
 
-    const frame = renderFrame(state, { columns: 40, rows: 6 });
+    const frame = renderFrame(state, { columns: 40, rows: 8 });
     const assistantIndex = frame.findIndex((line) => stripAnsi(line).trimEnd() === 'Assistant:');
     const assistantContentIndex = frame.findIndex((line) => stripAnsi(line).trimEnd() === 'hello');
     const queuedInputIndex = frame.findIndex((line) => stripAnsi(line).includes('> /quit'));
@@ -124,12 +124,12 @@ describe('renderFrame', () => {
     };
 
     // Frame is always exactly `rows` lines; with many messages the transcript is scrolled/clipped
-    const frame = renderFrame(state, { columns: 30, rows: 5 });
+    const frame = renderFrame(state, { columns: 30, rows: 6 });
 
-    expect(frame).toHaveLength(5);
+    expect(frame).toHaveLength(6);
     // All 7 messages are rendered in the transcript (some may be scrolled off)
     expect(stripAnsi(frame.join('\n'))).toContain('Assistant:');
-    expect(frame.at(-2)).toContain('student-agent');
+    expect(frame.at(-3)).toContain('student-agent');
     expect(stripAnsi(frame.at(-1) ?? '')).toContain('> ');
   });
 
@@ -172,7 +172,7 @@ describe('renderFrame', () => {
       },
     };
 
-    const frame = renderFrame(state, { columns: 42, rows: 10 });
+    const frame = renderFrame(state, { columns: 42, rows: 12 });
     const output = stripAnsi(frame.join('\n'));
 
     expect(output).toContain('> 重做 TUI');
@@ -181,7 +181,7 @@ describe('renderFrame', () => {
     expect(output).toContain('规划没成：规划格式不完整。');
     expect(output).toContain('[2] 我补充/改写任务描述');
     expect(output).not.toContain('System: 规划没成');
-    expect(frame.at(-2)).toContain('student-agent');
+    expect(frame.at(-3)).toContain('student-agent');
     expect(stripAnsi(frame.at(-1) ?? '')).toContain('选择 [1]: > ');
     for (const line of frame) expect(visibleLength(line)).toBe(42);
   });

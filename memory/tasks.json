@@ -53,7 +53,7 @@
         }
       ],
       "status": "active",
-      "workflow_status": "user_review",
+      "workflow_status": "revision_requested",
       "level": 3,
       "working_memory": {
         "goal": "创建一个新的 eval task，测试 student-agent 实现购物车功能的能力。该 task 提供一个简易 TypeScript 环境（商品列表 + 基础类型），要求 agent 分阶段实现完整的购物车功能。",

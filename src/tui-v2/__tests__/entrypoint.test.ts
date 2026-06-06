@@ -14,7 +14,7 @@ describe('Pi-backed startTUIV2 runtime', () => {
 
     await handle.flush();
 
-    expect(handle.frame().at(-2)).toContain('student-agent');
+    expect(handle.frame().at(-3)).toContain('student-agent');
     expect(handle.frame().at(-1)).toContain('> ');
     expect(handle.output()).toContain('\x1b[?2026h');
     expect(handle.output()).toContain('\x1b[3G');
@@ -37,7 +37,7 @@ describe('Pi-backed startTUIV2 runtime', () => {
     await handle.flush();
 
     expect(handle.output()).toContain('\x1b[2J\x1b[H\x1b[3J');
-    expect(handle.frame().at(-2)).toContain('student-agent');
+    expect(handle.frame().at(-3)).toContain('student-agent');
     expect(handle.frame().at(-1)).toContain('> ');
     expect(handle.output()).toContain('\x1b[3G');
     expect(handle.frame().join('\n')).not.toContain('hello');
