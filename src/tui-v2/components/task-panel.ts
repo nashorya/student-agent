@@ -23,34 +23,41 @@ export function renderTaskPanelLines(
   // ── Header line ─────────────────────────────────────────
   const name = taskPanel.name ? BOLD + taskPanel.name + RESET : DIM + '[task]' + RESET;
   const stateTag = formatStateTag(taskPanel.state);
+
+  // Progress indicator: "3/5" when phases available
+  const phases = taskPanel.phases ?? [];
+  const total = phases.length || taskPanel.totalPhases;
+  const done = phases.filter((p) => p.status === 'completed').length;
+  const progressStr = total && total > 0
+    ? DIM + ` ${done}/${total}` + RESET
+    : '';
+  const progressPlain = total && total > 0 ? ` ${done}/${total}` : '';
+
   const retry = taskPanel.retryCount && taskPanel.retryCount > 0
     ? DIM + ` · retry ${taskPanel.retryCount}` + RESET : '';
-  const tools = taskPanel.toolCallCount && taskPanel.toolCallCount > 0
-    ? DIM + ` · ${taskPanel.toolCallCount} tools` + RESET : '';
+  const retryPlain = taskPanel.retryCount && taskPanel.retryCount > 0
+    ? ` · retry ${taskPanel.retryCount}` : '';
 
-  const headerPlain = [
-    taskPanel.name ?? '[task]',
-    taskPanel.state ?? '',
-    taskPanel.retryCount && taskPanel.retryCount > 0 ? `· retry ${taskPanel.retryCount}` : '',
-    taskPanel.toolCallCount && taskPanel.toolCallCount > 0 ? `· ${taskPanel.toolCallCount} tools` : '',
-  ].filter(Boolean).join(' ');
+  const namePlain = taskPanel.name ?? '[task]';
+  const statePlain = taskPanel.state ?? '';
+  // Build headerPlain mirroring headerColored: `${name} ${state}${progress}${retry}`
+  const headerPlain = namePlain + (statePlain ? ' ' + statePlain : '') + progressPlain + retryPlain;
 
-  // Build header with colors, padded to width
-  const headerColored = `${name} ${stateTag}${retry}${tools}`;
+  const headerColored = `${name} ${stateTag}${progressStr}${retry}`;
   const headerPad = Math.max(0, width - visibleLength(headerPlain));
   lines.push(headerColored + ' '.repeat(headerPad));
 
   // ── Phase checklist ──────────────────────────────────────
-  if (taskPanel.phases && taskPanel.phases.length > 0) {
-    for (let i = 0; i < taskPanel.phases.length; i++) {
-      const phase = taskPanel.phases[i]!;
-      const isActive = i === taskPanel.phaseIndex;
-      const line = renderPhaseLine(i, phase, isActive, width);
+  if (phases.length > 0) {
+    for (let i = 0; i < phases.length; i++) {
+      const phase = phases[i]!;
+      const isActive = i === (taskPanel.phaseIndex ?? -1);
+      const line = renderPhaseLine(phase, isActive, width);
       lines.push(line);
     }
   }
 
-  // ── Review warning ───────────────────────────────────────
+  // ── Review / acceptance warning ──────────────────────────
   const reviewLine = formatReviewLine(taskPanel);
   if (reviewLine) lines.push(fitLine(reviewLine, width));
 
@@ -58,18 +65,22 @@ export function renderTaskPanelLines(
 }
 
 function renderPhaseLine(
-  index: number,
   phase: TUIV2PhaseInfo,
   isActive: boolean,
   width: number,
 ): string {
-  const { icon, color } = phaseStyle(phase.status, isActive);
+  const { icon, color, iconPlain } = phaseStyle(phase.status, isActive);
   const prefix = `  ${icon} `;
-  const prefixPlain = `  ${stripAnsi(icon)} `;
+  const prefixPlain = `  ${iconPlain} `;
   const descWidth = Math.max(1, width - visibleLength(prefixPlain));
 
-  // Truncate description if needed
-  let desc = phase.description;
+  // Choose long or short description based on phase state
+  const rawDesc = isActive || phase.status === 'in_progress'
+    ? phase.description                        // full text for active
+    : shortTitle(phase.description);            // short title for done/pending
+
+  // Truncate if still too wide
+  let desc = rawDesc;
   if (visibleLength(desc) > descWidth) {
     let out = '';
     for (const ch of Array.from(desc)) {
@@ -80,25 +91,45 @@ function renderPhaseLine(
   }
 
   const styledDesc = color + desc + RESET;
-  const fullLine = prefix + styledDesc;
   const padLen = Math.max(0, width - visibleLength(prefixPlain) - visibleLength(desc));
-  return fullLine + ' '.repeat(padLen);
+  return prefix + styledDesc + ' '.repeat(padLen);
+}
+
+/**
+ * Extract a short title from a long phase description.
+ * Splits on ' – ', ' - ', or ': ' and takes the first segment.
+ * Falls back to first 20 chars if no separator found.
+ */
+function shortTitle(desc: string): string {
+  // Try Chinese dash (–) or ASCII dash surrounded by spaces
+  const dashMatch = /^(.+?)(?:\s+[–—-]\s+|\s*：\s*|\s*:\s+)/.exec(desc);
+  if (dashMatch && dashMatch[1]) {
+    return dashMatch[1].trim();
+  }
+  // Try "动词+名词" pattern: grab up to first comma or period
+  const commaMatch = /^([^，。,]{1,25})/.exec(desc);
+  if (commaMatch) return commaMatch[1].trim();
+  return desc;
 }
 
 function phaseStyle(
   status: TUIV2PhaseInfo['status'],
   isActive: boolean,
-): { icon: string; color: string } {
+): { icon: string; color: string; iconPlain: string } {
   switch (status) {
-    case 'completed': return { icon: GREEN + '●' + RESET, color: DIM };
-    case 'in_progress': return { icon: YELLOW + '◆' + RESET, color: YELLOW };
-    case 'blocked':  return { icon: RED + '✖' + RESET, color: RED };
-    case 'skipped':  return { icon: DIM + '─' + RESET, color: DIM };
+    case 'completed':
+      return { icon: GREEN + '✓' + RESET, color: DIM, iconPlain: '✓' };
+    case 'in_progress':
+      return { icon: YELLOW + '◆' + RESET, color: YELLOW, iconPlain: '◆' };
+    case 'blocked':
+      return { icon: RED + '✖' + RESET, color: RED, iconPlain: '✖' };
+    case 'skipped':
+      return { icon: DIM + '─' + RESET, color: DIM, iconPlain: '─' };
     case 'pending':
     default:
       return isActive
-        ? { icon: CYAN + '◇' + RESET, color: CYAN }
-        : { icon: DIM + '○' + RESET, color: DIM };
+        ? { icon: CYAN + '◆' + RESET, color: CYAN, iconPlain: '◆' }
+        : { icon: DIM + '○' + RESET, color: DIM, iconPlain: '○' };
   }
 }
 
@@ -114,14 +145,9 @@ function formatStateTag(state: string | undefined): string {
 }
 
 function formatReviewLine(taskPanel: TUIV2TaskPanelState): string | null {
-  const markers = [
-    taskPanel.requiresVisualReview ? 'visual review required' : null,
-    taskPanel.requiresUserAcceptance ? 'user acceptance required' : null,
-  ].filter((marker): marker is string => Boolean(marker));
+  const markers: string[] = [];
+  if (taskPanel.requiresVisualReview) markers.push('视觉验收');
+  if (taskPanel.requiresUserAcceptance) markers.push('待用户验收');
   if (markers.length === 0) return null;
-  return YELLOW + `  ⚠ ${markers.join(' · ')}` + RESET;
-}
-
-function stripAnsi(text: string): string {
-  return text.replace(/\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
+  return YELLOW + `  ★ ${markers.join(' · ')}` + RESET;
 }
