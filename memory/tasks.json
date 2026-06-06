@@ -1,0 +1,77 @@
+{
+  "active_task_id": "task_1780715870870",
+  "tasks": [
+    {
+      "id": "task_1780715870870",
+      "name": "创建购物车 eval task",
+      "active_phase_index": 4,
+      "phases": [
+        {
+          "id": "phase_1780715870870_0",
+          "description": "搭建环境文件 — 在 evals/tasks/shopping-cart/environment/ 下创建初始代码：src/types.ts（Product/CartItem 类型定义）、src/products.ts（商品数据列表）、src/cart.ts（空的购物车函数占位，export 函数签名但不实现）、src/main.ts（调用 cart 函数并输出的主入口）。确保 import 路径使用 .js 后缀以匹配 ts-node ESM 模式。",
+          "status": "completed",
+          "retry_count": 0,
+          "feedbacks": [],
+          "created_at": "2026-06-06T03:17:50.870Z",
+          "completed_at": "2026-06-06T03:18:13.302Z"
+        },
+        {
+          "id": "phase_1780715870870_1",
+          "description": "撰写 instruction.md — 用中文编写分阶段指令，要求 agent 先规划阶段再执行，每完成一个阶段输出 PHASE_DONE。阶段设计：（1）实现 addItem 函数（添加商品到购物车，考虑数量叠加）；（2）实现 removeItem 函数（按商品 ID 移除或减少数量）；（3）实现 getTotal 函数（计算总价，含 8% 增值税）；（4）在 main.ts 中调用所有函数并 console.log 输出正确格式的结果。",
+          "status": "completed",
+          "retry_count": 0,
+          "feedbacks": [],
+          "created_at": "2026-06-06T03:17:50.870Z",
+          "completed_at": "2026-06-06T03:18:24.992Z"
+        },
+        {
+          "id": "phase_1780715870870_2",
+          "description": "创建 task.toml — 设置 id=\"shopping-cart\"、title、mode=\"task\"、tags、timeout_seconds、expected_files。",
+          "status": "completed",
+          "retry_count": 0,
+          "feedbacks": [],
+          "created_at": "2026-06-06T03:17:50.870Z",
+          "completed_at": "2026-06-06T03:18:32.486Z"
+        },
+        {
+          "id": "phase_1780715870870_3",
+          "description": "编写 tests/test.sh — 验证：cart.ts 中存在 addItem/removeItem/getTotal 导出函数；addItem 能正确累加数量；removeItem 能移除/减量；getTotal 计算结果含税正确；main.ts 输出包含预期字符串。全部通过后写入 REWARD_FILE。",
+          "status": "completed",
+          "retry_count": 0,
+          "feedbacks": [],
+          "created_at": "2026-06-06T03:17:50.870Z",
+          "completed_at": "2026-06-06T03:19:18.363Z"
+        },
+        {
+          "id": "phase_1780715870870_4",
+          "description": "编写解决方案并验证 — 创建 solution/solve.sh 作为参考实现，内容包含完整的 cart.ts 实现和 main.ts 调用。运行 `npm run eval:validate -- --task shopping-cart` 验证通过，确认后在 todo.md 中添加该 task 的记录。",
+          "status": "completed",
+          "retry_count": 0,
+          "feedbacks": [],
+          "created_at": "2026-06-06T03:17:50.870Z",
+          "completed_at": "2026-06-06T03:20:08.838Z"
+        }
+      ],
+      "status": "active",
+      "workflow_status": "user_review",
+      "level": 3,
+      "working_memory": {
+        "goal": "创建一个新的 eval task，测试 student-agent 实现购物车功能的能力。该 task 提供一个简易 TypeScript 环境（商品列表 + 基础类型），要求 agent 分阶段实现完整的购物车功能。",
+        "acceptance_criteria": [],
+        "constraints": [],
+        "user_preferences": [],
+        "project_facts": [],
+        "open_questions": [
+          "初始环境应提供哪些商品数据？购物车功能包含哪几个核心操作（增删改查+折扣/优惠券）？是否要求 agent 输出 PHASE_DONE 信号（遵循 multi-phase 模式）？"
+        ],
+        "decisions": [],
+        "verification_results": [],
+        "changed_files": []
+      },
+      "requires_user_acceptance": true,
+      "requires_visual_review": false,
+      "verification_results": [],
+      "created_at": "2026-06-06T03:17:50.870Z"
+    }
+  ]
+}

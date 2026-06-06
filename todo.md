@@ -38,3 +38,11 @@
 - 指令含中文，测试类型标注规则遵循
 - 状态：✅ `eval:validate` 通过（initial: 0, solution: 1）
 - 状态：暂未运行 baseline
+
+## 📦 新的 eval task：shopping-cart
+- 创建时间：2026-06-06
+- 目的：测试 agent 实现购物车功能的多阶段开发能力，含 addItem/removeItem/getTotal（含 8% 增值税）三个函数
+- 指令含中文，包含 4 个 Phase，需输出 PHASE_DONE 信号
+- 初始环境：types.ts（类型定义）、products.ts（商品数据）、cart.ts（空函数占位）、main.ts（调用流程）
+- 状态：✅ `eval:validate` 通过（initial: 0, solution: 1）
+- 状态：暂未运行 baseline

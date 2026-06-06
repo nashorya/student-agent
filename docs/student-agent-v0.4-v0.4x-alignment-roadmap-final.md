@@ -1410,7 +1410,19 @@ Turn Intake temperature ≈ 0.
 | find_related | 暂无 | v0.4x 新增 | 语义相似代码，找调用方/测试 |
 | search → read_range → edit_anchor | ToolGuard + code_search + Hashline | 新默认流程 | v0.4 先推流程，v0.4x 换 backend |
 
-### 6.9 Resource Evolution Alignment
+### 6.9 Eval Isolation Alignment（AEvo 校准）
+
+| v0.4 / v0.4x 概念 | AEvo 对应物 | 关系 | 落地决策 |
+|---|---|---|---|
+| Run Archive `C_r` | Accumulated evolution context | 直接对应 | events.jsonl + outcome.json = `C_r` |
+| HarnessChange | Meta-action `a_r = M(o_r)` | 直接对应 | 编辑 harness 组件而非直接产出候选 |
+| CommitGate | Protected evaluator + gateway | 直接对应 | agent 不能 bypass eval，不能写分数 |
+| Eval case（evals/） | Evaluator internals | 受保护资源 | agent 可起草，human review 后冻结 |
+| Run Archive 结构化查询 | Observation function `Φ(r, C_r)` | v0.4 MVP 部分实现 | 按事件类型/时间过滤 |
+| Stagnation signal | Plateau detection (Figure 3) | v0.4 新增 soft signal | 连续 N 轮无改善 → 策略切换 |
+| v0.5 meta-editing loop | AEvo two-phase loop | v0.5 方向 | Read → Attribute → One Action → Run → Record |
+
+### 6.10 Resource Evolution Alignment
 
 | v0.4x-late / v0.5 概念 | 当前 src 对应物 | 关系 | 落地决策 |
 |---|---|---|---|
@@ -1533,10 +1545,13 @@ Turn Intake temperature ≈ 0.
   在完整 evidence 和 eval 基础上，允许 harness 自我改进。
 
 关键词：
+  AEvo meta-editing loop (Read → Attribute → One Action → Run → Record)
+  Evaluator 隔离 (agent 可改机制，不能改裁判)
   Continual Harness (reset-free, per-component CRUD, capability floor)
   Autogenesis alignment (EvolvabilityMarker, PS-Joint-Evo)
   GAM-style JIT ContextBuilder (Researcher over evidence store)
   bootstrap-updating (继承上次 harness 状态)
+  Plateau detection (AEvo: 跳出 flatten 的关键)
 ```
 
 最终一句话：
@@ -1544,7 +1559,8 @@ Turn Intake temperature ≈ 0.
 > **v0.4 的三根支柱是 Hashline（安全编辑）、Run Archive（可追溯）、HarnessChange（可验证）。
 > 它们共同保证：agent 改错了能知道、能复盘、能回滚。
 > 在这个基础上，v0.4x 用 Semble 让 agent 找代码更准，用 Anti-Lost 让 agent 多轮不迷路。
-> v0.5 才让 agent 基于 evidence 自我改进 harness——而不是靠感觉。**
+> v0.5 让 agent 基于 evidence 自我改进 harness（AEvo meta-editing loop），
+> 但 evaluator 隔离保证 agent 可以改机制、不能改裁判（AEvo: 去掉隔离 → 2/3 reward hacking）。**
 
 ---
 
@@ -1588,4 +1604,12 @@ Turn Intake temperature ≈ 0.
 2. Semble
    https://github.com/MinishLab/semble
    MIT license, tree-sitter + Model2Vec + BM25 + RRF
+```
+
+### Internal Documents
+
+```
+1. Eval Writing Guide
+   docs/eval-writing-guide.md
+   student-agent 自写 eval 的指南，含各版本 eval spec、权限边界、case 格式
 ```

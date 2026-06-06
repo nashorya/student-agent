@@ -1,0 +1,6 @@
+id = "shopping-cart"
+title = "购物车功能实现"
+mode = "task"
+tags = ["task", "phase", "typescript", "multi-file", "shopping-cart"]
+timeout_seconds = 360
+expected_files = ["src/cart.ts", "src/main.ts", "src/types.ts", "src/products.ts"]

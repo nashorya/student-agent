@@ -13,13 +13,22 @@ export interface IntentResult {
   requiresVisualReview: boolean;
 }
 
-const SYSTEM_PROMPT = `你是一个意图分类器。判断用户输入属于哪种意图：
-- "new_task"：用户在描述一个新任务（改某个功能、做某件事）
+const SYSTEM_PROMPT = `你是一个意图分类器。判断用户输入属于哪种意图，并评估任务复杂度。
+
+意图类型：
+- "new_task"：用户在描述一个新任务
 - "continue"：用户在继续当前任务、提问、或做其他操作
 
+任务等级（仅 new_task 需要）：
+- level 1：单点小改动，一两个文件内可完成（如：加一个函数、改个 bug、更新配置）
+- level 2：中等任务，涉及多处改动但目标明确（如：加一个 API 端点、实现某个工具函数）
+- level 3：复杂任务，需要多阶段规划（如：实现一个完整系统/模块、多文件重构、端到端功能、含测试的完整特性）
+
 输出严格 JSON，不加任何解释。格式：
-新任务：{"type":"new_task","task_name":"简短任务名（15字以内）"}
-其他：{"type":"continue"}`;
+新任务：{"type":"new_task","level":1,"task_name":"简短任务名（15字以内）"}
+其他：{"type":"continue"}
+
+level 3 的判断标准：涉及 3 个以上文件、或需要设计决策、或用户说了"系统/完整/全套/从零"等词。`;
 
 export async function classifyIntent(
   input: string,
@@ -45,15 +54,16 @@ export async function classifyIntent(
     const jsonMatch = /\{[\s\S]*\}/.exec(text);
     if (!jsonMatch) return continueResult('llm-output-without-json');
 
-    const parsed = JSON.parse(jsonMatch[0]) as { type: string; task_name?: string };
+    const parsed = JSON.parse(jsonMatch[0]) as { type: string; task_name?: string; level?: number };
     if (parsed.type === 'new_task') {
+      const llmLevel = parsed.level === 1 ? 1 : parsed.level === 3 ? 3 : 2;
       return newTaskResult({
         input,
         taskName: parsed.task_name,
-        level: 2,
+        level: llmLevel as WorkflowLevel,
         reason: 'llm-classified-new-task',
-        requiresPlan: false,
-        requiresUserAcceptance: true, // LLM 分类的新任务必须经用户确认才执行
+        requiresPlan: llmLevel >= 3,
+        requiresUserAcceptance: llmLevel >= 2,
       });
     }
     return continueResult('llm-classified-continue');

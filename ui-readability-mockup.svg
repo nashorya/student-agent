@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1320" viewBox="0 0 1320 1320">
+  <defs>
+    <radialGradient id="bgGlow" cx="0.15" cy="0.05" r="0.9">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.62" stop-color="#edf0ef"/>
+      <stop offset="1" stop-color="#e5e9e7"/>
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="26" flood-color="#17201d" flood-opacity="0.16"/>
+    </filter>
+    <clipPath id="windowClip">
+      <rect x="14" y="14" width="1292" height="900" rx="24"/>
+    </clipPath>
+    <style>
+      .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+      .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", "PingFang SC", monospace; }
+      .ink { fill: #17201d; }
+      .soft { fill: #56615d; }
+      .faint { fill: #89928e; }
+      .green { fill: #13795b; }
+      .green-dark { fill: #0d6048; }
+      .bold { font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="1320" height="1320" fill="url(#bgGlow)"/>
+  <rect x="14" y="14" width="1292" height="900" rx="24" fill="#ffffff" stroke="#c8cfcc" filter="url(#shadow)"/>
+
+  <g clip-path="url(#windowClip)">
+    <rect x="14" y="14" width="1292" height="58" fill="#fafbfb"/>
+    <line x1="14" y1="72" x2="1306" y2="72" stroke="#cbd4d0"/>
+
+    <circle cx="43" cy="43" r="9" fill="#ff605c"/>
+    <circle cx="73" cy="43" r="9" fill="#ffbd44"/>
+    <circle cx="103" cy="43" r="9" fill="#00ca4e"/>
+    <text x="660" y="49" text-anchor="middle" class="sans soft bold" font-size="15">STUDENT_AGENT_TUI · shopping-cart</text>
+    <text x="1278" y="48" text-anchor="end" class="mono faint" font-size="13">⌥⌘1</text>
+
+    <rect x="954" y="72" width="352" height="842" fill="#fafcfb"/>
+    <line x1="954" y1="72" x2="954" y2="914" stroke="#dde3e0"/>
+
+    <!-- Main header -->
+    <circle cx="50" cy="112" r="5" fill="#13795b"/>
+    <circle cx="50" cy="112" r="10" fill="none" stroke="#d8eee5" stroke-width="6"/>
+    <text x="68" y="117" class="sans green bold" font-size="12" letter-spacing="1.5">执行完成</text>
+
+    <text x="46" y="158" class="sans ink bold" font-size="30" letter-spacing="-0.6">购物车 eval task 已创建</text>
+    <text x="46" y="190" class="sans soft" font-size="15">5 个阶段均已完成并通过验证。过程日志已收起，只保留结果、关键产物和下一步操作。</text>
+
+    <!-- Meta chips -->
+    <g transform="translate(46 211)">
+      <rect width="160" height="30" rx="7" fill="#f6f8f7" stroke="#dde3e0"/>
+      <text x="12" y="20" class="mono soft" font-size="12">task: shopping-cart</text>
+    </g>
+    <g transform="translate(216 211)">
+      <rect width="105" height="30" rx="7" fill="#f6f8f7" stroke="#dde3e0"/>
+      <text x="12" y="20" class="mono soft" font-size="12">mode: task</text>
+    </g>
+    <g transform="translate(331 211)">
+      <rect width="178" height="30" rx="7" fill="#f6f8f7" stroke="#dde3e0"/>
+      <text x="12" y="20" class="mono soft" font-size="12">status: user_review</text>
+    </g>
+
+    <!-- Section heading -->
+    <text x="46" y="281" class="sans ink bold" font-size="16">执行步骤</text>
+    <text x="794" y="281" class="sans green bold" font-size="13">5 / 5 完成</text>
+    <rect x="872" y="271" width="52" height="7" rx="4" fill="#dfe8e4"/>
+    <rect x="872" y="271" width="52" height="7" rx="4" fill="#13795b"/>
+
+    <!-- Steps container -->
+    <rect x="46" y="296" width="878" height="415" rx="14" fill="#ffffff" stroke="#dde3e0"/>
+    <line x1="46" y1="379" x2="924" y2="379" stroke="#e4e8e6"/>
+    <line x1="46" y1="462" x2="924" y2="462" stroke="#e4e8e6"/>
+    <line x1="46" y1="545" x2="924" y2="545" stroke="#e4e8e6"/>
+    <line x1="46" y1="628" x2="924" y2="628" stroke="#e4e8e6"/>
+
+    <!-- Step 1 -->
+    <circle cx="78" cy="337" r="16" fill="#e6f4ee"/>
+    <text x="78" y="342" text-anchor="middle" class="sans green bold" font-size="14">1</text>
+    <text x="108" y="329" class="sans ink bold" font-size="15">搭建环境文件</text>
+    <text x="108" y="354" class="sans faint" font-size="13">在 </text>
+    <text x="127" y="354" class="mono soft" font-size="12.5">evals/tasks/shopping-cart/environment/</text>
+    <text x="456" y="354" class="sans faint" font-size="13">创建初始代码</text>
+    <rect x="838" y="322" width="66" height="28" rx="7" fill="#e6f4ee"/>
+    <text x="871" y="341" text-anchor="middle" class="sans green-dark bold" font-size="12">✓ 完成</text>
+
+    <!-- Step 2 -->
+    <circle cx="78" cy="420" r="16" fill="#e6f4ee"/>
+    <text x="78" y="425" text-anchor="middle" class="sans green bold" font-size="14">2</text>
+    <text x="108" y="412" class="sans ink bold" font-size="15">撰写分阶段指令</text>
+    <text x="108" y="437" class="mono soft" font-size="12.5">instruction.md</text>
+    <text x="218" y="437" class="sans faint" font-size="13">· 要求 agent 先规划、再执行、最后验证</text>
+    <rect x="838" y="405" width="66" height="28" rx="7" fill="#e6f4ee"/>
+    <text x="871" y="424" text-anchor="middle" class="sans green-dark bold" font-size="12">✓ 完成</text>
+
+    <!-- Step 3 -->
+    <circle cx="78" cy="503" r="16" fill="#e6f4ee"/>
+    <text x="78" y="508" text-anchor="middle" class="sans green bold" font-size="14">3</text>
+    <text x="108" y="495" class="sans ink bold" font-size="15">配置任务元数据</text>
+    <text x="108" y="520" class="mono soft" font-size="12.5">task.toml</text>
+    <text x="186" y="520" class="sans faint" font-size="13">· id、title、mode、tags 与 timeout</text>
+    <rect x="838" y="488" width="66" height="28" rx="7" fill="#e6f4ee"/>
+    <text x="871" y="507" text-anchor="middle" class="sans green-dark bold" font-size="12">✓ 完成</text>
+
+    <!-- Step 4 -->
+    <circle cx="78" cy="586" r="16" fill="#e6f4ee"/>
+    <text x="78" y="591" text-anchor="middle" class="sans green bold" font-size="14">4</text>
+    <text x="108" y="578" class="sans ink bold" font-size="15">编写验证脚本</text>
+    <text x="108" y="603" class="mono soft" font-size="12.5">tests/test.sh</text>
+    <text x="213" y="603" class="sans faint" font-size="13">· 验证 addItem、removeItem 与 getTotal</text>
+    <rect x="838" y="571" width="66" height="28" rx="7" fill="#e6f4ee"/>
+    <text x="871" y="590" text-anchor="middle" class="sans green-dark bold" font-size="12">✓ 通过</text>
+
+    <!-- Step 5 -->
+    <circle cx="78" cy="669" r="16" fill="#e6f4ee"/>
+    <text x="78" y="674" text-anchor="middle" class="sans green bold" font-size="14">5</text>
+    <text x="108" y="661" class="sans ink bold" font-size="15">创建参考解法并复验</text>
+    <text x="108" y="686" class="mono soft" font-size="12.5">solution/solve.sh</text>
+    <text x="245" y="686" class="sans faint" font-size="13">· 参考实现与完整购物车逻辑</text>
+    <rect x="838" y="654" width="66" height="28" rx="7" fill="#e6f4ee"/>
+    <text x="871" y="673" text-anchor="middle" class="sans green-dark bold" font-size="12">✓ 通过</text>
+
+    <!-- Collapsed activity -->
+    <rect x="46" y="728" width="878" height="62" rx="11" fill="#f6f8f7" stroke="#dde3e0"/>
+    <rect x="62" y="746" width="27" height="27" rx="6" fill="#ffffff" stroke="#cbd4d0"/>
+    <text x="75.5" y="765" text-anchor="middle" class="mono faint" font-size="12">›_</text>
+    <text x="102" y="757" class="sans ink bold" font-size="13">最近运行记录</text>
+    <text x="102" y="777" class="sans faint" font-size="12.5">验证最终目录结构和 </text>
+    <text x="222" y="777" class="mono soft" font-size="12">todo.md</text>
+    <text x="896" y="763" text-anchor="end" class="mono faint" font-size="11">刚刚 · 展开</text>
+
+    <!-- Main footer hint -->
+    <text x="46" y="846" class="sans faint" font-size="12">技术细节保持可访问，但不再抢占主要阅读路径。</text>
+
+    <!-- Review sidebar -->
+    <rect x="982" y="104" width="50" height="50" rx="15" fill="#e6f4ee"/>
+    <text x="1007" y="138" text-anchor="middle" class="sans green bold" font-size="26">✓</text>
+
+    <rect x="982" y="181" width="96" height="27" rx="14" fill="#fff4df"/>
+    <text x="1030" y="199" text-anchor="middle" class="sans bold" fill="#b66a08" font-size="12">需要你的确认</text>
+
+    <text x="982" y="250" class="sans ink bold" font-size="25" letter-spacing="-0.4">准备验收</text>
+    <text x="982" y="281" class="sans soft" font-size="14">任务已完成执行。确认结果符合预期，</text>
+    <text x="982" y="304" class="sans soft" font-size="14">或提交一条具体的修改意见。</text>
+
+    <!-- Summary card -->
+    <rect x="982" y="333" width="296" height="137" rx="11" fill="#ffffff" stroke="#dde3e0"/>
+    <text x="998" y="362" class="sans soft" font-size="13">阶段</text>
+    <text x="1262" y="362" text-anchor="end" class="sans ink bold" font-size="13">5 / 5</text>
+    <line x1="998" y1="378" x2="1262" y2="378" stroke="#edf0ef"/>
+    <text x="998" y="405" class="sans soft" font-size="13">验证</text>
+    <text x="1262" y="405" text-anchor="end" class="sans ink bold" font-size="13">全部通过</text>
+    <line x1="998" y1="421" x2="1262" y2="421" stroke="#edf0ef"/>
+    <text x="998" y="448" class="sans soft" font-size="13">当前状态</text>
+    <text x="1262" y="448" text-anchor="end" class="sans ink bold" font-size="13">等待验收</text>
+
+    <!-- Actions -->
+    <rect x="982" y="494" width="296" height="46" rx="9" fill="#13795b"/>
+    <text x="1130" y="523" text-anchor="middle" class="sans bold" fill="#ffffff" font-size="14">接受结果</text>
+    <rect x="982" y="552" width="296" height="46" rx="9" fill="#ffffff" stroke="#cbd4d0"/>
+    <text x="1130" y="581" text-anchor="middle" class="sans ink bold" font-size="14">提出修改</text>
+
+    <!-- Shortcuts -->
+    <rect x="982" y="630" width="89" height="25" rx="6" fill="#ffffff" stroke="#cbd4d0"/>
+    <text x="1026.5" y="647" text-anchor="middle" class="mono soft" font-size="11">/review ok</text>
+    <text x="1084" y="647" class="sans faint" font-size="12">接受并完成任务</text>
+
+    <rect x="982" y="668" width="106" height="25" rx="6" fill="#ffffff" stroke="#cbd4d0"/>
+    <text x="1035" y="685" text-anchor="middle" class="mono soft" font-size="11">/review down</text>
+    <text x="1101" y="685" class="sans faint" font-size="12">提交修改意见</text>
+
+    <!-- Sidebar footer -->
+    <line x1="982" y1="848" x2="1278" y2="848" stroke="#dde3e0"/>
+    <circle cx="987" cy="877" r="4" fill="#18b47f"/>
+    <text x="1000" y="881" class="mono faint" font-size="12">student-agent · ready</text>
+  </g>
+</svg>
