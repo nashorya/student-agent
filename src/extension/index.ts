@@ -1600,11 +1600,14 @@ async function runTuiPlanningAttempt(
   runtime: RuntimeState,
   userInput: string,
 ): Promise<TuiPlanningAttemptResult> {
-  const planOutputs: string[] = [];
+  // Collect final text of each assistant message using message_end (not message_update).
+  // message_update fires on every streaming token with the full accumulated text, so joining
+  // message_update outputs produces a repeated-prefix string that breaks phase parsing.
+  const planTexts: string[] = [];
   const planUnsub = runtime.agent.subscribe((event) => {
-    if (event.type === 'message_update' && event.message.role === 'assistant') {
+    if (event.type === 'message_end' && event.message.role === 'assistant') {
       const textContent = event.message.content.find((c) => c.type === 'text');
-      if (textContent && textContent.type === 'text') planOutputs.push(textContent.text);
+      if (textContent && textContent.type === 'text') planTexts.push(textContent.text);
     }
   });
 
@@ -1624,7 +1627,7 @@ async function runTuiPlanningAttempt(
     runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
   }
 
-  const planText = planOutputs.join('');
+  const planText = planTexts.join('\n');
   if (planningError) {
     runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
     return {
