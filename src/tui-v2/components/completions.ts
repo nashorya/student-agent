@@ -11,7 +11,7 @@ export function getCompletions(inputValue: string): string[] {
     // Only show completions while typing the command name (before any space)
     // Exception: show if value starts with a known parent command + space
     if (!inputValue.startsWith('/')) return [];
-    // After space: show subcommand completions for /task, /design, /plan, /feedback, /review, /why
+    // After space: show subcommand completions for /task, /plan, /feedback, /review, /why
     return COMMAND_COMPLETIONS.filter((c) => c.startsWith(inputValue) && c !== inputValue).slice(0, 8);
   }
   return COMMAND_COMPLETIONS.filter((c) => c.startsWith(inputValue) && c !== inputValue).slice(0, 8);

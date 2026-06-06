@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { WriteQueue } from '../../../core/write-queue.js';
 import { PreferenceCandidatesManager } from '../../../memory/candidates/manager.js';
-import { DesignMemoryManager } from '../../../memory/design/manager.js';
 import { PlanRevisionManager } from '../../../memory/plan-revisions/manager.js';
 import { PreferencesManager } from '../../../memory/preferences/manager.js';
 import { ProjectKbManager } from '../../../memory/project-kb/manager.js';
@@ -45,15 +44,6 @@ describe('createMemoryHook plan revisions', () => {
     expect(prompt).toContain('先修 TUI 输入可靠性');
   });
 
-  it('injects built-in design study skill guidance even without active profile', async () => {
-    const prompt = await createMemoryHook(tmpDir)();
-
-    expect(prompt).toContain('Built-in Design Study Skill');
-    expect(prompt).toContain('/design study <url>');
-    expect(prompt).toContain('/design confirm');
-    expect(prompt).toContain('/design critique');
-  });
-
   it('injects file modification rules to reduce exact edit failures', async () => {
     const prompt = await createMemoryHook(tmpDir)();
 
@@ -74,7 +64,6 @@ describe('createMemoryHook plan revisions', () => {
 
 function resetManagers(): void {
   PreferenceCandidatesManager.resetInstance();
-  DesignMemoryManager.resetInstance();
   PlanRevisionManager.resetInstance();
   PreferencesManager.resetInstance();
   ProjectKbManager.resetInstance();

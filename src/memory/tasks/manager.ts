@@ -171,9 +171,6 @@ export class TasksManager {
       const task = file.tasks.find((t) => t.id === taskId);
       if (!task) return;
       task.workflow_status = 'revision_requested';
-      task.working_memory = mergeWorkingMemory(task.working_memory, {
-        design_feedback: feedback ? [feedback] : [],
-      });
     });
   }
 
@@ -417,7 +414,6 @@ function normalizeWorkingMemory(value?: Partial<TaskWorkingMemory> | Record<stri
     project_facts: normalizeStringArray(value?.project_facts),
     open_questions: normalizeStringArray(value?.open_questions),
     decisions: normalizeStringArray(value?.decisions),
-    design_feedback: normalizeStringArray(value?.design_feedback),
     verification_results: normalizeStringArray(value?.verification_results),
     changed_files: normalizeStringArray(value?.changed_files),
   };
@@ -432,7 +428,6 @@ function mergeWorkingMemory(current: TaskWorkingMemory, patch: Partial<TaskWorki
     project_facts: mergeUnique(current.project_facts, patch.project_facts),
     open_questions: mergeUnique(current.open_questions, patch.open_questions),
     decisions: mergeUnique(current.decisions, patch.decisions),
-    design_feedback: mergeUnique(current.design_feedback, patch.design_feedback),
     verification_results: mergeUnique(current.verification_results, patch.verification_results),
     changed_files: mergeUnique(current.changed_files, patch.changed_files),
   };

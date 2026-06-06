@@ -2,7 +2,7 @@
 
 > **Paper-Calibrated Edition**
 >
-> 本文档基于以下 7 篇论文/项目的实际数据校准，不是概念推演：
+> 本文档基于以下 8 篇论文/项目的实际数据校准，不是概念推演：
 >
 > | 缩写 | 论文 | 核心贡献 |
 > |------|------|----------|
@@ -13,6 +13,7 @@
 > | **Skill1** | Unified Evolution of Skill-Augmented Agents via RL | selection/utilization/distillation 三路 credit，variation = r(τ) - Û |
 > | **Autogenesis** | Autogenesis: A Self-Evolving Agent Protocol | RSPL/SEPL，evolvability marker，PS-Joint-Evo |
 > | **GAM** | General Agentic Memory Via Deep Research (智源) | JIT > AOT memory，Researcher 对模型规模敏感 |
+> | **AEvo** | Harnessing Agentic Evolution (港科大/DeepWisdom) | evolution as environment，meta-editing loop，evaluator 隔离防 reward hacking |
 >
 > 外部项目依赖：
 >
@@ -400,6 +401,19 @@ Soft signals（累积后升级）：
 - planOscillation（计划反复变更）
 - repeatedQuestion（重复询问已确认信息）
 - ignoredOpenQuestion（忽略未解决的问题）
+- stagnation（HarnessChange 连续 N 轮无改善，AEvo Figure 3 启发）
+```
+
+Stagnation 信号（AEvo 校准）：
+
+```
+AEvo Figure 3 显示：
+  OpenEvolve / HyperAgents 在 40-60 轮后 flatten
+  AEvo 通过 meta-edit 跳出 plateau
+
+启发：不只检测"迷路"，也检测"plateau"。
+当连续 N 轮（N 待标定）没有可度量改善时，触发策略切换。
+v0.4 仅写 signal，v0.4x 可触发 Recovery Mode 或 strategy gene 切换。
 ```
 
 执行策略：
@@ -505,6 +519,24 @@ runs/{runId}/restart-context.md
 runs/{runId}/harness-snapshot.json
 ```
 
+结构化查询支持（AEvo 校准）：
+
+```
+AEvo 的 observation function Φ(r, C_r) 从累积上下文中提取
+进度、重复失败、无效尝试、冗余搜索方向等信息。
+这要求 Run Archive 不只是追加式 log，还需要支持：
+
+v0.4 MVP:
+  - 按事件类型过滤（tool_error / hashline_rejection / user_correction / ...）
+  - 按时间范围过滤
+  - outcome.json 的字段查询
+
+v0.4x:
+  - 按 component 过滤
+  - 按 outcome 过滤
+  - 跨 run 聚合查询（某组件在多次 run 中的表现趋势）
+```
+
 Acceptance:
 
 ```
@@ -512,6 +544,7 @@ Acceptance:
 - 能定位用户纠正发生在哪一步
 - 能定位工具失败和 lostness trigger 触发点
 - HarnessChange 可以通过 traceRefs 关联到 events.jsonl
+- 可按事件类型和时间范围过滤 events.jsonl（AEvo Φ function）
 ```
 
 ---
@@ -1126,9 +1159,68 @@ Code Search backend default switch:
   canAutoApply = false
   requiresEvalPass = true
   requiresCommitGate = true
+
+Eval case（AEvo evaluator 隔离启发）:
+  canReflect = true
+  canSuggestChange = true
+  canAutoApply = false
+  requiresUserApproval = true
+  requiresEvalPass = false    // eval 不能用 eval 验证自己
+  requiresCommitGate = true
 ```
 
-### 5.4 Continual Harness 方向（v0.5）
+### 5.3.1 Evaluator 隔离原则（AEvo 校准）
+
+论文校准（AEvo）：
+
+```
+AEvo ablation Table 3:
+  Full system = 1138 cycles, 0 reward hacking
+  去掉 evolution harness = 2/3 runs reward hacking, 结果无效
+
+AEvo meta-agent hard rules:
+  Forbidden:
+    - edit 'candidates/' directly
+    - call 'oer-eval eval' directly
+    - bypass the gateway or evaluator
+
+结论：evaluator 必须与 agent 隔离，否则 agent 会 gaming 评分。
+```
+
+映射到 student-agent 的隔离边界：
+
+```
+Agent 可编辑（meta-editing surface）:
+  OK  ToolGuard rules
+  OK  ContextBuilder config
+  OK  Strategy Genes
+  OK  prompt template
+  OK  session goal / notes
+  OK  起草 eval case（需 human review 后冻结）
+
+Agent 不可编辑（harness-protected）:
+  NO  已冻结的 eval case 定义（evals/*.json）
+  NO  eval runner 脚本
+  NO  eval 打分逻辑
+  NO  outcome.json 的写入权限
+  NO  CommitGate 的 pass/fail 判定
+```
+
+CommitGate 设计原则：
+
+```
+v0.4x CommitGate 的 eval 结果必须由 harness 提供。
+agent 不能自己声称 eval 通过。
+eval 结果写入 Run Archive 后，agent 可以读取（AHE: full traces 必要），
+但不能修改。
+
+这与 AHE 不冲突：
+  AHE 允许 agent 读 82 个文件 / 引用 20+ 历史候选 → OK
+  AEvo 禁止 agent 改 evaluator / 写分数 → OK
+  两者共识 = agent 可以改机制，不能改裁判
+```
+
+### 5.4 Continual Harness + AEvo Meta-Editing 方向（v0.5）
 
 ```
 普林斯顿 Continual Harness 的核心机制：
@@ -1136,11 +1228,47 @@ Code Search backend default switch:
 - reset-free：改动直接注入当前运行
 - bootstrap-updating（继承 + 继续改进）始终优于 from-scratch
 - capability floor：弱模型加 harness 反而变差
+```
 
-对 v0.5 的启发：
-1. EvolutionProposal 应限制为单组件类型（per-component CRUD）
-2. Run Archive 的 harness-snapshot 支持 bootstrap-updating
+AEvo meta-editing loop（可替代 Continual Harness 的 4-pass CRUD）：
+
+```
+AEvo 的 meta-agent loop:
+  Read accumulated context → Attribute failure → Choose one action → Run → Record
+
+这比 Continual Harness 的 4-pass CRUD 更适合 student-agent 的架构：
+1. student-agent 已有 Run Archive（= AEvo 的 accumulated context C_r）
+2. student-agent 已有 HarnessChange（= AEvo 的 meta-action a_r）
+3. student-agent 已有 CommitGate（= AEvo 的 protected evaluator）
+4. "Choose one action" = EvolutionProposal 限制单组件（Continual Harness 也支持）
+
+AEvo 独立验证了 Continual Harness 的三个发现：
+- "Choose one action" = per-component（两篇都支持）
+- harness 保护 = evaluator 隔离（AEvo 有更强的 ablation 数据）
+- 跨 session 知识积累 = bootstrap-updating / persistent family map
+```
+
+对 v0.5 的综合启发（Continual Harness + AEvo）：
+
+```
+1. EvolutionProposal 应限制为单组件类型
+   - Continual Harness: per-component CRUD
+   - AEvo: Choose exactly one action
+   
+2. Run Archive 支持 bootstrap-updating + structured query
+   - Continual Harness: harness-snapshot 继承
+   - AEvo: observation function Φ 从 C_r 提取摘要
+
 3. 需要检测 capability floor，弱模型不启用自改进
+   - Continual Harness: Flash-Lite + Continual Harness 退化
+
+4. v0.5 meta-editing loop 参考 AEvo 的 Read → Attribute → One Action → Run → Record
+   而非直接实现 Continual Harness 的 4-pass CRUD
+   因为前者更匹配已有的 Run Archive + HarnessChange + CommitGate
+
+5. Plateau detection（AEvo Figure 3）作为 meta-editing 的触发条件
+   - procedure-based baselines 在 40-60 轮后 flatten
+   - AEvo 通过 meta-edit 跳出 plateau
 ```
 
 ### 5.5 GAM-style JIT ContextBuilder（v0.5）
@@ -1445,6 +1573,9 @@ Turn Intake temperature ≈ 0.
 
 7. General Agentic Memory Via Deep Research (GAM)
    https://arxiv.org/abs/2511.18423
+
+8. Harnessing Agentic Evolution (AEvo)
+   https://arxiv.org/abs/2605.13821
 ```
 
 ### Projects

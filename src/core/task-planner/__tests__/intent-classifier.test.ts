@@ -128,10 +128,10 @@ describe('isInformationalFollowUp', () => {
 
 describe('isMetaQuestion', () => {
   it.each([
-    '我想让你学习某个网站的设计，该怎么做',
-    '怎么使用 design study 技能？',
-    '你能不能学习网页风格？',
     '这个命令怎么触发',
+    '怎么使用这个技能？',
+    '你能不能学习网页内容？',
+    '这是什么命令？',
   ])('detects meta question: %s', (input) => {
     expect(isMetaQuestion(input)).toBe(true);
   });

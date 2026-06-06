@@ -19,7 +19,6 @@ export interface StudentAgentConfig {
   features: {
     context7: boolean;
     playwright: boolean;
-    designStudy: boolean;
     boundedBreaker: boolean;
     qualityWatchdog: boolean;
     subAgents: boolean;
@@ -45,14 +44,6 @@ export interface StudentAgentConfig {
     renderWaitMs: number;
     maxChars: number;
   };
-  designStudy: {
-    extractorMode: 'auto' | 'native' | 'dembrandt' | 'screenshot';
-    dembrandtCommand?: string;
-    criticThreshold: number;
-    maxCriticRetries: number;
-    styleDescriptionTimeoutMs: number;
-    localUrl?: string;
-  };
   subAgents: {
     maxConcurrency: number;
   };
@@ -75,7 +66,6 @@ export type StudentAgentConfigInput = Partial<{
   setup: Partial<StudentAgentConfig['setup']>;
   fileGuard: Partial<StudentAgentConfig['fileGuard']>;
   playwright: Partial<StudentAgentConfig['playwright']>;
-  designStudy: Partial<StudentAgentConfig['designStudy']>;
   subAgents: Partial<StudentAgentConfig['subAgents']>;
 }>;
 
@@ -92,7 +82,6 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
   features: {
     context7: true,
     playwright: true,
-    designStudy: true,
     boundedBreaker: true,
     qualityWatchdog: true,
     subAgents: false,
@@ -115,12 +104,6 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
     navigationTimeoutMs: 10_000,
     renderWaitMs: 2_000,
     maxChars: 5_000,
-  },
-  designStudy: {
-    extractorMode: 'auto',
-    criticThreshold: 0.8,
-    maxCriticRetries: 1,
-    styleDescriptionTimeoutMs: 45_000,
   },
   subAgents: {
     maxConcurrency: 3,

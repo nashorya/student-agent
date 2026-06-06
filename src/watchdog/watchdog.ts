@@ -1,13 +1,10 @@
 import type { BenchmarkResult } from './benchmark-runner.js';
 import type { QualityFeedbackEntry } from './feedback-collector.js';
-import type { DesignCritique } from '../memory/design/types.js';
 
 export interface WatchdogSignals {
   feedback: QualityFeedbackEntry[];
   benchmarkResults: BenchmarkResult[];
   unverifiedCandidateRatio: number;
-  designCritiques?: DesignCritique[];
-  unverifiedDesignCandidateRatio?: number;
 }
 
 export interface WatchdogEvaluation {
@@ -19,7 +16,6 @@ export interface WatchdogEvaluation {
 const NEGATIVE_FEEDBACK_THRESHOLD = 0.4;
 const BENCHMARK_SCORE_THRESHOLD = 0.7;
 const UNVERIFIED_RATIO_THRESHOLD = 0.5;
-const DESIGN_SCORE_THRESHOLD = 0.75;
 
 export class QualityWatchdog {
   evaluate(signals: WatchdogSignals): WatchdogEvaluation {
@@ -39,16 +35,6 @@ export class QualityWatchdog {
       degradedSignals.push(`未验证候选比例 ${Math.round(signals.unverifiedCandidateRatio * 100)}%`);
     }
 
-    const designScore = averageDesignScore((signals.designCritiques ?? []).slice(-5));
-    if (designScore !== null && designScore < DESIGN_SCORE_THRESHOLD) {
-      degradedSignals.push(`视觉一致性平均分 ${designScore.toFixed(2)}`);
-    }
-
-    const designRatio = signals.unverifiedDesignCandidateRatio ?? 0;
-    if (designRatio >= UNVERIFIED_RATIO_THRESHOLD) {
-      degradedSignals.push(`未验证设计候选比例 ${Math.round(designRatio * 100)}%`);
-    }
-
     const shouldAlert = degradedSignals.length >= 2;
     return {
       degradedSignals,
@@ -56,13 +42,6 @@ export class QualityWatchdog {
       report: shouldAlert ? renderAlert(degradedSignals) : null,
     };
   }
-}
-
-function averageDesignScore(critiques: DesignCritique[]): number | null {
-  if (critiques.length === 0) {
-    return null;
-  }
-  return critiques.reduce((total, critique) => total + critique.score, 0) / critiques.length;
 }
 
 function negativeFeedbackRate(feedback: QualityFeedbackEntry[]): number | null {

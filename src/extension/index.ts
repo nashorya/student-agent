@@ -67,10 +67,7 @@ import { TasksManager } from '../memory/tasks/manager.js';
 import type { Task } from '../memory/tasks/types.js';
 import { PlanRevisionManager } from '../memory/plan-revisions/manager.js';
 import type { PlanRevision } from '../memory/plan-revisions/types.js';
-import { DesignMemoryManager } from '../memory/design/manager.js';
-import type { DesignCandidate } from '../memory/design/types.js';
 import { ProjectKbManager } from '../memory/project-kb/manager.js';
-import { DesignStudyService, NativePlaywrightExtractor, assertLocalDesignUrl } from '../knowledge/design-study/index.js';
 import { parsePhaseSignal, type PhaseSignal } from '../core/task-planner/phase-signal.js';
 import { createPlanSnapshot, detectPlanRevisionIntent, type PlanSnapshot } from '../core/task-planner/plan-revision-detector.js';
 import { detectNegativeFeedback } from '../core/task-planner/feedback-detector.js';
@@ -131,7 +128,6 @@ if (CWD === '/') {
 
 /** 当前任务描述（用于 ReflectAgent 和失败升级的诊断报告） */
 let currentTaskDescription = '';
-let automaticDesignCritiqueFailures = 0;
 let lastPlanSnapshot: PlanSnapshot | null = null;
 
 const PLAN_CONFIRM_RE = /^(确认|开始|执行|继续|go|yes|y)$/i;
@@ -148,7 +144,6 @@ interface RuntimeState {
   resetFileGuard: () => void;
   setFileGuardMode: (mode: 'planning' | 'normal') => void;
   setRiskConfirmationProvider: (provider: ConfirmationProvider | null) => void;
-  designService: DesignStudyService;
 }
 
 // ── 构建模型 ──────────────────────────────────────────
@@ -562,24 +557,6 @@ async function main(): Promise<void> {
             tui.bridge.addMessage('system', await handlePlanCommand(command));
             continue;
 
-          case 'design':
-            tui.bridge.setStatus('[DesignStudy] 正在处理设计命令…');
-            if (command.subcommand === 'study' || command.subcommand === 'merge') {
-              tui.bridge.setStatus(
-                `[DesignStudy] 风格描述最多等待 ${formatSeconds(runtime.config.designStudy.styleDescriptionTimeoutMs)}`,
-              );
-            }
-            try {
-              tui.bridge.addMessage('system', await handleDesignCommand(command, runtime));
-              if (command.subcommand === 'use' && command.followUp) {
-                tui.bridge.setStatus('[DesignStudy] 检测到后续任务，已启用风格');
-                await runTuiFollowUpPrompt(runtime, tui.bridge, command.followUp);
-              }
-            } catch (err) {
-              tui.bridge.addMessage('system', `[DesignStudy] 失败：${err instanceof Error ? err.message : String(err)}`);
-            }
-            continue;
-
           case 'unknown':
             tui.bridge.addMessage('system', `未知命令: ${command.raw}\n输入 /help 查看可用命令`);
             continue;
@@ -630,11 +607,7 @@ async function main(): Promise<void> {
 
       const feedbackSignal = detectNegativeFeedback(userInput);
       if (feedbackSignal.isNegative && activeTask) {
-        automaticDesignCritiqueFailures = 0;
         await tasksMgr.incrementRetry(activeTask.id, feedbackSignal.extractedText);
-        await tasksMgr.updateWorkingMemory(activeTask.id, {
-          design_feedback: [feedbackSignal.extractedText],
-        });
         const updatedTask = await tasksMgr.getActive();
         const phase = updatedTask?.phases[updatedTask.active_phase_index];
 
@@ -676,8 +649,6 @@ async function main(): Promise<void> {
           await runtime.session.prompt(finalPrompt);
           await runtime.agent.waitForIdle();
           tui.bridge.updateTaskStatus({ state: 'idle' });
-          const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
-          if (critiqueMessage) tui.bridge.addMessage('system', critiqueMessage);
           if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
             tui.bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
           }
@@ -693,7 +664,6 @@ async function main(): Promise<void> {
         );
 
         if (intent.type === 'new_task' && intent.requiresPlan) {
-          automaticDesignCritiqueFailures = 0;
           currentTaskDescription = intent.taskName ?? userInput;
           runtime.escalation.initTask(currentTaskDescription, CWD);
           markReflectBaseline();
@@ -819,8 +789,6 @@ async function main(): Promise<void> {
             await runtime.session.prompt(finalPrompt);
             await runtime.agent.waitForIdle();
             tui.bridge.updateTaskStatus({ state: 'idle' });
-            const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
-            if (critiqueMessage) tui.bridge.addMessage('system', critiqueMessage);
             if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
               tui.bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
             }
@@ -1027,22 +995,6 @@ async function main(): Promise<void> {
             console.log(chalk.green(await handlePlanCommand(command)));
             continue;
 
-          case 'design':
-            console.log(chalk.dim('  [DesignStudy] 正在处理设计命令…'));
-            if (command.subcommand === 'study' || command.subcommand === 'merge') {
-              console.log(chalk.dim(`  [DesignStudy] 风格/审美描述最多等待 ${formatSeconds(runtime.config.designStudy.styleDescriptionTimeoutMs)}；超时会跳过描述，候选仍会保存。`));
-            }
-            try {
-              console.log(chalk.green(await handleDesignCommand(command, runtime)));
-              if (command.subcommand === 'use' && command.followUp) {
-                console.log(chalk.dim('  [DesignStudy] 检测到后续任务，已启用风格，开始提交给 agent…'));
-                await runConsoleFollowUpPrompt(runtime, command.followUp);
-              }
-            } catch (err) {
-              console.log(chalk.red(`[DesignStudy] 失败：${err instanceof Error ? err.message : String(err)}`));
-            }
-            continue;
-
           case 'unknown':
             console.log(chalk.yellow(`  未知命令: ${command.raw}`));
             console.log(chalk.dim('  输入 /help 查看可用命令'));
@@ -1090,9 +1042,6 @@ async function main(): Promise<void> {
       const feedbackSignal = detectNegativeFeedback(userInput);
       if (feedbackSignal.isNegative && activeTask) {
         await tasksMgr.incrementRetry(activeTask.id, feedbackSignal.extractedText);
-        await tasksMgr.updateWorkingMemory(activeTask.id, {
-          design_feedback: [feedbackSignal.extractedText],
-        });
         const updatedTask = await tasksMgr.getActive();
         const phase = updatedTask?.phases[updatedTask.active_phase_index];
 
@@ -1316,7 +1265,6 @@ async function main(): Promise<void> {
   }
 }
 
-type DesignCommand = Extract<SlashCommand, { type: 'design' }>;
 type FeedbackCommand = Extract<SlashCommand, { type: 'feedback' }>;
 type PlanCommand = Extract<SlashCommand, { type: 'plan' }>;
 type ReviewCommand = Extract<SlashCommand, { type: 'review' }>;
@@ -1379,8 +1327,6 @@ async function runTuiFeedbackRepair(
     );
     await runtime.agent.waitForIdle();
     bridge.updateTaskStatus({ state: 'idle' });
-    const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
-    if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
     if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
       bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
     }
@@ -1445,8 +1391,6 @@ async function runTuiActivePhase(
     );
     await runtime.agent.waitForIdle();
     bridge.updateTaskStatus({ state: 'idle' });
-    const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
-    if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
     if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
       bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
     }
@@ -1617,7 +1561,6 @@ function formatTaskStatus(task: Task): string {
   appendStatusList(lines, 'Constraints', memory.constraints);
   appendStatusList(lines, 'Open Questions', memory.open_questions);
   appendStatusList(lines, 'User Preferences', memory.user_preferences);
-  appendStatusList(lines, 'Design Feedback', memory.design_feedback);
   appendStatusList(lines, 'Verification', memory.verification_results);
   appendStatusList(lines, 'Changed Files', memory.changed_files);
 
@@ -1766,8 +1709,6 @@ async function runTuiPlainAnswer(
     await runtime.session.prompt(prompt);
     await runtime.agent.waitForIdle();
     bridge.updateTaskStatus({ state: 'idle' });
-    const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
-    if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
     if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
       bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
     }
@@ -1816,8 +1757,6 @@ async function runTuiFollowUpPrompt(
     await runtime.session.prompt(prompt);
     await runtime.agent.waitForIdle();
     bridge.updateTaskStatus({ state: 'idle' });
-    const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
-    if (critiqueMessage) bridge.addMessage('system', critiqueMessage);
     if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
       bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
     }
@@ -1997,333 +1936,6 @@ function formatPlanRevisions(revisions: PlanRevision[]): string {
   ].join('\n');
 }
 
-async function handleDesignCommand(
-  command: DesignCommand,
-  runtime: RuntimeState,
-): Promise<string> {
-  if (!runtime.config.features.designStudy) {
-    return 'DesignStudy 未启用。设置 STUDENT_AGENT_FEATURE_DESIGN_STUDY=true 后重启即可使用。';
-  }
-
-  const memory = DesignMemoryManager.getInstance(MEMORY_DIR);
-  const taskId = `design_${Date.now()}`;
-  const sessionRef = `session_${Date.now()}`;
-
-  switch (command.subcommand) {
-    case 'study': {
-      const candidate = await runtime.designService.study({
-        url: command.url,
-        name: command.name,
-        taskId,
-        sessionRef,
-        mode: command.mode,
-      });
-      const [screenshotPaths, styleDescription] = await Promise.all([
-        saveDesignScreenshots(candidate),
-        describeDesignStyle(candidate, runtime.model, runtime.config.designStudy.styleDescriptionTimeoutMs),
-      ]);
-      if (screenshotPaths.length > 0) {
-        openScreenshots(screenshotPaths);
-        void memory.stripScreenshotData(candidate.id);
-      }
-      const screenshotHint = command.mode !== 'screenshot' && isSparseColorPalette(candidate.tokens)
-        ? '⚠️  提取到的颜色较单一，页面可能依赖插画/SVG/图片配色。建议用 --screenshot 重新提取：\n' +
-          `   /design study ${command.url} --screenshot`
-        : '';
-      return [
-        `已生成设计候选：${candidate.name}`,
-        `candidate_id: ${candidate.id}`,
-        `观察次数：${candidate.observations}`,
-        '',
-        formatDesignEvidence(candidate),
-        screenshotPaths.length > 0
-          ? `截图文件：\n${screenshotPaths.map((p) => `  ${p}`).join('\n')}`
-          : '',
-        screenshotHint,
-        '',
-        '风格描述：',
-        styleDescription.text,
-        styleDescription.timedOut ? `提示：风格描述生成超时，候选已经保存；可以先 confirm，或稍后运行 /design describe ${candidate.id} 重试。` : '',
-        '',
-        '下一步：/design confirm <candidate-id> 确认为 StyleProfile。',
-      ].filter(Boolean).join('\n');
-    }
-    case 'merge': {
-      const merged = await runtime.designService.mergeCandidates(command.candidateIds, taskId, sessionRef, command.name);
-      const styleDescription = await describeDesignStyle(merged, runtime.model, runtime.config.designStudy.styleDescriptionTimeoutMs);
-      return [
-        `已合并 ${command.candidateIds.length} 个候选 → 新候选：${merged.name}`,
-        `candidate_id: ${merged.id}`,
-        `来源：${merged.source_urls.join(', ')}`,
-        '',
-        formatDesignEvidence(merged),
-        '',
-        '风格描述：',
-        styleDescription.text,
-        styleDescription.timedOut ? `提示：风格描述生成超时，合并候选已经保存；可以先 confirm，或稍后运行 /design describe ${merged.id} 重试。` : '',
-        '',
-        '下一步：/design confirm <candidate-id> [--name <名字>] 确认为 StyleProfile。',
-      ].filter(Boolean).join('\n');
-    }
-    case 'describe': {
-      const candidate = await memory.findCandidate(command.candidateId);
-      if (!candidate) {
-        return `Design candidate not found: ${command.candidateId}`;
-      }
-      const timeoutMs = command.timeoutMs ?? runtime.config.designStudy.styleDescriptionTimeoutMs;
-      const description = await describeDesignStyle(candidate, runtime.model, timeoutMs);
-      return [
-        `候选：${candidate.name}`,
-        `candidate_id: ${candidate.id}`,
-        `审美描述等待上限：${formatSeconds(timeoutMs)}`,
-        '',
-        '风格描述：',
-        description.text,
-        description.timedOut ? `提示：描述仍然超时；可稍后重试，或用 /design describe ${candidate.id} --timeout 90 给更长时间。` : '',
-      ].filter(Boolean).join('\n');
-    }
-    case 'confirm': {
-      const profile = await runtime.designService.confirmCandidate(command.candidateId, taskId, sessionRef, command.name);
-      return [
-        `已确认 StyleProfile：${profile.name}`,
-        `profile_id: ${profile.id}`,
-        `作用域：当前项目（${MEMORY_DIR}）`,
-        '这个风格默认只在当前项目生效；如需跨项目复用，运行 /design globalize <profile-id> 加入全局。',
-        '可用 /design use <profile-id> 设为当前 UI 实现风格。',
-      ].join('\n');
-    }
-    case 'use':
-      await runtime.designService.useProfile(command.profileId);
-      return `已启用 StyleProfile：${command.profileId}`;
-
-    case 'globalize': {
-      const globalMemory = new DesignMemoryManager(GLOBAL_MEMORY_DIR);
-      const profile = await memory.copyProfileTo(command.profileId, globalMemory);
-      return [
-        `已加入全局 StyleProfile：${profile.name}`,
-        `profile_id: ${profile.id}`,
-        `全局位置：${GLOBAL_MEMORY_DIR}/design-profiles/${profile.id}.json`,
-        '其他项目可用 /design use-global <profile-id> 引入并启用。',
-      ].join('\n');
-    }
-
-    case 'globals': {
-      const globalMemory = new DesignMemoryManager(GLOBAL_MEMORY_DIR);
-      const profiles = await globalMemory.getProfiles();
-      if (profiles.length === 0) {
-        return '暂无全局 StyleProfile。可在项目中确认风格后运行 /design globalize <profile-id>。';
-      }
-      return [
-        '全局 StyleProfile：',
-        ...profiles.map((profile) => `- ${profile.id}：${profile.name}`),
-      ].join('\n');
-    }
-
-    case 'use-global': {
-      const globalMemory = new DesignMemoryManager(GLOBAL_MEMORY_DIR);
-      const profile = await globalMemory.copyProfileTo(command.profileId, memory);
-      await runtime.designService.useProfile(profile.id);
-      return [
-        `已引入并启用全局 StyleProfile：${profile.name}`,
-        `profile_id: ${profile.id}`,
-        `项目位置：${MEMORY_DIR}/design-profiles/${profile.id}.json`,
-      ].join('\n');
-    }
-
-    case 'local-url':
-      assertLocalDesignUrl(command.url);
-      await memory.setLocalUrl(command.url);
-      return `已设置本地视觉自评地址：${command.url}`;
-
-    case 'critique': {
-      const profile = command.profileId
-        ? await memory.getProfile(command.profileId)
-        : await memory.getActiveProfile();
-      if (!profile) {
-        return '没有可用 StyleProfile。请先 /design confirm 再 /design use，或传入 profile_id。';
-      }
-      const url = command.url ?? await memory.getLocalUrl() ?? runtime.config.designStudy.localUrl;
-      if (!url) {
-        return '没有本地页面地址。请先运行 /design local-url <url>，或在命令中传入 URL。';
-      }
-      const critique = await runtime.designService.critique(url, profile, taskId, sessionRef);
-      const score = Math.round(critique.score * 100);
-      const failures = critique.failures.length > 0
-        ? `\n失败项：\n${critique.failures.map((failure) => `- ${failure}`).join('\n')}`
-        : '';
-      return `视觉自评分数：${score}%（阈值 ${Math.round(runtime.config.designStudy.criticThreshold * 100)}%）${failures}`;
-    }
-  }
-}
-
-async function saveDesignScreenshots(candidate: DesignCandidate): Promise<string[]> {
-  const dir = join(MEMORY_DIR, 'design-screenshots', candidate.id);
-  await mkdir(dir, { recursive: true });
-  const paths: string[] = [];
-  for (const shot of candidate.screenshots) {
-    if (!shot.dataUrl) continue;
-    const base64 = shot.dataUrl.replace(/^data:image\/\w+;base64,/, '');
-    const filePath = join(dir, `${shot.viewport}.png`);
-    await writeFile(filePath, Buffer.from(base64, 'base64'));
-    paths.push(filePath);
-  }
-  return paths;
-}
-
-function openScreenshots(paths: string[]): void {
-  const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
-  for (const p of paths) {
-    execFile(opener, [p], () => {});
-  }
-}
-
-interface StyleDescriptionResult {
-  text: string;
-  timedOut: boolean;
-}
-
-async function describeDesignStyle(
-  candidate: DesignCandidate,
-  model: Model<Api>,
-  timeoutMs: number,
-): Promise<StyleDescriptionResult> {
-  const imageBlocks = candidate.screenshots
-    .filter((s) => s.dataUrl)
-    .map((s) => {
-      const base64 = s.dataUrl!.replace(/^data:image\/\w+;base64,/, '');
-      return { type: 'image' as const, data: base64, mimeType: 'image/png' };
-    });
-  const textBlock = {
-    type: 'text' as const,
-    text: JSON.stringify({
-      tokens: candidate.tokens,
-      component_patterns: candidate.component_patterns,
-      anti_patterns: candidate.anti_patterns,
-    }),
-  };
-  try {
-    const result = await withDesignDescriptionTimeout(
-      completeSimple(model, {
-        systemPrompt: '你是设计系统分析师。根据截图和视觉 token，用简洁自然的中文描述这个设计风格的视觉特征，包括配色印象、插画或装饰风格、排版风格、组件外观和整体气质。控制在 120 字以内，用描述性语言，不要列举数值。',
-        messages: [{ role: 'user', content: [...imageBlocks, textBlock], timestamp: Date.now() }],
-      }),
-      timeoutMs,
-    );
-    if (result === 'timeout') {
-      return {
-        text: `（风格描述生成超过 ${formatSeconds(timeoutMs)}，已跳过）`,
-        timedOut: true,
-      };
-    }
-    return {
-      text: result.content.find((c) => c.type === 'text')?.text?.trim() ?? '（描述生成失败）',
-      timedOut: false,
-    };
-  } catch {
-    return { text: '（描述生成失败）', timedOut: false };
-  }
-}
-
-async function withDesignDescriptionTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | 'timeout'> {
-  return Promise.race([
-    promise,
-    new Promise<'timeout'>((resolve) => {
-      setTimeout(() => resolve('timeout'), timeoutMs);
-    }),
-  ]);
-}
-
-function formatSeconds(milliseconds: number): string {
-  return `${Math.round(milliseconds / 1000)}s`;
-}
-
-function isSparseColorPalette(tokens: DesignCandidate['tokens']): boolean {
-  const allColors = [
-    ...tokens.colors.background,
-    ...tokens.colors.text,
-    ...tokens.colors.accent,
-  ];
-  const hasChromatic = allColors.some((color) => {
-    const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-    if (!m) return false;
-    const [, r, g, b] = m.map(Number);
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    return max - min > 40;
-  });
-  return !hasChromatic;
-}
-
-function formatDesignEvidence(candidate: DesignCandidate): string {
-  const viewports = candidate.screenshots.map((shot) => `${shot.viewport} ${shot.width}x${shot.height}`);
-  const roles = countBy(candidate.samples.map((sample) => sample.role));
-  const tokens = candidate.tokens;
-  return [
-    '检查证据：',
-    `- 来源 URL：${candidate.source_urls.join(', ')}`,
-    `- 截图：${candidate.screenshots.length} 张（${viewports.join('；') || '无'}）`,
-    `- computed style 样本：${candidate.samples.length} 个（${formatCounts(roles)}）`,
-    `- 颜色：背景 ${tokens.colors.background.length} / 文本 ${tokens.colors.text.length} / 强调 ${tokens.colors.accent.length}`,
-    `- 字体权重：${JSON.stringify(tokens.fontWeight)}`,
-    `- 边框：${JSON.stringify(tokens.border)}`,
-    `- 圆角：${tokens.radius.slice(0, 6).join(', ') || '未提取'}`,
-    `- 阴影：${tokens.shadow.slice(0, 4).join(', ') || '未提取'}`,
-    `- 组件模式：${Object.keys(candidate.component_patterns).join(', ') || '未识别'}`,
-    '- 审计位置：memory/design-candidates.json',
-  ].join('\n');
-}
-
-function countBy(values: string[]): Record<string, number> {
-  return values.reduce<Record<string, number>>((counts, value) => {
-    counts[value] = (counts[value] ?? 0) + 1;
-    return counts;
-  }, {});
-}
-
-function formatCounts(counts: Record<string, number>): string {
-  const entries = Object.entries(counts);
-  if (entries.length === 0) return '无';
-  return entries.map(([key, count]) => `${key}:${count}`).join(', ');
-}
-
-async function maybeRunAutomaticDesignCritique(runtime: RuntimeState, taskDescription: string): Promise<string | null> {
-  if (!runtime.config.features.designStudy) return null;
-  if (automaticDesignCritiqueFailures >= runtime.config.designStudy.maxCriticRetries) return null;
-  if (!isUiImplementationTask(taskDescription)) return null;
-
-  const memory = DesignMemoryManager.getInstance(MEMORY_DIR);
-  const profile = await memory.getActiveProfile();
-  const url = await memory.getLocalUrl() ?? runtime.config.designStudy.localUrl;
-  if (!profile || !url) return null;
-
-  try {
-    const critique = await runtime.designService.critique(
-      url,
-      profile,
-      `task_${Date.now()}`,
-      `session_${Date.now()}`,
-    );
-    const score = Math.round(critique.score * 100);
-    if (!critique.revision_required) {
-      automaticDesignCritiqueFailures = 0;
-      return `[DesignCritic] 视觉一致性 ${score}%，已通过当前 StyleProfile。`;
-    }
-    automaticDesignCritiqueFailures++;
-    return [
-      `[DesignCritic] 视觉一致性 ${score}%，低于阈值 ${Math.round(runtime.config.designStudy.criticThreshold * 100)}%。`,
-      '下一轮 UI 修改请优先修正：',
-      ...critique.failures.map((failure) => `- ${failure}`),
-    ].join('\n');
-  } catch (err) {
-    return `[DesignCritic] 自评失败：${err instanceof Error ? err.message : String(err)}`;
-  }
-}
-
-function isUiImplementationTask(taskDescription: string): boolean {
-  return /\b(ui|ux|css|html|frontend|front-end|react|vue|svelte|tailwind|style|styles|component|layout|page|screen|website|web app)\b/i.test(taskDescription)
-    || /(前端|页面|网页|样式|视觉|界面|组件|布局|按钮|卡片|移动端|响应式)/.test(taskDescription);
-}
-
 async function reloadConfig(): Promise<StudentAgentConfig> {
   // 先加载全局 env（~/.student-agent/.env），再用项目 .env 覆盖
   await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: true });
@@ -2369,17 +1981,6 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
   const unsubscribe = agent.subscribe((event) => {
     renderer.handleEvent(event);
   });
-  const designMemory = DesignMemoryManager.getInstance(MEMORY_DIR);
-  const designService = new DesignStudyService({
-    memory: designMemory,
-    nativeExtractor: new NativePlaywrightExtractor({
-      navigationTimeoutMs: config.playwright.navigationTimeoutMs,
-      renderWaitMs: config.playwright.renderWaitMs,
-    }),
-    extractorMode: config.designStudy.extractorMode,
-    dembrandtCommand: config.designStudy.dembrandtCommand,
-    criticThreshold: config.designStudy.criticThreshold,
-  });
 
   return {
     config,
@@ -2395,7 +1996,6 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
       riskConfirmationRef.current = provider;
       resetRiskGuard();
     },
-    designService,
   };
 }
 
@@ -2460,10 +2060,6 @@ async function runTaskWithAbort(runtime: RuntimeState, userInput: string): Promi
     runtime.resetFileGuard();
     await runtime.session.prompt(userInput);
     await runtime.agent.waitForIdle();
-    const critiqueMessage = await maybeRunAutomaticDesignCritique(runtime, currentTaskDescription);
-    if (critiqueMessage) {
-      console.log(chalk.yellow('\n' + critiqueMessage));
-    }
 
     if (!aborted && runtime.agent.state.errorMessage) {
       console.error(chalk.red(`[Agent Error] ${runtime.agent.state.errorMessage}`));

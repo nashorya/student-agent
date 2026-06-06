@@ -151,78 +151,6 @@ describe('parseCommand', () => {
     });
   });
 
-  it('解析 design 命令', () => {
-    expect(parseCommand('/design study https://example.com --name Food App')).toEqual({
-      type: 'design',
-      subcommand: 'study',
-      url: 'https://example.com',
-      name: 'Food App',
-    });
-    expect(parseCommand('/design confirm design_cand_1')).toEqual({
-      type: 'design',
-      subcommand: 'confirm',
-      candidateId: 'design_cand_1',
-    });
-    expect(parseCommand('/design use food-app')).toEqual({
-      type: 'design',
-      subcommand: 'use',
-      profileId: 'food-app',
-    });
-    expect(parseCommand('/design use food-app 修改首页')).toEqual({
-      type: 'design',
-      subcommand: 'use',
-      profileId: 'food-app',
-      followUp: '修改首页',
-    });
-    expect(parseCommand('/design globalize food-app')).toEqual({
-      type: 'design',
-      subcommand: 'globalize',
-      profileId: 'food-app',
-    });
-    expect(parseCommand('/design globals')).toEqual({
-      type: 'design',
-      subcommand: 'globals',
-    });
-    expect(parseCommand('/design use-global food-app')).toEqual({
-      type: 'design',
-      subcommand: 'use-global',
-      profileId: 'food-app',
-    });
-    expect(parseCommand('/design merge design_cand_1 design_cand_1 design_cand_2 --name Mixed')).toEqual({
-      type: 'design',
-      subcommand: 'merge',
-      candidateIds: ['design_cand_1', 'design_cand_2'],
-      name: 'Mixed',
-    });
-    expect(parseCommand('/design describe design_cand_1 --timeout 90')).toEqual({
-      type: 'design',
-      subcommand: 'describe',
-      candidateId: 'design_cand_1',
-      timeoutMs: 90_000,
-    });
-    expect(parseCommand('/design local-url http://localhost:3000')).toEqual({
-      type: 'design',
-      subcommand: 'local-url',
-      url: 'http://localhost:3000',
-    });
-    expect(parseCommand('/design critique http://localhost:3000 food-app')).toEqual({
-      type: 'design',
-      subcommand: 'critique',
-      url: 'http://localhost:3000',
-      profileId: 'food-app',
-    });
-  });
-
-  it('design 缺少必要参数返回 unknown', () => {
-    expect(parseCommand('/design study')).toEqual({
-      type: 'unknown',
-      raw: '/design study',
-    });
-    expect(parseCommand('/design confirm')).toEqual({
-      type: 'unknown',
-      raw: '/design confirm',
-    });
-  });
 
   it('未知命令返回 unknown', () => {
     expect(parseCommand('/foo')).toEqual({ type: 'unknown', raw: '/foo' });
@@ -252,16 +180,11 @@ describe('getHelpText', () => {
     expect(help).toContain('/plan');
     expect(help).toContain('/task');
     expect(help).toContain('/task cancel');
-    expect(help).toContain('/design');
   });
 });
 
 describe('COMMAND_COMPLETIONS', () => {
   it('包含常用子命令补全', () => {
-    expect(COMMAND_COMPLETIONS).toContain('/design study ');
-    expect(COMMAND_COMPLETIONS).toContain('/design confirm ');
-    expect(COMMAND_COMPLETIONS).toContain('/design globalize ');
-    expect(COMMAND_COMPLETIONS).toContain('/design describe ');
     expect(COMMAND_COMPLETIONS).toContain('/plan revision ');
     expect(COMMAND_COMPLETIONS).toContain('/feedback down ');
   });

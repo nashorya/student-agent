@@ -22,7 +22,6 @@ const makeTask = (overrides: Partial<Task> = {}): Task => ({
     project_facts: [],
     open_questions: [],
     decisions: [],
-    design_feedback: [],
     verification_results: ['build passed'],
     changed_files: ['src/App.tsx'],
   },

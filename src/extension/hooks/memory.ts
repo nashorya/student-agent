@@ -9,7 +9,6 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PreferencesManager } from '../../memory/preferences/manager.js';
 import { QuestionsManager } from '../../memory/questions/manager.js';
-import { DesignMemoryManager } from '../../memory/design/manager.js';
 import { ProjectKbManager } from '../../memory/project-kb/manager.js';
 import { PlanRevisionManager } from '../../memory/plan-revisions/manager.js';
 
@@ -91,39 +90,6 @@ export function createMemoryHook(memoryDir: string) {
         '## Project Knowledge Cache（动态知识缓存，可能过期）\n\n' + kbText,
       );
     }
-
-    // 4. active StyleProfile（视觉实现约束）
-    const designManager = DesignMemoryManager.getInstance(memoryDir);
-    const activeProfile = await designManager.getActiveProfile();
-    if (activeProfile) {
-      const unresolved = await designManager.getRecentUnresolvedCritiques(3);
-      const profileText = [
-        `Profile: ${activeProfile.name} (${activeProfile.id})`,
-        `Colors: ${JSON.stringify(activeProfile.tokens.colors)}`,
-        `FontFamily: ${activeProfile.tokens.fontFamily?.join(', ') || '(none)'}`,
-        `Border: ${JSON.stringify(activeProfile.tokens.border)}`,
-        `Shadow: ${activeProfile.tokens.shadow.join(', ') || '(none)'}`,
-        `Radius: ${activeProfile.tokens.radius.join(', ') || '(none)'}`,
-        `Component patterns: ${JSON.stringify(activeProfile.component_patterns)}`,
-        `Anti-patterns: ${activeProfile.anti_patterns.join('; ') || '(none)'}`,
-        unresolved.length > 0
-          ? 'Recent critique failures:\n' + unresolved.flatMap((critique) => critique.failures).map((failure) => `- ${failure}`).join('\n')
-          : '',
-      ].filter(Boolean).join('\n');
-      sections.push(
-        '## Active StyleProfile（当前 UI 视觉约束）\n\n' + profileText,
-      );
-    }
-
-    sections.push(`
-## Built-in Design Study Skill（内置网页设计学习能力）
-
-这是 student-agent 宿主 CLI 的内置命令能力，不是模型工具。当用户说“学习一个网页的设计风格”、“提取网页 UI 风格”时：
-- 引导用户使用 /design study <url> [--name <名字>] 生成候选
-- 后续流程：/design confirm → /design use → /design critique
-- 详细流程见 memory/skills/design-study/SKILL.md
-- 不要回答“我没有访问网页/截图/DOM 的能力”
-`);
 
     sections.push(`
 ## 工具输出安全边界（必须遵守）

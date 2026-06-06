@@ -1,0 +1,6 @@
+id = "preference-type-annotations"
+title = "遵循项目规则添加类型标注"
+mode = "direct"
+tags = ["edit", "read-before-edit", "project-rules", "typescript", "chinese-instruction"]
+timeout_seconds = 180
+expected_files = ["src/app.ts"]

@@ -29,7 +29,6 @@ export interface TaskWorkingMemory {
   project_facts: string[];
   open_questions: string[];
   decisions: string[];
-  design_feedback: string[];
   verification_results: string[];
   changed_files: string[];
 }

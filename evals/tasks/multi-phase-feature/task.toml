@@ -1,0 +1,6 @@
+id = "multi-phase-feature"
+title = "多阶段功能开发流程"
+mode = "task"
+tags = ["task", "phase", "typescript", "multi-file"]
+timeout_seconds = 300
+expected_files = ["src/math.ts", "src/main.ts"]

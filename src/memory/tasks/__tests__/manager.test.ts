@@ -83,7 +83,6 @@ describe('TasksManager', () => {
     const active = await mgr.getActive();
     expect(active?.status).toBe('active');
     expect(active?.workflow_status).toBe('revision_requested');
-    expect(active?.working_memory.design_feedback).toContain('按钮太挤');
   });
 
   it('records verification results into task memory', async () => {

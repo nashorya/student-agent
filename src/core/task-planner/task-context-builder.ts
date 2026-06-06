@@ -23,7 +23,6 @@ export function buildTaskContextPrefix(task: Task | null, ctx7Docs?: string): st
   appendList(lines, '项目事实', memory.project_facts);
   appendList(lines, '未决问题', memory.open_questions);
   appendList(lines, '已确认决策', memory.decisions);
-  appendList(lines, '设计反馈', memory.design_feedback);
   appendList(lines, '验证结果', memory.verification_results);
   appendList(lines, '已修改文件', memory.changed_files);
 

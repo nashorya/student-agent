@@ -31,6 +31,10 @@
 - 指令含中文，测试双引号规则遵循
 - 状态：✅ `eval:validate` 通过（initial: 0, solution: 1）
 - 状态：✅ `eval:baseline` 通过（correctness: 1, behavior: 1, 4 tool calls, 0 failed）
-- TODO：
-  - [x] 运行 baseline 确认 agent 实际行为
-  - [ ] 考虑添加更多偏好相关的 eval task（如类型标注偏好）
+
+## 📦 新的 eval task：preference-type-annotations
+- 创建时间：2026-06-06
+- 目的：测试 agent 是否能主动读取 project-rules.md 并遵循显式类型标注的约定
+- 指令含中文，测试类型标注规则遵循
+- 状态：✅ `eval:validate` 通过（initial: 0, solution: 1）
+- 状态：暂未运行 baseline
