@@ -1,5 +1,5 @@
 {
-  "active_task_id": null,
+  "active_task_id": "task_1780806018031",
   "tasks": [
     {
       "id": "task_1780715870870",
@@ -446,6 +446,80 @@
       "created_at": "2026-06-06T15:07:14.854Z",
       "completed_at": "2026-06-06T15:23:02.458Z",
       "accepted_at": "2026-06-06T15:23:02.458Z"
+    },
+    {
+      "id": "task_1780806018031",
+      "name": "v0.36 ToolGuard Hook",
+      "active_phase_index": 3,
+      "phases": [
+        {
+          "id": "phase_1780806018031_0",
+          "description": "创建 src/extension/hooks/tool-guard.ts，实现四条拦截规则（empty_bash、nl_bash、broad_glob、patch_retry），导出 createToolGuardHook 工厂函数。需要先读取 src/core/hashline/index.ts 确认 emitProtectedEvent 的导入路径，以及 src/core/pi-bridge/types.ts 确认 PreToolCallContext 的字段结构。",
+          "status": "completed",
+          "retry_count": 0,
+          "feedbacks": [],
+          "created_at": "2026-06-07T04:20:18.031Z",
+          "completed_at": "2026-06-07T04:20:44.409Z"
+        },
+        {
+          "id": "phase_1780806018031_1",
+          "description": "在 src/extension/index.ts 中注册 ToolGuard——导入 createToolGuardHook，在 fileGuard 之前创建实例，将 toolGuard.hook 插入 onBeforeToolCall 链的首位，并将 reset 加入所有调用 fileGuard.reset() 的位置。需要重新读取 index.ts 中相关行以确保锚点准确。",
+          "status": "completed",
+          "retry_count": 0,
+          "feedbacks": [],
+          "created_at": "2026-06-07T04:20:18.031Z",
+          "completed_at": "2026-06-07T04:23:48.471Z"
+        },
+        {
+          "id": "phase_1780806018031_2",
+          "description": "创建 src/extension/hooks/__tests__/tool-guard.test.ts，编写 v0.36 prompt 中要求的 10 个测试用例（empty_bash 空命令/空格命令/正常命令、nl_bash 自然语言命令/正常带 flag 命令、broad_glob 宽泛模式/精确模式、patch_retry 无重读/有重读、reset 清除状态）。运行 tsc --noEmit 和 vitest 验证通过。",
+          "status": "completed",
+          "retry_count": 0,
+          "feedbacks": [],
+          "created_at": "2026-06-07T04:20:18.031Z",
+          "completed_at": "2026-06-07T04:24:13.400Z"
+        },
+        {
+          "id": "phase_1780806018031_3",
+          "description": "逐步报告每步完成情况——每完成一个 Phase 后用中文简述做了什么，遇到什么问题（如有）以及如何解决，最后确认所有验收标准达标。",
+          "status": "completed",
+          "retry_count": 0,
+          "feedbacks": [],
+          "created_at": "2026-06-07T04:20:18.031Z",
+          "completed_at": "2026-06-07T04:24:19.606Z"
+        }
+      ],
+      "status": "active",
+      "workflow_status": "user_review",
+      "level": 3,
+      "working_memory": {
+        "goal": "创建 ToolGuard hook，在工具调用前拦截四类异常行为（空命令、自然语言命令、宽泛 glob、未重读就重试编辑），注册到 hook 链并编写测试",
+        "acceptance_criteria": [
+          "tool-guard.ts 实现四条规则且每条规则 emit ProtectedEvalEvent",
+          "在 index.ts 注册 hook 并排在 fileGuard 之前",
+          "npx tsc --noEmit 无类型错误",
+          "vitest 测试全部通过"
+        ],
+        "constraints": [
+          "遵循 file-guard.ts 的工厂模式（createToolGuardHook 返回 { hook",
+          "reset }）",
+          "不修改 file-guard.ts / risk-guard.ts / types.ts",
+          "自然语言检测要保守（宁可放过不可误拦）",
+          "block reason 用中文"
+        ],
+        "user_preferences": [],
+        "project_facts": [],
+        "open_questions": [
+          "emitProtectedEvent 的具体 import 路径需确认"
+        ],
+        "decisions": [],
+        "verification_results": [],
+        "changed_files": []
+      },
+      "requires_user_acceptance": true,
+      "requires_visual_review": false,
+      "verification_results": [],
+      "created_at": "2026-06-07T04:20:18.031Z"
     }
   ]
 }

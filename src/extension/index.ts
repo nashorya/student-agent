@@ -33,6 +33,7 @@ import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/
 import { Context7Client } from '../knowledge/context7-client.js';
 import { createSnapshotHook, getLastSnapshotId, restoreSnapshot } from './hooks/snapshot.js';
 import { createFileGuardHook } from './hooks/file-guard.js';
+import { createToolGuardHook } from './hooks/tool-guard.js';
 import { createRiskGuardHook, type ConfirmationProviderRef } from './hooks/risk-guard.js';
 import { FailureEscalationContext } from './hooks/failure-escalation.js';
 import { createMemoryHook } from './hooks/memory.js';
@@ -141,6 +142,7 @@ interface RuntimeState {
   unsubscribe: () => void;
   model: Model<Api>;
   resetFileGuard: () => void;
+  resetToolGuard: () => void;
   setFileGuardMode: (mode: 'planning' | 'normal') => void;
   setRiskConfirmationProvider: (provider: ConfirmationProvider | null) => void;
 }
@@ -211,6 +213,7 @@ function buildHooks(
   hooks: StudentAgentHooks;
   escalation: FailureEscalationContext;
   resetFileGuard: () => void;
+  resetToolGuard: () => void;
   setFileGuardMode: (mode: 'planning' | 'normal') => void;
   resetRiskGuard: () => void;
 } {
@@ -237,6 +240,7 @@ function buildHooks(
   });
 
   const fileGuard = createFileGuardHook(abortRef, config.fileGuard);
+  const toolGuard = createToolGuardHook();
   const riskGuard = createRiskGuardHook({
     enabled: config.features.riskGuard && config.executionMode !== 'yolo',
     confirmationProviderRef: riskConfirmationRef,
@@ -245,6 +249,8 @@ function buildHooks(
 
   const hooks: StudentAgentHooks = {
     onBeforeToolCall: async (ctx) => {
+      const toolGuardDecision = await toolGuard.hook(ctx);
+      if (toolGuardDecision?.block) return toolGuardDecision;
       const guardDecision = await fileGuard.hook(ctx);
       if (guardDecision?.block) return guardDecision;
       const riskDecision = await riskGuard.hook(ctx);
@@ -263,6 +269,7 @@ function buildHooks(
     hooks,
     escalation,
     resetFileGuard: fileGuard.reset,
+    resetToolGuard: toolGuard.reset,
     setFileGuardMode: fileGuard.setMode,
     resetRiskGuard: riskGuard.reset,
   };
@@ -645,6 +652,7 @@ async function main(): Promise<void> {
 
         try {
           runtime.resetFileGuard();
+          runtime.resetToolGuard();
           await runtime.session.prompt(finalPrompt);
           await runtime.agent.waitForIdle();
           tui.bridge.updateTaskStatus({ state: 'idle' });
@@ -787,6 +795,7 @@ async function main(): Promise<void> {
 
           try {
             runtime.resetFileGuard();
+            runtime.resetToolGuard();
             await runtime.session.prompt(finalPrompt);
             await runtime.agent.waitForIdle();
             if (useActiveTaskContext) {
@@ -1327,6 +1336,7 @@ async function runTuiFeedbackRepair(
 
   try {
     runtime.resetFileGuard();
+    runtime.resetToolGuard();
     await runtime.session.prompt(
       buildTaskContextPrefix(retryContext.task, retryContext.ctx7Docs)
       + buildFeedbackRepairPrompt(taskName, feedback),
@@ -1391,6 +1401,7 @@ async function runTuiActivePhase(
 
   try {
     runtime.resetFileGuard();
+    runtime.resetToolGuard();
     await runtime.session.prompt(
       buildTaskContextPrefix(activeTask)
       + buildPhaseExecutionPrompt(activeTask.name, phase.description, activeTask.active_phase_index, activeTask.phases.length),
@@ -1712,6 +1723,7 @@ async function runTuiPlainAnswer(
 
   try {
     runtime.resetFileGuard();
+    runtime.resetToolGuard();
     await runtime.session.prompt(prompt);
     await runtime.agent.waitForIdle();
     bridge.updateTaskStatus({ state: 'idle' });
@@ -1760,6 +1772,7 @@ async function runTuiFollowUpPrompt(
 
   try {
     runtime.resetFileGuard();
+    runtime.resetToolGuard();
     await runtime.session.prompt(prompt);
     await runtime.agent.waitForIdle();
     bridge.updateTaskStatus({ state: 'idle' });
@@ -1956,7 +1969,7 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
   const model = buildModel(config);
   const abortRef = { abort: () => {} };
   const riskConfirmationRef: ConfirmationProviderRef = { current: null };
-  const { hooks, escalation, resetFileGuard, setFileGuardMode, resetRiskGuard } = buildHooks(
+  const { hooks, escalation, resetFileGuard, resetToolGuard, setFileGuardMode, resetRiskGuard } = buildHooks(
     config,
     abortRef,
     riskConfirmationRef,
@@ -1997,6 +2010,7 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
     unsubscribe,
     model,
     resetFileGuard,
+    resetToolGuard,
     setFileGuardMode,
     setRiskConfirmationProvider: (provider) => {
       riskConfirmationRef.current = provider;
@@ -2064,6 +2078,7 @@ async function runTaskWithAbort(runtime: RuntimeState, userInput: string): Promi
 
   try {
     runtime.resetFileGuard();
+    runtime.resetToolGuard();
     await runtime.session.prompt(userInput);
     await runtime.agent.waitForIdle();
 
