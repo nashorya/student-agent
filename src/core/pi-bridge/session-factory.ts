@@ -29,6 +29,7 @@ import {
   createStudentReadToolDefinition,
   createStudentWriteToolDefinition,
 } from './student-file-tools.js';
+import { TasksManager } from '../../memory/tasks/manager.js';
 import {
   toPreToolCallContext,
   toPostToolCallContext,
@@ -101,6 +102,7 @@ export async function createStudentSession(
 
   const hashlineStore = createHashlineStore();
   const hashlineFs = new StudentAgentFilesystem(cwd);
+  const tasksManager = TasksManager.getInstance();
 
   const customTools: CreateAgentSessionOptions['customTools'] = [
     ...(piOptions.customTools ?? []),
@@ -109,8 +111,8 @@ export async function createStudentSession(
     createStudentSearchFilesToolDefinition(cwd),
     createStudentReadManyToolDefinition(cwd),
     createStudentBashToolDefinition(cwd),
-    createStudentReadToolDefinition(cwd, { store: hashlineStore }),
-    createStudentEditToolDefinition(cwd, { store: hashlineStore, fs: hashlineFs }),
+    createStudentReadToolDefinition(cwd, { store: hashlineStore, tasksManager }),
+    createStudentEditToolDefinition(cwd, { store: hashlineStore, fs: hashlineFs, tasksManager }),
     createStudentWriteToolDefinition(cwd),
     createApplyPatchToolDefinition(cwd),
   ] as CreateAgentSessionOptions['customTools'];

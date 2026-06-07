@@ -25,6 +25,9 @@ export function buildTaskContextPrefix(task: Task | null, ctx7Docs?: string): st
   appendList(lines, '已确认决策', memory.decisions);
   appendList(lines, '验证结果', memory.verification_results);
   appendList(lines, '已修改文件', memory.changed_files);
+  appendList(lines, '已读取文件', memory.read_files);
+  appendList(lines, '已写入文件', memory.written_files);
+  appendList(lines, '最近错误', memory.recent_errors);
 
   if (task.verification_results.length > 0) {
     lines.push('[技术验证记录]');

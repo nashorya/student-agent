@@ -7,6 +7,7 @@ import {
 import type { SnapshotStore, Filesystem } from '@oh-my-pi/hashline';
 import { MismatchError } from '@oh-my-pi/hashline';
 import { emitProtectedEvent } from '../hashline/index.js';
+import type { TasksManager } from '../../memory/tasks/manager.js';
 
 type RecordValue = Record<string, unknown>;
 
@@ -30,6 +31,8 @@ const HASHLINE_ANCHOR_RE = /¶([^\s#]+)#([a-f0-9]{4,})/;
 export interface ReadToolHashlineOptions {
   /** SnapshotStore for recording file reads and generating hashline tags. */
   store?: SnapshotStore;
+  /** TasksManager for best-effort active-task file tracking. */
+  tasksManager?: TasksManager;
 }
 
 export function createStudentReadToolDefinition(
@@ -38,6 +41,7 @@ export function createStudentReadToolDefinition(
 ): ReturnType<typeof createReadToolDefinition> {
   const base = createReadToolDefinition(cwd);
   const store = hashlineOptions?.store;
+  const tasksManager = hashlineOptions?.tasksManager;
 
   if (!store) {
     // No hashline — return the same wrapper as before, just with aliases.
@@ -94,6 +98,7 @@ export function createStudentReadToolDefinition(
             // Recording failed — best-effort, don't break the read.
           }
         }
+        await trackActiveFileRead(tasksManager, filePath);
       }
 
       return result;
@@ -110,6 +115,8 @@ export interface EditToolHashlineOptions {
   store?: SnapshotStore;
   /** Filesystem implementation for Patcher to read/write files. */
   fs?: Filesystem;
+  /** TasksManager for best-effort active-task file/error tracking. */
+  tasksManager?: TasksManager;
 }
 
 export function createStudentEditToolDefinition(
@@ -119,6 +126,7 @@ export function createStudentEditToolDefinition(
   const base = createEditToolDefinition(cwd);
   const store = hashlineOptions?.store;
   const fs = hashlineOptions?.fs;
+  const tasksManager = hashlineOptions?.tasksManager;
 
   if (!store || !fs) {
     // No hashline — return the same wrapper as before with error enhancement.
@@ -140,8 +148,14 @@ export function createStudentEditToolDefinition(
       },
       async execute(toolCallId, input, signal, onUpdate, ctx) {
         try {
-          return await base.execute(toolCallId, input as never, signal, onUpdate, ctx);
+          const result = await base.execute(toolCallId, input as never, signal, onUpdate, ctx);
+          const editPath = extractEditPath(input);
+          if (editPath) {
+            await trackActiveFileWrite(tasksManager, editPath);
+          }
+          return result;
         } catch (err) {
+          await trackActiveError(tasksManager, formatTrackedError(err));
           throw enhanceEditError(err);
         }
       },
@@ -171,7 +185,7 @@ export function createStudentEditToolDefinition(
 
       if (anchor) {
         // Validate tag staleness and delegate to hashline-aware execution.
-        return await executeWithHashline(store, fs, base, anchor, toolCallId, input, signal, onUpdate, ctx);
+        return await executeWithHashline(store, fs, base, tasksManager, anchor, toolCallId, input, signal, onUpdate, ctx);
       }
 
       // No explicit anchor — but if the store has a snapshot for this file,
@@ -184,15 +198,21 @@ export function createStudentEditToolDefinition(
         if (headSnapshot) {
           // Store has a recorded read for this file → auto-validate.
           const implicitAnchor: HashlineAnchor = { path: editPath, tag: headSnapshot.hash };
-          return await executeWithHashline(store, fs, base, implicitAnchor, toolCallId, input, signal, onUpdate, ctx);
+          return await executeWithHashline(store, fs, base, tasksManager, implicitAnchor, toolCallId, input, signal, onUpdate, ctx);
         }
       }
 
       // No snapshot exists for this file — first edit without prior read.
       // Fall through to base edit (backward compatible).
       try {
-        return await base.execute(toolCallId, input as never, signal, onUpdate, ctx);
+        const result = await base.execute(toolCallId, input as never, signal, onUpdate, ctx);
+        const fallbackEditPath = extractEditPath(input);
+        if (fallbackEditPath) {
+          await trackActiveFileWrite(tasksManager, fallbackEditPath);
+        }
+        return result;
       } catch (err) {
+        await trackActiveError(tasksManager, formatTrackedError(err));
         throw enhanceEditError(err);
       }
     },
@@ -290,6 +310,7 @@ async function executeWithHashline(
   store: SnapshotStore,
   fs: Filesystem,
   base: ReturnType<typeof createEditToolDefinition>,
+  tasksManager: TasksManager | undefined,
   anchor: HashlineAnchor,
   toolCallId: string,
   input: unknown,
@@ -312,10 +333,11 @@ async function executeWithHashline(
       provenance: { reason: 'unrecognised_tag', tag: anchor.tag },
     });
 
-    throw new Error(
+    const msg =
       `Hashline: tag ${anchor.tag} for ${anchor.path} is not recognised. ` +
-      `Re-read the file to get a fresh anchor before editing.`,
-    );
+      `Re-read the file to get a fresh anchor before editing.`;
+    await trackActiveError(tasksManager, msg);
+    throw new Error(msg);
   }
 
   // Check staleness: compare the current file content hash against the tag.
@@ -359,10 +381,13 @@ async function executeWithHashline(
       // Best-effort: if we can't re-read the file, don't break the edit.
     }
 
+    await trackActiveFileWrite(tasksManager, anchor.path);
+
     return result;
   } catch (err: unknown) {
     // Re-throw our own stale-rejection errors.
     if (err instanceof Error && err.message.startsWith('Hashline:')) {
+      await trackActiveError(tasksManager, err.message);
       throw err;
     }
 
@@ -389,9 +414,11 @@ async function executeWithHashline(
         'Re-read the file to get a fresh anchor before editing.',
       ].join('\n');
 
+      await trackActiveError(tasksManager, enhancedMessage.slice(0, 200));
       throw new Error(enhancedMessage, { cause: err });
     }
 
+    await trackActiveError(tasksManager, formatTrackedError(err));
     throw enhanceEditError(err);
   }
 }
@@ -502,6 +529,46 @@ function enhanceEditError(err: unknown): Error {
     '- Use a shorter unique oldText anchor for one small change.',
     '- Use apply_patch for structural edits, large blocks, or multiple nearby changes.',
   ].join('\n'), { cause: original });
+}
+
+async function trackActiveFileRead(tasksManager: TasksManager | undefined, filePath: string): Promise<void> {
+  if (!tasksManager) return;
+  try {
+    const activeTask = await tasksManager.getActive();
+    if (activeTask) {
+      tasksManager.trackFileRead(activeTask.id, filePath).catch(() => {});
+    }
+  } catch {
+    // Best-effort tracking must never affect tool execution.
+  }
+}
+
+async function trackActiveFileWrite(tasksManager: TasksManager | undefined, filePath: string): Promise<void> {
+  if (!tasksManager) return;
+  try {
+    const activeTask = await tasksManager.getActive();
+    if (activeTask) {
+      tasksManager.trackFileWrite(activeTask.id, filePath).catch(() => {});
+    }
+  } catch {
+    // Best-effort tracking must never affect tool execution.
+  }
+}
+
+async function trackActiveError(tasksManager: TasksManager | undefined, error: string): Promise<void> {
+  if (!tasksManager) return;
+  try {
+    const activeTask = await tasksManager.getActive();
+    if (activeTask) {
+      tasksManager.trackError(activeTask.id, error.slice(0, 200)).catch(() => {});
+    }
+  } catch {
+    // Best-effort tracking must never affect tool execution.
+  }
+}
+
+function formatTrackedError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 function pickString(record: RecordValue, keys: string[]): string | undefined {

@@ -24,6 +24,9 @@ const makeTask = (overrides: Partial<Task> = {}): Task => ({
     decisions: [],
     verification_results: ['build passed'],
     changed_files: ['src/App.tsx'],
+    read_files: [],
+    written_files: [],
+    recent_errors: [],
   },
   requires_user_acceptance: true,
   requires_visual_review: true,
@@ -56,6 +59,32 @@ describe('buildTaskContextPrefix', () => {
     expect(prefix).toContain('[目标] 让首页颜色更清晰');
     expect(prefix).toContain('颜色符合设计');
     expect(prefix).toContain('build passed');
+  });
+
+  it('includes tracked files and recent errors from working memory', () => {
+    const prefix = buildTaskContextPrefix(makeTask({
+      working_memory: {
+        goal: '',
+        acceptance_criteria: [],
+        constraints: [],
+        user_preferences: [],
+        project_facts: [],
+        open_questions: [],
+        decisions: [],
+        verification_results: [],
+        changed_files: [],
+        read_files: ['src/input.ts'],
+        written_files: ['src/output.ts'],
+        recent_errors: ['edit failed'],
+      },
+    }));
+
+    expect(prefix).toContain('[已读取文件]');
+    expect(prefix).toContain('src/input.ts');
+    expect(prefix).toContain('[已写入文件]');
+    expect(prefix).toContain('src/output.ts');
+    expect(prefix).toContain('[最近错误]');
+    expect(prefix).toContain('edit failed');
   });
 
   it('returns empty string when task is null', () => {

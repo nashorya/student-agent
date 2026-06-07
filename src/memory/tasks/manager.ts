@@ -12,17 +12,26 @@ import type {
   TaskWorkflowStatus,
   TaskWorkingMemory,
 } from './types.js';
+import {
+  createWorkflowActor,
+  isWorkflowMachineStatus,
+  workflowStatusToEvent,
+  type WorkflowActor,
+  type WorkflowEvent,
+} from './workflow-machine.js';
 
 export class TasksManager {
   private static instance: TasksManager | null = null;
   private readonly filePath: string;
   private _memStore: TasksFile | null;
+  private actors: Map<string, WorkflowActor>;
 
   private constructor(memoryDir: string) {
     this.filePath = memoryDir === ':memory:'
       ? ':memory:'
       : join(memoryDir, 'tasks.json');
     this._memStore = null;
+    this.actors = new Map();
   }
 
   static getInstance(memoryDir?: string): TasksManager {
@@ -87,7 +96,7 @@ export class TasksManager {
       if (!task) return;
       const phase = task.phases[task.active_phase_index];
       if (!phase) return;
-      task.workflow_status = 'retrying';
+      this.applyWorkflowEvent(task, { type: 'RETRY' }, 'retrying', { fallbackToTarget: true });
       phase.retry_count++;
       phase.feedbacks.push(feedback);
     });
@@ -108,14 +117,19 @@ export class TasksManager {
         if (nextPhase && nextPhase.status === 'pending') {
           nextPhase.status = 'in_progress';
         }
-        task.workflow_status = 'executing';
+        this.applyWorkflowEvent(task, { type: 'EXECUTE' }, 'executing', { fallbackToTarget: true });
       } else {
         if (task.requires_visual_review) {
-          task.workflow_status = 'visual_review';
+          this.applyWorkflowEvent(task, { type: 'COMPLETE_PHASE', target: 'visual_review' }, 'visual_review', {
+            fallbackToTarget: true,
+          });
         } else if (task.requires_user_acceptance) {
-          task.workflow_status = 'user_review';
+          this.applyWorkflowEvent(task, { type: 'COMPLETE_PHASE', target: 'user_review' }, 'user_review', {
+            fallbackToTarget: true,
+          });
         } else {
           completeTaskInFile(file, task, 'All phases completed.');
+          this.actors.delete(task.id);
         }
       }
     });
@@ -125,20 +139,28 @@ export class TasksManager {
     await this._write(async (file) => {
       const task = file.tasks.find((t) => t.id === taskId);
       if (!task) return;
-      task.workflow_status = status;
-      if (status === 'executing') {
+      const event = workflowStatusToEvent(status);
+      if (!event) {
+        task.workflow_status = status;
+      } else {
+        const nextStatus = this.applyWorkflowEvent(task, event, status, { fallbackToTarget: false });
+        if (nextStatus !== status) return;
+      }
+      if (task.workflow_status === 'executing') {
         const phase = task.phases[task.active_phase_index];
         if (phase && phase.status === 'pending') phase.status = 'in_progress';
       }
-      if (status === 'cancelled') {
+      if (task.workflow_status === 'cancelled') {
         task.status = 'cancelled';
         file.active_task_id = null;
+        this.actors.delete(task.id);
       }
-      if (status === 'failed') {
+      if (task.workflow_status === 'failed') {
         task.status = 'failed';
       }
-      if (status === 'completed') {
+      if (task.workflow_status === 'completed') {
         completeTaskInFile(file, task, 'Workflow marked completed.');
+        this.actors.delete(task.id);
       }
     });
   }
@@ -149,6 +171,18 @@ export class TasksManager {
       if (!task) return;
       task.working_memory = mergeWorkingMemory(task.working_memory, patch);
     });
+  }
+
+  async trackFileRead(taskId: string, filePath: string): Promise<void> {
+    await this.updateWorkingMemory(taskId, { read_files: [filePath] });
+  }
+
+  async trackFileWrite(taskId: string, filePath: string): Promise<void> {
+    await this.updateWorkingMemory(taskId, { written_files: [filePath] });
+  }
+
+  async trackError(taskId: string, error: string): Promise<void> {
+    await this.updateWorkingMemory(taskId, { recent_errors: [error] });
   }
 
   async recordVerification(taskId: string, result: Omit<TaskVerificationResult, 'created_at'> & { created_at?: string }): Promise<void> {
@@ -170,7 +204,7 @@ export class TasksManager {
     await this._write(async (file) => {
       const task = file.tasks.find((t) => t.id === taskId);
       if (!task) return;
-      task.workflow_status = 'revision_requested';
+      this.applyWorkflowEvent(task, { type: 'REQUEST_REVISION' }, 'revision_requested', { fallbackToTarget: true });
     });
   }
 
@@ -178,7 +212,7 @@ export class TasksManager {
     await this._write(async (file) => {
       const task = file.tasks.find((t) => t.id === taskId);
       if (!task) return;
-      task.workflow_status = 'accepted';
+      this.applyWorkflowEvent(task, { type: 'ACCEPT' }, 'accepted', { fallbackToTarget: true });
       task.accepted_at = new Date().toISOString();
       if (reason) {
         task.working_memory = mergeWorkingMemory(task.working_memory, {
@@ -192,7 +226,9 @@ export class TasksManager {
     await this._write(async (file) => {
       const task = file.tasks.find((t) => t.id === taskId);
       if (!task) return;
+      this.applyWorkflowEvent(task, { type: 'COMPLETE' }, 'completed', { fallbackToTarget: true });
       completeTaskInFile(file, task, reason);
+      this.actors.delete(task.id);
     });
   }
 
@@ -200,7 +236,7 @@ export class TasksManager {
     await this._write(async (file) => {
       const task = file.tasks.find((t) => t.id === taskId);
       if (!task) return;
-      task.workflow_status = 'blocked';
+      this.applyWorkflowEvent(task, { type: 'BLOCK' }, 'blocked', { fallbackToTarget: true });
       const phase = task.phases[task.active_phase_index];
       if (phase) {
         phase.status = 'blocked';
@@ -229,11 +265,56 @@ export class TasksManager {
         return;
       }
       task.status = 'cancelled';
-      task.workflow_status = 'cancelled';
+      this.applyWorkflowEvent(task, { type: 'CANCEL' }, 'cancelled', { fallbackToTarget: true });
       file.active_task_id = null;
+      this.actors.delete(task.id);
       cancelledTask = task;
     });
     return cancelledTask;
+  }
+
+  private getOrCreateActor(task: Task): WorkflowActor | null {
+    if (!isWorkflowMachineStatus(task.workflow_status)) return null;
+
+    const existing = this.actors.get(task.id);
+    if (existing?.getSnapshot().value === task.workflow_status) {
+      return existing;
+    }
+
+    const actor = createWorkflowActor(task.workflow_status);
+    this.actors.set(task.id, actor);
+    return actor;
+  }
+
+  private applyWorkflowEvent(
+    task: Task,
+    event: WorkflowEvent,
+    targetStatus: TaskWorkflowStatus,
+    options: { fallbackToTarget: boolean },
+  ): TaskWorkflowStatus {
+    const actor = this.getOrCreateActor(task);
+    if (!actor) {
+      if (options.fallbackToTarget) task.workflow_status = targetStatus;
+      return task.workflow_status;
+    }
+
+    const before = actor.getSnapshot().value as TaskWorkflowStatus;
+    actor.send(event);
+    const after = actor.getSnapshot().value as TaskWorkflowStatus;
+
+    if (after === before && after !== targetStatus) {
+      console.warn(
+        `[TasksManager] Invalid workflow transition: ${before} -> ${targetStatus} (event: ${event.type}). Ignored.`,
+      );
+      if (options.fallbackToTarget) {
+        task.workflow_status = targetStatus;
+        this.actors.delete(task.id);
+      }
+      return task.workflow_status;
+    }
+
+    task.workflow_status = after;
+    return after;
   }
 
   private async _read(): Promise<TasksFile> {
@@ -416,6 +497,9 @@ function normalizeWorkingMemory(value?: Partial<TaskWorkingMemory> | Record<stri
     decisions: normalizeStringArray(value?.decisions),
     verification_results: normalizeStringArray(value?.verification_results),
     changed_files: normalizeStringArray(value?.changed_files),
+    read_files: normalizeStringArray(value?.read_files),
+    written_files: normalizeStringArray(value?.written_files),
+    recent_errors: normalizeStringArray(value?.recent_errors),
   };
 }
 
@@ -430,7 +514,17 @@ function mergeWorkingMemory(current: TaskWorkingMemory, patch: Partial<TaskWorki
     decisions: mergeUnique(current.decisions, patch.decisions),
     verification_results: mergeUnique(current.verification_results, patch.verification_results),
     changed_files: mergeUnique(current.changed_files, patch.changed_files),
+    read_files: mergeUnique(current.read_files, patch.read_files),
+    written_files: mergeUnique(current.written_files, patch.written_files),
+    recent_errors: capArray(
+      [...current.recent_errors, ...(patch.recent_errors ?? [])].filter(Boolean),
+      10,
+    ),
   };
+}
+
+function capArray(arr: string[], max: number): string[] {
+  return arr.length > max ? arr.slice(arr.length - max) : arr;
 }
 
 function mergeUnique(current: string[], next?: string[]): string[] {

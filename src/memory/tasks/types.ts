@@ -31,6 +31,12 @@ export interface TaskWorkingMemory {
   decisions: string[];
   verification_results: string[];
   changed_files: string[];
+  /** Files the agent has read during this task (deduplicated paths). */
+  read_files: string[];
+  /** Files the agent has written/edited during this task (deduplicated paths). */
+  written_files: string[];
+  /** Recent errors encountered during this task (capped at 10, newest last). */
+  recent_errors: string[];
 }
 
 export type TaskVerificationStatus = 'passed' | 'failed' | 'skipped' | 'unknown';
