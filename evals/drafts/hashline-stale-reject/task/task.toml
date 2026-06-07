@@ -1,0 +1,6 @@
+id = "hashline-stale-reject"
+title = "Recover from stale-tag rejection by re-reading and retrying"
+mode = "direct"
+tags = ["hashline", "safety", "stale-edit"]
+timeout_seconds = 120
+expected_files = ["src/app.ts", "hashline-report.md"]

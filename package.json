@@ -1,15 +1,16 @@
 {
   "name": "student-agent",
+  "description": "hello",
   "version": "0.1.0",
   "type": "module",
   "bin": {
     "student-agent": "./bin/student-agent"
   },
   "scripts": {
-    "dev": "node --loader ts-node/esm src/extension/index.ts",
+    "dev": "npx tsx src/extension/index.ts",
     "build": "tsc",
-    "eval:validate": "node --loader ts-node/esm scripts/eval-validate.ts",
-    "eval:baseline": "node --loader ts-node/esm scripts/eval-baseline.ts",
+    "eval:validate": "npx tsx scripts/eval-validate.ts",
+    "eval:baseline": "npx tsx scripts/eval-baseline.ts",
     "test": "vitest",
     "prepack": "npm run build"
   },
@@ -19,6 +20,7 @@
     "@mariozechner/pi-ai": "file:./pi-mono/packages/ai",
     "@mariozechner/pi-coding-agent": "file:./pi-mono/packages/coding-agent",
     "@mozilla/readability": "^0.6.0",
+    "@oh-my-pi/hashline": "^15.9.67",
     "@opentui/core": "^0.3.2",
     "@opentui/solid": "^0.3.2",
     "better-sqlite3": "^12.9.0",
@@ -44,6 +46,10 @@
     "@types/turndown": "^5.0.6",
     "ts-node": "^10.9.0",
     "typescript": "^5.0.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "xxhash": "^0.3.0"
   }
 }
+
+
+

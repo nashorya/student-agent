@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "signal-tool-error",
+  "version": "v0.37",
+  "component": "signal-pipeline",
+  "category": "correctness",
+  "evalKind": "deterministic",
+  "target": "component",
+  "construct": "tool error signal capture and provenance tracking — the ability of the signal pipeline to intercept a tool execution failure, create a signal record with non-empty provenance (identifying which tool failed and when), and make that signal queryable for downstream consumers like recentErrors.",
+  "input": {
+    "description": "A tool execution fails with a non-zero exit code. The signal pipeline must capture this event, record provenance information, and store it for later query.",
+    "setup": [
+      "Invoke bash tool with command='invalid_command_xyz'",
+      "Tool execution returns non-zero exit code",
+      "Signal pipeline intercepts the error event",
+      "Signal pipeline writes a record with provenance field"
+    ]
+  },
+  "expectedBehavior": "Signal store contains exactly 1 tool error signal with provenance field non-null and including the tool name and invocation context. The main task continues executing without crash.",
+  "metrics": [
+    "signal_tool_error_count",
+    "signal_provenance_non_null_count",
+    "main_task_running"
+  ],
+  "passCondition": "signal_tool_error_count >= 1 AND signal_provenance_non_null_count >= 1 AND main_task_running == true",
+  "grader": {
+    "type": "script",
+    "path": "task/tests/test.sh"
+  },
+  "oracle": {
+    "path": "task/solution/solve.sh"
+  },
+  "trialPolicy": {
+    "trials": 1,
+    "aggregation": "all_must_pass"
+  },
+  "failureImplication": "Tool errors are not captured by the signal pipeline, making it impossible to track, diagnose, or learn from tool failures.",
+  "relatedPaper": "Meta-Harness: full traces >> scores-only (44% gap) — signal provenance is essential for trace-based evaluation.",
+  "regressionRisk": "Changes to tool error event emission, signal store schema, or provenance field population could break signal capture."
+}

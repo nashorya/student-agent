@@ -1,0 +1,6 @@
+id = "hashline-recovery-001"
+title = "Perform three sequential tag-anchored edits on the same file"
+mode = "direct"
+tags = ["hashline", "correctness", "chain-edit", "recovery"]
+timeout_seconds = 180
+expected_files = ["src/config.ts"]

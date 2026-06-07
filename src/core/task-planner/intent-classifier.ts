@@ -1,6 +1,6 @@
 import { completeSimple, type Model, type Api } from '@mariozechner/pi-ai';
 
-export type IntentType = 'new_task' | 'continue';
+export type IntentType = 'new_task' | 'task_advance' | 'continue';
 export type WorkflowLevel = 0 | 1 | 2 | 3 | 4;
 
 export interface IntentResult {
@@ -17,7 +17,8 @@ const SYSTEM_PROMPT = `你是一个意图分类器。判断用户输入属于哪
 
 意图类型：
 - "new_task"：用户在描述一个新任务
-- "continue"：用户在继续当前任务、提问、或做其他操作
+- "task_advance"：用户在推进当前任务（确认计划、说继续/下一步、同意执行等）
+- "continue"：追问、提问、与当前任务无关的操作（包括取消/退出/查询状态等）
 
 任务等级（仅 new_task 需要）：
 - level 1：单点小改动，一两个文件内可完成（如：加一个函数、改个 bug、更新配置）
@@ -26,8 +27,11 @@ const SYSTEM_PROMPT = `你是一个意图分类器。判断用户输入属于哪
 
 输出严格 JSON，不加任何解释。格式：
 新任务：{"type":"new_task","level":1,"task_name":"简短任务名（15字以内）"}
+推进任务：{"type":"task_advance"}
 其他：{"type":"continue"}
 
+判断 task_advance 的关键：输入很短、表达同意或推进（好/可以/继续/下一步/开始/确认/那就这样/没问题）。
+判断 continue 的关键：包含问号/疑问词、或包含取消/退出/查询/解释类词语。
 level 3 的判断标准：涉及 3 个以上文件、或需要设计决策、或用户说了"系统/完整/全套/从零"等词。`;
 
 export async function classifyIntent(
@@ -66,6 +70,9 @@ export async function classifyIntent(
         requiresUserAcceptance: llmLevel >= 2,
       });
     }
+    if (parsed.type === 'task_advance') {
+      return taskAdvanceResult('llm-classified-task-advance');
+    }
     return continueResult('llm-classified-continue');
   } catch {
     return continueResult('llm-error');
@@ -80,8 +87,8 @@ export function classifyWorkflowIntent(input: string, currentTaskName: string | 
     return continueResult('question-or-analysis-only');
   }
 
-  if (currentTaskName && /^(继续|开始|确认|好的|可以|下一步|go|start)$/iu.test(text)) {
-    return continueResult('active-task-continuation');
+  if (currentTaskName && TASK_ADVANCE_RE.test(text)) {
+    return taskAdvanceResult('active-task-continuation');
   }
 
   if (/(跨\s*session|跨会话|长期任务|后台任务|subagent|子代理|long[- ]?running)/iu.test(text)) {
@@ -196,6 +203,20 @@ function continueResult(reason: string): IntentResult {
     requiresVisualReview: false,
   };
 }
+
+function taskAdvanceResult(reason: string): IntentResult {
+  return {
+    type: 'task_advance',
+    level: 0,
+    reason,
+    requiresPlan: false,
+    requiresUserAcceptance: false,
+    requiresVisualReview: false,
+  };
+}
+
+// 推进当前任务的确认短语：短、表达同意/继续
+const TASK_ADVANCE_RE = /^(好的?|可以|确认|嗯+|OK|好吧|行|明白|收到|没问题|那就这样|就这样|同意)[\s,，。！!]*$|^(继续|继续当前任务|继续这个任务|继续执行|下一步|执行下一步|执行当前\s*phase|执行当前阶段|开始当前任务|go|yes|y|(好的?|可以|行|嗯+|OK)[，,\s]*(继续|开始|执行|下一步))[\s。！!]*$/iu;
 
 function isVisualTask(input: string): boolean {
   return /(前端|页面|界面|UI|视觉|样式|颜色|布局|响应式|截图|设计|组件|按钮|卡片|CSS|TSX|React)/iu.test(input);

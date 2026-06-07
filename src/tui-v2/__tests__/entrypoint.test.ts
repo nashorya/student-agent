@@ -65,7 +65,7 @@ describe('Pi-backed startTUIV2 runtime', () => {
   it('moves the visible cursor left inside a long pasted input', async () => {
     const handle = createPiTUIV2ForTest({
       columns: 12,
-      rows: 5,
+      rows: 6,
       onSubmit: vi.fn(),
       onAbort: vi.fn(),
     });

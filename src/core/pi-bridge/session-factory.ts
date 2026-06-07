@@ -16,6 +16,7 @@ import {
 import type { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import type { Api, Model } from '@mariozechner/pi-ai';
 import { createApplyPatchToolDefinition } from './apply-patch-tool.js';
+import { createHashlineStore, StudentAgentFilesystem } from '../hashline/index.js';
 import { createStudentBashToolDefinition } from './bash-timeout-tool.js';
 import {
   createStudentGlobToolDefinition,
@@ -98,6 +99,9 @@ export async function createStudentSession(
 ): Promise<CreateStudentSessionResult> {
   const { cwd = process.cwd(), model, hooks, llm, apiKey, piOptions = {} } = options;
 
+  const hashlineStore = createHashlineStore();
+  const hashlineFs = new StudentAgentFilesystem(cwd);
+
   const customTools: CreateAgentSessionOptions['customTools'] = [
     ...(piOptions.customTools ?? []),
     createStudentListFilesToolDefinition(cwd),
@@ -105,8 +109,8 @@ export async function createStudentSession(
     createStudentSearchFilesToolDefinition(cwd),
     createStudentReadManyToolDefinition(cwd),
     createStudentBashToolDefinition(cwd),
-    createStudentReadToolDefinition(cwd),
-    createStudentEditToolDefinition(cwd),
+    createStudentReadToolDefinition(cwd, { store: hashlineStore }),
+    createStudentEditToolDefinition(cwd, { store: hashlineStore, fs: hashlineFs }),
     createStudentWriteToolDefinition(cwd),
     createApplyPatchToolDefinition(cwd),
   ] as CreateAgentSessionOptions['customTools'];

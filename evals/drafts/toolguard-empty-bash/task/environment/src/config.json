@@ -1,0 +1,7 @@
+{
+  "name": "eval-fixture",
+  "env": "staging",
+  "version": "1.0.0",
+  "debug": true,
+  "port": 3000
+}

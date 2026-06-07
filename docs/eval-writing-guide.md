@@ -9,41 +9,218 @@
 
 ---
 
+## 0. 从 Eval 想法到 Harness-Ready Task
+
+本指南采用两层产物、五道审核门禁：
+
+```text
+student-agent 起草
+  → Gate 1: schema / 文件完整性检查
+  → Gate 2: 独立静态审计（ABA 可选）
+  → Gate 3: oracle / verifier 对抗验证
+  → Gate 4: agent trials（仅 agentic / performance eval）
+  → Gate 5: human review + CommitGate
+  → 冻结为 protected resource
+```
+
+### 0.1 两层产物
+
+```text
+evals/drafts/{eval-id}/
+  spec.json                    # agent 起草的评测意图和验收标准
+  review-notes.md              # agent 起草的风险说明；不能写 HARNESS_READY
+  task/
+    instruction.md             # 被测 agent 可见
+    task.toml                  # harness metadata
+    environment/               # 被测 agent 可见的初始环境
+    tests/test.sh              # evaluator 可见，被测 agent 不可见
+    solution/solve.sh          # oracle；evaluator 可见，被测 agent 不可见
+    adversarial/
+      known-bad/               # 应当失败的实现或操作
+      alternative-valid/       # 不同但正确、应当通过的实现
+  audit/                       # 静态审计报告（ABA 可选）和人工处置记录
+  validation/                  # verifier、oracle、trial 报告
+
+evals/specs/{eval-id}.json     # 审核后冻结的规范来源
+evals/tasks/{eval-id}/         # 审核后供正式 harness 执行
+```
+
+`spec.json` 负责说明“为什么测、测什么、什么算成功”。`task/` 负责让
+harness 真正执行。正式 harness **只加载 `evals/tasks/`**，不能把
+`evals/drafts/` 或 `evals/specs/` 当作可执行任务。
+
+### 0.2 五道门禁
+
+#### Gate 1: Schema 和完整性
+
+必须确认：
+
+- `spec.json` 必填字段齐全，指标名称能映射到真实数据源。
+- task bundle 包含 `instruction.md`、`task.toml`、`environment/` 和 `tests/test.sh`。
+- `passCondition` 仅用于说明；最终 pass/fail 必须由 `tests/test.sh` 或已注册 grader 产生。
+- instruction 中的每个要求都能从 prompt、environment 或标准领域知识推导。
+- tests 不得要求 instruction 未公开的函数名、文件结构或实现细节。
+
+#### Gate 2: 独立静态审计（ABA 可选）
+
+由独立 evaluator 做静态审计，不由起草 agent 自审自批。可以使用 Auto Benchmark
+Audit（ABA）或本仓库的 lightweight audit checklist；ABA 是可选外部工具，不是
+student-agent 的核心依赖。
+
+```text
+审查范围:
+  instruction ambiguity / underspecification
+  environment conflict
+  tests too narrow / too broad
+  hidden implementation requirements
+  incorrect or incomplete ground truth
+  evaluation exploit
+```
+
+准入要求：
+
+- severity 2：必须修复，不能冻结。
+- severity 1：修复，或由 human reviewer 记录接受风险的理由。
+- severity 0：可进入下一门禁。
+
+静态审计器不是最终审批人。低 star、外部依赖或运行成本高的工具只能作为参考；
+正式准入仍以后续 verifier、trace 检查和 human review 为准。
+
+#### Gate 3: Oracle 和 Verifier 对抗验证
+
+独立 evaluator 必须运行：
+
+```text
+initial environment       → FAIL
+oracle/reference solution → PASS
+known-bad solution        → FAIL
+partial solution          → FAIL 或得到预先定义的部分分
+alternative-valid solution→ PASS
+exploit attempts          → FAIL
+```
+
+常见 exploit 包括：只创建标志文件、伪造 reward、读取 tests/solution、利用上轮残留
+状态、输出固定 success 字符串，以及用等价格式绕过脆弱字符串匹配。
+
+#### Gate 4: Agent Trials
+
+仅 `evalKind = agentic` 或 `performance` 时需要：
+
+- 开发期至少 3 trials，冻结前默认至少 5 trials。
+- 保存完整 trajectory、最终输出、verifier 输出、耗时和 harness 配置。
+- 报告成功率、失败类型和跨 trial 波动；不能只报告最好一次。
+- 性能对比必须固定模型、prompt、工具、预算、超时和环境。
+
+如果使用 LLM grader，还必须单独验证格式不变性、改写不变性、verbosity bias、
+重复采样稳定性及与人工标签的一致性。
+
+#### Gate 5: Human Review 和 CommitGate
+
+human reviewer 最终确认：
+
+- eval 测量的 construct 与路线图目标一致。
+- 独立静态审计问题已解决或有明确 waiver。
+- verifier 验证和必要 trials 已通过。
+- 测试成本、风险和维护责任可接受。
+
+CommitGate 随后将 draft 提升为：
+
+```text
+evals/specs/{eval-id}.json
+evals/tasks/{eval-id}/
+```
+
+两者一起成为 protected resource。起草 agent 不能自行批准、提升、修改正式
+grader、写入分数，或声称 eval 已通过。
+
+### 0.3 Harness-Ready 判定
+
+```text
+[ ] spec schema valid
+[ ] instruction 无隐藏要求
+[ ] environment 可复现且每轮清理
+[ ] tests / solution 对被测 agent 不可见
+[ ] initial FAIL
+[ ] oracle PASS
+[ ] known-bad / exploit FAIL
+[ ] alternative-valid PASS（适用时）
+[ ] 独立静态审计无未处理 P0 / severity 2
+[ ] trials 和波动已报告（适用时）
+[ ] human approved
+```
+
+全部满足后才能标记 `HARNESS_READY`。
+
+### 0.4 机器格式、语言与 Reward 规则
+
+中文可以用于 `instruction.md`、`review-notes.md`、adversarial 说明和自然语言解释。
+但所有机器解析面必须保持稳定、英文、ASCII：
+
+- eval id、目录名、`task.toml` 字段、路径、文件名、tags、metric 名称用英文/ASCII。
+- `spec.json` 的字段名必须用英文；字段值可以中文，但机器会匹配的值优先英文。
+- `tests/test.sh` 不要依赖中文自然语言句子作为唯一 PASS 条件。
+- 需要 agent 写报告时，报告字段名固定英文，例如 `- Rejection count: 1`。
+- reward JSON 只能写当前 harness 支持的格式：`{"score": 1}` 或 `{"reward": 1}`。
+  不要写旧格式 `{"correctness_score": 1, "behavior_score": 1}`，否则
+  `src/evals/reward.ts` 会把 reward 解析为错误。
+- `PASS` 字符串、`.test_result`、agent-writable flag、agent-writable report 不能作为
+  可信成功来源；它们最多是辅助信息，必须由 verifier 或 protected trace 交叉验证。
+
+### 0.5 Trace-Bound Construct 规则
+
+如果 eval 声称测的是 Hashline、Signal Pipeline、ToolGuard、Run Archive、tool trace、
+protected resource boundary 等机制行为，`test.sh` 只看最终文件内容是不够的。
+
+这类 draft 必须显式写明：
+
+- 哪些指标必须来自 protected trace / signal store / verifier 输出。
+- 当前结构测试能覆盖什么，不能覆盖什么。
+- 若 trusted trace 尚不可用，`review-notes.md` 状态必须是 `DRAFT_BLOCKED` 或
+  `BLOCKED_FOR_TRACE_GRADER`，不得写 `CLOSE_TO_READY` 或 `HARNESS_READY`。
+- agent-writable 报告只能作为结构检查，不得被当作真实 provenance、signal、block 或
+  snapshot 证据。
+
+---
+
 ## 1. 权限边界（AHE + AEvo 联合校准）
 
 ```
 Agent 可以做:
   OK  读 Run Archive 的 full traces
   OK  读 eval 结果
-  OK  起草 eval case（本文档覆盖的范围）
+  OK  在 evals/drafts/ 起草 spec 和 candidate task bundle
+  OK  根据独立 evaluator 的报告修改 draft
   OK  提议 HarnessChange
 
 Agent 不能做:
-  NO  修改已冻结的 eval case
-  NO  自己跑 eval 并自己解读结果来自改
+  NO  修改 evals/specs/ 和 evals/tasks/ 中已冻结的 eval
+  NO  运行正式 eval 后自行批准自己的 draft
   NO  bypass CommitGate
   NO  直接写 outcome.json 的分数
+  NO  在被测运行中读取 tests / solution / passCondition
 ```
 
 ### Eval case 生命周期
 
 ```
-agent draft eval case
-  → human review / 微调
-    → freeze into evals/ directory
-      → harness-protected（agent 运行时不可修改）
-        → eval runner 独立执行
-          → 结果写入 Run Archive
+agent writes evals/drafts/{eval-id}/
+  → independent schema + static audit + verifier review
+    → human review / waiver
+      → CommitGate promotes spec + task bundle
+        → evals/specs/ + evals/tasks/ become harness-protected
+          → eval runner 独立执行
+            → 结果写入 Run Archive
 ```
 
-**关键**：eval case 一旦通过 human review 并进入 `evals/`，就变成受保护资源。
+**关键**：draft 不是正式 evaluator。只有通过全部门禁并被 CommitGate 提升后，
+spec 和 task bundle 才变成受保护资源。
 agent 可以提议 "这个 eval 不合理"（canReflect = true），但不能自动修改（canAutoApply = false）。
 
 ### EvolvabilityPolicy
 
 ```ts
 {
-  resourceId: "evals/*",
+  resourceId: "evals/specs/* | evals/tasks/*",
   canReflect: true,
   canSuggestChange: true,
   canAutoApply: false,
@@ -57,14 +234,22 @@ agent 可以提议 "这个 eval 不合理"（canReflect = true），但不能自
 
 ## 2. Eval Case 格式
 
-每个 eval case 文件放在 `evals/` 目录下，JSON 格式：
+每个 draft 的规范放在 `evals/drafts/{eval-id}/spec.json`。审核通过后，
+CommitGate 将其冻结为 `evals/specs/{eval-id}.json`。
+
+JSON 是规范来源，不是 harness 的直接执行输入；必须同时提供 §0.1 定义的 task
+bundle。
 
 ```json
 {
+  "schemaVersion": 1,
   "id": "hashline-stale-rejection-001",
   "version": "v0.34",
   "component": "hashline",
   "category": "safety",
+  "evalKind": "deterministic",
+  "target": "component",
+  "construct": "stale edit prevention",
   "input": {
     "description": "读取文件后，外部修改文件，用旧 tag 尝试编辑",
     "setup": [
@@ -79,6 +264,17 @@ agent 可以提议 "这个 eval 不合理"（canReflect = true），但不能自
     "signal_store_event_count"
   ],
   "passCondition": "hashline_rejection_count == 1 AND signal_store_event_count >= 1",
+  "grader": {
+    "type": "script",
+    "path": "task/tests/test.sh"
+  },
+  "oracle": {
+    "path": "task/solution/solve.sh"
+  },
+  "trialPolicy": {
+    "trials": 1,
+    "aggregation": "all_must_pass"
+  },
   "failureImplication": "stale edit 未被拦截，可能导致文件损坏",
   "relatedPaper": "AEvo Table 3: 去掉 harness → reward hacking"
 }
@@ -92,10 +288,16 @@ agent 可以提议 "这个 eval 不合理"（canReflect = true），但不能自
 | `version` | 对应路线图版本（v0.33 / v0.34 / ...） |
 | `component` | 被测组件名 |
 | `category` | `safety` / `correctness` / `performance` / `regression` / `integration` |
+| `evalKind` | `deterministic` / `agentic` / `performance` |
+| `target` | `component` / `agent` / `harness` |
+| `construct` | 该 eval 声称测量的能力或系统性质 |
 | `input` | 场景描述 + 触发步骤 |
 | `expectedBehavior` | 期望行为的自然语言描述 |
 | `metrics` | 要采集的指标名列表 |
 | `passCondition` | 通过条件表达式 |
+| `grader` | 正式判定器类型及路径 |
+| `oracle` | reference solution 路径 |
+| `trialPolicy` | trial 数量与聚合方式 |
 
 ### 可选字段
 
@@ -105,10 +307,110 @@ agent 可以提议 "这个 eval 不合理"（canReflect = true），但不能自
 | `relatedPaper` | 论文出处和数据支撑 |
 | `regressionRisk` | 这个 case 可能因哪些改动而失效（AHE 启发） |
 | `ablationGroup` | 用于 component ablation 的分组标记 |
+| `acceptedRisks` | human reviewer 接受的静态审计 P1 / severity 1 finding 及理由 |
+
+### 2.1 给 Student-Agent 的起草提示词
+
+将下面提示词中的占位内容替换后交给 student-agent。它只负责生成 draft，不负责
+批准、冻结或正式评分。
+
+```text
+你现在是 Student-Agent Eval Draft Author。
+
+目标：
+为下面的需求起草一个可被当前 eval harness 执行、可被独立 evaluator
+静态审计的 eval。你只能写入 evals/drafts/，不能修改 evals/specs/、
+evals/tasks/、eval runner、正式 grader、Run Archive outcome 或 CommitGate。
+
+待评测需求：
+<写清楚组件、行为、失败风险和对应路线图版本>
+
+请先阅读：
+1. docs/eval-writing-guide.md
+2. evals/README.md
+3. 与被测组件直接相关的源码和测试
+4. 一个最相似的 evals/tasks/ 现有任务
+
+在 evals/drafts/<eval-id>/ 下生成：
+
+1. spec.json
+   - 包含 schemaVersion、id、version、component、category、evalKind、target、
+     construct、input、expectedBehavior、metrics、passCondition、grader、
+     oracle、trialPolicy、failureImplication 和 regressionRisk。
+   - construct 必须说明真正测量的能力，不能只复述实现细节。
+   - 每个 metric 必须能映射到实际文件、事件、trace 字段或 verifier 输出。
+   - passCondition 作为可读规范；正式判定必须由 tests/test.sh 实现。
+   - JSON 字段名、metric 名、id、路径、tags 必须保持英文/ASCII。
+
+2. task/instruction.md
+   - 只包含被测 agent 应该知道的信息。
+   - 不泄露 tests、oracle、内部评分逻辑或期望实现结构。
+   - 不要求 prompt 中未说明的函数名、文件布局或实现方式。
+
+3. task/task.toml
+   - 使用当前 harness 支持的字段。
+   - 设置合理 timeout_seconds、tags 和 expected_files。
+
+4. task/environment/
+   - 提供最小、确定、可重复初始化的环境。
+   - 不包含 solution、隐藏 tests、reward 或 ground truth。
+   - 不依赖未冻结的在线资源。
+
+5. task/tests/test.sh
+   - 验证用户可见结果和必要安全不变量，不锁死某一种内部实现。
+   - 初始环境必须失败。
+   - oracle 必须通过。
+   - 部分实现、明显错误实现和投机实现必须失败。
+   - 合理的不同实现应当通过。
+   - 不读取或信任被测 agent 可直接伪造的 success 标志。
+   - 成功时写 `REWARD_JSON_FILE` 的内容必须是 `{"score": 1}` 或 `{"reward": 1}`。
+   - 失败时必须非零退出；不能只输出 FAIL 但 exit 0。
+   - 如果检查报告文件，必须检查字段值，不只检查字段名存在。
+   - 如果 construct 依赖 tool trace / signal / protected store，必须说明当前
+     `test.sh` 是否能读到 trusted data；读不到就保持 DRAFT_BLOCKED。
+
+6. task/solution/solve.sh
+   - 使用一种清晰的 reference solution 证明任务可解。
+   - 不把 reference solution 当作唯一合法实现。
+
+7. task/adversarial/README.md
+   - 列出至少一个 known-bad、一个 partial、一个 exploit attempt。
+   - 若存在多种合理解法，再列出一个 alternative-valid。
+   - 说明每个样例预期 PASS 或 FAIL 的原因。
+
+8. review-notes.md
+   - 解释 instruction、environment、tests 和 construct 的对应关系。
+   - 列出可能的歧义、grader 过宽/过窄风险、状态泄漏风险和依赖风险。
+   - 明确声明尚未经过独立静态审计、正式 verifier validation、agent trials、
+     human review 或 CommitGate，因此状态必须是 DRAFT，不得写 HARNESS_READY。
+   - 若依赖 protected trace/signal/store 但当前 test.sh 无法验证，状态必须写
+     `DRAFT_BLOCKED` 或 `BLOCKED_FOR_TRACE_GRADER`，并列出需要的 trusted metrics。
+
+语言要求：
+- 中文可以用于 instruction 和说明文字。
+- 机器解析字段、报告字段名、reward JSON、文件路径、id、tags 必须用英文/ASCII。
+- 不要把“输出某句中文”作为唯一通过条件；优先检查真实文件副作用、trace 或结构化字段。
+
+完成后只汇报：
+- 创建的文件
+- eval 要测的 construct
+- verifier 的关键断言
+- 需要独立 evaluator 重点审查的风险
+
+不要运行正式 baseline，不要修改冻结 eval，不要自行宣布通过。
+```
 
 ---
 
 ## 3. 各版本 Eval Spec
+
+本节列出的 `evals/*_cases.json` 是已有的 **legacy scenario catalog**，用于保留
+路线图中的场景、指标和优先级，不是当前 harness 的直接执行输入。
+
+新增或重做某个 case 时，应从 catalog 选择场景，并在
+`evals/drafts/{eval-id}/` 生成完整 draft。审核通过后再提升到
+`evals/specs/` 和 `evals/tasks/`。不要因为 catalog 中已有一条 JSON 记录就把
+该 case 标记为已实现或 `HARNESS_READY`。
 
 ### v0.33: TUI Stability Eval
 

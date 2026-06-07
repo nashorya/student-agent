@@ -131,7 +131,6 @@ let currentTaskDescription = '';
 let lastPlanSnapshot: PlanSnapshot | null = null;
 
 const PLAN_CONFIRM_RE = /^(确认|开始|执行|继续|go|yes|y)$/i;
-const ACTIVE_TASK_CONTINUE_RE = /^(继续|继续当前任务|继续这个任务|继续执行|下一步|执行下一步|执行当前\s*phase|执行当前阶段|开始当前任务|go|yes|y)$/i;
 
 interface RuntimeState {
   config: StudentAgentConfig;
@@ -770,7 +769,7 @@ async function main(): Promise<void> {
             }
           });
 
-          const useActiveTaskContext = Boolean(activeTask && shouldUseActiveTaskContext(userInput));
+          const useActiveTaskContext = Boolean(activeTask && intent.type === 'task_advance');
           const taskContext = useActiveTaskContext && activeTask ? buildTaskContextPrefix(activeTask) : '';
           const finalPrompt = taskContext + userInput;
 
@@ -790,7 +789,12 @@ async function main(): Promise<void> {
             runtime.resetFileGuard();
             await runtime.session.prompt(finalPrompt);
             await runtime.agent.waitForIdle();
-            tui.bridge.updateTaskStatus({ state: 'idle' });
+            if (useActiveTaskContext) {
+              tui.bridge.updateTaskStatus({ state: 'idle' });
+            } else {
+              // 纯问答路径：与当前任务无关，清除上一轮残留的 task panel
+              tui.bridge.clearTaskStatus();
+            }
             if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
               tui.bridge.addMessage('system', `[Agent Error] ${runtime.agent.state.errorMessage}`);
             }
@@ -1202,7 +1206,7 @@ async function main(): Promise<void> {
             }
           });
 
-          const useActiveTaskContext = Boolean(activeTask && shouldUseActiveTaskContext(userInput));
+          const useActiveTaskContext = Boolean(activeTask && intent.type === 'task_advance');
           const taskContext = useActiveTaskContext && activeTask ? buildTaskContextPrefix(activeTask) : '';
           const finalPrompt = taskContext + userInput;
 
@@ -1491,9 +1495,6 @@ function isPlanConfirmationInput(input: string): boolean {
   return PLAN_CONFIRM_RE.test(input.trim());
 }
 
-function shouldUseActiveTaskContext(input: string): boolean {
-  return ACTIVE_TASK_CONTINUE_RE.test(input.trim());
-}
 
 function hasExecutableCurrentPhase(task: Task): boolean {
   return task.status === 'active'

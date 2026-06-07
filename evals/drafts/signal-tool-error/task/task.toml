@@ -1,0 +1,6 @@
+id = "signal-tool-error"
+title = "Capture tool error signal with provenance"
+mode = "direct"
+tags = ["signal-pipeline", "correctness", "error-handling"]
+timeout_seconds = 120
+expected_files = ["src/process.ts", "tool-error-signal-report.md"]

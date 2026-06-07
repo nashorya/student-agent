@@ -1,0 +1,284 @@
+[
+  {
+    "id": "hashline-stale-reject-001",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "safety",
+    "input": {
+      "description": "读取文件后，外部修改文件，用旧 tag 尝试编辑",
+      "setup": [
+        "read_range('src/foo.ts') → 获取 tag #a1b2",
+        "外部写入 src/foo.ts（tag 变为 #c3d4）",
+        "edit('src/foo.ts', anchor='#a1b2', oldText='foo', newText='bar')"
+      ]
+    },
+    "expectedBehavior": "Hashline Patcher reject edit, stale tag mismatch signal written",
+    "metrics": [
+      "hashline_rejection_count",
+      "signal_store_event_count"
+    ],
+    "passCondition": "hashline_rejection_count == 1 AND signal_store_event_count >= 1",
+    "failureImplication": "stale edit 未被拦截，可能导致文件损坏",
+    "relatedPaper": "AEvo Table 3: 去掉 harness → reward hacking"
+  },
+  {
+    "id": "hashline-stale-reject-002",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "safety",
+    "input": {
+      "description": "对多个文件使用旧 tag 批量编辑，全部应被 reject",
+      "setup": [
+        "read_range('src/a.ts') → tag #a1",
+        "read_range('src/b.ts') → tag #b1",
+        "read_range('src/c.ts') → tag #c1",
+        "外部同时写入 a.ts / b.ts / c.ts（tag 分别变为 #a2 / #b2 / #c2）",
+        "edit('src/a.ts', anchor='#a1', oldText='x', newText='y')",
+        "edit('src/b.ts', anchor='#b1', oldText='x', newText='y')",
+        "edit('src/c.ts', anchor='#c1', oldText='x', newText='y')"
+      ]
+    },
+    "expectedBehavior": "所有 3 个文件的 stale edit 全部被 reject，每个 reject 各写 1 条 signal",
+    "metrics": [
+      "hashline_rejection_count",
+      "signal_store_event_count"
+    ],
+    "passCondition": "hashline_rejection_count == 3 AND signal_store_event_count >= 3",
+    "failureImplication": "批量 stale edit 未被完全拦截，可能造成多文件同时损坏",
+    "relatedPaper": "AEvo Table 3: 去掉 harness → reward hacking",
+    "regressionRisk": "并发文件写入逻辑变更可能改变 tag 更新时序"
+  },
+  {
+    "id": "hashline-stale-reject-003",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "safety",
+    "input": {
+      "description": "使用部分匹配的 stale tag（前 2 位正确、后 2 位错误）尝试编辑",
+      "setup": [
+        "read_range('src/foo.ts') → 获取 tag #a1b2",
+        "外部写入 src/foo.ts（tag 变为 #a1c3）",
+        "edit('src/foo.ts', anchor='#a1b2', oldText='foo', newText='bar')"
+      ]
+    },
+    "expectedBehavior": "Hashline Patcher reject edit，因为部分匹配仍属于 tag mismatch",
+    "metrics": [
+      "hashline_rejection_count",
+      "signal_store_event_count"
+    ],
+    "passCondition": "hashline_rejection_count == 1 AND signal_store_event_count >= 1",
+    "failureImplication": "部分匹配 tag 未被拦截，可能导致编辑错位",
+    "regressionRisk": "tag 比较逻辑从全等改为前缀匹配时会引入此问题"
+  },
+  {
+    "id": "hashline-recovery-001",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "correctness",
+    "input": {
+      "description": "对同一文件连续 chain edit 3 次，验证 3-way merge recovery 成功",
+      "setup": [
+        "read_range('src/foo.ts') → tag #t1",
+        "edit('src/foo.ts', anchor='#t1', ...) → 成功，文件 tag 更新为 #t2",
+        "edit('src/foo.ts', anchor='#t2', ...) → 成功，文件 tag 更新为 #t3",
+        "edit('src/foo.ts', anchor='#t3', ...) → 验证最终编辑成功"
+      ]
+    },
+    "expectedBehavior": "3 次 chain edit 全部成功应用，每次使用最新 tag",
+    "metrics": [
+      "hashline_recovery_count",
+      "hashline_rejection_count",
+      "chain_edit_success_rate"
+    ],
+    "passCondition": "hashline_recovery_count >= 0 AND hashline_rejection_count == 0 AND chain_edit_success_rate == 1.0",
+    "failureImplication": "chain edit 场景下文件丢失编辑内容或 edit 失败",
+    "relatedPaper": "AEvo Table 3: 去掉 harness → reward hacking",
+    "regressionRisk": "SnapshotStore 更新逻辑变更可能影响 chain edit 的 tag 连续性"
+  },
+  {
+    "id": "hashline-recovery-002",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "correctness",
+    "input": {
+      "description": "对同一文件连续 chain edit 5 次，验证 3-way merge recovery 在更长链上的稳定性",
+      "setup": [
+        "read_range('src/bar.ts') → tag #s1",
+        "连续 5 次 edit(path, anchor=最新tag, ...)，每次使用上一次成功后的新 tag"
+      ]
+    },
+    "expectedBehavior": "5 次 chain edit 全部成功应用，中间无 stale rejection",
+    "metrics": [
+      "hashline_recovery_count",
+      "hashline_rejection_count",
+      "chain_edit_success_rate"
+    ],
+    "passCondition": "hashline_rejection_count == 0 AND chain_edit_success_rate == 1.0",
+    "failureImplication": "长链 chain edit 失败率高，日常多轮编辑不可用",
+    "regressionRisk": "LRU 淘汰策略变更可能导致长链 edit 的中间 snapshot 被提前淘汰"
+  },
+  {
+    "id": "hashline-recovery-003",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "correctness",
+    "input": {
+      "description": "chain edit 过程中有外部修改插入，验证 recovery 或 reject 行为正确",
+      "setup": [
+        "read_range('src/baz.ts') → tag #u1",
+        "edit('src/baz.ts', anchor='#u1', ...) → 成功，tag → #u2",
+        "外部写入 src/baz.ts（tag 变为 #u3）",
+        "edit('src/baz.ts', anchor='#u2', ...)"
+      ]
+    },
+    "expectedBehavior": "最后一次 edit 因 tag 不匹配被 reject（外部修改导致 stale），或 3-way merge 成功 recovery；无论哪种结果都有对应 signal 记录",
+    "metrics": [
+      "hashline_rejection_count",
+      "hashline_recovery_count",
+      "signal_store_event_count"
+    ],
+    "passCondition": "(hashline_rejection_count >= 1 OR hashline_recovery_count >= 1) AND signal_store_event_count >= 1",
+    "failureImplication": "外部修改穿插时既不 reject 也不 recovery，静默覆盖或丢失内容",
+    "regressionRisk": "3-way merge 策略变更可能改变 recovery/reject 的边界条件"
+  },
+  {
+    "id": "hashline-signal-001",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "integration",
+    "input": {
+      "description": "stale tag rejection 发生后，验证 signal store 中的 provenance 和 evidenceRef 字段非空",
+      "setup": [
+        "read_range('src/sig.ts') → tag #p1",
+        "外部写入 src/sig.ts（tag 变为 #p2）",
+        "edit('src/sig.ts', anchor='#p1', ...) → reject",
+        "查询 signal store 中 hashline rejection signal"
+      ]
+    },
+    "expectedBehavior": "signal store 中有 1 条 hashline rejection signal，其 provenance 和 evidenceRef 均非空",
+    "metrics": [
+      "signal_provenance_non_null_count",
+      "signal_evidence_ref_non_null_count",
+      "hashline_rejection_count"
+    ],
+    "passCondition": "hashline_rejection_count == 1 AND signal_provenance_non_null_count == 1 AND signal_evidence_ref_non_null_count == 1",
+    "failureImplication": "signal 缺少来源追溯信息，无法定位 rejection 原因或回溯事件链",
+    "relatedPaper": "Meta-Harness: full traces >> scores-only（44% 差距）"
+  },
+  {
+    "id": "hashline-signal-002",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "integration",
+    "input": {
+      "description": "chain edit recovery 成功后，验证 signal store 中写入了 warning signal",
+      "setup": [
+        "read_range('src/warn.ts') → tag #w1",
+        "edit('src/warn.ts', anchor='#w1', ...) → 成功",
+        "touch 文件触发外部修改（tag 变为 #w2）",
+        "edit('src/warn.ts', anchor='#w2', ...) → recovery 成功",
+        "查询 signal store 中 hashline recovery warning signal"
+      ]
+    },
+    "expectedBehavior": "signal store 中有 1 条 warning level signal，标记 recovery 事件，provenance 和 evidenceRef 非空",
+    "metrics": [
+      "signal_warning_count",
+      "signal_provenance_non_null_count",
+      "hashline_recovery_count"
+    ],
+    "passCondition": "hashline_recovery_count >= 1 AND signal_warning_count >= 1 AND signal_provenance_non_null_count >= 1",
+    "failureImplication": "recovery 事件无 signal 记录，可能掩盖频繁 recovery 的异常模式"
+  },
+  {
+    "id": "hashline-token-001",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "performance",
+    "input": {
+      "description": "对比使用 old_text 复述方式与 hashline tag 方式时的 output token 数",
+      "setup": [
+        "准备 10 个编辑任务，每个任务目标文件相同",
+        "A 组：使用 old_text 方式编辑，记录 output token 数",
+        "B 组：使用 hashline tag 方式编辑，记录 output token 数",
+        "计算 B 组 / A 组 token 比值"
+      ]
+    },
+    "expectedBehavior": "hashline 方式 output token 数比 old_text 方式下降 >= 30%",
+    "metrics": [
+      "output_tokens_old_text_method",
+      "output_tokens_hashline_method",
+      "token_reduction_ratio"
+    ],
+    "passCondition": "token_reduction_ratio >= 0.30",
+    "failureImplication": "hashline 未带来显著 token 节省，ROI 不足",
+    "relatedPaper": "oh-my-pi: Grok 4 Fast -61% token reduction（保守估计 >= 30%）",
+    "regressionRisk": "model 输出格式变化可能影响 token 统计基准",
+    "ablationGroup": "hashline-token"
+  },
+  {
+    "id": "hashline-snapshot-001",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "correctness",
+    "input": {
+      "description": "执行 read_range 后验证 SnapshotStore 中有对应记录",
+      "setup": [
+        "read_range('src/snap.ts', start=1, end=20) → 返回 tag #snap01",
+        "查询 SnapshotStore 中 src/snap.ts 的记录"
+      ]
+    },
+    "expectedBehavior": "SnapshotStore 中存在 src/snap.ts 的 snapshot，tag 与 read_range 返回值一致",
+    "metrics": [
+      "snapshot_record_count",
+      "snapshot_tag_match_count"
+    ],
+    "passCondition": "snapshot_record_count == 1 AND snapshot_tag_match_count == 1",
+    "failureImplication": "read_range 未存储 snapshot，后续 edit 无法验证 tag 有效性",
+    "regressionRisk": "SnapshotStore 写入逻辑变更可能跳过存储步骤"
+  },
+  {
+    "id": "hashline-snapshot-002",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "performance",
+    "input": {
+      "description": "SnapshotStore LRU 超 30 paths 后最旧记录被淘汰",
+      "setup": [
+        "依次 read_range 31 个不同文件路径 → SnapshotStore 记录 31 个 snapshot",
+        "查询 SnapshotStore 中第一个文件是否仍存在"
+      ]
+    },
+    "expectedBehavior": "第 1 个文件的 snapshot 被淘汰，SnapshotStore 中仅保留最近 30 个路径的记录",
+    "metrics": [
+      "snapshot_store_size",
+      "snapshot_evicted_count"
+    ],
+    "passCondition": "snapshot_store_size <= 30 AND snapshot_evicted_count >= 1",
+    "failureImplication": "SnapshotStore 无 LRU 淘汰机制，内存无限增长导致 OOM",
+    "regressionRisk": "LRU max capacity 配置变更可能改变淘汰行为"
+  },
+  {
+    "id": "hashline-coexist-001",
+    "version": "v0.34",
+    "component": "hashline",
+    "category": "integration",
+    "input": {
+      "description": "Hashline SnapshotStore 和 git SnapshotManager 同时运行时不冲突",
+      "setup": [
+        "初始化 git SnapshotManager 和 Hashline SnapshotStore",
+        "read_range('src/coexist.ts') → Hashline 存 snapshot",
+        "git diff 触发 SnapshotManager 更新",
+        "验证两者各自正常工作，互不干扰"
+      ]
+    },
+    "expectedBehavior": "Hashline snapshot 和 git snapshot 独立存储，互不覆盖，各自读写正确",
+    "metrics": [
+      "hashline_snapshot_unchanged",
+      "git_snapshot_unchanged",
+      "cross_interference_count"
+    ],
+    "passCondition": "hashline_snapshot_unchanged == true AND git_snapshot_unchanged == true AND cross_interference_count == 0",
+    "failureImplication": "两个 snapshot 系统冲突，导致文件状态判断错误",
+    "regressionRisk": "共享存储路径变更或 key 命名空间调整可能引入冲突"
+  }
+]

@@ -1,0 +1,263 @@
+[
+  {
+    "id": "sp-tool-error-001",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "correctness",
+    "input": {
+      "description": "tool 执行失败后，验证 signal 中包含 provenance 信息",
+      "setup": [
+        "调用 bash tool，command='invalid_command_xyz' → 执行失败",
+        "查看 signal store 中 tool error 事件"
+      ]
+    },
+    "expectedBehavior": "signal store 中有 1 条 tool error signal，provenance 字段非空且包含 tool 名称和调用时间",
+    "metrics": [
+      "signal_tool_error_count",
+      "signal_provenance_non_null_count"
+    ],
+    "passCondition": "signal_tool_error_count == 1 AND signal_provenance_non_null_count == 1",
+    "failureImplication": "tool error 事件未被 signal pipeline 捕获，丢失关键错误追踪信息"
+  },
+  {
+    "id": "sp-fileguard-001",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "correctness",
+    "input": {
+      "description": "FileGuard block 事件后，验证 signal 中包含 evidenceRef 信息",
+      "setup": [
+        "尝试写受 FileGuard 保护的文件 → 被 block",
+        "查看 signal store 中 FileGuard block 事件"
+      ]
+    },
+    "expectedBehavior": "signal store 中有 1 条 FileGuard block signal，evidenceRef 非空且指向被 block 的操作详情",
+    "metrics": [
+      "signal_fileguard_block_count",
+      "signal_evidence_ref_non_null_count"
+    ],
+    "passCondition": "signal_fileguard_block_count == 1 AND signal_evidence_ref_non_null_count == 1",
+    "failureImplication": "FileGuard block 事件缺少证据引用，无法追溯 block 原因和上下文"
+  },
+  {
+    "id": "sp-toolguard-001",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "correctness",
+    "input": {
+      "description": "ToolGuard block 事件后，验证 signal 中记录了触发的 rule name",
+      "setup": [
+        "调用 bash tool，command=''（空命令）→ ToolGuard block（empty_bash 规则）",
+        "查看 signal store 中 ToolGuard block 事件"
+      ]
+    },
+    "expectedBehavior": "signal store 中有 1 条 ToolGuard block signal，包含 ruleName 字段且值为 'empty_bash'",
+    "metrics": [
+      "signal_toolguard_block_count",
+      "signal_rule_name_non_null_count"
+    ],
+    "passCondition": "signal_toolguard_block_count == 1 AND signal_rule_name_non_null_count == 1",
+    "failureImplication": "ToolGuard 规则名称未被记录，无法区分不同类型的 block 规则触发"
+  },
+  {
+    "id": "sp-hashline-001",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "correctness",
+    "input": {
+      "description": "Hashline stale tag rejection 事件后，验证 signal 中记录了 stale tag 信息",
+      "setup": [
+        "read_range('src/foo.ts') → 获取 tag #old1",
+        "外部写入 src/foo.ts（tag 变为 #new1）",
+        "edit('src/foo.ts', anchor='#old1', ...) → Hashline rejection",
+        "查看 signal store 中 Hashline rejection 事件"
+      ]
+    },
+    "expectedBehavior": "signal store 中有 1 条 Hashline rejection signal，包含 stale tag 值（#old1）和文件路径",
+    "metrics": [
+      "signal_hashline_rejection_count",
+      "signal_stale_tag_non_null_count"
+    ],
+    "passCondition": "signal_hashline_rejection_count == 1 AND signal_stale_tag_non_null_count == 1",
+    "failureImplication": "Hashline rejection 缺少 stale tag 详情，无法诊断 tag mismatch 的具体原因"
+  },
+  {
+    "id": "sp-user-correction-001",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "correctness",
+    "input": {
+      "description": "用户纠正 agent 输出后，验证 signal 中记录了纠正内容",
+      "setup": [
+        "agent 输出错误信息",
+        "用户通过 Turn Intake 发送纠正消息（如'你搞错了，应该是 X'）",
+        "查看 signal store 中 user correction 事件"
+      ]
+    },
+    "expectedBehavior": "signal store 中有 1 条 user correction signal，包含 correction content 字段且非空",
+    "metrics": [
+      "signal_user_correction_count",
+      "signal_correction_content_non_null_count"
+    ],
+    "passCondition": "signal_user_correction_count == 1 AND signal_correction_content_non_null_count == 1",
+    "failureImplication": "用户纠正未被 signal pipeline 捕获，agent 无法从用户反馈中学习和改进"
+  },
+  {
+    "id": "sp-coverage-001",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "integration",
+    "input": {
+      "description": "5 类事件源各触发 1 次，验证 signal store 中有 5 条 signal",
+      "setup": [
+        "触发 1 次 tool error（调用无效命令）",
+        "触发 1 次 FileGuard block（写受保护文件）",
+        "触发 1 次 ToolGuard block（空 bash 命令）",
+        "触发 1 次 Hashline rejection（stale tag 编辑）",
+        "触发 1 次 user correction（用户发送纠正消息）",
+        "查询 signal store 总条数"
+      ]
+    },
+    "expectedBehavior": "signal store 中有至少 5 条 signal，每类事件源各 1 条",
+    "metrics": [
+      "signal_store_total_count",
+      "signal_tool_error_count",
+      "signal_fileguard_block_count",
+      "signal_toolguard_block_count",
+      "signal_hashline_rejection_count",
+      "signal_user_correction_count"
+    ],
+    "passCondition": "signal_store_total_count >= 5 AND signal_tool_error_count >= 1 AND signal_fileguard_block_count >= 1 AND signal_toolguard_block_count >= 1 AND signal_hashline_rejection_count >= 1 AND signal_user_correction_count >= 1",
+    "failureImplication": "某类事件源未被 signal pipeline 覆盖，存在事件漏报盲区",
+    "relatedPaper": "Meta-Harness: full traces >> scores-only（44% 差距），事件覆盖完整性是 eval 基础"
+  },
+  {
+    "id": "sp-provenance-001",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "correctness",
+    "input": {
+      "description": "所有 signal 的 provenance 字段非空验证",
+      "setup": [
+        "依次触发 5 类事件（同 sp-coverage-001）",
+        "遍历 signal store 中所有 signal",
+        "检查每条 signal 的 provenance 字段"
+      ]
+    },
+    "expectedBehavior": "signal store 中每条 signal 的 provenance 字段均非空，包含来源组件和事件类型",
+    "metrics": [
+      "signal_store_total_count",
+      "signal_provenance_non_null_count"
+    ],
+    "passCondition": "signal_store_total_count == signal_provenance_non_null_count AND signal_provenance_non_null_count >= 5",
+    "failureImplication": "部分 signal 缺少 provenance，无法追溯事件来源，signal pipeline 数据完整性不足"
+  },
+  {
+    "id": "sp-provenance-002",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "correctness",
+    "input": {
+      "description": "所有 signal 的 evidenceRef 字段非空验证",
+      "setup": [
+        "依次触发 5 类事件（同 sp-coverage-001）",
+        "遍历 signal store 中所有 signal",
+        "检查每条 signal 的 evidenceRef 字段"
+      ]
+    },
+    "expectedBehavior": "signal store 中每条 signal 的 evidenceRef 字段均非空，指向具体事件证据",
+    "metrics": [
+      "signal_store_total_count",
+      "signal_evidence_ref_non_null_count"
+    ],
+    "passCondition": "signal_store_total_count == signal_evidence_ref_non_null_count AND signal_evidence_ref_non_null_count >= 5",
+    "failureImplication": "部分 signal 缺少 evidenceRef，无法从 signal 回溯到具体事件数据，信号可信度降低"
+  },
+  {
+    "id": "sp-turnintake-001",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "safety",
+    "input": {
+      "description": "Turn Intake 输入 malformed JSON 时，主任务继续执行且记录 degraded signal",
+      "setup": [
+        "向 Turn Intake 注入格式错误的 JSON（如 '{\"action\": invalid}'）",
+        "验证主任务流程未中断",
+        "检查 signal store 中是否有 degraded signal"
+      ]
+    },
+    "expectedBehavior": "主任务继续执行不 crash，signal store 中有 1 条 degraded signal 标记 Turn Intake 解析失败",
+    "metrics": [
+      "main_task_running",
+      "signal_degraded_count",
+      "main_task_crash_count"
+    ],
+    "passCondition": "main_task_running == true AND signal_degraded_count >= 1 AND main_task_crash_count == 0",
+    "failureImplication": "Turn Intake 解析失败导致主任务崩溃，signal pipeline 容错性不足",
+    "relatedPaper": "AEvo: evaluator 必须与 agent 隔离，单个组件故障不应影响主流程"
+  },
+  {
+    "id": "sp-turnintake-002",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "safety",
+    "input": {
+      "description": "Turn Intake 输入完全空输出时，主任务继续执行且记录 degraded signal",
+      "setup": [
+        "向 Turn Intake 传入空字符串或 null",
+        "验证主任务流程未中断",
+        "检查 signal store 中是否有 degraded signal"
+      ]
+    },
+    "expectedBehavior": "主任务继续执行不 crash，signal store 中有 1 条 degraded signal 标记 Turn Intake 空输入",
+    "metrics": [
+      "main_task_running",
+      "signal_degraded_count",
+      "main_task_crash_count"
+    ],
+    "passCondition": "main_task_running == true AND signal_degraded_count >= 1 AND main_task_crash_count == 0",
+    "failureImplication": "空输入导致 Turn Intake 或主任务崩溃，系统对异常输入缺乏容错"
+  },
+  {
+    "id": "sp-recenterrors-001",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "correctness",
+    "input": {
+      "description": "连续触发 10 个 error 后，查询 recentErrors 返回最近 5 条且顺序正确",
+      "setup": [
+        "连续触发 10 个 tool error（依次编号 error_1 到 error_10）",
+        "查询 recentErrors(5)",
+        "验证返回结果"
+      ]
+    },
+    "expectedBehavior": "recentErrors 返回最近 5 条 error（error_6 到 error_10），按时间降序排列",
+    "metrics": [
+      "recent_errors_count",
+      "recent_errors_order_correct",
+      "recent_errors_latest"
+    ],
+    "passCondition": "recent_errors_count == 5 AND recent_errors_order_correct == true AND recent_errors_latest == 'error_10'",
+    "failureImplication": "recentErrors 返回数量不正确或顺序错误，agent 无法准确获取最近错误上下文"
+  },
+  {
+    "id": "sp-recenterrors-002",
+    "version": "v0.37",
+    "component": "signal-pipeline",
+    "category": "correctness",
+    "input": {
+      "description": "无 error 发生时查询 recentErrors，返回空数组",
+      "setup": [
+        "清空 signal store",
+        "不触发任何 error",
+        "查询 recentErrors(5)"
+      ]
+    },
+    "expectedBehavior": "recentErrors 返回空数组 []",
+    "metrics": [
+      "recent_errors_count"
+    ],
+    "passCondition": "recent_errors_count == 0",
+    "failureImplication": "无 error 时 recentErrors 返回非空结果，可能是残留数据或初始化问题"
+  }
+]

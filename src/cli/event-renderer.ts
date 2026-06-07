@@ -162,6 +162,10 @@ export class EventRenderer {
         // TUI 模式：message_end 时立即 commit，避免下一条 message_start discard 掉有内容的消息
         if (this.bridge && this.bridgeMessageStarted) {
           this.finishBridgeAssistantMessage();
+          // commit 后强制重绘，确保 markdown 完整版本被渲染到屏幕
+          if ('forceRedraw' in this.bridge && typeof (this.bridge as Record<string, unknown>).forceRedraw === 'function') {
+            (this.bridge as { forceRedraw: () => void }).forceRedraw();
+          }
         }
         // 重置 hasOutput，防止晚于 message_end 触发的 50ms flush 定时器
         // 看到 hasOutput=true + bridgeMessageStarted=false 后重建同内容的重复消息

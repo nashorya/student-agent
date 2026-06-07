@@ -75,6 +75,8 @@ Lostness v0 (hard/soft triggers)
   ↓
 HarnessChange + Eval before/after
   ↓
+Eval Audit (ABA lightweight)
+  ↓
 Component Ablation Eval
   ↓
 Integration Freeze
@@ -173,6 +175,15 @@ Hashline SnapshotStore = 文件级 content hash，验证编辑锚点，session �
 SnapshotManager = git-level checkpoint/rollback，灾难恢复，持久化
 ```
 
+Eval Trace 输出契约：
+
+```ts
+// Hashline 实现时必须写入以下 ProtectedEvalEvent
+{ source: 'hashline', type: 'stale_rejection', path, blocked: true }
+{ source: 'hashline', type: 'recovery_success', path }
+{ source: 'hashline', type: 'recovery_failure', path }
+```
+
 Acceptance:
 
 ```
@@ -180,6 +191,7 @@ Acceptance:
 - stale file 编辑被 Hashline 自动拒绝（tag mismatch）
 - recovery 3-way merge 在 session 内 chain edit 时自动生效
 - stale rejection 和 recovery 事件写入 signal
+- ProtectedEvalEvent 由 harness 写入 trace，不由 agent 写入
 - output tokens 下降（参考 oh-my-pi: Grok 4 Fast -61%）
 ```
 
@@ -238,6 +250,16 @@ Scope:
 - 写操作复用现有 SnapshotManager
 ```
 
+Eval Trace 输出契约：
+
+```ts
+// ToolGuard 实现时必须写入以下 ProtectedEvalEvent
+{ source: 'toolguard', type: 'block', ruleName: 'empty_bash', blocked: true, shellSpawned: false }
+{ source: 'toolguard', type: 'block', ruleName: 'nl_bash', blocked: true }
+{ source: 'toolguard', type: 'block', ruleName: 'broad_glob', blocked: true }
+{ source: 'toolguard', type: 'block', ruleName: 'patch_retry', blocked: true }
+```
+
 Acceptance:
 
 ```
@@ -246,6 +268,7 @@ Acceptance:
 - **/*.ts 全项目 glob = block
 - 同目标文件 + 相同 anchor range + 同 failureKind + 未重新 read = block
 - Hashline stale rejection 自动生成 signal
+- ProtectedEvalEvent 由 harness 写入 trace，不由 agent 写入
 ```
 
 ---
@@ -278,6 +301,18 @@ Turn Intake model settings:
 解决多轮退化问题（LLMs Get Lost 论文明确证明）。
 ```
 
+Eval Trace 输出契约：
+
+```ts
+// Signal Pipeline 实现时必须写入以下 ProtectedEvalEvent
+{ source: 'signal', type: 'tool_error', provenance, evidenceRef }
+{ source: 'signal', type: 'fileguard_block', provenance, evidenceRef }
+{ source: 'signal', type: 'toolguard_block', provenance, evidenceRef }
+{ source: 'signal', type: 'hashline_rejection', provenance, evidenceRef }
+{ source: 'signal', type: 'user_correction', provenance, evidenceRef }
+{ source: 'signal', type: 'turn_intake_degraded', provenance }
+```
+
 Acceptance:
 
 ```
@@ -285,6 +320,7 @@ Acceptance:
 - Hashline stale rejection 进入 signal
 - Turn Intake malformed JSON 不阻断主任务
 - signal 有 provenance / evidenceRef
+- ProtectedEvalEvent 由 harness 写入 trace，不由 agent 写入
 ```
 
 ---
@@ -597,12 +633,120 @@ Eval 指标：
 - output tokens per task
 ```
 
+ProtectedEvalEvent 类型定义（v0.34-v0.37 的输出契约在此统一）：
+
+```ts
+interface ProtectedEvalEvent {
+  source: 'hashline' | 'signal' | 'toolguard';
+  type: string;
+  path?: string;
+  ruleName?: string;
+  provenance?: unknown;
+  evidenceRef?: string;
+  blocked?: boolean;
+  shellSpawned?: boolean;
+  timestamp: string;
+}
+```
+
+Trace Grader（在 v0.3C 实现）：
+
+```
+Eval 不能只看 test.sh 的文件结果，还要看 harness 记录的过程证据。
+
+test.sh = 检查 sandbox 最终文件状态
+trace grader = 检查 ProtectedEvalEvent 过程证据
+两者都过，eval 才算 pass
+
+实现位置：扩展现有 src/evals/scorer.ts
+读取：StudentAgentEvalTrace.protectedEvents
+判定：每个 trace-bound eval case 有对应 grader 函数
+
+示例 grader：
+  toolguard-empty-bash:
+    blocked == true AND shellSpawned == false → PASS
+  hashline-stale-reject:
+    hashline_rejection count == 1 AND signal event count >= 1 → PASS
+  signal-tool-error:
+    tool_error event exists AND provenance non-empty → PASS
+
+防 exploit：
+  agent 写 report.md 说 "blocked: yes" 但 trace 里没有 block event → FAIL
+  agent 直接重写文件绕过 hashline 但 trace 里没有 rejection → FAIL
+```
+
 Acceptance:
 
 ```
 - 每个 harness change 有 rationale / prediction / regressionRisk
 - 每个 change 关联到 Run Archive（runRef + traceRefs）
 - 至少跑一组 baseline 对比
+- trace grader 对 3 个核心组件（hashline / toolguard / signal）可判分
+- fabricated report（agent 伪造结果文件）被 trace grader 判 FAIL
+```
+
+---
+
+### v0.3C½: Eval Audit (Checklist + ABA)
+
+目标：在 eval case 冻结前，检查 eval 质量。你自己还在积累 eval 经验，需要外部标准。
+
+审计方法（三层，v0.4 全部人工执行）：
+
+```
+第一层：MMLU-Redux 三问（对每条 eval case）
+  1. input 是否有歧义？（两种合理理解导致不同结果）
+  2. expectedBehavior 是否真的正确？（你确定这是唯一正确行为吗）
+  3. passCondition 是否太窄或太宽？
+     太窄 = 正确实现被判 fail
+     太宽 = 错误实现能 pass
+
+第二层：ABA 六维度（对每个 eval 文件整体）
+  - instruction ambiguity / underspecification
+  - environment conflict（eval 环境是否可复现）
+  - tests too narrow / too broad
+  - hidden implementation requirements（tests 要求 instruction 没说的东西）
+  - incorrect or incomplete ground truth
+  - evaluation exploit（能否不做正事但 pass）
+
+第三层：Trace Grader 验证（对每个 trace-bound case）
+  - initial env → FAIL
+  - oracle solution → PASS
+  - fabricated report（agent 伪造结果文件）→ FAIL
+  - known-bad（坏方法）→ FAIL
+
+参考工具：https://github.com/IsThatYou/auto-bench-audit（可选，外部 CLI）
+参考论文：MMLU-Redux（arXiv 2406.04127），Eval Factsheets（arXiv 2512.04062）
+```
+
+v0.4 做法：
+
+```
+1. 100 条 case 人工过 MMLU-Redux 三问（1-2 天）
+2. 12 个 eval 文件过 ABA 六维度（半天）
+3. trace-bound case 跑一次 oracle/known-bad/fabricated 验证
+4. 可选：本地 clone auto-bench-audit 跑 static mode 做交叉验证
+5. 审计记录存入 evals/audit/
+```
+
+v0.5 演进方向：
+
+```
+eval 数量 > 50 或自进化迭代频率超出人工 review 时：
+  - 轻量化内置 ABA（~300-500 行 TypeScript）
+  - 提取 rubric + static audit prompt + TaskAuditFinding 模型
+  - 用 student-agent 自己的 LLM call
+  - 作为 CommitGate 的 Gate 2 自动运行
+```
+
+Acceptance:
+
+```
+- 所有 v0.4 eval case 在冻结前过完三层审计
+- MMLU-Redux 三问无"是"的 case（或已修复）
+- ABA 六维度无 severity 2（或已修复）
+- trace-bound case 的 fabricated report 验证全部 FAIL
+- 审计记录存入 evals/audit/
 ```
 
 ---
@@ -1460,8 +1604,9 @@ Turn Intake temperature ≈ 0.
 8. Lostness v0 hard/soft triggers (v0.3A)
 9. Run Archive MVP (v0.3B)
 10. HarnessChange + eval (v0.3C)
-11. Component Ablation Eval (v0.3D)
-12. Integration Freeze (v0.3E)
+11. Eval Audit with ABA (v0.3C½) — 外部 CLI，不内置
+12. Component Ablation Eval (v0.3D)
+13. Integration Freeze (v0.3E)
 ```
 
 ### P2: v0.4x 实现优先级

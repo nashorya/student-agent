@@ -1,0 +1,26 @@
+{
+  "revisions": [
+    {
+      "id": "plan_revision_5cdf8c7b-d35b-442a-a88d-a276e5871fa2",
+      "task_id": "task_1780736682455",
+      "session_ref": "session_1780757145019",
+      "created_at": "2026-06-06T14:45:45.097Z",
+      "last_observed": "2026-06-06T14:45:45.097Z",
+      "observations": 1,
+      "agent_plan_summary": "v0.34 Hashline Eval Drafts: Phase 1: 读取 evals/hashline_cases.json 获取 v0.34 全部推荐场景，与已有 draft (hashline-stale-reject... | Phase 2: 为每个选定的 eval-id，按 spec.json 必填字段规格起草所有 8 个产物文件。spec.json 中的 construct 必须描述被测能力... | Phase 3: 自查所有 draft，确认 spec.json schemaVersion / id / version / component / category /...",
+      "user_revision_summary": "你的任务是实现 v0.34 Hashline Anchored Edit 的第一步：安装依赖并建立 Hashline 的文件系统适配层。 ## 步骤 ### 1. 安装 @oh-my-pi/hashline 运行： npm install @oh-my-pi/hashline 确认版本 >= 15.9.0，确认 node_modules/@oh-my-pi/hashline/dist/ 目录存在。 ### 2. 读 hashline 的类型定义 先运行： cat node_modules/@oh-my-pi/hashline/dist/index.d.ts | head -200 找到 ...",
+      "diff_type": "scope_reduction",
+      "reason_inferred": "用户倾向于缩小本轮范围，避免一次性做过多改动。",
+      "outcome": "observed",
+      "trust_status": "unverified",
+      "provenance": [
+        {
+          "source_type": "automatic-detection",
+          "task_id": "task_1780736682455",
+          "session_ref": "session_1780757145019",
+          "trust_status": "unverified"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+id = "hashline-snapshot-001"
+title = "Verify SnapshotStore creates snapshot on read_range and enables tag-anchored edit"
+mode = "direct"
+tags = ["hashline", "correctness", "snapshot", "read-before-edit"]
+timeout_seconds = 120
+expected_files = ["src/store.ts", "snapshot-report.md"]

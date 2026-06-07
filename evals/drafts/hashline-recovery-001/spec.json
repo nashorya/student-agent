@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "hashline-recovery-001",
+  "version": "v0.34",
+  "component": "hashline",
+  "category": "correctness",
+  "evalKind": "deterministic",
+  "target": "component",
+  "construct": "consecutive file edit integrity via hash tag chaining — the ability to perform multiple sequential edits on the same file, each anchored to the content tag returned by the preceding successful edit, without losing content or emitting stale-tag rejections.",
+  "input": {
+    "description": "The agent reads a file, then performs three sequential edits on it, each using the content tag obtained from the previous successful read or edit operation.",
+    "setup": [
+      "read_range('src/config.ts') obtains tag #t1",
+      "edit('src/config.ts', anchor='#t1', oldText='version: \"1.0.0\"', newText='version: \"2.0.0\"') — success, tag updates to #t2",
+      "edit('src/config.ts', anchor='#t2', oldText='status: \"draft\"', newText='status: \"published\"') — success, tag updates to #t3",
+      "edit('src/config.ts', anchor='#t3', oldText='owner: \"dev\"', newText='owner: \"prod\"')"
+    ]
+  },
+  "expectedBehavior": "All three chain edits succeed. Each edit uses the updated content tag from the previous edit. The final file contains all three changes and no original values remain.",
+  "metrics": [
+    "chain_edit_success_count",
+    "hashline_rejection_count",
+    "file_content_correctness"
+  ],
+  "passCondition": "chain_edit_success_count == 3 AND hashline_rejection_count == 0 AND file_content_correctness == true",
+  "grader": {
+    "type": "script",
+    "path": "task/tests/test.sh"
+  },
+  "oracle": {
+    "path": "task/solution/solve.sh"
+  },
+  "trialPolicy": {
+    "trials": 1,
+    "aggregation": "all_must_pass"
+  },
+  "failureImplication": "Chain edits lose content or fail at successive steps, making multi-round file editing unreliable.",
+  "regressionRisk": "SnapshotStore update logic changes may break tag continuity after each edit. LRU eviction of a just-modified snapshot would cause stale-tag rejection on the next edit in the chain."
+}

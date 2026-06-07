@@ -4,11 +4,17 @@ import type { TUIV2State } from './state.js';
 import { getCompletions, clampCompletionIndex } from './components/completions.js';
 
 const SHORTCUTS_HELP = `**快捷键**
-  Enter        发送消息
-  Tab          自动补全命令
-  ↑ / ↓        历史记录 / 补全导航
-  Esc          清空输入 / 取消提示
-  Ctrl+C       中止当前任务 / 退出
+  Enter          发送消息
+  Tab            自动补全命令
+  ↑ / ↓          历史记录 / 补全导航
+  Shift+↑/↓      向上/向下翻页
+  Esc            清空输入 / 取消提示
+  Ctrl+C         中止当前任务 / 退出
+
+**复制文本**
+  TUI 已启用鼠标滚轮，选中文字需按住修饰键再拖拽：
+  · iTerm2 / Warp：Option + 拖拽
+  · Terminal.app / Windows Terminal：Shift + 拖拽
 
 **常用命令**
   /task status      查看当前任务状态

@@ -1,0 +1,6 @@
+id = "hashline-signal-001"
+title = "Verify rejection signal provenance and evidence reference after stale-tag edit"
+mode = "direct"
+tags = ["hashline", "integration", "signal", "provenance"]
+timeout_seconds = 120
+expected_files = ["src/pipeline.ts", "signal-audit.md"]

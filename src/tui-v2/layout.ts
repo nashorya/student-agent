@@ -24,7 +24,10 @@ export function renderFrame(
   const completions = state.input.promptQuestion === null
     ? renderCompletionLines(state.input.value, state.input.completionIndex, columns)
     : [];
-  const footer = [
+  // Apply fitLine only to non-input footer lines; input lines already have
+  // cursor markers inserted and must not be processed again (double fitLine
+  // corrupts ANSI reverse-video sequences used by insertVisualCursor).
+  const footerPrefix = [
     renderSeparator(columns),
     ...taskPanel,
     ...(taskPanel.length > 0 ? [renderSeparator(columns)] : []),
@@ -32,8 +35,8 @@ export function renderFrame(
     ...completions,
     renderStatusLine(state, columns),
     renderSeparator(columns),
-    ...input,
-  ];
+  ].map((line) => fitLine(line, columns));
+  const footer = [...footerPrefix, ...input];
   const transcriptRows = Math.max(0, rows - footer.length);
 
   const allLines = transcript.map((line) => fitLine(line, columns));

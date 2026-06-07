@@ -1,0 +1,6 @@
+id = "toolguard-empty-bash"
+title = "Block empty or whitespace-only bash commands"
+mode = "direct"
+tags = ["toolguard", "safety", "bash-guard"]
+timeout_seconds = 120
+expected_files = ["src/config.json", "toolguard-report.md"]

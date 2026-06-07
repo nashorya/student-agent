@@ -52,6 +52,8 @@ export interface StudentAgentEvalTrace {
   errorMessage?: string;
   toolCalls: ToolTraceEntry[];
   taskState?: EvalTaskStateTrace;
+  /** Protected eval events collected during the run (hashline, signal, toolguard). */
+  protectedEvents?: ProtectedEvalEvent[];
 }
 
 export interface FileSnapshotEntry {
@@ -101,4 +103,31 @@ export interface EvalRunRecord {
   verifier: VerifierResult;
   score: TraceScore;
   changedFiles: string[];
+}
+
+/**
+ * A protected eval event records safety-relevant actions taken by the
+ * Student Agent infrastructure (hashline, signal pipeline, toolguard).
+ * These events are written by internal logic only — never exposed to the
+ * agent's prompt — and are collected into the eval trace for offline audit.
+ */
+export interface ProtectedEvalEvent {
+  /** Which subsystem produced this event. */
+  source: "hashline" | "signal" | "toolguard";
+  /** Discriminated event type within the source (e.g. 'stale_rejection', 'recovery_success'). */
+  type: string;
+  /** File path the event relates to, if applicable. */
+  path?: string;
+  /** Rule name that triggered the event (e.g. 'empty_bash' for toolguard). */
+  ruleName?: string;
+  /** Opaque provenance payload — source-specific metadata about why the event fired. */
+  provenance?: unknown;
+  /** Evidence reference — a stable key (hash, trace ID, etc.) linking to the underlying data. */
+  evidenceRef?: string;
+  /** Whether the action was blocked (prevented from completing). */
+  blocked?: boolean;
+  /** Whether a shell process was actually spawned (for bash-related events). */
+  shellSpawned?: boolean;
+  /** ISO-8601 timestamp automatically added by emitProtectedEvent. */
+  timestamp: string;
 }

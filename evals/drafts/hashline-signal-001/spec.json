@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "hashline-signal-001",
+  "version": "v0.34",
+  "component": "hashline",
+  "category": "integration",
+  "evalKind": "deterministic",
+  "target": "component",
+  "construct": "rejection signal provenance integrity — when a stale-tag edit is rejected, the signal store must contain a corresponding rejection event with non-empty provenance and evidence reference fields, enabling traceability from any rejection back to its cause.",
+  "input": {
+    "description": "The agent reads a file, the file is externally modified (changing its content tag), and the agent attempts to edit using the old tag. After the rejection, the agent inspects the signal store for hashline rejection events.",
+    "setup": [
+      "read_range('src/pipeline.ts') obtains tag #p1",
+      "External write to src/pipeline.ts changes tag to #p2",
+      "edit('src/pipeline.ts', anchor='#p1', oldText='enabled: false', newText='enabled: true')",
+      "Query signal store for hashline rejection events"
+    ]
+  },
+  "expectedBehavior": "Hashline rejects the stale-tag edit and writes exactly one rejection signal to the signal store. The signal has non-empty provenance (identifying Hashline as source) and non-empty evidenceRef (referencing the stale tag and file).",
+  "metrics": [
+    "hashline_rejection_count",
+    "signal_provenance_non_null_count",
+    "signal_evidence_ref_non_null_count",
+    "signal_store_event_count"
+  ],
+  "passCondition": "hashline_rejection_count == 1 AND signal_provenance_non_null_count >= 1 AND signal_evidence_ref_non_null_count >= 1 AND signal_store_event_count >= 1",
+  "grader": {
+    "type": "script",
+    "path": "task/tests/test.sh"
+  },
+  "oracle": {
+    "path": "task/solution/solve.sh"
+  },
+  "trialPolicy": {
+    "trials": 1,
+    "aggregation": "all_must_pass"
+  },
+  "failureImplication": "Rejection signals lack provenance or evidence references, making it impossible to trace rejection causes or audit event chains.",
+  "relatedPaper": "Meta-Harness: full traces >> scores-only (44% gap), trace provenance is essential for eval integrity.",
+  "regressionRisk": "Signal store schema changes, provenance field renames, or evidenceRef population logic changes could produce signals with empty required fields."
+}

@@ -11,6 +11,7 @@ import { PreferencesManager } from '../../memory/preferences/manager.js';
 import { QuestionsManager } from '../../memory/questions/manager.js';
 import { ProjectKbManager } from '../../memory/project-kb/manager.js';
 import { PlanRevisionManager } from '../../memory/plan-revisions/manager.js';
+import { HASHLINE_PROMPT } from '../../core/hashline/index.js';
 
 // ── 记忆注入 ──────────────────────────────────────────
 
@@ -127,6 +128,8 @@ export function createMemoryHook(memoryDir: string) {
 ❌ 错误做法：read src/a.ts → read src/b.ts → read src/c.ts（逐个扫描）
 ✅ 正确做法：grep "关键词" → 看结果 → 只 read 命中的文件
 `);
+
+    sections.push(HASHLINE_PROMPT);
 
     if (sections.length === 0) {
       return '';

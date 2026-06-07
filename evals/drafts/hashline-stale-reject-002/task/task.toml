@@ -1,0 +1,6 @@
+id = "hashline-stale-reject-002"
+title = "Recover from stale-tag rejection across multiple files"
+mode = "direct"
+tags = ["hashline", "safety", "stale-edit", "batch", "multi-file"]
+timeout_seconds = 180
+expected_files = ["src/db.ts", "src/cache.ts", "src/auth.ts", "hashline-batch-report.md"]

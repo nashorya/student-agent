@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "hashline-snapshot-001",
+  "version": "v0.34",
+  "component": "hashline",
+  "category": "correctness",
+  "evalKind": "deterministic",
+  "target": "component",
+  "construct": "snapshot creation on file read — the ability of the SnapshotStore to create and store a content snapshot when a file range is read, so that subsequent edit operations can reference the snapshot's content tag for staleness detection.",
+  "input": {
+    "description": "The agent reads a specific range of a file. After the read, the SnapshotStore must contain a snapshot record for that file path, with a content tag that matches the one returned to the agent.",
+    "setup": [
+      "Agent calls read_range('src/store.ts', start=1, end=15)",
+      "read_range returns file content and content tag #snap01",
+      "Agent performs a valid edit using the returned tag",
+      "Verify that the SnapshotStore recorded a snapshot for src/store.ts"
+    ]
+  },
+  "expectedBehavior": "After read_range, SnapshotStore contains exactly one snapshot for the read file, and the snapshot's content tag matches the tag returned by read_range. The subsequent edit using that tag succeeds.",
+  "metrics": [
+    "snapshot_record_count",
+    "snapshot_tag_match_count",
+    "edit_success_count"
+  ],
+  "passCondition": "snapshot_record_count == 1 AND snapshot_tag_match_count == 1 AND edit_success_count >= 1",
+  "grader": {
+    "type": "script",
+    "path": "task/tests/test.sh"
+  },
+  "oracle": {
+    "path": "task/solution/solve.sh"
+  },
+  "trialPolicy": {
+    "trials": 1,
+    "aggregation": "all_must_pass"
+  },
+  "failureImplication": "read_range does not store a snapshot, making subsequent tag-anchored edits impossible — the Hashline mechanism fails at its foundation.",
+  "regressionRisk": "Changes to SnapshotStore write logic, read_range return format, or tag generation algorithm could break snapshot creation."
+}
