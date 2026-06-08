@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "student-agent-v04-component-ablation",
+  "version": "v0.3D",
+  "description": "Draft manifest for comparing v0.4 harness components across shared eval tasks. First milestone validates manifest and metric extraction only; real agentic trials are gated by runner isolation.",
+  "configs": [
+    "baseline",
+    "toolguard_only",
+    "contextbuilder_only",
+    "signal_pipeline_only",
+    "hashline_only",
+    "all_components"
+  ],
+  "metrics": [
+    { "name": "task_success_rate", "source": "run_archive", "required": true },
+    { "name": "verified_pass_rate", "source": "verifier", "required": true },
+    { "name": "tool_error_count", "source": "run_archive", "required": true },
+    { "name": "unsafe_tool_block_count", "source": "trace", "required": true },
+    { "name": "hashline_rejection_count", "source": "run_archive", "required": true },
+    { "name": "hashline_recovery_count", "source": "run_archive", "required": true },
+    { "name": "lostness_trigger_count", "source": "run_archive", "required": true },
+    { "name": "user_correction_count", "source": "run_archive", "required": true },
+    { "name": "estimated_prompt_tokens", "source": "blocked_for_trace_grader", "required": false },
+    { "name": "output_tokens", "source": "blocked_for_trace_grader", "required": false },
+    { "name": "repeated_tool_call_count", "source": "run_archive", "required": true },
+    { "name": "run_duration_ms", "source": "trace", "required": false },
+    { "name": "trace_event_count", "source": "trace", "required": true }
+  ],
+  "tasks": [
+    {
+      "id": "precise-edit",
+      "family": "edit_correctness",
+      "expectedRelevantComponent": "hashline",
+      "requiredVerifier": "evals/tasks/precise-edit/tests/test.sh",
+      "requiredTraceMetrics": ["task_success_rate", "verified_pass_rate", "hashline_rejection_count", "repeated_tool_call_count"],
+      "regressionRisks": ["Hashline or ContextBuilder may change edit routing and break precise single-location edits."]
+    },
+    {
+      "id": "multi-file-patch",
+      "family": "edit_correctness",
+      "expectedRelevantComponent": "hashline",
+      "requiredVerifier": "evals/tasks/multi-file-patch/tests/test.sh",
+      "requiredTraceMetrics": ["task_success_rate", "verified_pass_rate", "hashline_recovery_count", "trace_event_count"],
+      "regressionRisks": ["Hashline anchoring may reject valid multi-file edits if tags are stale or missing."]
+    },
+    {
+      "id": "search-before-read",
+      "family": "context_reliability",
+      "expectedRelevantComponent": "contextBuilder",
+      "requiredVerifier": "evals/tasks/search-before-read/tests/test.sh",
+      "requiredTraceMetrics": ["task_success_rate", "verified_pass_rate", "tool_error_count", "estimated_prompt_tokens"],
+      "regressionRisks": ["ContextBuilder may omit search intent or file hints under budget."]
+    },
+    {
+      "id": "preference-aware-edit",
+      "family": "context_reliability",
+      "expectedRelevantComponent": "contextBuilder",
+      "requiredVerifier": "evals/tasks/preference-aware-edit/tests/test.sh",
+      "requiredTraceMetrics": ["task_success_rate", "verified_pass_rate", "user_correction_count", "lostness_trigger_count"],
+      "regressionRisks": ["ContextBuilder or recall filtering may drop project preference context."]
+    },
+    {
+      "id": "failure-recovery-edit-mismatch",
+      "family": "recovery_observability",
+      "expectedRelevantComponent": "signalPipeline",
+      "requiredVerifier": "evals/tasks/failure-recovery-edit-mismatch/tests/test.sh",
+      "requiredTraceMetrics": ["tool_error_count", "unsafe_tool_block_count", "hashline_rejection_count", "lostness_trigger_count"],
+      "regressionRisks": ["Signal Pipeline may fail to record recovery-relevant tool errors, making regressions invisible."]
+    }
+  ]
+}

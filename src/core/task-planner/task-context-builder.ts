@@ -17,17 +17,16 @@ export function buildTaskContextPrefix(task: Task | null, ctx7Docs?: string): st
   if (memory.goal) {
     lines.push(`[目标] ${memory.goal}`);
   }
-  appendList(lines, '验收标准', memory.acceptance_criteria);
-  appendList(lines, '约束', memory.constraints);
-  appendList(lines, '用户偏好', memory.user_preferences);
-  appendList(lines, '项目事实', memory.project_facts);
-  appendList(lines, '未决问题', memory.open_questions);
-  appendList(lines, '已确认决策', memory.decisions);
-  appendList(lines, '验证结果', memory.verification_results);
-  appendList(lines, '已修改文件', memory.changed_files);
-  appendList(lines, '已读取文件', memory.read_files);
-  appendList(lines, '已写入文件', memory.written_files);
-  appendList(lines, '最近错误', memory.recent_errors);
+  lines.push(`[工作记忆 Phase] ${memory.phase}`);
+  if (memory.currentStep) {
+    lines.push(`[当前步骤] ${memory.currentStep}`);
+  }
+  appendList(lines, 'Todos', memory.todos.map((todo) => `${todo.status}: ${todo.content}`));
+  appendList(lines, '已读取文件', memory.readFiles.map((file) => file.path));
+  appendList(lines, '已写入文件', memory.writeFiles.map((file) => `${file.path} - ${file.summary}`));
+  appendList(lines, '最近错误', memory.recentErrors.map((error) => `${error.source}: ${error.summary}`));
+  appendList(lines, '最近信号', memory.recentSignals.map((signal) => `${signal.severity}: ${signal.kind} - ${signal.summary}`));
+  appendList(lines, '工作记忆证据', memory.artifactRefs.map((artifact) => `${artifact.kind}: ${artifact.summary}`));
 
   if (task.verification_results.length > 0) {
     lines.push('[技术验证记录]');

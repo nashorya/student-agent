@@ -29,12 +29,8 @@ describe('Eval v2 trigger policy slice', () => {
     });
   });
 
-  it('keeps clear low-risk edits below full plan mode', () => {
-    expect(classifyWorkflowIntent('帮我更新 README 的一句文案', null)).toMatchObject({
-      type: 'new_task',
-      level: 1,
-      requiresPlan: false,
-    });
+  it('defers ambiguous low-risk edits to LLM (returns null)', () => {
+    expect(classifyWorkflowIntent('帮我更新 README 的一句文案', null)).toBeNull();
   });
 
   it('keeps explicit eval repair in full plan mode', () => {

@@ -11,6 +11,9 @@
     "build": "tsc",
     "eval:validate": "npx tsx scripts/eval-validate.ts",
     "eval:baseline": "npx tsx scripts/eval-baseline.ts",
+    "eval:claude-code": "npx tsx scripts/eval-claude-code.ts",
+    "eval:context-runtime": "npx tsx scripts/eval-context-runtime.ts",
+    "eval:webui:report": "npx tsx scripts/eval-webui-report.ts",
     "test": "vitest",
     "prepack": "npm run build"
   },
@@ -50,6 +53,3 @@
     "xxhash": "^0.3.0"
   }
 }
-
-
-

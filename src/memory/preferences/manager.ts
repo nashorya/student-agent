@@ -74,6 +74,7 @@ export class PreferencesManager {
       id: `pref_${randomUUID()}`,
       rule: params.rule,
       scope: params.scope,
+      recall: makePreferenceRecall(params.rule, params.scope),
       provenance: {
         source_type: 'user-explicit',
         task_id: params.taskId,
@@ -98,6 +99,7 @@ export class PreferencesManager {
       id: `pref_${randomUUID()}`,
       rule: params.rule,
       scope: params.scope,
+      recall: makePreferenceRecall(params.rule, params.scope),
       provenance: params.provenance,
       apply_caution: params.applyCaution,
     };
@@ -165,4 +167,26 @@ export class PreferencesManager {
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err;
+}
+
+function makePreferenceRecall(rule: string, scope: PreferenceScope): PreferenceEntry['recall'] {
+  return {
+    trigger: {
+      scopes: [scope],
+      keywords: extractKeywords(rule),
+    },
+    applicableWhen: [`Applying ${scope} preference`],
+    doNotApplyWhen: [`The task is unrelated to ${scope}`],
+    tags: [scope],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function extractKeywords(text: string): string[] {
+  const tokens = text
+    .toLowerCase()
+    .split(/[^a-z0-9\u4e00-\u9fff]+/u)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+  return [...new Set(tokens)].slice(0, 12);
 }

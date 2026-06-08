@@ -17,6 +17,19 @@ describe('TasksManager', () => {
     expect(task.phases.map((phase) => phase.status)).toEqual(['in_progress', 'pending']);
     expect(task.status).toBe('active');
     expect(task.workflow_status).toBe('awaiting_plan_approval');
+    expect(task.working_memory).toMatchObject({
+      taskId: task.id,
+      phase: 'planning',
+      currentStep: '调整颜色',
+      todos: [],
+      readFiles: [],
+      writeFiles: [],
+      recentErrors: [],
+      recentSignals: [],
+      artifactRefs: [],
+    });
+    expect(task.working_memory.runId).toMatch(/^run_/);
+    expect(task.working_memory.updatedAt).toBeTruthy();
   });
 
   it('increments retry count for active phase', async () => {
@@ -122,7 +135,7 @@ describe('TasksManager', () => {
     expect(await mgr.getActive()).toBeNull();
   });
 
-  it('records verification results into task memory', async () => {
+  it('records verification results into task memory and artifact refs', async () => {
     const task = await mgr.createTask('测试任务', ['Phase 1']);
     await mgr.recordVerification(task.id, {
       kind: 'build',
@@ -137,10 +150,13 @@ describe('TasksManager', () => {
       status: 'passed',
       summary: 'npm run build passed',
     });
-    expect(active?.working_memory.verification_results).toContain('passed: npm run build passed');
+    expect(active?.working_memory.artifactRefs).toContainEqual(expect.objectContaining({
+      kind: 'verification_result',
+      summary: 'passed: npm run build passed',
+    }));
   });
 
-  it('tracks read files with deduplication', async () => {
+  it('tracks read files as structured entries with deduplication', async () => {
     const task = await mgr.createTask('测试任务', ['Phase 1']);
 
     await mgr.trackFileRead(task.id, 'src/App.tsx');
@@ -148,10 +164,15 @@ describe('TasksManager', () => {
     await mgr.trackFileRead(task.id, 'src/main.ts');
 
     const active = await mgr.getActive();
-    expect(active?.working_memory.read_files).toEqual(['src/App.tsx', 'src/main.ts']);
+    expect(active?.working_memory.readFiles.map((entry) => entry.path)).toEqual(['src/App.tsx', 'src/main.ts']);
+    expect(active?.working_memory.readFiles[0]).toMatchObject({
+      path: 'src/App.tsx',
+      ranges: [],
+    });
+    expect(active?.working_memory.readFiles[0].lastReadAt).toBeTruthy();
   });
 
-  it('tracks written files with deduplication', async () => {
+  it('tracks written files as structured entries with deduplication', async () => {
     const task = await mgr.createTask('测试任务', ['Phase 1']);
 
     await mgr.trackFileWrite(task.id, 'src/App.tsx');
@@ -159,46 +180,62 @@ describe('TasksManager', () => {
     await mgr.trackFileWrite(task.id, 'src/styles.css');
 
     const active = await mgr.getActive();
-    expect(active?.working_memory.written_files).toEqual(['src/App.tsx', 'src/styles.css']);
+    expect(active?.working_memory.writeFiles.map((entry) => entry.path)).toEqual(['src/App.tsx', 'src/styles.css']);
+    expect(active?.working_memory.writeFiles[0]).toMatchObject({
+      path: 'src/App.tsx',
+      tool: 'hashline_edit',
+      summary: 'Edited src/App.tsx',
+    });
+    expect(active?.working_memory.writeFiles[0].writtenAt).toBeTruthy();
   });
 
-  it('tracks recent errors newest last and caps at 10', async () => {
+  it('tracks recent errors as structured entries newest last and caps at 5', async () => {
     const task = await mgr.createTask('测试任务', ['Phase 1']);
 
-    for (let i = 1; i <= 12; i++) {
+    for (let i = 1; i <= 7; i++) {
       await mgr.trackError(task.id, `error ${i}`);
     }
 
     const active = await mgr.getActive();
-    expect(active?.working_memory.recent_errors).toEqual([
+    expect(active?.working_memory.recentErrors.map((entry) => entry.summary)).toEqual([
       'error 3',
       'error 4',
       'error 5',
       'error 6',
       'error 7',
-      'error 8',
-      'error 9',
-      'error 10',
-      'error 11',
-      'error 12',
     ]);
+    expect(active?.working_memory.recentErrors[0]).toMatchObject({
+      source: 'runtime',
+      pattern: 'error 3',
+      summary: 'error 3',
+    });
+    expect(active?.working_memory.recentErrors[0].createdAt).toBeTruthy();
   });
 
-  it('defaults missing file and error tracking fields to empty arrays', async () => {
+  it('defaults missing structured working memory fields', async () => {
     const task = await mgr.createTask('测试任务', ['Phase 1'], {
       workingMemory: {
         goal: '兼容旧 tasks.json',
       },
     });
 
-    expect(task.working_memory.read_files).toEqual([]);
-    expect(task.working_memory.written_files).toEqual([]);
-    expect(task.working_memory.recent_errors).toEqual([]);
+    expect(task.working_memory.taskId).toBe(task.id);
+    expect(task.working_memory.goal).toBe('兼容旧 tasks.json');
+    expect(task.working_memory.todos).toEqual([]);
+    expect(task.working_memory.readFiles).toEqual([]);
+    expect(task.working_memory.writeFiles).toEqual([]);
+    expect(task.working_memory.recentErrors).toEqual([]);
+    expect(task.working_memory.recentSignals).toEqual([]);
+    expect(task.working_memory.artifactRefs).toEqual([]);
   });
 
-  it('merges file and error tracking fields with existing working memory', async () => {
+  it('migrates legacy flat working memory fields into structured entries', async () => {
     const task = await mgr.createTask('测试任务', ['Phase 1'], {
       workingMemory: {
+        acceptance_criteria: ['覆盖状态机'],
+        constraints: ['不改路由'],
+        verification_results: ['build passed'],
+        changed_files: ['src/App.tsx'],
         read_files: ['src/old-read.ts'],
         written_files: ['src/old-write.ts'],
         recent_errors: ['old error'],
@@ -206,15 +243,32 @@ describe('TasksManager', () => {
     });
 
     await mgr.updateWorkingMemory(task.id, {
-      read_files: ['src/old-read.ts', 'src/new-read.ts'],
-      written_files: ['src/old-write.ts', 'src/new-write.ts'],
-      recent_errors: ['new error'],
+      readFiles: [{ path: 'src/new-read.ts', ranges: [], lastReadAt: '2026-01-01T00:00:00.000Z' }],
+      writeFiles: [{
+        path: 'src/new-write.ts',
+        tool: 'other',
+        summary: 'Updated src/new-write.ts',
+        writtenAt: '2026-01-01T00:00:00.000Z',
+      }],
+      recentErrors: [{
+        id: 'err_new',
+        source: 'runtime',
+        pattern: 'new error',
+        summary: 'new error',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }],
     });
 
     const active = await mgr.getActive();
-    expect(active?.working_memory.read_files).toEqual(['src/old-read.ts', 'src/new-read.ts']);
-    expect(active?.working_memory.written_files).toEqual(['src/old-write.ts', 'src/new-write.ts']);
-    expect(active?.working_memory.recent_errors).toEqual(['old error', 'new error']);
+    expect(active?.working_memory.readFiles.map((entry) => entry.path)).toEqual(['src/old-read.ts', 'src/new-read.ts']);
+    expect(active?.working_memory.writeFiles.map((entry) => entry.path)).toEqual(['src/old-write.ts', 'src/new-write.ts']);
+    expect(active?.working_memory.recentErrors.map((entry) => entry.summary)).toEqual(['old error', 'new error']);
+    expect(active?.working_memory.artifactRefs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'acceptance_criterion', summary: '覆盖状态机' }),
+      expect.objectContaining({ kind: 'constraint', summary: '不改路由' }),
+      expect.objectContaining({ kind: 'verification_result', summary: 'build passed' }),
+      expect.objectContaining({ kind: 'changed_file', summary: 'src/App.tsx' }),
+    ]));
   });
 
   it('renames active task', async () => {

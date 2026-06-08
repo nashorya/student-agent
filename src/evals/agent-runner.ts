@@ -11,12 +11,20 @@ import { buildPlanningPrompt, buildPlanningRepairPrompt, buildPhaseExecutionProm
 import { parsePhaseSignal } from '../core/task-planner/phase-signal.js';
 import { TasksManager } from '../memory/tasks/manager.js';
 import type { Task } from '../memory/tasks/types.js';
-import type { EvalTaskDefinition, EvalTaskStateTrace, StudentAgentEvalTrace, ToolTraceEntry } from './types.js';
+import type {
+  EvalTaskDefinition,
+  EvalTaskStateTrace,
+  EvalTokenUsage,
+  StudentAgentEvalTrace,
+  ToolTraceEntry,
+} from './types.js';
 
 export interface RunStudentAgentEvalOptions {
   task: EvalTaskDefinition;
   sandboxDir: string;
   instruction?: string;
+  memoryDir?: string;
+  buildMemoryPrompt?: () => Promise<string>;
 }
 
 export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): Promise<StudentAgentEvalTrace> {
@@ -29,11 +37,18 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   let errorMessage: string | undefined;
 
   try {
+    if (options.memoryDir) {
+      TasksManager.resetInstance();
+      TasksManager.getInstance(options.memoryDir);
+    }
     const config = await loadEvalConfig(options.sandboxDir);
     const model = buildModel(config);
     normalizeProviderApiKeyEnv(config.model.provider);
     const apiKey = process.env[getApiKeyEnvName(config.model.provider)];
     const hooks = createTracingHooks(toolCalls);
+    if (options.buildMemoryPrompt) {
+      hooks.buildMemoryPrompt = options.buildMemoryPrompt;
+    }
     const { session, agent } = await createStudentSession({
       cwd: options.sandboxDir,
       model,
@@ -81,6 +96,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     finalOutput: outputCollector.text(),
     errorMessage,
     toolCalls,
+    tokenUsage: outputCollector.usage(),
     taskState,
   };
 }
@@ -175,6 +191,7 @@ function createTracingHooks(toolCalls: ToolTraceEntry[]): StudentAgentHooks {
 
 export class AssistantTextCollector {
   private readonly completedMessages: string[] = [];
+  private readonly tokenUsage: EvalTokenUsage = emptyTokenUsage();
   private currentMessage = '';
   private inAssistantMessage = false;
 
@@ -204,6 +221,7 @@ export class AssistantTextCollector {
     }
 
     if (event.type === 'message_end') {
+      this.captureUsage(event);
       this.commitCurrentMessage();
       return;
     }
@@ -215,6 +233,18 @@ export class AssistantTextCollector {
 
   text(): string {
     return [...this.completedMessages, this.currentMessage].join('');
+  }
+
+  usage(): EvalTokenUsage {
+    return cloneTokenUsage(this.tokenUsage);
+  }
+
+  private captureUsage(event: AgentEvent): void {
+    const record = event as unknown as Record<string, unknown>;
+    if (!isRecord(record.message)) return;
+    const message = record.message;
+    if (message.role !== 'assistant' || !isRecord(message.usage)) return;
+    addUsage(this.tokenUsage, message.usage);
   }
 
   private commitCurrentMessage(): void {
@@ -261,6 +291,57 @@ function isAssistantMessageStart(event: AgentEvent): boolean {
     isRecord(record.message)
     && record.message.role === 'assistant'
   );
+}
+
+function emptyTokenUsage(): EvalTokenUsage {
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    totalTokens: 0,
+    costUsd: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 0,
+    },
+  };
+}
+
+function cloneTokenUsage(usage: EvalTokenUsage): EvalTokenUsage {
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    totalTokens: usage.totalTokens,
+    costUsd: { ...usage.costUsd },
+  };
+}
+
+function addUsage(target: EvalTokenUsage, raw: Record<string, unknown>): void {
+  target.inputTokens += numberValue(raw.input);
+  target.outputTokens += numberValue(raw.output);
+  target.cacheReadTokens += numberValue(raw.cacheRead);
+  target.cacheWriteTokens += numberValue(raw.cacheWrite);
+  target.totalTokens += numberValue(raw.totalTokens);
+
+  const cost = isRecord(raw.cost) ? raw.cost : {};
+  target.costUsd.input = roundCost(target.costUsd.input + numberValue(cost.input));
+  target.costUsd.output = roundCost(target.costUsd.output + numberValue(cost.output));
+  target.costUsd.cacheRead = roundCost(target.costUsd.cacheRead + numberValue(cost.cacheRead));
+  target.costUsd.cacheWrite = roundCost(target.costUsd.cacheWrite + numberValue(cost.cacheWrite));
+  target.costUsd.total = roundCost(target.costUsd.total + numberValue(cost.total));
+}
+
+function numberValue(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function roundCost(value: number): number {
+  return Number(value.toFixed(8));
 }
 
 async function loadEvalConfig(cwd: string): Promise<StudentAgentConfig> {

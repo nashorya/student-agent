@@ -23,6 +23,54 @@ describe('AssistantTextCollector', () => {
 
     expect(collector.text()).toBe('hello world');
   });
+
+  it('accumulates assistant usage and cost from message_end events', () => {
+    const collector = new AssistantTextCollector();
+
+    collector.handleEvent(assistantEndWithUsage({
+      input: 100,
+      output: 40,
+      cacheRead: 10,
+      cacheWrite: 5,
+      totalTokens: 155,
+      cost: {
+        input: 0.001,
+        output: 0.002,
+        cacheRead: 0.0001,
+        cacheWrite: 0.0002,
+        total: 0.0033,
+      },
+    }));
+    collector.handleEvent(assistantEndWithUsage({
+      input: 50,
+      output: 20,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 70,
+      cost: {
+        input: 0.0005,
+        output: 0.001,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0.0015,
+      },
+    }));
+
+    expect(collector.usage()).toEqual({
+      inputTokens: 150,
+      outputTokens: 60,
+      cacheReadTokens: 10,
+      cacheWriteTokens: 5,
+      totalTokens: 225,
+      costUsd: {
+        input: 0.0015,
+        output: 0.003,
+        cacheRead: 0.0001,
+        cacheWrite: 0.0002,
+        total: 0.0048,
+      },
+    });
+  });
 });
 
 function cumulativeTextEvent(text: string): AgentEvent {
@@ -41,6 +89,17 @@ function deltaEvent(delta: string): AgentEvent {
     assistantMessageEvent: {
       type: 'text_delta',
       delta,
+    },
+  } as unknown as AgentEvent;
+}
+
+function assistantEndWithUsage(usage: unknown): AgentEvent {
+  return {
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content: [],
+      usage,
     },
   } as unknown as AgentEvent;
 }

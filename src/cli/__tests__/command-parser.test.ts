@@ -44,6 +44,10 @@ describe('parseCommand', () => {
     expect(parseCommand('/candidates')).toEqual({ type: 'candidates' });
   });
 
+  it('解析 context 命令', () => {
+    expect(parseCommand('/context')).toEqual({ type: 'context' });
+  });
+
   it('解析单次提交的 /paste 多行块', () => {
     expect(parseCommand('/paste\n第一行\n第二行\n/end')).toEqual({
       type: 'paste',
@@ -174,6 +178,7 @@ describe('getHelpText', () => {
     expect(help).toContain('/setting');
     expect(help).toContain('/clear');
     expect(help).toContain('/candidates');
+    expect(help).toContain('/context');
     expect(help).toContain('/feedback');
     expect(help).toContain('/review');
     expect(help).toContain('/why');
@@ -187,5 +192,6 @@ describe('COMMAND_COMPLETIONS', () => {
   it('包含常用子命令补全', () => {
     expect(COMMAND_COMPLETIONS).toContain('/plan revision ');
     expect(COMMAND_COMPLETIONS).toContain('/feedback down ');
+    expect(COMMAND_COMPLETIONS).toContain('/context');
   });
 });

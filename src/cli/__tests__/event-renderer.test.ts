@@ -342,8 +342,8 @@ describe('EventRenderer TUI 多消息回合', () => {
     expect(lastUpdates).toContain('A');
     expect(lastUpdates).toContain('B');
     expect(lastUpdates).not.toContain('AB');
-    expect(bridge.discardAssistantMessage).toHaveBeenCalledTimes(1);
-    expect(bridge.endAssistantMessage).toHaveBeenCalledTimes(1);
+    // message_end commits each message immediately, so both get endAssistantMessage
+    expect(bridge.endAssistantMessage).toHaveBeenCalledTimes(2);
   });
 
   it('TUI bridge stream commits once without final duplicate add', () => {

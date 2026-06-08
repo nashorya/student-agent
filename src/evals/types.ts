@@ -25,6 +25,21 @@ export interface ToolTraceEntry {
   resultText?: string;
 }
 
+export interface EvalTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+  costUsd: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
+}
+
 export interface EvalTaskStateTrace {
   taskId?: string;
   name?: string;
@@ -51,6 +66,7 @@ export interface StudentAgentEvalTrace {
   finalOutput: string;
   errorMessage?: string;
   toolCalls: ToolTraceEntry[];
+  tokenUsage: EvalTokenUsage;
   taskState?: EvalTaskStateTrace;
   /** Protected eval events collected during the run (hashline, signal, toolguard). */
   protectedEvents?: ProtectedEvalEvent[];

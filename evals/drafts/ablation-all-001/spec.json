@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ablation-all-001",
+  "version": "v0.3D",
+  "component": "component_ablation",
+  "category": "integration",
+  "evalKind": "deterministic",
+  "target": "harness",
+  "construct": "combined effect of all v0.4 ablation components and their interaction loss",
+  "input": {
+    "description": "Run the shared ablation benchmark manifest with ToolGuard, ContextBuilder, Signal Pipeline, and Hashline all enabled.",
+    "setup": [
+      "Load evals/ablation/benchmark-manifest.json",
+      "Use config all_components",
+      "Compare all_components against baseline and best single-component metrics"
+    ]
+  },
+  "expectedBehavior": "The all-components config produces comparable metrics and interaction_loss diagnostics without assuming additive gains.",
+  "metrics": ["task_success_rate", "verified_pass_rate", "interaction_loss", "delta_vs_baseline", "delta_vs_best_single_component"],
+  "passCondition": "manifest_valid == true AND config == 'all_components' AND metric_schema_valid == true",
+  "grader": { "type": "script", "path": "scripts/eval-ablation-runner.ts" },
+  "oracle": { "path": "evals/ablation/benchmark-manifest.json" },
+  "trialPolicy": { "trials": 1, "aggregation": "all_must_pass" },
+  "failureImplication": "The harness cannot detect component interaction regression before integration freeze.",
+  "relatedPaper": "AHE: summed single-component gains may exceed combined gains; AEvo: evaluator isolation prevents reward hacking.",
+  "regressionRisk": ["All-components may perform worse than the best single component due to cross-component interference."],
+  "ablationGroup": "all_components"
+}

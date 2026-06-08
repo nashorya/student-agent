@@ -37,6 +37,7 @@ describe('env loader', () => {
 
   it('loadEnvFile 默认不覆盖已有环境变量', async () => {
     process.env.ANTHROPIC_BASE_URL = 'https://existing.example';
+    delete process.env.CONTEXT7_API_KEY;
     await writeFile(join(tmpDir, '.env'), [
       'ANTHROPIC_BASE_URL=https://relay.example/v1',
       'CONTEXT7_API_KEY=ctx7-key',

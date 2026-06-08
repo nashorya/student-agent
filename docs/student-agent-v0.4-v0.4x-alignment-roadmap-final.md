@@ -21,6 +21,9 @@
 > |------|------|
 > | **@oh-my-pi/hashline** | content-hash anchored edit（MIT，纯 TS，无 runtime 耦合） |
 > | **Semble** | code search（embedding + BM25 + RRF，MCP server） |
+>
+> 术语说明：代码和文档中的 "knack"（窍门）对应论文中的 "strategy gene / skill"。
+> LLM 基础能力靠模型本身，knack 只是从错误中学到的辅助性窍门。
 
 ---
 
@@ -37,6 +40,31 @@ v0.5  = Resource Evolution + Continual Harness + JIT Memory
 > **v0.4 不追求 agent 自进化，先做"可观察、可复盘、可验证编辑"的稳定 harness；
 > v0.4x 用 Semble 提升定位能力、用 Anti-Lost 防多轮退化；
 > v0.5 再让 harness 基于 Run Archive 和 evidence store 自我改进。**
+
+### Context Runtime 上下文三分法
+
+Context Runtime 的上下文分为三类：
+
+**Pinned Context:**
+- 每轮默认可用，但必须固定预算
+- 包括 L2 Working Memory summary、Task Ledger / Current Task Spec、recent raw turns、current user message
+
+**Retrieved Context:**
+- 每轮按需召回，不默认全量注入
+- 包括 Knacks、Doc Findings、Preferences、Artifact refs、Run Archive refs
+
+**Drill-down Context:**
+- 默认不进 prompt
+- 只有主 LLM 明确需要时才读取
+- 包括 full artifact、full run trace、full event、full file range、old user message 原文
+
+硬规则：
+
+```
+L1 每轮从存储层重新构建，不继承上一轮 L1。
+L2 summary 是 bounded state render，不是 rolling conversation summary。
+Summary 可以进 prompt，但不能作为唯一记忆。
+```
 
 ---
 
@@ -59,19 +87,23 @@ v0.33 TUI Stability
   ↓
 Hashline-style Anchored Edit
   ↓
-XState-aware Working Memory
+XState-aware Working Memory Storage
   ↓
 ToolGuard Hook v0
   ↓
 Signal Pipeline v0
   ↓
+Lessons / Knacks v0
+  ↓
+Memory Store / Memory RAG Contract
+  ↓
+Recall Router v0
+  ↓
 ContextBuilder v0
   ↓
-Run Archive MVP
-  ↓
-Hard Strategy Genes / Rules v0
-  ↓
 Lostness v0 (hard/soft triggers)
+  ↓
+Run Archive MVP
   ↓
 HarnessChange + Eval before/after
   ↓
@@ -88,7 +120,7 @@ Integration Freeze
 - Semble 正式集成
 - 完整语义代码搜索系统
 - 完整 Anti-Lost Recovery Mode（Requirement Ledger / Current Task Spec / Restart Context）
-- 完整 Run Archive（prompt snapshots / selected genes / harness snapshot）
+- 完整 Run Archive（prompt snapshots / selected knacks / harness snapshot）
 - Outcome-Credited Skills / EMA / NDCG rerank
 - 完整 RL / Meta-Harness 自动优化
 - Full Plan Mode
@@ -101,7 +133,7 @@ Integration Freeze
 
 ```
 - code_search 抽象接口
-- Signal / Lesson / Strategy Gene 的最小结构
+- Signal / Lesson / Knack 的最小结构
 - HarnessChange 记录格式
 - ContextBuilder 的扩展点
 - ToolGuard hook 的扩展点
@@ -197,26 +229,118 @@ Acceptance:
 
 ---
 
-### v0.35: XState-aware Working Memory
+### v0.35: XState-aware Working Memory Storage
 
-目标：扩展现有 task lifecycle 的 task context，而不是新建平行 runtime。
+目标：L2 Working Memory 是 task-local pinned state，不走 RAG，不做向量召回。它由 XState lifecycle 维护，每轮渲染为 bounded summary 注入 L1。
 
-Scope:
+存储位置：
 
 ```
-- 扩展 src/memory/tasks/
-- 加 task-local working memory fields
-- current phase 从 XState 同步
-- readFiles / writeFiles / recentErrors 写入 task memory
-- 重启恢复时对齐 XState 当前 task
-- 保留 recent raw turns N=1~2
+Runtime data:
+.student-agent/tasks/{taskId}/working-memory.json
+
+Source:
+src/memory/tasks/
+```
+
+类型定义：
+
+```ts
+type WorkingMemory = {
+  taskId: string;
+  runId: string;
+
+  goal: string;
+  phase: "planning" | "executing" | "verifying" | "reflecting";
+  currentStep: string;
+
+  todos: {
+    id: string;
+    content: string;
+    status: "pending" | "in_progress" | "done" | "blocked";
+    evidenceRefs?: string[];
+    updatedAt: string;
+  }[];
+
+  readFiles: {
+    path: string;
+    ranges: {
+      startLine: number;
+      endLine: number;
+      summary: string;
+      hashlineTag?: string;
+      readAt: string;
+    }[];
+    lastReadAt: string;
+    lastKnownHash?: string;
+  }[];
+
+  writeFiles: {
+    path: string;
+    tool: "hashline_edit" | "write_file" | "format" | "other";
+    summary: string;
+    checkpointId?: string;
+    writtenAt: string;
+  }[];
+
+  recentErrors: {
+    id: string;
+    source: "tool" | "toolguard" | "hashline" | "fileguard" | "runtime";
+    pattern: string;
+    summary: string;
+    recoveryHint?: string;
+    evidenceRef?: string;
+    createdAt: string;
+  }[];
+
+  recentSignals: {
+    id: string;
+    kind: string;
+    summary: string;
+    severity: "low" | "medium" | "high";
+    evidenceRef?: string;
+    createdAt: string;
+  }[];
+
+  artifactRefs: {
+    id: string;
+    kind: string;
+    summary: string;
+  }[];
+
+  updatedAt: string;
+};
+```
+
+容量上限：
+
+```
+todos: max 8
+readFiles: max 12
+writeFiles: max 12
+recentErrors: max 5
+recentSignals: max 5
+artifactRefs: max 10
+```
+
+核心函数：
+
+```ts
+loadWorkingMemory(taskId): WorkingMemory
+updateWorkingMemoryAfterTurn(event): WorkingMemory
+compressWorkingMemory(memory): CompressedWorkingMemory
+renderWorkingMemoryForPrompt(memory, budget): string
 ```
 
 Acceptance:
 
 ```
+- working-memory.json 可落盘
+- L2 不走 RAG，每轮作为 pinned context 渲染
+- L2 summary 控制在固定 token budget 内
+- L2 summary 不是聊天滚动摘要，而是当前任务状态表
+- readFiles/writeFiles 可支持 read cache invalidation
 - 重启后能恢复 goal/currentStep/recentErrors
-- readFiles/writeFiles 能服务 read cache invalidation
 - Working Memory phase 不和 XState phase 打架
 ```
 
@@ -325,9 +449,251 @@ Acceptance:
 
 ---
 
-### v0.38: ContextBuilder v0
+### v0.38A: Memory Store / Memory RAG Contract
 
-目标：ContextBuilder 不替换现有 prompt，而是为 planning/executing prompt 提供上下文块。
+目标：明确 memory RAG 与 code_search 的区别。
+
+```
+Code RAG:
+- 负责找代码在哪里
+- backend = grep / ripgrep / Semble
+- 输出 filePath / line range / snippet
+- 流程是 code_search → read_range → hashline edit
+
+Memory RAG:
+- 负责找经验、策略、偏好、文档发现、历史证据
+- backend = JSONL + metadata filter + trigger match + FTS/vector + weighted rerank
+- 输出 knack / doc finding / preference / artifact ref / run archive ref
+```
+
+v0.4 存储：
+
+```
+.student-agent/memory/
+  knacks.jsonl
+  doc-findings.jsonl
+  preferences.jsonl
+  lesson-candidates.jsonl
+  recall-index.json
+```
+
+v0.4 检索顺序：
+
+```
+1. metadata filter
+2. trigger exact match
+3. keyword / FTS
+4. optional embedding similarity
+5. weighted rerank
+```
+
+说明：
+
+```
+v0.4 可以复用已有 OpenAI embeddings，但 embedding 不应主导召回。
+metadata / trigger first，embedding second，utility rerank final。
+```
+
+Acceptance:
+
+```
+- Knacks / Doc Findings / Preferences 都有统一 recall metadata
+- memory RAG 不依赖 Semble
+- Semble 只负责 code_search，不负责长期经验召回
+```
+
+---
+
+### v0.38B: Recall Router v0
+
+目标：根据当前任务状态、工具、错误、信号和 Task Ledger，从 L3/L0 召回相关内容，输出 RecallBundle 给 ContextBuilder。ContextBuilder 不负责检索，只负责组装 prompt。
+
+输入：
+
+```ts
+type RecallRouterInput = {
+  taskId: string;
+  phase: string;
+  goal: string;
+  currentStep: string;
+
+  nextTool?: string;
+  currentFile?: string;
+
+  recentErrors: WorkingMemory["recentErrors"];
+  recentSignals: WorkingMemory["recentSignals"];
+
+  taskLedger?: {
+    confirmedRequirements: string[];
+    constraints: string[];
+    rejectedAssumptions: string[];
+    openQuestions: string[];
+  };
+
+  recentRawTurns: {
+    role: "user" | "assistant";
+    content: string;
+  }[];
+};
+```
+
+输出：
+
+```ts
+type RecallBundle = {
+  knacks: RecalledItem[];
+  docFindings: RecalledItem[];
+  preferences: RecalledItem[];
+  artifactRefs: RecalledItem[];
+  runArchiveRefs: RecalledItem[];
+
+  diagnostics: {
+    queryText: string;
+    triggerMatches: string[];
+    metadataMatches: string[];
+    vectorMatches: string[];
+    dropped: {
+      id: string;
+      reason:
+        | "conflicts_with_task_ledger"
+        | "low_score"
+        | "stale"
+        | "too_generic"
+        | "counterexample_found";
+    }[];
+  };
+};
+
+type RecalledItem = {
+  id: string;
+  type:
+    | "knack"
+    | "doc_finding"
+    | "preference"
+    | "artifact_ref"
+    | "run_archive_ref";
+
+  summary: string;
+  reason: string;
+
+  score: {
+    trigger: number;
+    metadata: number;
+    semantic: number;
+    utility: number;
+    recency: number;
+    trust: number;
+    final: number;
+  };
+
+  evidenceRefs?: string[];
+};
+```
+
+初始加权公式：
+
+```ts
+finalScore =
+  triggerScore * 0.35 +
+  metadataScore * 0.25 +
+  semanticScore * 0.15 +
+  utilityScore * 0.10 +
+  recencyScore * 0.05 +
+  trustScore * 0.10;
+```
+
+v0.4 里 `utilityScore` 可以先为 0 或 raw count。v0.4x 再接 Outcome Credit / EMA / variation。
+
+规则：
+
+```
+- L2 Working Memory 不被 Recall Router 召回，它是 pinned context。
+- Task Ledger 不被 Recall Router 召回，它是 pinned task constitution。
+- Recall Router 只召回 L3 / L0。
+- 召回结果如果和 Task Ledger 冲突，必须 drop，并写入 diagnostics。
+- RecallBundle 有 topK 和 token budget，不允许无限膨胀。
+```
+
+预算：
+
+```
+max knacks: 3
+max doc findings: 2
+max preferences: 2
+max artifact refs: 3
+max run archive refs: 2
+```
+
+Acceptance:
+
+```
+- recentErrors 中出现 EMPTY_COMMAND 时，可召回 empty bash / natural language bash 相关 knack
+- current task 涉及 Hashline edit 时，可召回 hashline 相关 knack
+- recalled item 与 Task Ledger 冲突时被 drop
+- RecallBundle 可被 ContextBuilder 注入
+- diagnostics 记录 retrieved / selected / dropped
+```
+
+---
+
+### v0.38C: ContextBuilder v0
+
+目标：ContextBuilder 不负责检索 memory。ContextBuilder 输入 pinned context + RecallBundle，输出 L1。
+
+职责边界：
+
+```
+ContextBuilder 不负责检索 memory。
+ContextBuilder 输入 pinned context + RecallBundle，输出 L1。
+```
+
+输入类型：
+
+```ts
+type ContextBuilderInput = {
+  systemRules: string[];
+  hashlinePromptBlock?: string;
+
+  taskSpec?: string;
+  workingMemorySummary: string;
+  recentRawTurns: RawTurn[];
+
+  recallBundle: RecallBundle;
+
+  currentUserMessage: string;
+  tokenBudget: number;
+  tier: "minimal" | "standard" | "heavy";
+};
+```
+
+L1 分三档：
+
+```
+Minimal L1:
+- current user message
+- task spec / current step
+- recent raw turns N=1
+- no or tiny recall
+
+Standard L1:
+- Minimal
+- L2 working memory summary
+- small RecallBundle
+
+Heavy L1:
+- Standard
+- more artifact refs
+- run archive refs
+- lostness / error recovery context
+```
+
+触发规则：
+
+```
+simple user confirmation → Minimal
+normal tool execution / coding → Standard
+tool error / user correction / lostness / recovery → Heavy
+```
 
 Scope:
 
@@ -366,6 +732,10 @@ v0.5+ ContextBuilder = JIT research over evidence store (GAM 方向)
 Acceptance:
 
 ```
+- L1 每轮重建，不继承上一轮 L1
+- L1 token budget 固定
+- ContextBuilder 不直接读取 knacks.jsonl / run archive
+- ContextBuilder 只消费 RecallBundle
 - L1 不再无限 append 历史
 - Current task context 可稳定注入
 - Hashline 格式说明自动注入
@@ -374,28 +744,81 @@ Acceptance:
 
 ---
 
-### v0.39: Lessons / Strategy Genes v0
+### Summary Policy
 
-目标：只做最小 candidate gene 闭环，避免过早自动学习。
+允许 summary：
+
+```
+1. L2 render summary
+   - 用于 prompt 注入
+   - 不替代 working-memory.json
+
+2. artifact pointer summary
+   - 用于 L1 中指向大输出
+   - 不替代完整 artifact
+
+3. run outcome summary
+   - 用于快速看任务结果
+   - 不替代 events.jsonl
+
+4. recall result summary
+   - 用于展示 recalled item
+   - 不替代 evidenceRefs / full trace
+```
+
+禁止 summary-only：
+
+```
+1. 只存任务总结，不存 events.jsonl
+2. 只存经验总结，不存 evidenceRefs
+3. 只存 selected knacks，不存 retrieval diagnostics
+4. 只存最终结果，不存 tool trace
+5. 用滚动聊天摘要替代 L2 状态表
+```
+
+论文对齐：
+
+```
+Meta-Harness:
+- scores + summary 几乎不够
+- full traces 才是后续 harness 优化的关键原料
+
+GAM:
+- AOT static memory summary 有严重信息损失
+- 应保留完整 page-store / evidence store
+- 在线按需 JIT retrieve + integrate
+```
+
+硬规则：
+
+```
+summary can enter prompt, but summary must not be the only memory.
+```
+
+---
+
+### v0.39: Lessons / Knacks v0
+
+目标：只做最小 candidate knack 闭环，避免过早自动学习。
 
 Scope:
 
 ```
 - 新增 src/memory/lessons/
-- 新增 src/memory/strategy-genes/
+- 新增 src/memory/knacks/
 - Reflect Agent 可产出 lesson candidate
-- Bounded Breaker 在 lesson → gene 时运行
+- Bounded Breaker 在 lesson → knack 时运行
 - high-severity counterexample 阻止进入 prompt
-- candidate gene 默认不进 ToolGuard hard rule
+- candidate knack 默认不进 ToolGuard hard rule
 ```
 
 Acceptance:
 
 ```
 - 至少一条 signal 可变成 lesson candidate
-- lesson candidate 可变成 candidate gene
-- candidate gene 进入 prompt 前有 allowPromptInjection gate
-- hard tool rules 仍然写代码，不依赖 gene
+- lesson candidate 可变成 candidate knack
+- candidate knack 进入 prompt 前有 allowPromptInjection gate
+- hard tool rules 仍然写代码，不依赖 knack
 ```
 
 ---
@@ -449,7 +872,7 @@ AEvo Figure 3 显示：
 
 启发：不只检测"迷路"，也检测"plateau"。
 当连续 N 轮（N 待标定）没有可度量改善时，触发策略切换。
-v0.4 仅写 signal，v0.4x 可触发 Recovery Mode 或 strategy gene 切换。
+v0.4 仅写 signal，v0.4x 可触发 Recovery Mode 或 knack 切换。
 ```
 
 执行策略：
@@ -546,8 +969,8 @@ v0.4x 扩展（不在 v0.4 做）：
 
 ```
 runs/{runId}/prompt-snapshots.jsonl
-runs/{runId}/retrieved-genes.json
-runs/{runId}/selected-genes.json
+runs/{runId}/retrieved-knacks.json
+runs/{runId}/selected-knacks.json
 runs/{runId}/requirement-ledger.json
 runs/{runId}/current-task-spec.md
 runs/{runId}/lostness.json
@@ -1001,7 +1424,7 @@ L1 =
 + Hashline prompt.md
 + Current Task Spec
 + L2 working memory summary
-+ selected L3 strategy genes
++ selected L3 knacks
 + selected L0 artifact refs
 + recent raw turns
 + current user message
@@ -1073,13 +1496,13 @@ Scope:
 在 v0.4 MVP（events.jsonl + outcome.json）基础上增加：
 
 runs/{runId}/prompt-snapshots.jsonl   — 每轮实际发送给模型的 prompt 摘要
-runs/{runId}/retrieved-genes.json     — 被检索到的 strategy genes
-runs/{runId}/selected-genes.json      — 被注入 prompt 的 strategy genes
+runs/{runId}/retrieved-knacks.json     — 被检索到的 knacks
+runs/{runId}/selected-knacks.json      — 被注入 prompt 的 knacks
 runs/{runId}/requirement-ledger.json  — 任务结束时的 requirement ledger 快照
 runs/{runId}/current-task-spec.md     — 任务结束时的 task spec
 runs/{runId}/lostness.json            — lostness 事件和 score 序列
 runs/{runId}/restart-context.md       — 若触发 recovery，记录 restart context
-runs/{runId}/harness-snapshot.json    — ToolGuard rules / ContextBuilder config / active genes
+runs/{runId}/harness-snapshot.json    — ToolGuard rules / ContextBuilder config / active knacks
 ```
 
 Acceptance:
@@ -1092,7 +1515,7 @@ Acceptance:
 
 ---
 
-### v0.4x-C: Outcome-Credited Skills / Strategy Genes
+### v0.4x-C: Outcome-Credited Skills / Knacks
 
 目标：让 L3 不是静态经验库，而是带效果统计的策略库。
 
@@ -1108,7 +1531,7 @@ Skill1 核心机制：
 
 启发：
 1. SkillUsageEvent 需要 baseline variation
-2. 新 gene/lesson 升格应看 variation，不是只看一次 outcome
+2. 新 knack/lesson 升格应看 variation，不是只看一次 outcome
 3. utility 权重应渐进提升，不急于提高
 ```
 
@@ -1120,7 +1543,7 @@ type SkillUsageEvent = {
   taskId: string;
   runId: string;
   skillId: string;
-  skillType: "strategy_gene" | "doc_finding" | "preference";
+  skillType: "knack" | "doc_finding" | "preference";
   retrieved: boolean;
   selectedIntoPrompt: boolean;
   explicitlyFollowed: boolean;
@@ -1141,7 +1564,7 @@ Utility 权重渐进策略：
 v0.4x early:
   raw counts + baseline variation only
   不用 EMA
-  variation > 0 的 lesson 才能升格为 candidate gene
+  variation > 0 的 lesson 才能升格为 candidate knack
 
 v0.4x mid:
   样本数 >= 3 时 utilityRatio 轻权重 0.10-0.15
@@ -1155,9 +1578,9 @@ v0.4x late:
 Acceptance:
 
 ```
-- 能回答：某条 Strategy Gene 上次被召回后是否帮助任务成功
-- 多次失败的 gene 权重下降
-- 新 gene 升格需要 variation > 0（超过库均值）
+- 能回答：某条 Knack 上次被召回后是否帮助任务成功
+- 多次失败的 knack 权重下降
+- 新 knack 升格需要 variation > 0（超过库均值）
 ```
 
 ---
@@ -1219,6 +1642,35 @@ Acceptance:
 - 可以量化 Hashline stale rejection / recovery 比例
 ```
 
+### v0.4x-G: Memory Recall Eval Metrics
+
+```
+Memory Recall Eval Metrics:
+- relevant_knack_recalled
+- irrelevant_knack_injected
+- rejected_assumption_conflict_dropped
+- doc_finding_recalled_when_library_detected
+- preference_recalled_when_task_matches
+- recall_bundle_token_size
+- recall_precision@k
+- recall_hit_before_tool_error
+- recall_diagnostics_written
+```
+
+特别关注：
+
+```
+tool error 发生前，是否已经召回相关 knack。
+```
+
+例如：
+
+```
+- bash EMPTY_COMMAND 失败前是否召回 empty bash guard knack
+- hashline stale rejection 后是否召回 hashline recovery knack
+- user correction 后是否 drop 与 Task Ledger 冲突的 old knack
+```
+
 ---
 
 ## 5. v0.4x-late / v0.5: Resource Evolution
@@ -1227,7 +1679,7 @@ Acceptance:
 
 ```
 Autogenesis / AGP 对 student-agent 的启发：
-1. 把 prompt、tool、hook、memory、strategy gene、context policy、code_search backend 都视为可登记资源
+1. 把 prompt、tool、hook、memory、knack、context policy、code_search backend 都视为可登记资源
 2. 自进化不能直接修改系统，必须经过 Reflect → Select → Improve → Evaluate → Commit
 3. 每个可演化资源都需要 version、lineage、rollback target、safety invariants
 4. Commit 不是"写进去"，而是通过 eval 和安全检查后才接受
@@ -1292,7 +1744,7 @@ ContextBuilder policy:
   requiresEvalPass = true
   requiresCommitGate = true
 
-Strategy Gene candidate:
+Knack candidate:
   canReflect = true
   canSuggestChange = true
   canAutoApply = false
@@ -1337,7 +1789,7 @@ AEvo meta-agent hard rules:
 Agent 可编辑（meta-editing surface）:
   OK  ToolGuard rules
   OK  ContextBuilder config
-  OK  Strategy Genes
+  OK  Knacks
   OK  prompt template
   OK  session goal / notes
   OK  起草 eval case（需 human review 后冻结）
@@ -1428,6 +1880,62 @@ v0.5 ContextBuilder 方向：
 - 多工具检索（embedding + BM25 + direct access）比单工具更优
 ```
 
+v0.4 → v0.4x → v0.5 GAM 对齐路径：
+
+```
+v0.4:
+- Run Archive MVP = page-store MVP
+- L2 Working Memory = lightweight task state
+- Recall Router v0 = simple retrieval over L3/L0
+- ContextBuilder = template-based AOT assembly
+
+v0.4x:
+- Run Archive Full
+- memory recall eval
+- outcome credit
+- score-based lostness
+- better rerank
+
+v0.5:
+- GAM-style JIT ContextBuilder
+- Researcher over evidence store
+- 多工具检索：metadata + FTS + embedding + direct access
+- 强模型执行 JIT research，小模型不承担 Researcher
+```
+
+```
+GAM 方向不等于不要 summary。
+GAM 反对 summary-only memory，支持完整 page-store + JIT research。
+```
+
+### 5.6 Gliding Horse Alignment
+
+可借鉴：
+
+```
+- PDCA lifecycle：对应 XState task lifecycle
+- EventBus：对应 Run Archive events.jsonl / signal stream
+- 5W2H ontology：可作为 Task Ledger 字段灵感
+- layered memory：支持 L0/L2/L3 分层设计
+- graph / RDF 思路：作为 v0.5+ 方向，不进入 v0.4 blocker
+```
+
+不照搬：
+
+```
+- 不在 v0.4 引入 Oxigraph / RDF / JSON-LD
+- 不把 student-agent 改成多 agent OS
+- 不上 Rust runtime
+- 不把 KG 当 v0.4 基础依赖
+```
+
+落地决策：
+
+```
+v0.4 使用 TypeScript + JSONL / JSON file stores。
+v0.5 如果 Run Archive 和 memory recall 已经成熟，再评估 KG / RDF / JSON-LD。
+```
+
 ---
 
 ## 6. Source Alignment Table
@@ -1490,7 +1998,7 @@ v0.5 ContextBuilder 方向：
 | Requirement Ledger | Task Ledger | v0.4x 增强 | anti-lost 子结构 |
 | signals.jsonl | `src/memory/questions/` + tool/runtime events | 新增 event stream | signals 是事件流 |
 | lesson-candidates | `src/memory/candidates/` | 借鉴 | 新建 `src/memory/lessons/` |
-| Strategy Genes | 暂无 | 新增 | 新建 `src/memory/strategy-genes/` |
+| Knacks | 暂无 | 新增 | 新建 `src/memory/knacks/` |
 | skill-usage.jsonl | 无 | v0.4x 新增 | 包含 baseline/variation |
 | Run Archive | 暂无 | v0.4 新增 | `memory/runs/{runId}/` |
 | preferences | `src/memory/preferences/` | 保留 | 用户偏好和策略规则分开 |
@@ -1501,18 +2009,18 @@ v0.5 ContextBuilder 方向：
 
 | v0.4 概念 | 当前 src 对应物 | 关系 | 落地决策 |
 |---|---|---|---|
-| Bounded Breaker | `src/reflect/bounded-breaker.ts` | 复用并升级 | 对 Strategy Gene 从"记录器"升级为"软闸门" |
-| gene promotion | lesson → strategy gene | 新增更严格流程 | high-severity counterexample 阻止 prompt injection |
+| Bounded Breaker | `src/reflect/bounded-breaker.ts` | 复用并升级 | 对 Knack 从"记录器"升级为"软闸门" |
+| knack promotion | lesson → knack | 新增更严格流程 | high-severity counterexample 阻止 prompt injection |
 | variation gate | 无 | v0.4x 新增 | Skill1 启发：variation > 0 才可升格 |
 
-Gene Promotion Policy:
+Knack Promotion Policy:
 
 ```
 lesson candidate
 ↓
 Bounded Breaker review
 ↓
-candidate strategy gene
+candidate knack
   - knownFailureModes
   - doNotApplyWhen
   - confidenceReport
@@ -1522,7 +2030,7 @@ variation check (v0.4x): variation > 0
 ↓
 eval / repeated success / user confirmation
 ↓
-validated strategy gene
+validated knack
 ```
 
 ### 6.7 Turn Intake Alignment
@@ -1596,17 +2104,19 @@ Turn Intake temperature ≈ 0.
 ```
 1. TUI Stability (v0.33)
 2. Hashline Anchored Edit (v0.34)
-3. XState-aware Working Memory (v0.35)
+3. XState-aware Working Memory Storage (v0.35)
 4. ToolGuard Hook v0 (v0.36)
 5. Signal Pipeline v0 (v0.37)
-6. ContextBuilder v0 (v0.38)
-7. Lessons / Strategy Genes v0 (v0.39)
-8. Lostness v0 hard/soft triggers (v0.3A)
-9. Run Archive MVP (v0.3B)
-10. HarnessChange + eval (v0.3C)
-11. Eval Audit with ABA (v0.3C½) — 外部 CLI，不内置
-12. Component Ablation Eval (v0.3D)
-13. Integration Freeze (v0.3E)
+6. Lessons / Knacks v0 (v0.39)
+7. Memory Store / Memory RAG Contract (v0.38A)
+8. Recall Router v0 (v0.38B)
+9. ContextBuilder v0 (v0.38C)
+10. Lostness v0 hard/soft triggers (v0.3A)
+11. Run Archive MVP (v0.3B)
+12. HarnessChange + eval (v0.3C)
+13. Eval Audit with ABA (v0.3C½) — 外部 CLI，不内置
+14. Component Ablation Eval (v0.3D)
+15. Integration Freeze (v0.3E)
 ```
 
 ### P2: v0.4x 实现优先级
@@ -1699,6 +2209,15 @@ Turn Intake temperature ≈ 0.
   Plateau detection (AEvo: 跳出 flatten 的关键)
 ```
 
+Context Runtime 定位：
+
+```
+v0.4 的 Context Runtime 不是普通上下文压缩。
+它把当前任务状态作为 pinned context，把长期经验和证据作为 retrieved context，把完整日志和 artifact 作为 drill-down context。
+L1 每轮从 stores 重建，固定预算，不继承上一轮 prompt。
+L2 不走 RAG；L3/L0 通过 Recall Router 召回；summary 只进 prompt，不作为唯一记忆。
+```
+
 最终一句话：
 
 > **v0.4 的三根支柱是 Hashline（安全编辑）、Run Archive（可追溯）、HarnessChange（可验证）。
@@ -1749,6 +2268,11 @@ Turn Intake temperature ≈ 0.
 2. Semble
    https://github.com/MinishLab/semble
    MIT license, tree-sitter + Model2Vec + BM25 + RRF
+
+3. 流马 (Gliding Horse)
+   https://github.com/doiito/gliding_horse
+   启发：PDCA lifecycle, EventBus, 5W2H, layered memory, RDF/KG 方向
+   不照搬：Rust runtime, Oxigraph, RDF/JSON-LD, 多 agent OS
 ```
 
 ### Internal Documents

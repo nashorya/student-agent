@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ablation-signal-001",
+  "version": "v0.3D",
+  "component": "signal_pipeline",
+  "category": "regression",
+  "evalKind": "deterministic",
+  "target": "harness",
+  "construct": "marginal contribution of Signal Pipeline when other v0.4 ablation components are disabled",
+  "input": {
+    "description": "Run the shared ablation benchmark manifest with only Signal Pipeline enabled.",
+    "setup": [
+      "Load evals/ablation/benchmark-manifest.json",
+      "Use config signal_pipeline_only",
+      "Collect tool_error_count, user_correction_count, and lostness_trigger_count from protected events/outcomes"
+    ]
+  },
+  "expectedBehavior": "Signal Pipeline-only config exposes observability metrics without letting agent-authored text become provenance.",
+  "metrics": ["tool_error_count", "user_correction_count", "lostness_trigger_count", "trace_event_count"],
+  "passCondition": "manifest_valid == true AND config == 'signal_pipeline_only' AND metric_schema_valid == true",
+  "grader": { "type": "script", "path": "scripts/eval-ablation-runner.ts" },
+  "oracle": { "path": "evals/ablation/benchmark-manifest.json" },
+  "trialPolicy": { "trials": 1, "aggregation": "all_must_pass" },
+  "failureImplication": "Signal Pipeline observability cannot be isolated from other harness behavior.",
+  "relatedPaper": "Meta-Harness: trace-rich data is required for later harness optimization.",
+  "regressionRisk": ["Signal Pipeline may emit noisy signals that bias recall or inflate lostness metrics."],
+  "ablationGroup": "signal_pipeline_only"
+}

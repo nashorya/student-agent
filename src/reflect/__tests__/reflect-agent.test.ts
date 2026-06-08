@@ -8,6 +8,9 @@ import { PreferencesManager } from '../../memory/preferences/manager.js';
 import { WriteQueue } from '../../core/write-queue.js';
 import { BoundedBreaker } from '../bounded-breaker.js';
 import { BreakerLogManager } from '../breaker-log-manager.js';
+import { LessonsManager } from '../../memory/lessons/manager.js';
+import { appendSignal } from '../../memory/signals/index.js';
+import { KnacksManager } from '../../memory/knacks/index.js';
 
 /** 生成包含 N 个 hunk 的 diff */
 function makeDiff(filePath: string, hunks: string[]): string {
@@ -25,6 +28,8 @@ describe('ReflectAgent', () => {
     tmpDir = await mkdtemp(join(tmpdir(), 'reflect-test-'));
     PreferenceCandidatesManager.resetInstance();
     PreferencesManager.resetInstance();
+    LessonsManager.resetInstance();
+    KnacksManager.resetInstance();
     WriteQueue.resetInstance();
     candidatesMgr = PreferenceCandidatesManager.getInstance(tmpDir);
     preferencesMgr = PreferencesManager.getInstance(tmpDir);
@@ -34,6 +39,8 @@ describe('ReflectAgent', () => {
   afterEach(async () => {
     PreferenceCandidatesManager.resetInstance();
     PreferencesManager.resetInstance();
+    LessonsManager.resetInstance();
+    KnacksManager.resetInstance();
     WriteQueue.resetInstance();
     await rm(tmpDir, { recursive: true, force: true });
   });
@@ -325,5 +332,89 @@ describe('ReflectAgent', () => {
     // cleanup 返回统计信息
     expect(result.cleanupStats).toBeDefined();
     expect(typeof result.cleanupStats.discarded).toBe('number');
+  });
+
+  it('从 signal 流产出 lesson candidates', async () => {
+    const lessonsMgr = LessonsManager.getInstance(tmpDir);
+    await appendSignal({
+      id: 'sig_reflect_1',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'oldText must match exactly',
+      toolName: 'edit',
+      toolCallId: 'call_1',
+      evidenceRef: 'call_1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }, tmpDir);
+    agent = new ReflectAgent(
+      candidatesMgr,
+      preferencesMgr,
+      null,
+      undefined,
+      lessonsMgr,
+    );
+
+    const result = await agent.run({
+      taskId: 'task_lesson',
+      sessionRef: 'session_lesson',
+      taskDescription: '修复编辑失败',
+      gitDiff: '',
+      totalTaskCount: 50,
+    });
+
+    expect(result.lessonsExtracted).toBe(1);
+    const lessons = await lessonsMgr.getAll();
+    expect(lessons).toHaveLength(1);
+    expect(lessons[0]).toMatchObject({
+      sourceSignalId: 'sig_reflect_1',
+      lesson: 'Treat tool error as a retry pattern: oldText must match exactly',
+    });
+  });
+
+  it('重复 signal 会把 observed lesson 自动升格为 knack', async () => {
+    const lessonsMgr = LessonsManager.getInstance(tmpDir);
+    const knacksMgr = KnacksManager.getInstance(tmpDir);
+    await appendSignal({
+      id: 'sig_repeat_1',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'oldText must match exactly',
+      toolName: 'edit',
+      toolCallId: 'call_1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }, tmpDir);
+    await appendSignal({
+      id: 'sig_repeat_2',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'oldText must match exactly',
+      toolName: 'edit',
+      toolCallId: 'call_2',
+      createdAt: '2026-01-02T00:00:00.000Z',
+    }, tmpDir);
+    agent = new ReflectAgent(
+      candidatesMgr,
+      preferencesMgr,
+      null,
+      undefined,
+      lessonsMgr,
+      knacksMgr,
+    );
+
+    const result = await agent.run({
+      taskId: 'task_knack',
+      sessionRef: 'session_knack',
+      taskDescription: '修复重复编辑失败',
+      gitDiff: '',
+      totalTaskCount: 50,
+    });
+
+    expect(result.lessonsExtracted).toBe(2);
+    expect(result.knacksPromoted).toBe(2);
+    const lessons = await lessonsMgr.getAll();
+    expect(lessons.map((lesson) => lesson.status)).toEqual(['promoted', 'promoted']);
+    const knacks = await knacksMgr.getAll();
+    expect(knacks).toHaveLength(2);
+    expect(knacks.every((knack) => knack.id.startsWith('knack_'))).toBe(true);
   });
 });

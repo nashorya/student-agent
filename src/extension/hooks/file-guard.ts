@@ -13,6 +13,7 @@
  */
 
 import type { PreToolCallContext, PreToolCallDecision } from '../../core/pi-bridge/types.js';
+import { emitProtectedEvent } from '../../core/hashline/index.js';
 
 export interface FileGuardOptions {
   planningMaxReads?: number;
@@ -48,7 +49,14 @@ export function createFileGuardHook(_abortRef: { abort: () => void }, options: F
   let mode: 'planning' | 'normal' = 'normal';
   let recentTools: string[] = [];
 
-  function block(reason: string): PreToolCallDecision {
+  function block(reason: string, path?: string | null): PreToolCallDecision {
+    emitProtectedEvent({
+      source: 'signal',
+      type: 'fileguard_block',
+      path: path ?? undefined,
+      blocked: true,
+      provenance: { reason },
+    });
     return { block: true, reason };
   }
 
@@ -67,6 +75,7 @@ export function createFileGuardHook(_abortRef: { abort: () => void }, options: F
       return block(
         '[FileGuard] pi-mono/ 是只读参考包，不要直接读取其文件。' +
         '通过 import 使用其导出 API，如需了解能力请查阅 pi-mono/packages/coding-agent/README.md。',
+        extractFirstPath(ctx.args) ?? 'pi-mono',
       );
     }
 
@@ -77,6 +86,7 @@ export function createFileGuardHook(_abortRef: { abort: () => void }, options: F
         return block(
           '[FileGuard] 禁止列举项目根目录，那里有数千个文件会撑满上下文。' +
           '请指定具体子目录，例如 src/core/ 或 src/tui/。',
+          path,
         );
       }
     }
@@ -86,6 +96,7 @@ export function createFileGuardHook(_abortRef: { abort: () => void }, options: F
       return block(
         '[FileGuard] glob 模式过于宽泛，会扫描数千文件。' +
         '请加上具体目录前缀，例如用 src/core/**/*.ts 而非 **/*.ts。',
+        extractFirstPath(ctx.args),
       );
     }
 
@@ -97,11 +108,13 @@ export function createFileGuardHook(_abortRef: { abort: () => void }, options: F
           return block(
             `[FileGuard] 规划阶段最近 ${limits.readWindow} 次工具调用中已读取 ${readCount} 个文件（上限 ${maxReads}）。` +
             '规划只需查看 CLAUDE.md，请直接输出 TASK_START 计划，不要再读文件。',
+            extractFirstPath(ctx.args),
           );
         }
         return block(
           `[FileGuard] 最近 ${limits.readWindow} 次工具调用中已读取 ${readCount} 个文件，超出上限 ${maxReads}。` +
           '停止 read。正确做法：grep "关键词" src/ 定位文件，再只 read 命中的那个文件。',
+          extractFirstPath(ctx.args),
         );
       }
     }

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ablation-contextbuilder-001",
+  "version": "v0.3D",
+  "component": "contextbuilder",
+  "category": "regression",
+  "evalKind": "deterministic",
+  "target": "harness",
+  "construct": "marginal contribution of ContextBuilder when other v0.4 ablation components are disabled",
+  "input": {
+    "description": "Run the shared ablation benchmark manifest with only ContextBuilder enabled.",
+    "setup": [
+      "Load evals/ablation/benchmark-manifest.json",
+      "Use config contextbuilder_only",
+      "Collect context-related metrics; unavailable prompt token metrics remain blocked_for_trace_grader"
+    ]
+  },
+  "expectedBehavior": "ContextBuilder-only config is represented through dependency injection and metrics identify whether context behavior can be measured from protected sources.",
+  "metrics": ["task_success_rate", "verified_pass_rate", "estimated_prompt_tokens", "lostness_trigger_count"],
+  "passCondition": "manifest_valid == true AND config == 'contextbuilder_only' AND metric_schema_valid == true",
+  "grader": { "type": "script", "path": "scripts/eval-ablation-runner.ts" },
+  "oracle": { "path": "evals/ablation/benchmark-manifest.json" },
+  "trialPolicy": { "trials": 1, "aggregation": "all_must_pass" },
+  "failureImplication": "ContextBuilder contribution may be evaluated from summary-only data, which violates the eval guide.",
+  "relatedPaper": "Meta-Harness: full traces are more useful than scores-only or summary-only results.",
+  "regressionRisk": ["ContextBuilder may omit required task context under token budget."],
+  "ablationGroup": "contextbuilder_only"
+}

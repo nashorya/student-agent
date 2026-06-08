@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Eval 可视化面板</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">student-agent</p>
+          <h1>Eval 可视化面板</h1>
+        </div>
+        <div class="topbar-actions">
+          <span id="generatedAt" class="timestamp">报告未加载</span>
+          <button id="reloadButton" type="button" class="ghost-button" title="重新加载最新报告">刷新</button>
+        </div>
+      </header>
+
+      <section id="emptyState" class="notice hidden" aria-live="polite"></section>
+
+      <section id="summaryGrid" class="summary-grid" aria-label="Eval summary"></section>
+
+      <section class="workspace-grid">
+        <section class="panel result-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">最新</p>
+              <h2>测试结果</h2>
+            </div>
+          </div>
+          <div id="resultsView" class="stack"></div>
+        </section>
+
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">覆盖范围</p>
+              <h2>Eval 目录</h2>
+            </div>
+          </div>
+          <div id="catalogView" class="catalog"></div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

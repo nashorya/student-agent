@@ -15,6 +15,10 @@ import type { ExtractedPattern } from './pattern-rules.js';
 import { BoundedBreaker } from './bounded-breaker.js';
 import { logger } from '../tui/logger.js';
 import { BreakerLogManager } from './breaker-log-manager.js';
+import { LessonsManager } from '../memory/lessons/index.js';
+import { KnacksManager } from '../memory/knacks/index.js';
+import type { LessonCandidate } from '../memory/lessons/index.js';
+import type { SignalKind } from '../memory/signals/index.js';
 
 export interface ReflectInput {
   taskId: string;
@@ -28,6 +32,8 @@ export interface ReflectInput {
 
 export interface ReflectResult {
   patternsExtracted: number;
+  lessonsExtracted: number;
+  knacksPromoted: number;
   candidatesUpdated: number;
   promoted: string[];
   cleanupStats: { discarded: number; archived: number; deleted: number };
@@ -39,12 +45,16 @@ export class ReflectAgent {
     private readonly preferencesManager: PreferencesManager,
     private readonly boundedBreaker: BoundedBreaker | null = new BoundedBreaker(),
     private readonly breakerLogManager?: BreakerLogManager,
+    private readonly lessonsManager?: LessonsManager,
+    private readonly knacksManager?: KnacksManager,
   ) {}
 
   /** 主入口：会话结束后调用 */
   async run(input: ReflectInput): Promise<ReflectResult> {
     const result: ReflectResult = {
       patternsExtracted: 0,
+      lessonsExtracted: 0,
+      knacksPromoted: 0,
       candidatesUpdated: 0,
       promoted: [],
       cleanupStats: { discarded: 0, archived: 0, deleted: 0 },
@@ -61,12 +71,27 @@ export class ReflectAgent {
       await this.observePatterns(patterns, input);
       result.candidatesUpdated = patterns.length;
 
-      // 3. 升级判定
+      // 3. 从 signal 流观察 lesson candidates
+      if (this.lessonsManager) {
+        const lessons = await this.lessonsManager.observeRecentSignals({
+          taskId: input.taskId,
+          sessionRef: input.sessionRef,
+          limit: 20,
+        });
+        result.lessonsExtracted = lessons.length;
+      }
+
+      // 4. 将重复出现的 lesson candidate 升格为 knack
+      if (this.lessonsManager && this.knacksManager) {
+        result.knacksPromoted = await this.tryPromoteLessonsToKnacks(input);
+      }
+
+      // 5. 升级判定
       this.boundedBreaker?.resetBudget();
       const promoted = await this.tryPromoteEligible(input.totalTaskCount, input);
       result.promoted = promoted;
 
-      // 4. 清理
+      // 6. 清理
       result.cleanupStats = await this.candidatesManager.cleanup();
     } catch (err) {
       console.error(
@@ -76,6 +101,44 @@ export class ReflectAgent {
     }
 
     return result;
+  }
+
+  private async tryPromoteLessonsToKnacks(input: ReflectInput): Promise<number> {
+    if (!this.lessonsManager || !this.knacksManager) return 0;
+
+    this.boundedBreaker?.resetBudget();
+    const signalKindCounts = new Map<SignalKind, number>();
+    const lessons = await this.lessonsManager.getAll();
+    for (const lesson of lessons) {
+      for (const kind of lesson.trigger.signalKinds) {
+        signalKindCounts.set(kind, (signalKindCounts.get(kind) ?? 0) + 1);
+      }
+    }
+
+    let promotedCount = 0;
+    for (const lesson of lessons) {
+      if (!this.isLessonEligibleForKnackPromotion(lesson, signalKindCounts)) continue;
+
+      await this.knacksManager.promoteLessonCandidate(lesson, {
+        breaker: this.boundedBreaker ?? undefined,
+        totalTaskCount: input.totalTaskCount,
+      });
+      await this.lessonsManager.updateStatus(lesson.id, 'promoted');
+      promotedCount++;
+    }
+
+    return promotedCount;
+  }
+
+  private isLessonEligibleForKnackPromotion(
+    lesson: LessonCandidate,
+    signalKindCounts: Map<SignalKind, number>,
+  ): boolean {
+    if (lesson.status !== 'observed') return false;
+    if ((lesson.counterexamples ?? []).some((counterexample) => counterexample.severity === 'high')) {
+      return false;
+    }
+    return lesson.trigger.signalKinds.some((kind) => (signalKindCounts.get(kind) ?? 0) >= 2);
   }
 
   /** 将提取的模式写入候选池 */

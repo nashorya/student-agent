@@ -21,22 +21,81 @@ export type TaskWorkflowStatus =
   | 'completed'
   | 'cancelled';
 
+export type WorkingMemoryPhase = 'planning' | 'executing' | 'verifying' | 'reflecting';
+export type WorkingMemoryTodoStatus = 'pending' | 'in_progress' | 'done' | 'blocked';
+export type WorkingMemoryWriteTool = 'hashline_edit' | 'write_file' | 'format' | 'other';
+export type WorkingMemoryErrorSource = 'tool' | 'toolguard' | 'hashline' | 'fileguard' | 'runtime';
+export type WorkingMemorySignalSeverity = 'low' | 'medium' | 'high';
+
+export interface TaskWorkingMemoryTodo {
+  id: string;
+  content: string;
+  status: WorkingMemoryTodoStatus;
+  evidenceRefs?: string[];
+  updatedAt: string;
+}
+
+export interface TaskWorkingMemoryReadRange {
+  startLine: number;
+  endLine: number;
+  summary: string;
+  hashlineTag?: string;
+  readAt: string;
+}
+
+export interface TaskWorkingMemoryReadFile {
+  path: string;
+  ranges: TaskWorkingMemoryReadRange[];
+  lastReadAt: string;
+  lastKnownHash?: string;
+}
+
+export interface TaskWorkingMemoryWriteFile {
+  path: string;
+  tool: WorkingMemoryWriteTool;
+  summary: string;
+  checkpointId?: string;
+  writtenAt: string;
+}
+
+export interface TaskWorkingMemoryRecentError {
+  id: string;
+  source: WorkingMemoryErrorSource;
+  pattern: string;
+  summary: string;
+  recoveryHint?: string;
+  evidenceRef?: string;
+  createdAt: string;
+}
+
+export interface TaskWorkingMemoryRecentSignal {
+  id: string;
+  kind: string;
+  summary: string;
+  severity: WorkingMemorySignalSeverity;
+  evidenceRef?: string;
+  createdAt: string;
+}
+
+export interface TaskWorkingMemoryArtifactRef {
+  id: string;
+  kind: string;
+  summary: string;
+}
+
 export interface TaskWorkingMemory {
+  taskId: string;
+  runId: string;
   goal: string;
-  acceptance_criteria: string[];
-  constraints: string[];
-  user_preferences: string[];
-  project_facts: string[];
-  open_questions: string[];
-  decisions: string[];
-  verification_results: string[];
-  changed_files: string[];
-  /** Files the agent has read during this task (deduplicated paths). */
-  read_files: string[];
-  /** Files the agent has written/edited during this task (deduplicated paths). */
-  written_files: string[];
-  /** Recent errors encountered during this task (capped at 10, newest last). */
-  recent_errors: string[];
+  phase: WorkingMemoryPhase;
+  currentStep: string;
+  todos: TaskWorkingMemoryTodo[];
+  readFiles: TaskWorkingMemoryReadFile[];
+  writeFiles: TaskWorkingMemoryWriteFile[];
+  recentErrors: TaskWorkingMemoryRecentError[];
+  recentSignals: TaskWorkingMemoryRecentSignal[];
+  artifactRefs: TaskWorkingMemoryArtifactRef[];
+  updatedAt: string;
 }
 
 export type TaskVerificationStatus = 'passed' | 'failed' | 'skipped' | 'unknown';
@@ -86,7 +145,7 @@ export interface TasksFile {
 export interface CreateTaskOptions {
   level?: TaskLevel;
   workflowStatus?: TaskWorkflowStatus;
-  workingMemory?: Partial<TaskWorkingMemory>;
+  workingMemory?: Partial<TaskWorkingMemory> | Record<string, unknown>;
   requiresUserAcceptance?: boolean;
   requiresVisualReview?: boolean;
 }

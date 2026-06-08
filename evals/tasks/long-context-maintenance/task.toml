@@ -1,0 +1,6 @@
+id = "long-context-maintenance"
+title = "长上下文订阅计费维护"
+mode = "task"
+tags = ["task", "phase", "typescript", "multi-file", "long-context", "billing"]
+timeout_seconds = 420
+expected_files = ["src/billing.ts", "src/report.ts", "src/main.ts", "docs/ops-checklist.md"]

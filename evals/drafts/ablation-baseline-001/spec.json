@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ablation-baseline-001",
+  "version": "v0.3D",
+  "component": "component_ablation",
+  "category": "regression",
+  "evalKind": "deterministic",
+  "target": "harness",
+  "construct": "baseline harness behavior without v0.4 ablation components enabled",
+  "input": {
+    "description": "Run the shared ablation benchmark manifest with ToolGuard, ContextBuilder, Signal Pipeline, and Hashline disabled.",
+    "setup": [
+      "Load evals/ablation/benchmark-manifest.json",
+      "Use config baseline",
+      "Do not run agentic trials in the first milestone; validate manifest and metric extraction shape"
+    ]
+  },
+  "expectedBehavior": "The runner can construct the baseline configuration and produce comparable metric placeholders without relying on agent-authored summaries.",
+  "metrics": ["task_success_rate", "verified_pass_rate", "tool_error_count", "trace_event_count"],
+  "passCondition": "manifest_valid == true AND config == 'baseline' AND metric_schema_valid == true",
+  "grader": { "type": "script", "path": "scripts/eval-ablation-runner.ts" },
+  "oracle": { "path": "evals/ablation/benchmark-manifest.json" },
+  "trialPolicy": { "trials": 1, "aggregation": "all_must_pass" },
+  "failureImplication": "Ablation comparison has no trustworthy baseline.",
+  "relatedPaper": "AHE: component effects can be non-additive, so baseline must be preserved.",
+  "regressionRisk": ["Baseline accidentally includes a v0.4 component and invalidates deltas."],
+  "ablationGroup": "baseline"
+}

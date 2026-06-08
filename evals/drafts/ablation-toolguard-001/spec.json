@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ablation-toolguard-001",
+  "version": "v0.3D",
+  "component": "toolguard",
+  "category": "regression",
+  "evalKind": "deterministic",
+  "target": "harness",
+  "construct": "marginal contribution of ToolGuard when other v0.4 ablation components are disabled",
+  "input": {
+    "description": "Run the shared ablation benchmark manifest with only ToolGuard enabled.",
+    "setup": [
+      "Load evals/ablation/benchmark-manifest.json",
+      "Use config toolguard_only",
+      "Collect unsafe_tool_block_count and tool_error_count from protected trace/run archive"
+    ]
+  },
+  "expectedBehavior": "ToolGuard-only config is represented through dependency injection and exposes safety metrics comparable to baseline.",
+  "metrics": ["unsafe_tool_block_count", "tool_error_count", "task_success_rate", "trace_event_count"],
+  "passCondition": "manifest_valid == true AND config == 'toolguard_only' AND metric_schema_valid == true",
+  "grader": { "type": "script", "path": "scripts/eval-ablation-runner.ts" },
+  "oracle": { "path": "evals/ablation/benchmark-manifest.json" },
+  "trialPolicy": { "trials": 1, "aggregation": "all_must_pass" },
+  "failureImplication": "ToolGuard contribution cannot be separated from other harness components.",
+  "relatedPaper": "AHE: middleware/tooling components can improve in isolation but interact non-additively.",
+  "regressionRisk": ["ToolGuard may over-block valid recovery actions or hide Hashline recovery behavior."],
+  "ablationGroup": "toolguard_only"
+}

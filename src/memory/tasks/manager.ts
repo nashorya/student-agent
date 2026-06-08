@@ -11,6 +11,17 @@ import type {
   TaskVerificationResult,
   TaskWorkflowStatus,
   TaskWorkingMemory,
+  TaskWorkingMemoryArtifactRef,
+  TaskWorkingMemoryReadFile,
+  TaskWorkingMemoryRecentError,
+  TaskWorkingMemoryRecentSignal,
+  TaskWorkingMemoryTodo,
+  TaskWorkingMemoryWriteFile,
+  WorkingMemoryErrorSource,
+  WorkingMemoryPhase,
+  WorkingMemorySignalSeverity,
+  WorkingMemoryTodoStatus,
+  WorkingMemoryWriteTool,
 } from './types.js';
 import {
   createWorkflowActor,
@@ -48,9 +59,16 @@ export class TasksManager {
 
   async createTask(name: string, phaseDescriptions: string[], options: CreateTaskOptions = {}): Promise<Task> {
     const now = new Date().toISOString();
-    const workingMemory = normalizeWorkingMemory(options.workingMemory);
+    const taskId = `task_${Date.now()}`;
+    const workflowStatus = options.workflowStatus ?? 'awaiting_plan_approval';
+    const workingMemory = normalizeWorkingMemory(options.workingMemory, {
+      taskId,
+      workflowStatus,
+      currentStep: phaseDescriptions[0] ?? '',
+      now,
+    });
     const task: Task = {
-      id: `task_${Date.now()}`,
+      id: taskId,
       name,
       active_phase_index: 0,
       phases: phaseDescriptions.map((desc, i) => ({
@@ -62,7 +80,7 @@ export class TasksManager {
         created_at: now,
       } satisfies TaskPhase)),
       status: 'active',
-      workflow_status: options.workflowStatus ?? 'awaiting_plan_approval',
+      workflow_status: workflowStatus,
       level: options.level ?? 3,
       working_memory: workingMemory,
       requires_user_acceptance: options.requiresUserAcceptance ?? false,
@@ -165,7 +183,7 @@ export class TasksManager {
     });
   }
 
-  async updateWorkingMemory(taskId: string, patch: Partial<TaskWorkingMemory>): Promise<void> {
+  async updateWorkingMemory(taskId: string, patch: Partial<TaskWorkingMemory> | Record<string, unknown>): Promise<void> {
     await this._write(async (file) => {
       const task = file.tasks.find((t) => t.id === taskId);
       if (!task) return;
@@ -174,15 +192,35 @@ export class TasksManager {
   }
 
   async trackFileRead(taskId: string, filePath: string): Promise<void> {
-    await this.updateWorkingMemory(taskId, { read_files: [filePath] });
+    const now = new Date().toISOString();
+    await this.updateWorkingMemory(taskId, {
+      readFiles: [{ path: filePath, ranges: [], lastReadAt: now }],
+    });
   }
 
   async trackFileWrite(taskId: string, filePath: string): Promise<void> {
-    await this.updateWorkingMemory(taskId, { written_files: [filePath] });
+    const now = new Date().toISOString();
+    await this.updateWorkingMemory(taskId, {
+      writeFiles: [{
+        path: filePath,
+        tool: 'hashline_edit',
+        summary: `Edited ${filePath}`,
+        writtenAt: now,
+      }],
+    });
   }
 
   async trackError(taskId: string, error: string): Promise<void> {
-    await this.updateWorkingMemory(taskId, { recent_errors: [error] });
+    const now = new Date().toISOString();
+    await this.updateWorkingMemory(taskId, {
+      recentErrors: [{
+        id: makeMemoryId('err', error, now),
+        source: 'runtime',
+        pattern: error,
+        summary: error,
+        createdAt: now,
+      }],
+    });
   }
 
   async recordVerification(taskId: string, result: Omit<TaskVerificationResult, 'created_at'> & { created_at?: string }): Promise<void> {
@@ -195,7 +233,11 @@ export class TasksManager {
       };
       task.verification_results.push(verification);
       task.working_memory = mergeWorkingMemory(task.working_memory, {
-        verification_results: [`${verification.status}: ${verification.summary}`],
+        artifactRefs: [{
+          id: makeMemoryId('artifact', `${verification.status}:${verification.summary}`, verification.created_at),
+          kind: 'verification_result',
+          summary: `${verification.status}: ${verification.summary}`,
+        }],
       });
     });
   }
@@ -216,7 +258,11 @@ export class TasksManager {
       task.accepted_at = new Date().toISOString();
       if (reason) {
         task.working_memory = mergeWorkingMemory(task.working_memory, {
-          decisions: [`Accepted: ${reason}`],
+          artifactRefs: [{
+            id: makeMemoryId('artifact', `Accepted:${reason}`, task.accepted_at),
+            kind: 'decision',
+            summary: `Accepted: ${reason}`,
+          }],
         });
       }
     });
@@ -243,7 +289,13 @@ export class TasksManager {
         phase.blocked_reason = diagnostic;
       }
       task.working_memory = mergeWorkingMemory(task.working_memory, {
-        open_questions: diagnostic ? [diagnostic] : [],
+        recentSignals: diagnostic ? [{
+          id: makeMemoryId('signal', diagnostic, new Date().toISOString()),
+          kind: 'open_question',
+          summary: diagnostic,
+          severity: 'high',
+          createdAt: new Date().toISOString(),
+        }] : [],
       });
     });
   }
@@ -360,7 +412,11 @@ function completeTaskInFile(file: TasksFile, task: Task, reason: string): void {
   task.completed_at = now;
   if (reason) {
     task.working_memory = mergeWorkingMemory(task.working_memory, {
-      decisions: [`Completed: ${reason}`],
+      artifactRefs: [{
+        id: makeMemoryId('artifact', `Completed:${reason}`, now),
+        kind: 'decision',
+        summary: `Completed: ${reason}`,
+      }],
     });
   }
   if (file.active_task_id === task.id) {
@@ -378,20 +434,27 @@ function normalizeTasksFile(value: unknown): TasksFile {
 }
 
 function normalizeTask(value: unknown): Task {
-  const record = isRecord(value) ? value : {};
+  const record: Record<string, unknown> = isRecord(value) ? value : {};
   const phases = Array.isArray(record.phases)
     ? record.phases.map((phase, index) => normalizePhase(phase, index))
     : [];
   const status = normalizeTaskStatus(record.status);
+  const id = typeof record.id === 'string' ? record.id : `task_${Date.now()}`;
+  const workflowStatus = normalizeWorkflowStatus(record.workflow_status, status);
+  const activePhaseIndex = typeof record.active_phase_index === 'number' ? record.active_phase_index : 0;
   return {
-    id: typeof record.id === 'string' ? record.id : `task_${Date.now()}`,
+    id,
     name: typeof record.name === 'string' ? record.name : 'Untitled task',
-    active_phase_index: typeof record.active_phase_index === 'number' ? record.active_phase_index : 0,
+    active_phase_index: activePhaseIndex,
     phases,
     status,
-    workflow_status: normalizeWorkflowStatus(record.workflow_status, status),
+    workflow_status: workflowStatus,
     level: normalizeLevel(record.level),
-    working_memory: normalizeWorkingMemory(isRecord(record.working_memory) ? record.working_memory : undefined),
+    working_memory: normalizeWorkingMemory(isRecord(record.working_memory) ? record.working_memory : undefined, {
+      taskId: id,
+      workflowStatus,
+      currentStep: phases[activePhaseIndex]?.description ?? '',
+    }),
     requires_user_acceptance: record.requires_user_acceptance === true,
     requires_visual_review: record.requires_visual_review === true,
     verification_results: Array.isArray(record.verification_results)
@@ -404,7 +467,7 @@ function normalizeTask(value: unknown): Task {
 }
 
 function normalizePhase(value: unknown, index: number): TaskPhase {
-  const record = isRecord(value) ? value : {};
+  const record: Record<string, unknown> = isRecord(value) ? value : {};
   const status = normalizePhaseStatus(record.status, index);
   return {
     id: typeof record.id === 'string' ? record.id : `phase_${Date.now()}_${index}`,
@@ -486,50 +549,338 @@ function normalizeVerificationStatus(value: unknown): TaskVerificationResult['st
   return value === 'passed' || value === 'failed' || value === 'skipped' || value === 'unknown' ? value : 'unknown';
 }
 
-function normalizeWorkingMemory(value?: Partial<TaskWorkingMemory> | Record<string, unknown>): TaskWorkingMemory {
-  return {
-    goal: typeof value?.goal === 'string' ? value.goal : '',
-    acceptance_criteria: normalizeStringArray(value?.acceptance_criteria),
-    constraints: normalizeStringArray(value?.constraints),
-    user_preferences: normalizeStringArray(value?.user_preferences),
-    project_facts: normalizeStringArray(value?.project_facts),
-    open_questions: normalizeStringArray(value?.open_questions),
-    decisions: normalizeStringArray(value?.decisions),
-    verification_results: normalizeStringArray(value?.verification_results),
-    changed_files: normalizeStringArray(value?.changed_files),
-    read_files: normalizeStringArray(value?.read_files),
-    written_files: normalizeStringArray(value?.written_files),
-    recent_errors: normalizeStringArray(value?.recent_errors),
-  };
+interface WorkingMemoryNormalizeMeta {
+  taskId: string;
+  workflowStatus?: TaskWorkflowStatus;
+  currentStep?: string;
+  now?: string;
 }
 
-function mergeWorkingMemory(current: TaskWorkingMemory, patch: Partial<TaskWorkingMemory>): TaskWorkingMemory {
+const WORKING_MEMORY_LIMITS = {
+  todos: 8,
+  readFiles: 12,
+  writeFiles: 12,
+  recentErrors: 5,
+  recentSignals: 5,
+  artifactRefs: 10,
+};
+
+function normalizeWorkingMemory(
+  value: Partial<TaskWorkingMemory> | Record<string, unknown> | undefined,
+  meta: WorkingMemoryNormalizeMeta,
+): TaskWorkingMemory {
+  const record: Record<string, unknown> = isRecord(value) ? value : {};
+  const now = meta.now ?? new Date().toISOString();
+  const phase = normalizeWorkingMemoryPhase(record.phase)
+    ?? workflowStatusToWorkingMemoryPhase(meta.workflowStatus)
+    ?? 'executing';
+
   return {
-    goal: patch.goal ?? current.goal,
-    acceptance_criteria: mergeUnique(current.acceptance_criteria, patch.acceptance_criteria),
-    constraints: mergeUnique(current.constraints, patch.constraints),
-    user_preferences: mergeUnique(current.user_preferences, patch.user_preferences),
-    project_facts: mergeUnique(current.project_facts, patch.project_facts),
-    open_questions: mergeUnique(current.open_questions, patch.open_questions),
-    decisions: mergeUnique(current.decisions, patch.decisions),
-    verification_results: mergeUnique(current.verification_results, patch.verification_results),
-    changed_files: mergeUnique(current.changed_files, patch.changed_files),
-    read_files: mergeUnique(current.read_files, patch.read_files),
-    written_files: mergeUnique(current.written_files, patch.written_files),
-    recent_errors: capArray(
-      [...current.recent_errors, ...(patch.recent_errors ?? [])].filter(Boolean),
-      10,
+    taskId: typeof record.taskId === 'string' ? record.taskId : meta.taskId,
+    runId: typeof record.runId === 'string' ? record.runId : `run_${Date.now()}`,
+    goal: typeof record.goal === 'string' ? record.goal : '',
+    phase,
+    currentStep: typeof record.currentStep === 'string' ? record.currentStep : meta.currentStep ?? '',
+    todos: capArray(normalizeTodos(record.todos, now), WORKING_MEMORY_LIMITS.todos),
+    readFiles: capArray(
+      mergeReadFiles([], [
+        ...normalizeReadFiles(record.readFiles, now),
+        ...normalizeLegacyReadFiles(record['read_files'], now),
+      ]),
+      WORKING_MEMORY_LIMITS.readFiles,
     ),
+    writeFiles: capArray(
+      mergeWriteFiles([], [
+        ...normalizeWriteFiles(record.writeFiles, now),
+        ...normalizeLegacyWriteFiles(record['written_files'], now),
+      ]),
+      WORKING_MEMORY_LIMITS.writeFiles,
+    ),
+    recentErrors: capArray(
+      [
+        ...normalizeRecentErrors(record.recentErrors, now),
+        ...normalizeLegacyErrors(record['recent_errors'], now),
+      ],
+      WORKING_MEMORY_LIMITS.recentErrors,
+    ),
+    recentSignals: capArray(normalizeRecentSignals(record.recentSignals, now), WORKING_MEMORY_LIMITS.recentSignals),
+    artifactRefs: capArray(
+      mergeById([
+        ...normalizeArtifactRefs(record.artifactRefs),
+        ...legacyArtifactRefs(record),
+      ]),
+      WORKING_MEMORY_LIMITS.artifactRefs,
+    ),
+    updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : now,
   };
 }
 
-function capArray(arr: string[], max: number): string[] {
+function mergeWorkingMemory(
+  current: TaskWorkingMemory,
+  patch: Partial<TaskWorkingMemory> | Record<string, unknown>,
+): TaskWorkingMemory {
+  const patchRecord = isRecord(patch) ? patch : {};
+  const now = new Date().toISOString();
+  const normalizedPatch = normalizeWorkingMemory(patchRecord, {
+    taskId: current.taskId,
+    currentStep: current.currentStep,
+    now,
+  });
+
+  return {
+    taskId: typeof patchRecord.taskId === 'string' ? patchRecord.taskId : current.taskId,
+    runId: typeof patchRecord.runId === 'string' ? patchRecord.runId : current.runId,
+    goal: typeof patchRecord.goal === 'string' ? patchRecord.goal : current.goal,
+    phase: normalizeWorkingMemoryPhase(patchRecord.phase) ?? current.phase,
+    currentStep: typeof patchRecord.currentStep === 'string' ? patchRecord.currentStep : current.currentStep,
+    todos: capArray(mergeTodos(current.todos, normalizedPatch.todos), WORKING_MEMORY_LIMITS.todos),
+    readFiles: capArray(mergeReadFiles(current.readFiles, normalizedPatch.readFiles), WORKING_MEMORY_LIMITS.readFiles),
+    writeFiles: capArray(mergeWriteFiles(current.writeFiles, normalizedPatch.writeFiles), WORKING_MEMORY_LIMITS.writeFiles),
+    recentErrors: capArray([...current.recentErrors, ...normalizedPatch.recentErrors], WORKING_MEMORY_LIMITS.recentErrors),
+    recentSignals: capArray([...current.recentSignals, ...normalizedPatch.recentSignals], WORKING_MEMORY_LIMITS.recentSignals),
+    artifactRefs: capArray(mergeById([...current.artifactRefs, ...normalizedPatch.artifactRefs]), WORKING_MEMORY_LIMITS.artifactRefs),
+    updatedAt: now,
+  };
+}
+
+function capArray<T>(arr: T[], max: number): T[] {
   return arr.length > max ? arr.slice(arr.length - max) : arr;
 }
 
-function mergeUnique(current: string[], next?: string[]): string[] {
-  if (!next || next.length === 0) return current;
-  return [...new Set([...current, ...next.filter(Boolean)])];
+function normalizeWorkingMemoryPhase(value: unknown): WorkingMemoryPhase | null {
+  return value === 'planning' || value === 'executing' || value === 'verifying' || value === 'reflecting'
+    ? value
+    : null;
+}
+
+function workflowStatusToWorkingMemoryPhase(status: TaskWorkflowStatus | undefined): WorkingMemoryPhase | null {
+  if (!status) return null;
+  if (status === 'planning' || status === 'awaiting_plan_approval' || status === 'clarifying' || status === 'intake') {
+    return 'planning';
+  }
+  if (status === 'technical_verification' || status === 'visual_review' || status === 'user_review' || status === 'accepted') {
+    return 'verifying';
+  }
+  if (status === 'completed' || status === 'cancelled') {
+    return 'reflecting';
+  }
+  return 'executing';
+}
+
+function normalizeTodos(value: unknown, now: string): TaskWorkingMemoryTodo[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item, index) => {
+    if (!isRecord(item)) return [];
+    const content = typeof item.content === 'string' ? item.content : '';
+    if (!content) return [];
+    return [{
+      id: typeof item.id === 'string' ? item.id : makeMemoryId('todo', content, `${now}_${index}`),
+      content,
+      status: normalizeTodoStatus(item.status),
+      evidenceRefs: normalizeStringArray(item.evidenceRefs),
+      updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : now,
+    }];
+  });
+}
+
+function normalizeTodoStatus(value: unknown): WorkingMemoryTodoStatus {
+  return value === 'pending' || value === 'in_progress' || value === 'done' || value === 'blocked'
+    ? value
+    : 'pending';
+}
+
+function normalizeReadFiles(value: unknown, now: string): TaskWorkingMemoryReadFile[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const path = typeof item.path === 'string' ? item.path : '';
+    if (!path) return [];
+    return [{
+      path,
+      ranges: normalizeReadRanges(item.ranges, now),
+      lastReadAt: typeof item.lastReadAt === 'string' ? item.lastReadAt : now,
+      lastKnownHash: typeof item.lastKnownHash === 'string' ? item.lastKnownHash : undefined,
+    }];
+  });
+}
+
+function normalizeReadRanges(value: unknown, now: string): TaskWorkingMemoryReadFile['ranges'] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const startLine = typeof item.startLine === 'number' ? item.startLine : 0;
+    const endLine = typeof item.endLine === 'number' ? item.endLine : 0;
+    const summary = typeof item.summary === 'string' ? item.summary : '';
+    return [{
+      startLine,
+      endLine,
+      summary,
+      hashlineTag: typeof item.hashlineTag === 'string' ? item.hashlineTag : undefined,
+      readAt: typeof item.readAt === 'string' ? item.readAt : now,
+    }];
+  });
+}
+
+function normalizeLegacyReadFiles(value: unknown, now: string): TaskWorkingMemoryReadFile[] {
+  return normalizeStringArray(value).map((path) => ({ path, ranges: [], lastReadAt: now }));
+}
+
+function normalizeWriteFiles(value: unknown, now: string): TaskWorkingMemoryWriteFile[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const path = typeof item.path === 'string' ? item.path : '';
+    if (!path) return [];
+    return [{
+      path,
+      tool: normalizeWriteTool(item.tool),
+      summary: typeof item.summary === 'string' ? item.summary : `Updated ${path}`,
+      checkpointId: typeof item.checkpointId === 'string' ? item.checkpointId : undefined,
+      writtenAt: typeof item.writtenAt === 'string' ? item.writtenAt : now,
+    }];
+  });
+}
+
+function normalizeLegacyWriteFiles(value: unknown, now: string): TaskWorkingMemoryWriteFile[] {
+  return normalizeStringArray(value).map((path) => ({
+    path,
+    tool: 'hashline_edit',
+    summary: `Edited ${path}`,
+    writtenAt: now,
+  }));
+}
+
+function normalizeWriteTool(value: unknown): WorkingMemoryWriteTool {
+  return value === 'hashline_edit' || value === 'write_file' || value === 'format' || value === 'other'
+    ? value
+    : 'other';
+}
+
+function normalizeRecentErrors(value: unknown, now: string): TaskWorkingMemoryRecentError[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item, index) => {
+    if (!isRecord(item)) return [];
+    const summary = typeof item.summary === 'string' ? item.summary : '';
+    if (!summary) return [];
+    const createdAt = typeof item.createdAt === 'string' ? item.createdAt : now;
+    return [{
+      id: typeof item.id === 'string' ? item.id : makeMemoryId('err', summary, `${createdAt}_${index}`),
+      source: normalizeErrorSource(item.source),
+      pattern: typeof item.pattern === 'string' ? item.pattern : summary,
+      summary,
+      recoveryHint: typeof item.recoveryHint === 'string' ? item.recoveryHint : undefined,
+      evidenceRef: typeof item.evidenceRef === 'string' ? item.evidenceRef : undefined,
+      createdAt,
+    }];
+  });
+}
+
+function normalizeLegacyErrors(value: unknown, now: string): TaskWorkingMemoryRecentError[] {
+  return normalizeStringArray(value).map((summary, index) => ({
+    id: makeMemoryId('err', summary, `${now}_${index}`),
+    source: 'runtime',
+    pattern: summary,
+    summary,
+    createdAt: now,
+  }));
+}
+
+function normalizeErrorSource(value: unknown): WorkingMemoryErrorSource {
+  return value === 'tool' || value === 'toolguard' || value === 'hashline' || value === 'fileguard' || value === 'runtime'
+    ? value
+    : 'runtime';
+}
+
+function normalizeRecentSignals(value: unknown, now: string): TaskWorkingMemoryRecentSignal[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item, index) => {
+    if (!isRecord(item)) return [];
+    const summary = typeof item.summary === 'string' ? item.summary : '';
+    if (!summary) return [];
+    const createdAt = typeof item.createdAt === 'string' ? item.createdAt : now;
+    return [{
+      id: typeof item.id === 'string' ? item.id : makeMemoryId('signal', summary, `${createdAt}_${index}`),
+      kind: typeof item.kind === 'string' ? item.kind : 'runtime',
+      summary,
+      severity: normalizeSignalSeverity(item.severity),
+      evidenceRef: typeof item.evidenceRef === 'string' ? item.evidenceRef : undefined,
+      createdAt,
+    }];
+  });
+}
+
+function normalizeSignalSeverity(value: unknown): WorkingMemorySignalSeverity {
+  return value === 'low' || value === 'medium' || value === 'high' ? value : 'low';
+}
+
+function normalizeArtifactRefs(value: unknown): TaskWorkingMemoryArtifactRef[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item, index) => {
+    if (!isRecord(item)) return [];
+    const summary = typeof item.summary === 'string' ? item.summary : '';
+    if (!summary) return [];
+    return [{
+      id: typeof item.id === 'string' ? item.id : makeMemoryId('artifact', summary, String(index)),
+      kind: typeof item.kind === 'string' ? item.kind : 'note',
+      summary,
+    }];
+  });
+}
+
+function legacyArtifactRefs(record: Record<string, unknown>): TaskWorkingMemoryArtifactRef[] {
+  return [
+    ...legacyStringArtifacts(record.acceptance_criteria, 'acceptance_criterion'),
+    ...legacyStringArtifacts(record.constraints, 'constraint'),
+    ...legacyStringArtifacts(record.user_preferences, 'user_preference'),
+    ...legacyStringArtifacts(record.project_facts, 'project_fact'),
+    ...legacyStringArtifacts(record.open_questions, 'open_question'),
+    ...legacyStringArtifacts(record.decisions, 'decision'),
+    ...legacyStringArtifacts(record.verification_results, 'verification_result'),
+    ...legacyStringArtifacts(record.changed_files, 'changed_file'),
+  ];
+}
+
+function legacyStringArtifacts(value: unknown, kind: string): TaskWorkingMemoryArtifactRef[] {
+  return normalizeStringArray(value).map((summary, index) => ({
+    id: makeMemoryId('artifact', `${kind}:${summary}`, String(index)),
+    kind,
+    summary,
+  }));
+}
+
+function mergeTodos(current: TaskWorkingMemoryTodo[], next: TaskWorkingMemoryTodo[]): TaskWorkingMemoryTodo[] {
+  return mergeByKey(current, next, (item) => item.id);
+}
+
+function mergeReadFiles(current: TaskWorkingMemoryReadFile[], next: TaskWorkingMemoryReadFile[]): TaskWorkingMemoryReadFile[] {
+  return mergeByKey(current, next, (item) => item.path);
+}
+
+function mergeWriteFiles(current: TaskWorkingMemoryWriteFile[], next: TaskWorkingMemoryWriteFile[]): TaskWorkingMemoryWriteFile[] {
+  return mergeByKey(current, next, (item) => item.path);
+}
+
+function mergeById<T extends { id: string }>(items: T[]): T[] {
+  return mergeByKey([], items, (item) => item.id);
+}
+
+function mergeByKey<T>(current: T[], next: T[], getKey: (item: T) => string): T[] {
+  const map = new Map<string, T>();
+  for (const item of current) map.set(getKey(item), item);
+  for (const item of next) map.set(getKey(item), item);
+  return [...map.values()];
+}
+
+function makeMemoryId(prefix: string, value: string, salt: string): string {
+  return `${prefix}_${hashString(`${value}:${salt}`)}`;
+}
+
+function hashString(value: string): string {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash).toString(36);
 }
 
 function normalizeStringArray(value: unknown): string[] {

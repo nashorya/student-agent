@@ -39,12 +39,10 @@ describe('classifyIntent', () => {
     });
   });
 
-  it('returns continue when LLM says continue', async () => {
-    vi.mocked(completeSimple).mockResolvedValueOnce({
-      content: [{ type: 'text', text: '{"type":"continue"}' }],
-    } as any);
+  it('returns task_advance when user says continue with active task', async () => {
     const result = await classifyIntent('好的，继续', '修改首页', mockModel);
-    expect(result).toMatchObject({ type: 'continue', level: 0, requiresPlan: false });
+    expect(result).toMatchObject({ type: 'task_advance', level: 0, requiresPlan: false });
+    expect(completeSimple).not.toHaveBeenCalled();
   });
 
   it('falls back to continue on LLM error', async () => {

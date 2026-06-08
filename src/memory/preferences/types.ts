@@ -3,6 +3,8 @@
  * 存储用户偏好规则，支持显式（用户指令）和隐式（Reflect Agent 升级）两个写入通道。
  */
 
+import type { RecallMetadata } from '../recall/types.js';
+
 export type PreferenceScope =
   | 'code-style'
   | 'control-flow'
@@ -29,6 +31,7 @@ export interface PreferenceEntry {
   id: string;
   rule: string;
   scope: PreferenceScope;
+  recall: RecallMetadata;
   provenance: PreferenceProvenance;
   /** APPLY_WITH_CAUTION 标记（Breaker confidence: moderate 时设置） */
   apply_caution?: boolean;

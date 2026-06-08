@@ -22,8 +22,9 @@ describe('eval task loader', () => {
 
   it('loads the checked-in eval suite', async () => {
     const tasks = await loadEvalTasks();
-    expect(tasks).toHaveLength(10);
+    expect(tasks.length).toBeGreaterThanOrEqual(10);
     expect(tasks.map((task) => task.id)).toContain('task-phase-flow');
+    expect(tasks.map((task) => task.id)).toContain('long-context-maintenance');
     expect(tasks.every((task) => task.expectedFiles.length > 0)).toBe(true);
   });
 });

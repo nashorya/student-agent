@@ -36,9 +36,10 @@ import { createFileGuardHook } from './hooks/file-guard.js';
 import { createToolGuardHook } from './hooks/tool-guard.js';
 import { createRiskGuardHook, type ConfirmationProviderRef } from './hooks/risk-guard.js';
 import { FailureEscalationContext } from './hooks/failure-escalation.js';
-import { createMemoryHook } from './hooks/memory.js';
+import { createContextAssemblyHook } from './hooks/context-assembly.js';
 import { createReflectHook, markReflectBaseline } from './hooks/reflect.js';
 import { createQualityWatchdogHook } from './hooks/quality-watchdog.js';
+import { formatContextInspection, inspectContext } from './commands/context-inspector.js';
 import { buildSettingTargetPrompt, parseSettingTargetAnswer, type SettingTarget } from './setting-target.js';
 import { shouldShowAgentErrorMessage } from './tui-message-policy.js';
 import {
@@ -66,6 +67,7 @@ import { initLogger, logger, setTuiMode } from '../tui/logger.js';
 import { initDebugEvents } from '../tui/debug-events.js';
 import { TasksManager } from '../memory/tasks/manager.js';
 import type { Task } from '../memory/tasks/types.js';
+import { createSignalPipeline } from '../memory/signals/index.js';
 import { PlanRevisionManager } from '../memory/plan-revisions/manager.js';
 import type { PlanRevision } from '../memory/plan-revisions/types.js';
 import { ProjectKbManager } from '../memory/project-kb/manager.js';
@@ -241,6 +243,8 @@ function buildHooks(
 
   const fileGuard = createFileGuardHook(abortRef, config.fileGuard);
   const toolGuard = createToolGuardHook();
+  const signalPipeline = createSignalPipeline({ memoryDir: MEMORY_DIR });
+  const escalationHook = escalation.createHook();
   const riskGuard = createRiskGuardHook({
     enabled: config.features.riskGuard && config.executionMode !== 'yolo',
     confirmationProviderRef: riskConfirmationRef,
@@ -257,8 +261,14 @@ function buildHooks(
       if (riskDecision?.block) return riskDecision;
       return snapshotHook(ctx);
     },
-    onAfterToolCall: escalation.createHook(),
-    buildMemoryPrompt: createMemoryHook(MEMORY_DIR),
+    onAfterToolCall: async (ctx) => {
+      await signalPipeline.processAfterToolCall(ctx);
+      return escalationHook(ctx);
+    },
+    buildMemoryPrompt: createContextAssemblyHook({
+      memoryDir: MEMORY_DIR,
+      useNewPipeline: true,
+    }),
     onSessionEnd: async (ctx) => {
       await reflectHook(ctx);
       await watchdogHook?.(ctx);
@@ -517,6 +527,10 @@ async function main(): Promise<void> {
 
           case 'candidates':
             tui.bridge.setStatus('候选查看功能待实现');
+            continue;
+
+          case 'context':
+            tui.bridge.addMessage('system', formatContextInspection(await inspectContext(MEMORY_DIR)));
             continue;
 
           case 'init': {
@@ -965,6 +979,10 @@ async function main(): Promise<void> {
 
           case 'candidates':
             console.log(chalk.dim('  候选查看功能待实现'));
+            continue;
+
+          case 'context':
+            console.log(formatContextInspection(await inspectContext(MEMORY_DIR)));
             continue;
 
           case 'init': {
@@ -1534,12 +1552,12 @@ function buildTaskStatusUpdate(task: Task, state: 'running' | 'aborting' | 'idle
     workflowStatus: task.workflow_status,
     level: task.level,
     goal: task.working_memory.goal,
-    acceptanceCriteria: task.working_memory.acceptance_criteria,
+    acceptanceCriteria: taskWorkingMemoryItems(task, 'acceptance_criterion'),
     phases: task.phases.map((p) => ({ description: p.description, status: p.status })),
-    constraints: task.working_memory.constraints,
-    openQuestions: task.working_memory.open_questions,
-    userPreferences: task.working_memory.user_preferences,
-    verificationSummary: task.working_memory.verification_results,
+    constraints: taskWorkingMemoryItems(task, 'constraint'),
+    openQuestions: taskWorkingMemoryItems(task, 'open_question'),
+    userPreferences: taskWorkingMemoryItems(task, 'user_preference'),
+    verificationSummary: taskWorkingMemoryItems(task, 'verification_result'),
     requiresUserAcceptance: task.requires_user_acceptance,
     requiresVisualReview: task.requires_visual_review,
     retryCount: phase?.retry_count ?? 0,
@@ -1571,12 +1589,16 @@ function formatTaskStatus(task: Task): string {
   ];
 
   if (memory.goal) lines.push(`Goal：${memory.goal}`);
-  appendStatusList(lines, 'Acceptance Criteria', memory.acceptance_criteria);
-  appendStatusList(lines, 'Constraints', memory.constraints);
-  appendStatusList(lines, 'Open Questions', memory.open_questions);
-  appendStatusList(lines, 'User Preferences', memory.user_preferences);
-  appendStatusList(lines, 'Verification', memory.verification_results);
-  appendStatusList(lines, 'Changed Files', memory.changed_files);
+  lines.push(`Working Memory：${memory.phase} · ${memory.currentStep || 'no current step'}`);
+  appendStatusList(lines, 'Acceptance Criteria', taskWorkingMemoryItems(task, 'acceptance_criterion'));
+  appendStatusList(lines, 'Constraints', taskWorkingMemoryItems(task, 'constraint'));
+  appendStatusList(lines, 'Open Questions', taskWorkingMemoryItems(task, 'open_question'));
+  appendStatusList(lines, 'User Preferences', taskWorkingMemoryItems(task, 'user_preference'));
+  appendStatusList(lines, 'Verification', taskWorkingMemoryItems(task, 'verification_result'));
+  appendStatusList(lines, 'Changed Files', taskWorkingMemoryItems(task, 'changed_file'));
+  appendStatusList(lines, 'Read Files', memory.readFiles.map((file) => file.path));
+  appendStatusList(lines, 'Written Files', memory.writeFiles.map((file) => file.path));
+  appendStatusList(lines, 'Recent Errors', memory.recentErrors.map((error) => error.summary));
 
   if (task.requires_visual_review || task.requires_user_acceptance) {
     lines.push(`Review：visual=${task.requires_visual_review ? 'required' : 'not-required'} · user=${task.requires_user_acceptance ? 'required' : 'not-required'}`);
@@ -1589,6 +1611,23 @@ function appendStatusList(lines: string[], label: string, values: string[]): voi
   if (values.length === 0) return;
   lines.push(`${label}：`);
   values.slice(-6).forEach((value) => lines.push(`- ${value}`));
+}
+
+function taskWorkingMemoryItems(task: Task, kind: string): string[] {
+  const memory = task.working_memory;
+  const artifactItems = memory.artifactRefs
+    .filter((artifact) => artifact.kind === kind)
+    .map((artifact) => artifact.summary);
+  const signalItems = memory.recentSignals
+    .filter((signal) => signal.kind === kind)
+    .map((signal) => signal.summary);
+  const todoItems = kind === 'acceptance_criterion'
+    ? memory.todos.map((todo) => todo.content)
+    : [];
+  const writtenItems = kind === 'changed_file'
+    ? memory.writeFiles.map((file) => file.path)
+    : [];
+  return [...new Set([...artifactItems, ...signalItems, ...todoItems, ...writtenItems])];
 }
 
 function buildTaskCreateOptions(intent: Awaited<ReturnType<typeof classifyIntent>>, context: Extract<ReturnType<typeof parsePhaseSignal>, { type: 'task_start' }>['context'] | undefined, yoloMode: boolean) {

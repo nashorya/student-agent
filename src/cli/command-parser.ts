@@ -12,6 +12,7 @@ export type SlashCommand =
   | { type: 'model' }
   | { type: 'clear' }
   | { type: 'candidates' }
+  | { type: 'context' }
   | { type: 'init' }
   | { type: 'paste'; content: string }
   | { type: 'feedback'; rating: 'up' | 'down'; comment: string }
@@ -37,6 +38,7 @@ export const COMMANDS = [
   '/model',
   '/clear',
   '/candidates',
+  '/context',
   '/init',
   '/paste',
   '/feedback',
@@ -108,6 +110,9 @@ export function parseCommand(input: string): SlashCommand | null {
     case 'candidates':
       return { type: 'candidates' };
 
+    case 'context':
+      return { type: 'context' };
+
     case 'init':
       return { type: 'init' };
 
@@ -174,6 +179,7 @@ export function getHelpText(): string {
     '    /model                快速切换模型（保持其他设置不变）',
     '    /clear                清空屏幕',
     '    /candidates           查看偏好候选',
+    '    /context              查看当前三层上下文状态',
     '    /init                     将当前目录初始化为 git 仓库（启用快照回滚）',
     '    /paste ... /end           粘贴多行内容并作为一条消息提交',
     '    /feedback up|down [评论]  提交质量反馈',

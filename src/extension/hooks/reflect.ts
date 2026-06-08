@@ -9,6 +9,8 @@ import chalk from 'chalk';
 import { ReflectAgent } from '../../reflect/reflect-agent.js';
 import { PreferenceCandidatesManager } from '../../memory/candidates/manager.js';
 import { PreferencesManager } from '../../memory/preferences/manager.js';
+import { LessonsManager } from '../../memory/lessons/index.js';
+import { KnacksManager } from '../../memory/knacks/index.js';
 import { BreakerLogManager } from '../../reflect/breaker-log-manager.js';
 import type { SessionEndContext } from '../../core/pi-bridge/types.js';
 import { safeStdout } from '../../tui/logger.js';
@@ -44,6 +46,8 @@ export function createReflectHook(
       PreferencesManager.getInstance(memoryDir),
       options.boundedBreakerEnabled === false ? null : undefined,
       new BreakerLogManager(memoryDir),
+      LessonsManager.getInstance(memoryDir),
+      KnacksManager.getInstance(memoryDir),
     );
 
     const gitDiff = collectTaskDiff(baselineRef);

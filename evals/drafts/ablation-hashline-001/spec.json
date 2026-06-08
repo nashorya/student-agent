@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ablation-hashline-001",
+  "version": "v0.3D",
+  "component": "hashline",
+  "category": "regression",
+  "evalKind": "deterministic",
+  "target": "harness",
+  "construct": "marginal contribution of Hashline when other v0.4 ablation components are disabled",
+  "input": {
+    "description": "Run the shared ablation benchmark manifest with only Hashline enabled.",
+    "setup": [
+      "Load evals/ablation/benchmark-manifest.json",
+      "Use config hashline_only",
+      "Collect hashline_rejection_count and hashline_recovery_count from protected trace/run archive"
+    ]
+  },
+  "expectedBehavior": "Hashline-only config exposes stale edit protection and recovery metrics comparable to baseline.",
+  "metrics": ["hashline_rejection_count", "hashline_recovery_count", "task_success_rate", "repeated_tool_call_count"],
+  "passCondition": "manifest_valid == true AND config == 'hashline_only' AND metric_schema_valid == true",
+  "grader": { "type": "script", "path": "scripts/eval-ablation-runner.ts" },
+  "oracle": { "path": "evals/ablation/benchmark-manifest.json" },
+  "trialPolicy": { "trials": 1, "aggregation": "all_must_pass" },
+  "failureImplication": "Hashline edit safety cannot be isolated from other components.",
+  "relatedPaper": "AHE: individual components can have measurable but non-additive effects.",
+  "regressionRisk": ["Hashline may reject valid edits or fail to emit trace-bound stale rejection events."],
+  "ablationGroup": "hashline_only"
+}
