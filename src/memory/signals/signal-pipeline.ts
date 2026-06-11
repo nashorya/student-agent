@@ -12,6 +12,7 @@ import type { Signal, SignalKind } from './types.js';
 export interface SignalPipelineOptions {
   memoryDir?: string;
   tasksManager?: TasksManager;
+  onProtectedEvents?: (events: ProtectedEvalEvent[]) => void;
 }
 
 export function createSignalPipeline(options: SignalPipelineOptions = {}) {
@@ -19,7 +20,9 @@ export function createSignalPipeline(options: SignalPipelineOptions = {}) {
 
   async function processAfterToolCall(ctx: PostToolCallContext): Promise<void> {
     try {
-      const signals = collectSignals(ctx);
+      const protectedEvents = drainProtectedEvents();
+      options.onProtectedEvents?.(protectedEvents);
+      const signals = collectSignals(ctx, protectedEvents);
 
       for (const signal of signals) {
         await appendSignal(signal, options.memoryDir);
@@ -49,7 +52,10 @@ export function createSignalPipeline(options: SignalPipelineOptions = {}) {
   return { processAfterToolCall };
 }
 
-function collectSignals(ctx: PostToolCallContext): Signal[] {
+function collectSignals(
+  ctx: PostToolCallContext,
+  protectedEvents: ProtectedEvalEvent[],
+): Signal[] {
   const signals: Signal[] = [];
   const now = new Date().toISOString();
 
@@ -67,7 +73,7 @@ function collectSignals(ctx: PostToolCallContext): Signal[] {
     });
   }
 
-  for (const event of drainProtectedEvents()) {
+  for (const event of protectedEvents) {
     const signal = protectedEventToSignal(event);
     if (signal) signals.push(signal);
   }

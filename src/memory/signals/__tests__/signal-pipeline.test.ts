@@ -82,6 +82,27 @@ describe('Signal Pipeline', () => {
     });
   });
 
+  it('reports drained protected events to an observer', async () => {
+    const observed: Array<{ ruleName?: string }> = [];
+    const pipeline = createSignalPipeline({
+      memoryDir,
+      tasksManager,
+      onProtectedEvents: (events) => observed.push(...events),
+    });
+    emitProtectedEvent({
+      source: 'toolguard',
+      type: 'block',
+      ruleName: 'verify_retry',
+      blocked: true,
+    });
+
+    await pipeline.processAfterToolCall(baseCtx);
+
+    expect(observed).toContainEqual(expect.objectContaining({
+      ruleName: 'verify_retry',
+    }));
+  });
+
   it('creates a high severity signal for Hashline stale rejections', async () => {
     const pipeline = createSignalPipeline({ memoryDir, tasksManager });
     emitProtectedEvent({
