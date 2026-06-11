@@ -9,6 +9,7 @@ interface CliOptions {
   trials?: number;
   variants: ContextRuntimeEvalVariant[];
   keepSandboxes: boolean;
+  maxBudgetUsd?: number;
 }
 
 async function main(): Promise<void> {
@@ -18,6 +19,7 @@ async function main(): Promise<void> {
     trials: options.trials,
     variants: options.variants.length > 0 ? options.variants : undefined,
     keepSandboxes: options.keepSandboxes,
+    maxBudgetUsd: options.maxBudgetUsd,
   });
   console.log(JSON.stringify({
     ok: true,
@@ -33,7 +35,11 @@ async function main(): Promise<void> {
       behavior_score: record.score.behaviorScore,
       tool_calls: record.score.efficiencyMetrics.totalToolCalls,
       failed_tool_calls: record.score.efficiencyMetrics.failedToolCalls,
+      turns: record.trace.turnCount ?? record.trace.usageEvents?.length ?? 0,
+      guard_rule_counts: record.trace.guardRuleCounts ?? {},
       token_usage: record.trace.tokenUsage,
+      usage_events: record.trace.usageEvents ?? [],
+      pi_schema_trace: record.trace.piSchemaTrace ?? null,
       diagnostics: describeContextRuntimeRecordDiagnostics(record),
     })),
   }, null, 2));
@@ -55,6 +61,10 @@ function parseArgs(args: string[]): CliOptions {
       parsed.variants.push(parseVariant(args[++index]));
       continue;
     }
+    if (arg === '--max-budget-usd' && args[index + 1]) {
+      parsed.maxBudgetUsd = Number.parseFloat(args[++index]);
+      continue;
+    }
     if (arg === '--keep-sandboxes') {
       parsed.keepSandboxes = true;
       continue;
@@ -63,6 +73,9 @@ function parseArgs(args: string[]): CliOptions {
   }
   if (parsed.trials !== undefined && (!Number.isInteger(parsed.trials) || parsed.trials <= 0)) {
     throw new Error('--trials must be a positive integer');
+  }
+  if (parsed.maxBudgetUsd !== undefined && (!Number.isFinite(parsed.maxBudgetUsd) || parsed.maxBudgetUsd <= 0)) {
+    throw new Error('--max-budget-usd must be a positive number');
   }
   return parsed;
 }

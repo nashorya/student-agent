@@ -13,12 +13,12 @@
 import { createInterface } from 'node:readline/promises';
 import { emitKeypressEvents } from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { execFile } from 'node:child_process';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import chalk from 'chalk';
 import { getModel, getModels, completeSimple, type Api, type Model } from '@mariozechner/pi-ai';
-import { loadEnvFile } from '../core/env.js';
+import { loadEnvFile, loadEnvLayersPreservingAmbient } from '../core/env.js';
 import { getProjectCwd } from '../core/paths.js';
 import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
@@ -55,6 +55,19 @@ import { QualityFeedbackManager, parseFeedbackCommand } from '../watchdog/feedba
 import { QuestionsManager } from '../memory/questions/manager.js';
 import { WhyManager } from '../memory/why/manager.js';
 import { EventRenderer } from '../cli/event-renderer.js';
+import { parseNonInteractiveArgs, type NonInteractiveArgs } from '../cli/non-interactive-args.js';
+import {
+  beginNonInteractiveContextTask,
+  finishNonInteractiveContextTask,
+} from '../cli/non-interactive-context.js';
+import {
+  createNonInteractiveSummary,
+  NonInteractiveUsageCollector,
+} from '../cli/non-interactive-summary.js';
+import { buildContextTokenEffect } from '../evals/context-breakdown.js';
+import type { EvalContextAssemblyTrace, ProtectedEvalEvent } from '../evals/types.js';
+import { summarizePiToolSchema } from '../evals/agent-runner.js';
+import { drainProtectedEvents } from '../core/hashline/index.js';
 import { parseCommand, getHelpText, COMMAND_COMPLETIONS, type SlashCommand } from '../cli/command-parser.js';
 import { printBanner } from '../cli/banner.js';
 import { startSelectedTUI, isTTY } from '../tui-runtime.js';
@@ -81,6 +94,7 @@ import { buildCtx7RetryContext } from '../core/task-planner/ctx7-retry-builder.j
 import { buildPlanningPrompt, buildPhaseExecutionPrompt } from '../core/task-planner/planning-prompt.js';
 import { PromptConfirmationProvider } from '../core/executor/confirmation.js';
 import type { ConfirmationProvider } from '../core/executor/types.js';
+import type { ContextRunMode } from '../memory/recall/types.js';
 
 // ── 早期诊断：捕获模块加载/启动阶段的未处理异常 ────────
 // 目的是把 "[Object: null prototype] { Symbol(util.inspect.custom): ... }" 这种没有 stack 的崩溃
@@ -211,6 +225,7 @@ function buildHooks(
   config: StudentAgentConfig,
   abortRef: { abort: () => void },
   riskConfirmationRef: ConfirmationProviderRef,
+  options: RuntimeOptions = {},
 ): {
   hooks: StudentAgentHooks;
   escalation: FailureEscalationContext;
@@ -219,31 +234,35 @@ function buildHooks(
   setFileGuardMode: (mode: 'planning' | 'normal') => void;
   resetRiskGuard: () => void;
 } {
-  const reflectHook = createReflectHook(MEMORY_DIR, () => currentTaskDescription, {
+  const memoryDir = options.memoryDir ?? MEMORY_DIR;
+  const reflectHook = createReflectHook(memoryDir, () => currentTaskDescription, {
     boundedBreakerEnabled: config.features.boundedBreaker,
   });
   const watchdogHook = config.features.qualityWatchdog
-    ? createQualityWatchdogHook(MEMORY_DIR)
+    ? createQualityWatchdogHook(memoryDir)
     : null;
   const context7Client = config.features.context7
     ? new Context7Client({
       apiKey: config.context7.apiKey,
       timeoutMs: config.context7.timeoutMs,
       maxDocsChars: config.context7.maxDocsChars,
-      projectKb: ProjectKbManager.getInstance(MEMORY_DIR),
+      projectKb: ProjectKbManager.getInstance(memoryDir),
     })
     : undefined;
 
   const escalation = new FailureEscalationContext({
     context7Client,
-    memoryDir: MEMORY_DIR,
+    memoryDir,
     getLastSnapshotId,
     restoreSnapshot,
   });
 
   const fileGuard = createFileGuardHook(abortRef, config.fileGuard);
   const toolGuard = createToolGuardHook();
-  const signalPipeline = createSignalPipeline({ memoryDir: MEMORY_DIR });
+  const signalPipeline = createSignalPipeline({
+    memoryDir,
+    onProtectedEvents: options.onProtectedEvents,
+  });
   const escalationHook = escalation.createHook();
   const riskGuard = createRiskGuardHook({
     enabled: config.features.riskGuard && config.executionMode !== 'yolo',
@@ -262,12 +281,15 @@ function buildHooks(
       return snapshotHook(ctx);
     },
     onAfterToolCall: async (ctx) => {
+      toolGuard.observeResult(ctx);
       await signalPipeline.processAfterToolCall(ctx);
       return escalationHook(ctx);
     },
     buildMemoryPrompt: createContextAssemblyHook({
-      memoryDir: MEMORY_DIR,
+      memoryDir,
       useNewPipeline: true,
+      runMode: options.runMode,
+      onTrace: options.onContextAssemblyTrace,
     }),
     onSessionEnd: async (ctx) => {
       await reflectHook(ctx);
@@ -312,7 +334,154 @@ function bindConsoleRiskConfirmation(
 
 // ── 主入口 ─────────────────────────────────────────────
 
+async function runNonInteractive(args: Exclude<NonInteractiveArgs, { mode: 'interactive' }>): Promise<number> {
+  const startedMs = Date.now();
+  const startedAt = new Date(startedMs).toISOString();
+  const usageCollector = new NonInteractiveUsageCollector();
+  let provider: string | undefined;
+  let model: string | undefined;
+  let exitCode = 1;
+  let status: 'success' | 'failed' = 'failed';
+  let errorMessage: string | undefined;
+
+  const finish = async (code: number, error?: string): Promise<number> => {
+    exitCode = code;
+    status = code === 0 ? 'success' : 'failed';
+    errorMessage = error;
+    return code;
+  };
+
+  if (args.mode === 'error') {
+    console.error(`[student-agent] ${args.message}`);
+    return finish(2, args.message);
+  }
+
+  let prompt: string;
+  try {
+    prompt = args.mode === 'prompt'
+      ? args.prompt
+      : await readFile(args.promptFile, 'utf8');
+  } catch (err) {
+    const message = `Failed to read prompt file: ${err instanceof Error ? err.message : String(err)}`;
+    console.error(`[student-agent] ${message}`);
+    return finish(2, message);
+  }
+
+  if (!prompt.trim()) {
+    console.error('[student-agent] Prompt is empty');
+    return finish(2, 'Prompt is empty');
+  }
+
+  let runtime: RuntimeState | undefined;
+  let usageUnsubscribe: (() => void) | undefined;
+  let contextTaskId: string | undefined;
+  const memoryDir = args.memoryDir ?? MEMORY_DIR;
+  const contextAssemblyTraces: EvalContextAssemblyTrace[] = [];
+  const protectedEvents: ProtectedEvalEvent[] = [];
+  drainProtectedEvents();
+  try {
+    const config = await reloadConfig();
+    provider = config.model.provider;
+    model = config.model.name;
+    const apiKeyName = getApiKeyEnvName(config.model.provider);
+    if (!process.env[apiKeyName]) {
+      const message = `Missing ${apiKeyName} for provider ${config.model.provider}`;
+      console.error(`[student-agent] ${message}`);
+      return finish(2, message);
+    }
+
+    const contextTask = await beginNonInteractiveContextTask({
+      memoryDir,
+      instruction: prompt,
+    });
+    contextTaskId = contextTask.id;
+    runtime = await createRuntime(config, {
+      memoryDir,
+      runMode: args.runMode ?? 'interactive',
+      onContextAssemblyTrace: (trace) => contextAssemblyTraces.push(trace),
+      onProtectedEvents: (events) => protectedEvents.push(...events),
+    });
+    usageUnsubscribe = runtime.agent.subscribe((event) => usageCollector.handleEvent(event));
+    currentTaskDescription = prompt;
+    runtime.escalation.initTask(currentTaskDescription, CWD);
+    markReflectBaseline();
+    runtime.resetFileGuard();
+    runtime.resetToolGuard();
+    await runtime.session.prompt(prompt);
+    await runtime.agent.waitForIdle();
+
+    if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
+      console.error(`[Agent Error] ${runtime.agent.state.errorMessage}`);
+      return finish(1, runtime.agent.state.errorMessage);
+    }
+    return finish(0);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[student-agent] Non-interactive run failed:', message);
+    return finish(1, message);
+  } finally {
+    if (contextTaskId) {
+      await finishNonInteractiveContextTask({
+        memoryDir,
+        taskId: contextTaskId,
+        exitCode,
+        errorMessage,
+      }).catch((err) => {
+        console.error('[student-agent] Failed to finalize context task:', err instanceof Error ? err.message : String(err));
+      });
+    }
+    usageUnsubscribe?.();
+    runtime?.renderer.cleanup();
+    runtime?.unsubscribe();
+    protectedEvents.push(...drainProtectedEvents());
+    if (args.jsonSummaryPath) {
+      const endedMs = Date.now();
+      const usageEvents = usageCollector.usageEvents();
+      const contextTask = contextTaskId
+        ? await TasksManager.getInstance(memoryDir).getTask(contextTaskId)
+        : undefined;
+      const piSchemaTrace = runtime
+        ? summarizePiToolSchema(runtime.agent.state.tools)
+        : undefined;
+      await writeNonInteractiveSummary(args.jsonSummaryPath, createNonInteractiveSummary({
+        status,
+        exitCode,
+        startedAt,
+        endedAt: new Date(endedMs).toISOString(),
+        durationMs: endedMs - startedMs,
+        provider,
+        model,
+        errorMessage,
+        usage: usageCollector.usage(),
+        usageEvents,
+        contextAssemblyTraces,
+        contextTokenEffect: buildContextTokenEffect({
+          contextAssemblyTraces,
+          usageEvents,
+          piSchemaTrace,
+          instruction: prompt,
+        }),
+        workingMemorySnapshot: contextTask?.working_memory,
+        protectedEvents,
+      })).catch((err) => {
+        console.error('[student-agent] Failed to write JSON summary:', err instanceof Error ? err.message : String(err));
+      });
+    }
+  }
+}
+
+async function writeNonInteractiveSummary(path: string, summary: ReturnType<typeof createNonInteractiveSummary>): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+}
+
 async function main(): Promise<void> {
+  const nonInteractive = parseNonInteractiveArgs(process.argv.slice(2));
+  if (nonInteractive.mode !== 'interactive') {
+    process.exitCode = await runNonInteractive(nonInteractive);
+    return;
+  }
+
   const setupRl = createInterface({ input, output });
   try {
     const initialConfig = await reloadConfig();
@@ -1996,15 +2165,27 @@ function formatPlanRevisions(revisions: PlanRevision[]): string {
 
 async function reloadConfig(): Promise<StudentAgentConfig> {
   // 先加载全局 env（~/.student-agent/.env），再用项目 .env 覆盖
-  await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: true });
-  const initialConfig = await loadStudentAgentConfig({ cwd: CWD });
-  await loadEnvFile({ cwd: CWD, filename: initialConfig.envFile, override: true });
+  await loadEnvLayersPreservingAmbient(async () => {
+    await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: true });
+    const initialConfig = await loadStudentAgentConfig({ cwd: CWD });
+    await loadEnvFile({ cwd: CWD, filename: initialConfig.envFile, override: true });
+  });
   const config = await loadStudentAgentConfig({ cwd: CWD });
   normalizeProviderApiKeyEnv(config.model.provider);
   return config;
 }
 
-async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> {
+interface RuntimeOptions {
+  onContextAssemblyTrace?: (trace: EvalContextAssemblyTrace) => void;
+  onProtectedEvents?: (events: ProtectedEvalEvent[]) => void;
+  memoryDir?: string;
+  runMode?: ContextRunMode;
+}
+
+async function createRuntime(
+  config: StudentAgentConfig,
+  options: RuntimeOptions = {},
+): Promise<RuntimeState> {
   const model = buildModel(config);
   const abortRef = { abort: () => {} };
   const riskConfirmationRef: ConfirmationProviderRef = { current: null };
@@ -2012,6 +2193,7 @@ async function createRuntime(config: StudentAgentConfig): Promise<RuntimeState> 
     config,
     abortRef,
     riskConfirmationRef,
+    options,
   );
 
   // Pi SDK 只认识内置 provider 的 env var（OPENAI_API_KEY 等）。
