@@ -1,0 +1,6 @@
+id = "locobench-agent-c_api_gateway_easy_009_architectural_understanding_expert_01"
+title = "Architectural Refactoring for Dynamic Route Configuration"
+mode = "task"
+tags = ["locobench-agent", "architectural_understanding", "expert"]
+timeout_seconds = 900
+expected_files = ["EduGate_ScholarLink//src//main.c", "EduGate_ScholarLink//src//components//validator.c", "EduGate_ScholarLink//src//components//router.c", "EduGate_ScholarLink//src//components//monitoring.c", "EduGate_ScholarLink//include//edugate.h", "EduGate_ScholarLink//src//http_handler.c", "EduGate_ScholarLink//tests//test_router.c", "EduGate_ScholarLink//docs//API_GUIDE.md", "EduGate_ScholarLink//config//gateway.conf", "EduGate_ScholarLink//Makefile", "EduGate_ScholarLink//README.md"]
