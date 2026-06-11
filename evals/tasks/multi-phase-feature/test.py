@@ -1,7 +1,7 @@
 import anthropic
 
 client = anthropic.Anthropic(
-    api_key="sk-04a7f3d7c9f074e445cf1b999b84ae03a5a85ec3657b485ecb3b5b64c12987de",
+    api_key="REDACTED_SECRET",
     base_url="https://api.muskapi.cc"
 )
 
