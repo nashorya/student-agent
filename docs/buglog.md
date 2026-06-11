@@ -75,7 +75,7 @@
 - **修复/处置**：① 重跑用 gpt-5.5（与基线口径一致）；② runner 对
   agent-phase 非零退出应标记 `invalid_run` 而非进入 reward 统计；
   ③ hardConstraints 修复仍属"未经实战验证"状态。
-- **状态**：OPEN
+- **状态**：FIXED-待回归（哨兵已加单测，待 gpt-5.5 overfull 重跑验证）
 
 ---
 

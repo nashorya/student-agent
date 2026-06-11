@@ -547,15 +547,27 @@ def summarize_terminal_result(path: Path) -> dict[str, Any]:
     eval_summary = next(iter(evals.values()), {})
     rewards = ((eval_summary.get("reward_stats") or {}).get("reward") or {})
     exceptions = eval_summary.get("exception_stats") or {}
+    invalid_trial_ids = set(nonzero_agent_exit_trials(path, exceptions))
+    passed_trials = [trial for trial in rewards.get("1.0", []) if trial not in invalid_trial_ids]
+    failed_trials = [trial for trial in rewards.get("0.0", []) if trial not in invalid_trial_ids]
+    raw_mean = ((eval_summary.get("metrics") or [{}])[0]).get("mean")
+    valid_reward_trials = len(passed_trials) + len(failed_trials)
+    mean = raw_mean
+    if invalid_trial_ids:
+        mean = (len(passed_trials) / valid_reward_trials) if valid_reward_trials else None
     return {
         "path": str(path),
         "completed": stats.get("n_completed_trials"),
         "errored": stats.get("n_errored_trials"),
         "n_trials": eval_summary.get("n_trials"),
         "n_errors": eval_summary.get("n_errors"),
-        "mean": ((eval_summary.get("metrics") or [{}])[0]).get("mean"),
-        "pass": strip_trial_ids(rewards.get("1.0", [])),
-        "fail": strip_trial_ids(rewards.get("0.0", [])),
+        "mean": mean,
+        "rawMean": raw_mean,
+        "validRewardTrials": valid_reward_trials,
+        "invalid_run": bool(invalid_trial_ids),
+        "invalid_runs": strip_trial_ids(sorted(invalid_trial_ids)),
+        "pass": strip_trial_ids(passed_trials),
+        "fail": strip_trial_ids(failed_trials),
         "exceptions": {key: strip_trial_ids(value) for key, value in exceptions.items()},
         "tokens": {
             "input": stats.get("n_input_tokens"),
@@ -646,6 +658,18 @@ def strip_trial_ids(values: list[str]) -> list[str]:
     return [value.split("__", 1)[0] for value in values]
 
 
+def nonzero_agent_exit_trials(result_path: Path, exceptions: dict[str, list[str]]) -> list[str]:
+    invalid_trials: list[str] = []
+    for trial in exceptions.get("NonZeroAgentExitCodeError") or []:
+        exception_path = result_path.parent / trial / "exception.txt"
+        exception_text = ""
+        if exception_path.exists():
+            exception_text = exception_path.read_text(encoding="utf-8", errors="replace")
+        if not exception_text or "Command failed (exit " in exception_text:
+            invalid_trials.append(trial)
+    return invalid_trials
+
+
 def write_report(output_root: Path, run_id: str, terminal_tasks: list[str]) -> None:
     summary = {
         "runId": run_id,
@@ -718,8 +742,8 @@ def render_markdown_summary(summary: dict[str, Any]) -> str:
         "",
         "## Terminal-Bench",
         "",
-        "| Agent | Mean | Trials | Errors | Pass | Fail | Exceptions | Cost |",
-        "|---|---:|---:|---:|---|---|---|---:|",
+        "| Agent | Mean | Trials | Errors | Invalid Runs | Pass | Fail | Exceptions | Cost |",
+        "|---|---:|---:|---:|---|---|---|---|---:|",
     ]
     for label, key in [("Claude Code", "claudeCode"), ("student-agent", "studentAgent")]:
         item = summary.get("terminal", {}).get(key, {})
@@ -731,6 +755,7 @@ def render_markdown_summary(summary: dict[str, Any]) -> str:
                 format_value(item.get("mean")),
                 format_value(item.get("n_trials")),
                 format_value(item.get("n_errors")),
+                ", ".join(item.get("invalid_runs", [])),
                 ", ".join(item.get("pass", [])),
                 ", ".join(item.get("fail", [])),
                 "; ".join(f"{name}: {', '.join(tasks)}" for name, tasks in (item.get("exceptions") or {}).items()),

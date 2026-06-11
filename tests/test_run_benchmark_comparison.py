@@ -241,6 +241,43 @@ class BenchmarkComparisonScriptTests(unittest.TestCase):
         self.assertEqual(summary["exceptions"], {"RuntimeError": ["overfull-hbox"]})
         self.assertIsNone(summary["tokens"]["input"])
 
+    def test_terminal_summary_marks_agent_exit_as_invalid_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            trial = "overfull-hbox__ZwP897Y"
+            exception_path = root / trial / "exception.txt"
+            exception_path.parent.mkdir(parents=True)
+            exception_path.write_text(
+                "NonZeroAgentExitCodeError: Command failed (exit 2): "
+                "Missing DEEPSEEK_API_KEY for provider deepseek\n",
+                encoding="utf-8",
+            )
+            path = root / "result.json"
+            path.write_text(json.dumps({
+                "stats": {
+                    "n_completed_trials": 1,
+                    "n_errored_trials": 1,
+                    "evals": {
+                        "student-agent__deepseek-v4-pro__terminal-bench": {
+                            "n_trials": 1,
+                            "n_errors": 1,
+                            "metrics": [{"mean": 0.0}],
+                            "reward_stats": {"reward": {"0.0": [trial]}},
+                            "exception_stats": {"NonZeroAgentExitCodeError": [trial]},
+                        },
+                    },
+                },
+            }), encoding="utf-8")
+
+            summary = summarize_terminal_result(path)
+
+        self.assertTrue(summary["invalid_run"])
+        self.assertEqual(summary["invalid_runs"], ["overfull-hbox"])
+        self.assertEqual(summary["validRewardTrials"], 0)
+        self.assertIsNone(summary["mean"])
+        self.assertEqual(summary["pass"], [])
+        self.assertEqual(summary["fail"], [])
+
     def test_terminal_student_agent_tokens_are_summed_from_agent_summaries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_root = Path(tmp)
