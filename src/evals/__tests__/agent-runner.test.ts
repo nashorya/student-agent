@@ -1,6 +1,21 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@mariozechner/pi-agent-core';
-import { AssistantTextCollector } from '../agent-runner.js';
+import {
+  AssistantTextCollector,
+  buildDirectContinuationPrompt,
+  buildPhaseContinuationPrompt,
+  createEvalTracingHooks,
+  shouldContinueDirectRun,
+  shouldContinuePhaseRun,
+  summarizePiToolSchema,
+  getActiveWorkingMemorySnapshot,
+} from '../agent-runner.js';
+import type { ToolTraceEntry } from '../types.js';
+import { TasksManager } from '../../memory/tasks/manager.js';
+import { drainProtectedEvents } from '../../core/hashline/index.js';
 
 describe('AssistantTextCollector', () => {
   it('keeps only the latest cumulative assistant text snapshot', () => {
@@ -70,6 +85,216 @@ describe('AssistantTextCollector', () => {
         total: 0.0048,
       },
     });
+    expect(collector.usageEvents()).toEqual([
+      {
+        index: 1,
+        usage: {
+          inputTokens: 100,
+          outputTokens: 40,
+          cacheReadTokens: 10,
+          cacheWriteTokens: 5,
+          totalTokens: 155,
+          costUsd: {
+            input: 0.001,
+            output: 0.002,
+            cacheRead: 0.0001,
+            cacheWrite: 0.0002,
+            total: 0.0033,
+          },
+        },
+      },
+      {
+        index: 2,
+        usage: {
+          inputTokens: 50,
+          outputTokens: 20,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          totalTokens: 70,
+          costUsd: {
+            input: 0.0005,
+            output: 0.001,
+            cacheRead: 0,
+            cacheWrite: 0,
+            total: 0.0015,
+          },
+        },
+      },
+    ]);
+  });
+});
+
+describe('Pi schema trace helpers', () => {
+  it('estimates active tool schema size without serializing executable handlers', () => {
+    const trace = summarizePiToolSchema([
+      {
+        name: 'read',
+        description: 'Read a file',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string' },
+          },
+          required: ['path'],
+        },
+      },
+      {
+        name: 'edit',
+        description: 'Edit a file',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string' },
+            oldText: { type: 'string' },
+            newText: { type: 'string' },
+          },
+          required: ['path', 'oldText', 'newText'],
+        },
+      },
+    ]);
+
+    expect(trace.toolCount).toBe(2);
+    expect(trace.toolNames).toEqual(['read', 'edit']);
+    expect(trace.schemaChars).toBeGreaterThan(0);
+    expect(trace.approxSchemaTokens).toBeGreaterThan(0);
+    expect(trace.perTool.map((tool) => tool.name)).toEqual(['read', 'edit']);
+    expect(trace.llmRequestCount).toBe(0);
+    expect(trace.estimatedSchemaInjectionCount).toBe(0);
+    expect(trace.estimatedTotalSchemaTokens).toBe(0);
+    expect(trace.note).toContain('provider SDK sends tools with each LLM request');
+  });
+});
+
+describe('eval tracing hooks', () => {
+  it('enforces verify_retry and emits a protected event in eval runs', async () => {
+    drainProtectedEvents();
+    const hooks = createEvalTracingHooks([]);
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const toolCallId = `verify_${attempt}`;
+      expect(await hooks.onBeforeToolCall?.({
+        toolName: 'bash',
+        toolCallId,
+        args: { command: 'pytest tests/unit' },
+      })).toBeUndefined();
+      await hooks.onAfterToolCall?.({
+        toolName: 'bash',
+        toolCallId,
+        args: { command: 'pytest tests/unit' },
+        isError: true,
+        resultText: 'failed',
+      });
+    }
+
+    const blocked = await hooks.onBeforeToolCall?.({
+      toolName: 'bash',
+      toolCallId: 'verify_4',
+      args: { command: 'pytest tests/integration' },
+    });
+
+    expect(blocked).toMatchObject({ block: true });
+    expect(drainProtectedEvents()).toContainEqual(expect.objectContaining({
+      source: 'toolguard',
+      ruleName: 'verify_retry',
+      blocked: true,
+    }));
+  });
+});
+
+describe('working memory trace helpers', () => {
+  it('captures tracked files from the active benchmark task', async () => {
+    const memoryDir = await mkdtemp(join(tmpdir(), 'agent-runner-memory-'));
+    try {
+      TasksManager.resetInstance();
+      const manager = TasksManager.getInstance(memoryDir);
+      const task = await manager.createTask('Benchmark task', ['Execute'], {
+        workflowStatus: 'executing',
+      });
+      await manager.trackFileRead(task.id, 'src/input.ts');
+      await manager.trackFileWrite(task.id, 'src/output.ts');
+
+      const snapshot = await getActiveWorkingMemorySnapshot(memoryDir);
+
+      expect(snapshot?.readFiles.map((file) => file.path)).toContain('src/input.ts');
+      expect(snapshot?.writeFiles.map((file) => file.path)).toContain('src/output.ts');
+    } finally {
+      TasksManager.resetInstance();
+      await rm(memoryDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('eval continuation policy', () => {
+  it('continues direct runs after read-only tool use on edit tasks', () => {
+    const calls: ToolTraceEntry[] = [{
+      id: 'read_1',
+      name: 'read',
+      args: { path: 'src/message.txt' },
+      startedAt: new Date(0).toISOString(),
+      isError: false,
+    }];
+
+    expect(shouldContinueDirectRun({
+      toolCalls: calls,
+      expectedFiles: ['src/message.txt'],
+      continuationCount: 0,
+    })).toBe(true);
+  });
+
+  it('stops direct continuations after a mutating tool call', () => {
+    const calls: ToolTraceEntry[] = [
+      {
+        id: 'read_1',
+        name: 'read',
+        args: { path: 'src/message.txt' },
+        startedAt: new Date(0).toISOString(),
+      },
+      {
+        id: 'edit_1',
+        name: 'edit',
+        args: { path: 'src/message.txt' },
+        startedAt: new Date(0).toISOString(),
+      },
+    ];
+
+    expect(shouldContinueDirectRun({
+      toolCalls: calls,
+      expectedFiles: ['src/message.txt'],
+      continuationCount: 0,
+    })).toBe(false);
+  });
+
+  it('continues phase runs when no PHASE_DONE signal was emitted', () => {
+    expect(shouldContinuePhaseRun({
+      phaseText: 'I will read src/math.ts now.',
+      continuationCount: 0,
+    })).toBe(true);
+  });
+
+  it('stops phase continuations when PHASE_DONE was emitted', () => {
+    expect(shouldContinuePhaseRun({
+      phaseText: '[PHASE_DONE phase=1]\n已完成：done\n[/PHASE_DONE]',
+      continuationCount: 0,
+    })).toBe(false);
+  });
+
+  it('builds direct and phase continuation prompts that require tools', () => {
+    expect(buildDirectContinuationPrompt(['src/message.txt'])).toContain('必须继续调用工具');
+    expect(buildDirectContinuationPrompt(['src/message.txt'])).toContain('src/message.txt');
+    expect(buildDirectContinuationPrompt(['src/message.txt'])).toContain('下一条回复必须是工具调用');
+    expect(buildDirectContinuationPrompt(['src/message.txt'])).toContain('不要输出文字说明');
+    expect(buildPhaseContinuationPrompt(1, '读取 src/math.ts')).toContain('继续执行当前 Phase 1');
+    expect(buildPhaseContinuationPrompt(1, '读取 src/math.ts')).toContain('不要只解释或描述');
+    expect(buildPhaseContinuationPrompt(1, '读取 src/math.ts')).toContain('下一条回复必须优先调用工具');
+  });
+
+  it('builds read-only phase continuation prompts for analysis and design phases', () => {
+    const prompt = buildPhaseContinuationPrompt(1, '分析 gateway.conf 路由加载流程，并设计动态热重载架构方案');
+
+    expect(prompt).toContain('本 Phase 判定为分析/方案类');
+    expect(prompt).toContain('不要调用 edit/write/apply_patch');
+    expect(prompt).toContain('如果已经完成分析或方案，请直接输出 PHASE_DONE');
+    expect(prompt).not.toContain('下一条回复必须优先调用工具');
   });
 });
 

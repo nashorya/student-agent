@@ -1,8 +1,9 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createContextAssemblyHook } from '../extension/hooks/context-assembly.js';
+import { EVAL_AUTONOMY_RULE } from '../memory/recall/context-builder.js';
 import { TasksManager } from '../memory/tasks/manager.js';
-import { createEvalSandbox, runVerifier, snapshotFiles } from './sandbox.js';
+import { createEvalSandbox, diffSnapshots, readChangedFileContents, runVerifier, snapshotFiles } from './sandbox.js';
 import { runStudentAgentEval } from './agent-runner.js';
 import { scoreEvalRun } from './scorer.js';
 import { loadEvalTasks } from './task-loader.js';
@@ -17,11 +18,14 @@ export interface ContextRuntimeEvalOptions {
   trials?: number;
   variants?: ContextRuntimeEvalVariant[];
   keepSandboxes?: boolean;
+  maxBudgetUsd?: number;
 }
 
 export type ContextRuntimeEvalRecord = EvalRunRecord & {
   variant: ContextRuntimeEvalVariant;
 };
+
+export const EVAL_PLAIN_MEMORY_PROMPT = EVAL_AUTONOMY_RULE;
 
 export interface ContextRuntimeVariantSummary {
   variant: ContextRuntimeEvalVariant;
@@ -38,6 +42,10 @@ export interface ContextRuntimeVariantSummary {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  piSchemaToolCount: number;
+  piSchemaApproxTokensPerRequest: number;
+  piSchemaInjectionCount: number;
+  estimatedPiSchemaTokens: number;
   totalCostUsd: number;
   costPerRunUsd: number;
   costPerPassedTaskUsd: number | null;
@@ -57,9 +65,13 @@ export async function runContextRuntimeEval(
   const variants = options.variants ?? ['plain', 'context_runtime'];
   const records: ContextRuntimeEvalRecord[] = [];
 
+  outer:
   for (const variant of variants) {
     for (const task of tasks) {
       for (let trial = 1; trial <= trials; trial++) {
+        if (hasReachedContextRuntimeBudget(records, options.maxBudgetUsd)) {
+          break outer;
+        }
         const sandbox = await createEvalSandbox(task);
         try {
           const instruction = await readFile(task.instructionPath, 'utf8');
@@ -79,8 +91,10 @@ export async function runContextRuntimeEval(
             buildMemoryPrompt: createContextRuntimeBuildMemoryPrompt(variant, memoryDir),
           });
           const afterAgent = await snapshotFiles(sandbox.path);
+          const changedFiles = diffSnapshots(before, afterAgent);
+          const modifiedFiles = await readChangedFileContents(sandbox.path, changedFiles);
           const verifier = await runVerifier(task, sandbox);
-          const scored = scoreEvalRun({ task, trace, verifier, before, after: afterAgent });
+          const scored = scoreEvalRun({ task, trace, verifier, before, after: afterAgent, modifiedFiles });
           records.push({
             variant,
             taskId: task.id,
@@ -107,6 +121,16 @@ export async function runContextRuntimeEval(
   });
 
   return { records, summaries, outputDir };
+}
+
+export function hasReachedContextRuntimeBudget(
+  records: ContextRuntimeEvalRecord[],
+  maxBudgetUsd: number | undefined,
+): boolean {
+  if (maxBudgetUsd === undefined) return false;
+  const totalCostUsd = records.reduce((sum, record) =>
+    sum + record.trace.tokenUsage.costUsd.total, 0);
+  return totalCostUsd >= maxBudgetUsd;
 }
 
 export async function seedContextRuntimeEvalMemory(options: {
@@ -148,10 +172,12 @@ export function createContextRuntimeBuildMemoryPrompt(
   variant: ContextRuntimeEvalVariant,
   memoryDir: string,
 ): (() => Promise<string>) | undefined {
-  if (variant === 'plain') return undefined;
+  if (variant === 'plain') return async () => EVAL_PLAIN_MEMORY_PROMPT;
   return createContextAssemblyHook({
     memoryDir,
     useNewPipeline: true,
+    runMode: 'eval',
+    piSchemaRenderMode: 'summary',
   });
 }
 
@@ -171,6 +197,15 @@ export function summarizeContextRuntimeRecords(
     const cacheReadTokens = scoped.reduce((sum, record) => sum + record.trace.tokenUsage.cacheReadTokens, 0);
     const cacheWriteTokens = scoped.reduce((sum, record) => sum + record.trace.tokenUsage.cacheWriteTokens, 0);
     const totalTokens = scoped.reduce((sum, record) => sum + record.trace.tokenUsage.totalTokens, 0);
+    const piSchemaToolCount = Math.max(0, ...scoped.map((record) => record.trace.piSchemaTrace?.toolCount ?? 0));
+    const piSchemaApproxTokensPerRequest = Math.max(
+      0,
+      ...scoped.map((record) => record.trace.piSchemaTrace?.approxSchemaTokens ?? 0),
+    );
+    const piSchemaInjectionCount = scoped.reduce((sum, record) =>
+      sum + (record.trace.piSchemaTrace?.estimatedSchemaInjectionCount ?? 0), 0);
+    const estimatedPiSchemaTokens = scoped.reduce((sum, record) =>
+      sum + (record.trace.piSchemaTrace?.estimatedTotalSchemaTokens ?? 0), 0);
     const totalCostUsd = roundCost(scoped.reduce((sum, record) =>
       sum + record.trace.tokenUsage.costUsd.total, 0));
     return {
@@ -188,6 +223,10 @@ export function summarizeContextRuntimeRecords(
       outputTokens,
       cacheReadTokens,
       cacheWriteTokens,
+      piSchemaToolCount,
+      piSchemaApproxTokensPerRequest,
+      piSchemaInjectionCount,
+      estimatedPiSchemaTokens,
       totalCostUsd,
       costPerRunUsd: roundCost(scoped.length === 0 ? 0 : totalCostUsd / scoped.length),
       costPerPassedTaskUsd: passed > 0 ? roundCost(totalCostUsd / passed) : null,
@@ -248,8 +287,8 @@ function renderComparison(summaries: ContextRuntimeVariantSummary[]): string {
     '',
     `Generated: ${new Date().toISOString()}`,
     '',
-    '| Variant | Runs | Passed | Failed | Pass Rate | Avg Correctness | Avg Behavior | Tool Calls | Failed Tool Calls | Tokens | Cost USD | Cost/Run | Cost/Pass |',
-    '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
+    '| Variant | Runs | Passed | Failed | Pass Rate | Avg Correctness | Avg Behavior | Tool Calls | Failed Tool Calls | Tokens | Pi Schema Tools | Pi Schema Injects | Est Pi Schema Tokens | Cost USD | Cost/Run | Cost/Pass |',
+    '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|',
   ];
   for (const summary of summaries) {
     lines.push([
@@ -263,6 +302,9 @@ function renderComparison(summaries: ContextRuntimeVariantSummary[]): string {
       String(summary.totalToolCalls),
       String(summary.failedToolCalls),
       String(summary.totalTokens),
+      String(summary.piSchemaToolCount),
+      String(summary.piSchemaInjectionCount),
+      String(summary.estimatedPiSchemaTokens),
       summary.totalCostUsd.toFixed(4),
       summary.costPerRunUsd.toFixed(4),
       summary.costPerPassedTaskUsd === null ? 'n/a' : summary.costPerPassedTaskUsd.toFixed(4),

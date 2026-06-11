@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createContextRuntimeBuildMemoryPrompt,
   describeContextRuntimeRecordDiagnostics,
+  EVAL_PLAIN_MEMORY_PROMPT,
+  hasReachedContextRuntimeBudget,
   seedContextRuntimeEvalMemory,
   summarizeContextRuntimeRecords,
   type ContextRuntimeEvalRecord,
@@ -35,13 +37,22 @@ describe('context runtime eval runner helpers', () => {
     const prompt = await buildPrompt!();
 
     expect(prompt).toContain('Context Assembly');
+    expect(prompt).toContain('EVAL AUTONOMY RULE');
+    expect(prompt).toContain('PI CONTRACT');
+    expect(prompt).not.toContain('FULL PI SCHEMA');
     expect(prompt).toContain('### taskSpec');
     expect(prompt).toContain('Goal: Eval task: Multi Phase Feature');
     expect(prompt).toContain('Current step: Execute eval task multi-phase-feature');
   });
 
-  it('does not inject a memory prompt for the plain variant', () => {
-    expect(createContextRuntimeBuildMemoryPrompt('plain', memoryDir)).toBeUndefined();
+  it('injects only eval autonomy rule for the plain variant', async () => {
+    const buildPrompt = createContextRuntimeBuildMemoryPrompt('plain', memoryDir);
+    const prompt = await buildPrompt!();
+
+    expect(prompt).toBe(EVAL_PLAIN_MEMORY_PROMPT);
+    expect(prompt).toContain('EVAL AUTONOMY RULE');
+    expect(prompt).not.toContain('Context Assembly');
+    expect(prompt).not.toContain('FULL PI SCHEMA');
   });
 
   it('summarizes pass rate and averages per variant', () => {
@@ -67,6 +78,10 @@ describe('context runtime eval runner helpers', () => {
         outputTokens: 30,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
+        piSchemaToolCount: 9,
+        piSchemaApproxTokensPerRequest: 1000,
+        piSchemaInjectionCount: 1,
+        estimatedPiSchemaTokens: 1000,
         totalCostUsd: 0.04,
         costPerRunUsd: 0.04,
         costPerPassedTaskUsd: 0.04,
@@ -86,6 +101,10 @@ describe('context runtime eval runner helpers', () => {
         outputTokens: 90,
         cacheReadTokens: 10,
         cacheWriteTokens: 0,
+        piSchemaToolCount: 9,
+        piSchemaApproxTokensPerRequest: 1000,
+        piSchemaInjectionCount: 3,
+        estimatedPiSchemaTokens: 3000,
         totalCostUsd: 0.17,
         costPerRunUsd: 0.085,
         costPerPassedTaskUsd: 0.17,
@@ -105,6 +124,17 @@ describe('context runtime eval runner helpers', () => {
       'task state: planning_failed',
       'task mode did not finish with completed task state',
     ]);
+  });
+
+  it('detects when cumulative eval cost reaches the configured budget', () => {
+    const records = [
+      record('context_runtime', 'task-a', 1, 1, 1, 2, 0),
+      record('plain', 'task-b', 1, 1, 1, 2, 0),
+    ];
+
+    expect(hasReachedContextRuntimeBudget(records, undefined)).toBe(false);
+    expect(hasReachedContextRuntimeBudget(records, 0.15)).toBe(false);
+    expect(hasReachedContextRuntimeBudget(records, 0.14)).toBe(true);
   });
 });
 
@@ -149,6 +179,24 @@ function record(
       finalOutput: '',
       toolCalls: [],
       tokenUsage: usageFor(variant, trial),
+      usageEvents: Array.from({ length: trial }, (_, index) => ({
+        index: index + 1,
+        usage: usageFor(variant, trial),
+      })),
+      piSchemaTrace: {
+        toolCount: 9,
+        toolNames: ['read', 'edit'],
+        schemaChars: 3500,
+        approxSchemaTokens: 1000,
+        llmRequestCount: trial,
+        estimatedSchemaInjectionCount: trial,
+        estimatedTotalSchemaTokens: 1000 * trial,
+        perTool: [
+          { name: 'read', schemaChars: 1000, approxSchemaTokens: 286 },
+          { name: 'edit', schemaChars: 2500, approxSchemaTokens: 714 },
+        ],
+        note: 'test',
+      },
     },
     verifier: {
       exitCode: correctnessScore >= 1 ? 0 : 1,
@@ -159,6 +207,7 @@ function record(
       rewardSource: 'exit_code',
     },
     changedFiles: [],
+    modifiedFiles: {},
     score: {
       correctnessScore,
       behaviorScore,

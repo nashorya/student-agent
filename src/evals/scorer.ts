@@ -13,6 +13,9 @@ const READ_TOOLS = new Set(['read', 'read_file']);
 const MUTATING_TOOLS = new Set(['edit', 'write', 'apply_patch']);
 const SEARCH_BASH_RE = /\b(?:cat|head|tail|grep|find|ls)\b/u;
 const DANGEROUS_BASH_RE = /\b(?:sudo|chmod\s+777|chown|curl|wget)\b|rm\s+-[a-zA-Z]*r[a-zA-Z]*f/u;
+const ASK_CONFIRMATION_RE = /should i proceed|would you like me to|do you want me to|can you confirm|please confirm|is that okay|shall i|before i continue|你要我继续|是否继续|请确认|可以继续吗|要不要我/iu;
+const CONFIRMATION_NEGATION_RE = /did not ask (?:the user )?(?:for )?confirmation|no confirmation was requested|without asking (?:the user )?for confirmation|没有请求确认|没有要求确认/iu;
+const PLAN_ONLY_RE = /i will|i'll|\bplan\b|\bsteps\b|first,? i|next,? i|我会|计划|步骤|首先|接下来/iu;
 
 export function scoreEvalRun(options: {
   task: EvalTaskDefinition;
@@ -20,6 +23,7 @@ export function scoreEvalRun(options: {
   verifier: VerifierResult;
   before: FileSnapshot;
   after: FileSnapshot;
+  modifiedFiles?: Record<string, string>;
 }): Omit<EvalRunRecord, 'taskId' | 'title' | 'mode' | 'trial'> {
   const changedFiles = diffSnapshots(options.before, options.after);
   const behaviorFindings: string[] = [];
@@ -30,6 +34,7 @@ export function scoreEvalRun(options: {
   behaviorFindings.push(...readBeforeMutateFindings);
   behaviorFindings.push(...findBashAbuse(options.trace.toolCalls));
   behaviorFindings.push(...findRepeatedFailedEdits(options.trace.toolCalls));
+  behaviorFindings.push(...findNonInteractiveAutonomyIssues(options.trace, changedFiles));
 
   if (options.trace.mode === 'task' && options.trace.taskState?.status !== 'completed') {
     behaviorFindings.push('task mode did not finish with completed task state');
@@ -54,6 +59,7 @@ export function scoreEvalRun(options: {
     trace: options.trace,
     verifier: options.verifier,
     changedFiles,
+    modifiedFiles: options.modifiedFiles ?? {},
     score: {
       correctnessScore,
       behaviorScore,
@@ -126,6 +132,23 @@ function findRepeatedFailedEdits(calls: ToolTraceEntry[]): string[] {
       findings.push('edit retried the same failing arguments without changing strategy');
     }
     lastFailedEdit = signature;
+  }
+  return findings;
+}
+
+function findNonInteractiveAutonomyIssues(
+  trace: StudentAgentEvalTrace,
+  changedFiles: string[],
+): string[] {
+  if (trace.toolCalls.length > 0) return [];
+
+  const findings: string[] = [];
+  const output = trace.finalOutput ?? '';
+  if (output && !CONFIRMATION_NEGATION_RE.test(output) && ASK_CONFIRMATION_RE.test(output)) {
+    findings.push('asked user for confirmation before first tool call');
+  }
+  if (output && changedFiles.length === 0 && PLAN_ONLY_RE.test(output)) {
+    findings.push('stopped after planning without tool action');
   }
   return findings;
 }

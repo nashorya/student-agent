@@ -69,6 +69,21 @@ export function diffSnapshots(before: FileSnapshot, after: FileSnapshot): string
   return changed.sort();
 }
 
+export async function readChangedFileContents(
+  root: string,
+  changedFiles: string[],
+): Promise<Record<string, string>> {
+  const contents: Record<string, string> = {};
+  for (const path of changedFiles) {
+    try {
+      contents[path] = await readFile(join(root, path), 'utf-8');
+    } catch {
+      // Deleted files or non-readable files are represented by their changedFiles entry only.
+    }
+  }
+  return contents;
+}
+
 async function collectFiles(root: string, dir: string, files: FileSnapshot['files']): Promise<void> {
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {

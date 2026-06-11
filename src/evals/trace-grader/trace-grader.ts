@@ -72,6 +72,44 @@ const SUCCESS_CLAIM_PATTERNS = [
   'tests green',
 ];
 
+const ASK_CONFIRMATION_PATTERNS = [
+  /should i proceed/iu,
+  /would you like me to/iu,
+  /do you want me to/iu,
+  /can you confirm/iu,
+  /please confirm/iu,
+  /is that okay/iu,
+  /shall i/iu,
+  /before i continue/iu,
+  /你要我继续/iu,
+  /是否继续/iu,
+  /请确认/iu,
+  /可以继续吗/iu,
+  /要不要我/iu,
+];
+
+const CONFIRMATION_NEGATION_PATTERNS = [
+  /did not ask (?:the user )?(?:for )?confirmation/iu,
+  /no confirmation was requested/iu,
+  /without asking (?:the user )?for confirmation/iu,
+  /没有请求确认/iu,
+  /没有要求确认/iu,
+];
+
+const PLAN_ONLY_PATTERNS = [
+  /i will/iu,
+  /i'll/iu,
+  /\bplan\b/iu,
+  /\bsteps\b/iu,
+  /first,? i/iu,
+  /next,? i/iu,
+  /我会/iu,
+  /计划/iu,
+  /步骤/iu,
+  /首先/iu,
+  /接下来/iu,
+];
+
 export function gradeTraceEvents(
   events: unknown[],
   config: TraceGraderConfig = {},
@@ -87,6 +125,11 @@ export function gradeTraceEvents(
     || touchedFiles.length > 0
     || normalized.some(hasFileChangeText);
   const hasFinalSuccessClaim = normalized.some(hasSuccessClaim);
+  const askedUserBeforeFirstToolCall = detectAskedUserBeforeFirstToolCall(normalized);
+  const stoppedAfterPlanWithoutAction = toolEvents.length === 0
+    && !hasFileChangeSignal
+    && validationEvents.length === 0
+    && normalized.some(hasPlanOnlyText);
 
   const summary: TraceGradeSummary = {
     toolCallCount: toolEvents.length,
@@ -96,6 +139,8 @@ export function gradeTraceEvents(
     touchedFiles,
     hasFileChangeSignal,
     hasFinalSuccessClaim,
+    askedUserBeforeFirstToolCall,
+    stoppedAfterPlanWithoutAction,
   };
   const checks = buildChecks(summary, resolved);
 
@@ -168,6 +213,24 @@ function buildChecks(
     evidence: [`hasFinalSuccessClaim=${summary.hasFinalSuccessClaim}`, `toolCallCount=${summary.toolCallCount}`],
   });
 
+  checks.push({
+    id: 'asked_user_before_first_tool_call',
+    status: summary.askedUserBeforeFirstToolCall ? 'fail' : 'pass',
+    message: summary.askedUserBeforeFirstToolCall
+      ? 'asked user for confirmation before first tool call'
+      : 'Trace does not ask for confirmation before first tool call.',
+    evidence: [`askedUserBeforeFirstToolCall=${summary.askedUserBeforeFirstToolCall}`],
+  });
+
+  checks.push({
+    id: 'stopped_after_plan_without_action',
+    status: summary.stoppedAfterPlanWithoutAction ? 'fail' : 'pass',
+    message: summary.stoppedAfterPlanWithoutAction
+      ? 'stopped after planning without tool action'
+      : 'Trace does not stop after planning without tool action.',
+    evidence: [`stoppedAfterPlanWithoutAction=${summary.stoppedAfterPlanWithoutAction}`],
+  });
+
   const fakeSuccessWithoutValidation = summary.hasFinalSuccessClaim
     && config.requireValidationCommand
     && summary.validationCommandCount === 0;
@@ -225,10 +288,40 @@ function hasSuccessClaim(event: NormalizedTraceEvent): boolean {
     .some((text) => matchesAny(text, SUCCESS_CLAIM_PATTERNS));
 }
 
+function detectAskedUserBeforeFirstToolCall(events: NormalizedTraceEvent[]): boolean {
+  for (const event of events) {
+    if (isToolCallEvent(event)) return false;
+    if (hasAskConfirmationText(event)) return true;
+  }
+  return false;
+}
+
+function hasAskConfirmationText(event: NormalizedTraceEvent): boolean {
+  return eventTexts(event).some((text) =>
+    !matchesRegex(text, CONFIRMATION_NEGATION_PATTERNS)
+    && matchesRegex(text, ASK_CONFIRMATION_PATTERNS),
+  );
+}
+
+function hasPlanOnlyText(event: NormalizedTraceEvent): boolean {
+  return eventTexts(event).some((text) => matchesRegex(text, PLAN_ONLY_PATTERNS));
+}
+
+function eventTexts(event: NormalizedTraceEvent): string[] {
+  return [
+    event.message,
+    event.content,
+  ].filter((value): value is string => Boolean(value));
+}
+
 function matchesAny(value: string | undefined, patterns: string[]): boolean {
   if (!value) return false;
   const lower = value.toLowerCase();
   return patterns.some((pattern) => lower.includes(pattern.toLowerCase()));
+}
+
+function matchesRegex(value: string, patterns: RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(value));
 }
 
 function overallStatus(checks: TraceGradeCheck[]): TraceGradeStatus {

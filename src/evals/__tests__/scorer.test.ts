@@ -44,9 +44,17 @@ describe('eval trace scorer', () => {
       rewardSource: 'exit_code',
     };
 
-    const result = scoreEvalRun({ task, trace, verifier, before, after });
+    const result = scoreEvalRun({
+      task,
+      trace,
+      verifier,
+      before,
+      after,
+      modifiedFiles: { 'src/app.txt': 'new content' },
+    });
 
     expect(result.score.correctnessScore).toBe(1);
+    expect(result.modifiedFiles).toEqual({ 'src/app.txt': 'new content' });
     expect(result.score.efficiencyMetrics.toolCounts).toEqual({ bash: 1, write: 1 });
     expect(result.score.safetyMetrics.writeOverwriteCount).toBe(1);
     expect(result.score.behaviorFindings.join('\n')).toContain('bash used for file read/search/list command');
@@ -89,7 +97,54 @@ describe('eval trace scorer', () => {
     expect(result.score.safetyMetrics.unexpectedChangedFiles).toEqual(['src/side-effect.txt']);
     expect(result.score.behaviorFindings.join('\n')).toContain('unexpected changed file(s): src/side-effect.txt');
   });
+
+  it('records confirmation and plan-only behavior findings for non-interactive eval traces', () => {
+    const task = makeTask();
+    const snapshot: FileSnapshot = {
+      files: [{ path: 'src/app.txt', hash: 'old', size: 3 }],
+    };
+    const verifier: VerifierResult = {
+      exitCode: 1,
+      stdout: '',
+      stderr: '',
+      durationMs: 1,
+      correctnessScore: 0,
+      rewardSource: 'exit_code',
+    };
+
+    const asked = scoreEvalRun({
+      task,
+      before: snapshot,
+      after: snapshot,
+      verifier,
+      trace: traceWithOutput('Should I proceed with editing src/app.txt?'),
+    });
+    expect(asked.score.behaviorFindings).toContain('asked user for confirmation before first tool call');
+
+    const planned = scoreEvalRun({
+      task,
+      before: snapshot,
+      after: snapshot,
+      verifier,
+      trace: traceWithOutput('Plan: first, I will inspect the file. Next, I will edit and validate.'),
+    });
+    expect(planned.score.behaviorFindings).toContain('stopped after planning without tool action');
+  });
 });
+
+function traceWithOutput(finalOutput: string): StudentAgentEvalTrace {
+  return {
+    taskId: 'sample',
+    mode: 'direct',
+    instruction: 'test',
+    startedAt: new Date(0).toISOString(),
+    endedAt: new Date(1).toISOString(),
+    durationMs: 1,
+    status: 'success',
+    finalOutput,
+    toolCalls: [],
+  };
+}
 
 function makeTask(): EvalTaskDefinition {
   return {

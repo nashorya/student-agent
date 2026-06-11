@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadEvalTasks } from '../task-loader.js';
-import { createEvalSandbox, diffSnapshots, runSolution, runVerifier, snapshotFiles } from '../sandbox.js';
+import {
+  createEvalSandbox,
+  diffSnapshots,
+  readChangedFileContents,
+  runSolution,
+  runVerifier,
+  snapshotFiles,
+} from '../sandbox.js';
 
 describe('eval sandbox', () => {
   it('copies a task environment, verifies initial failure, and verifies solution success', async () => {
@@ -50,6 +57,23 @@ describe('eval sandbox', () => {
       const after = await snapshotFiles(sandbox.path);
 
       expect(diffSnapshots(before, after)).toEqual(['src/unexpected.txt']);
+    } finally {
+      await sandbox.cleanup();
+    }
+  });
+
+  it('reads final contents for changed files and skips deleted files', async () => {
+    const task = (await loadEvalTasks()).find((item) => item.id === 'precise-edit')!;
+    const sandbox = await createEvalSandbox(task);
+    try {
+      await writeFile(join(sandbox.path, 'src/message.txt'), 'final message\n');
+
+      await expect(readChangedFileContents(sandbox.path, [
+        'src/message.txt',
+        'src/deleted.txt',
+      ])).resolves.toEqual({
+        'src/message.txt': 'final message\n',
+      });
     } finally {
       await sandbox.cleanup();
     }

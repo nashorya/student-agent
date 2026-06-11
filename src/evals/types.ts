@@ -40,6 +40,78 @@ export interface EvalTokenUsage {
   };
 }
 
+export interface EvalTokenUsageEvent {
+  index: number;
+  usage: EvalTokenUsage;
+}
+
+export interface EvalPiSchemaToolTrace {
+  name: string;
+  schemaChars: number;
+  approxSchemaTokens: number;
+}
+
+export interface EvalPiSchemaTrace {
+  toolCount: number;
+  toolNames: string[];
+  schemaChars: number;
+  approxSchemaTokens: number;
+  llmRequestCount: number;
+  estimatedSchemaInjectionCount: number;
+  estimatedTotalSchemaTokens: number;
+  perTool: EvalPiSchemaToolTrace[];
+  note: string;
+}
+
+export type EvalContextLayer = 'L0' | 'L1' | 'L2' | 'L3';
+
+export interface EvalContextBreakdownSection {
+  layer: EvalContextLayer;
+  id: string;
+  title: string;
+  chars: number;
+  estimatedTokens: number;
+}
+
+export interface EvalContextLayerSummary {
+  layer: EvalContextLayer;
+  chars: number;
+  estimatedTokens: number;
+  sectionCount: number;
+  sectionIds: string[];
+}
+
+export interface EvalContextAssemblyTrace {
+  pipeline: 'legacy' | 'new';
+  generatedAt: string;
+  runMode?: string;
+  piSchemaRenderMode?: string;
+  tier?: L1TierString;
+  tierReason?: string;
+  truncated: string[];
+  renderedPromptChars: number;
+  renderedPromptEstimatedTokens: number;
+  sections: EvalContextBreakdownSection[];
+  layers: Record<EvalContextLayer, EvalContextLayerSummary>;
+}
+
+export interface EvalContextTokenEffect {
+  observedInputTokens: number;
+  observedTotalTokens: number;
+  llmRequestCount: number;
+  contextPromptEstimatedTokens: number;
+  repeatedContextPromptEstimatedTokens: number;
+  toolSchemaEstimatedTokens: number;
+  instructionEstimatedTokens: number;
+  layers: Record<EvalContextLayer, EvalContextLayerSummary>;
+  classifiedInputTokens: number;
+  unclassifiedInputTokens: number;
+  estimatedClassifiedShareOfObservedInput: number;
+  note: string;
+}
+
+type L1TierString = 'minimal' | 'standard' | 'heavy';
+
 export interface EvalTaskStateTrace {
   taskId?: string;
   name?: string;
@@ -65,11 +137,21 @@ export interface StudentAgentEvalTrace {
   status: 'success' | 'failed';
   finalOutput: string;
   errorMessage?: string;
+  turnCount?: number;
   toolCalls: ToolTraceEntry[];
   tokenUsage: EvalTokenUsage;
+  /** Verbatim provider usage payload when the harness exposes one. */
+  rawUsage?: Record<string, unknown>;
+  usageEvents?: EvalTokenUsageEvent[];
+  piSchemaTrace?: EvalPiSchemaTrace;
+  contextAssemblyTraces?: EvalContextAssemblyTrace[];
+  contextTokenEffect?: EvalContextTokenEffect;
+  workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
   taskState?: EvalTaskStateTrace;
   /** Protected eval events collected during the run (hashline, signal, toolguard). */
   protectedEvents?: ProtectedEvalEvent[];
+  /** Protected ToolGuard events grouped by rule name. */
+  guardRuleCounts?: Record<string, number>;
 }
 
 export interface FileSnapshotEntry {
@@ -119,6 +201,7 @@ export interface EvalRunRecord {
   verifier: VerifierResult;
   score: TraceScore;
   changedFiles: string[];
+  modifiedFiles: Record<string, string>;
 }
 
 /**

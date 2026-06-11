@@ -30,6 +30,8 @@ export interface TraceGradeSummary {
   touchedFiles: string[];
   hasFileChangeSignal: boolean;
   hasFinalSuccessClaim: boolean;
+  askedUserBeforeFirstToolCall: boolean;
+  stoppedAfterPlanWithoutAction: boolean;
 }
 
 export interface TraceGradeResult {

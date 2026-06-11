@@ -104,6 +104,44 @@ describe('Trace Grader v0', () => {
     expect(checkStatus(result, 'fake_success_without_tools')).toBe('fail');
   });
 
+  it('fails when assistant asks for confirmation before first tool call', () => {
+    const result = gradeTraceEvents([
+      { type: 'assistant_message', message: 'Should I proceed with editing src/app.ts?' },
+      { type: 'tool_call', toolName: 'read_file', path: 'src/app.ts' },
+    ], {
+      requireFileChange: false,
+      requireValidationCommand: false,
+    });
+
+    expect(result.summary.askedUserBeforeFirstToolCall).toBe(true);
+    expect(checkStatus(result, 'asked_user_before_first_tool_call')).toBe('fail');
+  });
+
+  it('does not flag negated confirmation statements as user questions', () => {
+    const result = gradeTraceEvents([
+      { type: 'assistant_message', message: 'I did not ask for confirmation. No confirmation was requested.' },
+      { type: 'tool_call', toolName: 'read_file', path: 'src/app.ts' },
+    ], {
+      requireFileChange: false,
+      requireValidationCommand: false,
+    });
+
+    expect(result.summary.askedUserBeforeFirstToolCall).toBe(false);
+    expect(checkStatus(result, 'asked_user_before_first_tool_call')).toBe('pass');
+  });
+
+  it('fails when assistant stops after planning without tool action', () => {
+    const result = gradeTraceEvents([
+      { type: 'assistant_message', message: 'Plan: first, I will inspect src/app.ts. Next, I will edit and validate.' },
+    ], {
+      requireFileChange: false,
+      requireValidationCommand: false,
+    });
+
+    expect(result.summary.stoppedAfterPlanWithoutAction).toBe(true);
+    expect(checkStatus(result, 'stopped_after_plan_without_action')).toBe('fail');
+  });
+
   it('passes tool presence for read tools but fails file changes without writes', () => {
     const result = gradeTraceEvents([
       { type: 'tool_call', toolName: 'read_file' },

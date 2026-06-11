@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { loadEvalTasks } from './task-loader.js';
-import { createEvalSandbox, runVerifier, snapshotFiles } from './sandbox.js';
+import { createEvalSandbox, diffSnapshots, readChangedFileContents, runVerifier, snapshotFiles } from './sandbox.js';
 import { runStudentAgentEval } from './agent-runner.js';
 import { scoreEvalRun } from './scorer.js';
 import type { EvalRunRecord } from './types.js';
@@ -33,8 +33,10 @@ export async function runEvalBaseline(options: BaselineRunOptions = {}): Promise
         const before = await snapshotFiles(sandbox.path);
         const trace = await runStudentAgentEval({ task, sandboxDir: sandbox.path });
         const afterAgent = await snapshotFiles(sandbox.path);
+        const changedFiles = diffSnapshots(before, afterAgent);
+        const modifiedFiles = await readChangedFileContents(sandbox.path, changedFiles);
         const verifier = await runVerifier(task, sandbox);
-        const scored = scoreEvalRun({ task, trace, verifier, before, after: afterAgent });
+        const scored = scoreEvalRun({ task, trace, verifier, before, after: afterAgent, modifiedFiles });
         records.push({
           taskId: task.id,
           title: task.title,
