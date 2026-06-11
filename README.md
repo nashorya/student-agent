@@ -88,6 +88,8 @@ student-agent          # run from any directory
 
 Type a natural-language task and press Enter. The agent plans, executes, and reflects — you'll see each phase in the status bar. Use `/exit` or `Ctrl-C` to quit.
 
+For benchmark harnesses or scripts, use non-interactive mode: `student-agent --prompt "fix the failing tests in this repository"`. Prefer `student-agent --prompt-file /path/to/instruction.md` for long instructions.
+
 Useful slash commands:
 
 | Command | Purpose |

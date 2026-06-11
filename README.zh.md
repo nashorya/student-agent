@@ -88,6 +88,8 @@ student-agent          # 在任意目录启动
 
 用自然语言描述任务并回车，代理会规划、执行并反思——每个阶段会在状态栏中显示。输入 `/exit` 或按 `Ctrl-C` 退出。
 
+Benchmark 或脚本里可以用非交互模式：`student-agent --prompt "修复当前仓库里的测试失败"`，长指令建议用 `student-agent --prompt-file /path/to/instruction.md`。
+
 常用斜杠命令：
 
 | 命令 | 用途 |
@@ -394,6 +396,8 @@ npm run eval:baseline -- --task task-phase-flow --trials 5
 ```
 
 结果写入 `evals/results/`（git-ignored）。每个结果文件包含 `correctness_score`、`behavior_score`、完整 `efficiencyMetrics`、`safetyMetrics`、`behaviorFindings` 以及完整的 `toolCalls` 调用记录。
+
+外部长任务基准的 smoke 入口见 [`docs/external-benchmarks.zh.md`](docs/external-benchmarks.zh.md)，包括 Terminal-Bench、SWE-bench、Claude Code 对照、student-agent custom adapter、DeepSeek 双 key 配置和 dry-run 命令。
 
 ---
 
