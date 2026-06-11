@@ -50,17 +50,19 @@
   `Overfull \hbox`，但 verifier 失败：
   `modified input.tex must only modify words in synonyms.txt`。失败差异为
   `natures -> traits`，二者不在同一 synonym family。
-- **根因**：非交互 task 创建时只把 instruction 通过 `compactTaskName`
-  写入 `working_memory.goal/todos`，200 字截断后停在
-  `only edits you may make a...`，没有把 `synonyms.txt` family 约束保留到
-  L1。失败 run 的 context trace 只有 `taskSpec` 319 chars，无独立 hard
-  constraints section；完整约束只存在于原始 prompt/较早历史里。收尾阶段模型
-  口头声明要校验 synonym families，但 `git` 不存在后改为凭已读文件继续，未做
-  可执行约束校验。
+- **根因**：归因已推进三层。第一层是原始失败 run 未把完整约束保留到
+  L1；第二层修复后，DeepSeek 与 gpt-5.5 trace 均证实
+  `hardConstraints` 已完整渲染且未截断；第三层根因是约束核对没有被执行成
+  可校验动作。模型收尾时凭记忆或语感声明修改符合约束，只验证了任务主目标
+  （例如编译与 overfull warning），没有用 `git diff`/`read` 取证后逐条对照
+  HARD CONSTRAINTS，因此跨 family 替换仍能漏过。
 - **修复/处置**：按 `plan-tier-a-green-and-sonnet.md` P1 增加通用
   `working_memory.hardConstraints` 与 L1 `hardConstraints` section；非交互路径
   确定性保存完整 instruction；eval autonomy rule 增加完工前重读 hard
-  constraints 的收尾纪律。
+  constraints 的收尾纪律。第三层修复新增通用 completion self-check：
+  非交互主回合结束后，若 hardConstraints 非空，追加且仅追加一轮固定自查，
+  要求用工具取得修改证据、逐条判定满足/违反、发现违反立即修复并重新校验；
+  summary 记录该轮是否运行、工具调用数和是否产生编辑。
 - **2026-06-11 回归证据**：使用 DeepSeek 官方 endpoint 跑
   `p2-overfull-official-deepseek-seed1-20260611`，agent phase 正常完成，
   verifier 4 项通过 3 项：编译成功、无 overfull hbox、未修改
