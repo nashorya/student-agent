@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { Type } from '@mariozechner/pi-ai';
 import { defineTool } from '@mariozechner/pi-coding-agent';
+import type { TasksManager } from '../../memory/tasks/manager.js';
 
 interface ApplyPatchInput {
   input: string;
@@ -32,7 +33,10 @@ const applyPatchSchema = Type.Object({
   }),
 });
 
-export function createApplyPatchToolDefinition(cwd: string) {
+export function createApplyPatchToolDefinition(
+  cwd: string,
+  options: { tasksManager?: TasksManager } = {},
+) {
   return defineTool({
     name: 'apply_patch',
     label: 'apply_patch',
@@ -59,12 +63,32 @@ export function createApplyPatchToolDefinition(cwd: string) {
     async execute(_toolCallId, params: ApplyPatchInput) {
       const operations = parsePatch(params.input);
       const applied = await applyOperations(cwd, operations);
+      await trackPatchedFiles(options.tasksManager, operations);
       return {
         content: [{ type: 'text', text: `Applied patch: ${applied.join(', ')}` }],
         details: { applied },
       };
     },
   });
+}
+
+async function trackPatchedFiles(
+  tasksManager: TasksManager | undefined,
+  operations: PatchOperation[],
+): Promise<void> {
+  if (!tasksManager) return;
+  try {
+    const active = await tasksManager.getActive();
+    if (!active) return;
+    for (const operation of operations) {
+      const path = operation.type === 'update' && operation.moveTo
+        ? operation.moveTo
+        : operation.path;
+      await tasksManager.trackFileWrite(active.id, path);
+    }
+  } catch {
+    // Working-memory tracking is best-effort and must not fail a valid patch.
+  }
 }
 
 function parsePatch(patchText: string): PatchOperation[] {

@@ -1,14 +1,19 @@
 /**
- * ToolGuard Hook — 在 beforeToolCall 阶段拦截四类异常工具调用：
+ * ToolGuard Hook — 拦截五类异常工具调用：
  *   1. Empty bash: 空/纯空格的 shell 命令
  *   2. NL bash: 自然语言被误当作 shell 命令
  *   3. Broad glob: 过于宽泛的 glob 模式（缺少目录前缀）
  *   4. Patch retry: 未重新读取就重复编辑同一文件
+ *   5. Verify retry: 无编辑时反复运行同类失败验证
  *
  * 每次拦截同时 emit ProtectedEvalEvent 供离线审计。
  */
 
-import type { PreToolCallContext, PreToolCallDecision } from '../../core/pi-bridge/types.js';
+import type {
+  PostToolCallContext,
+  PreToolCallContext,
+  PreToolCallDecision,
+} from '../../core/pi-bridge/types.js';
 import { emitProtectedEvent } from '../../core/hashline/index.js';
 
 // ── 工具名称集合 ─────────────────────────────────────
@@ -31,16 +36,38 @@ const SHELL_METACHAR_RE = /[|><;&`$]/;
 
 const BROAD_GLOB_PREFIX_RE = /^(?:\.\/)?\*{1,2}[/\\]/;
 
+// ── 验证命令 ──────────────────────────────────────────
+
+const DIRECT_VALIDATION_COMMANDS = new Set([
+  "jest",
+  "py.test",
+  "py_compile",
+  "pytest",
+  "tsc",
+  "vitest",
+]);
+const PACKAGE_MANAGERS = new Set(["bun", "npm", "pnpm", "yarn"]);
+const VALIDATION_TASK_RE = /^(?:build|check|compile|lint|test|typecheck|verify)(?::|$)/;
+const COMMAND_VALIDATION_TASKS = new Set([
+  "build",
+  "check",
+  "clippy",
+  "compile",
+  "lint",
+  "package",
+  "test",
+  "verify",
+  "vet",
+]);
+const PYTHON_COMMAND_RE = /^python(?:\d+(?:\.\d+)*)?$/;
+const PYTHON_VALIDATION_MODULES = new Set(["compileall", "py_compile", "pytest", "unittest"]);
+
 // ── 类型 ─────────────────────────────────────────────
 
 export interface ToolGuard {
   hook: (ctx: PreToolCallContext) => Promise<PreToolCallDecision | undefined>;
+  observeResult: (ctx: PostToolCallContext) => void;
   reset: () => void;
-}
-
-interface EditAttempt {
-  path: string;
-  timestamp: number;
 }
 
 // ── 工具函数 ──────────────────────────────────────────
@@ -98,13 +125,60 @@ function isNlBash(command: string): boolean {
   return false;
 }
 
+function commandTokens(command: string): string[] {
+  return command.trim().split(/\s+/).filter(Boolean);
+}
+
+function validationClass(command: string): string | undefined {
+  const tokens = commandTokens(command);
+  const firstToken = tokens[0]?.replace(/^.*[/\\]/, "");
+  if (!firstToken) return undefined;
+
+  if (DIRECT_VALIDATION_COMMANDS.has(firstToken)) {
+    return firstToken;
+  }
+
+  if (PACKAGE_MANAGERS.has(firstToken)) {
+    const task = tokens[1] === "run" ? tokens[2] : tokens[1];
+    return task && VALIDATION_TASK_RE.test(task) ? firstToken : undefined;
+  }
+
+  if (firstToken === "npx") {
+    const executable = tokens[1]?.replace(/^.*[/\\]/, "");
+    return executable && DIRECT_VALIDATION_COMMANDS.has(executable)
+      ? firstToken
+      : undefined;
+  }
+
+  if (PYTHON_COMMAND_RE.test(firstToken)) {
+    const moduleFlagIndex = tokens.indexOf("-m");
+    const moduleName = moduleFlagIndex >= 0 ? tokens[moduleFlagIndex + 1] : undefined;
+    if (moduleName && PYTHON_VALIDATION_MODULES.has(moduleName)) {
+      return firstToken;
+    }
+  }
+
+  if (["cargo", "dotnet", "go", "make", "mvn", "mvnw"].includes(firstToken)) {
+    return tokens.slice(1).some((token) => COMMAND_VALIDATION_TASKS.has(token))
+      ? firstToken
+      : undefined;
+  }
+
+  if (firstToken === "gradle" || firstToken === "gradlew") {
+    return tokens.slice(1).some((token) => VALIDATION_TASK_RE.test(token))
+      ? firstToken
+      : undefined;
+  }
+
+  return undefined;
+}
+
 // ── 工厂函数 ──────────────────────────────────────────
 
 export function createToolGuardHook(): ToolGuard {
   let lastEditPath: string | null = null;
-  let lastEditBlocked: boolean = false;
   let recentReads: Set<string> = new Set();
-  let recentFailures: EditAttempt[] = [];
+  let validationFailures = new Map<string, number>();
 
   function block(
     reason: string,
@@ -156,6 +230,23 @@ export function createToolGuardHook(): ToolGuard {
           { command },
         );
       }
+
+      const verifyClass = validationClass(command);
+      const failureCount = verifyClass
+        ? validationFailures.get(verifyClass) ?? 0
+        : 0;
+      if (verifyClass && failureCount >= 3) {
+        return block(
+          "[ToolGuard:verify_retry] 同类验证已连续失败 3 次且期间没有文件编辑。请更换验证策略，或记录环境阻塞后继续。",
+          "verify_retry",
+          ctx,
+          {
+            command,
+            validationClass: verifyClass,
+            consecutiveFailures: String(failureCount),
+          },
+        );
+      }
     }
 
     // ── Rule 3: Broad glob ───────────────────────────
@@ -180,7 +271,6 @@ export function createToolGuardHook(): ToolGuard {
         && editPath === lastEditPath
         && !recentReads.has(editPath)
       ) {
-        lastEditBlocked = true;
         recentReads.clear();
         return block(
           "[ToolGuard:patch_retry] 未重新读取就重复编辑同一文件已阻断。请先 re-read 文件再重试编辑。",
@@ -191,18 +281,37 @@ export function createToolGuardHook(): ToolGuard {
       }
 
       lastEditPath = editPath;
-      lastEditBlocked = false;
+      validationFailures.clear();
     }
 
     return undefined;
   };
 
-  const reset = () => {
-    lastEditPath = null;
-    lastEditBlocked = false;
-    recentReads = new Set();
-    recentFailures = [];
+  const observeResult = (ctx: PostToolCallContext) => {
+    if (!SHELL_TOOLS.has(ctx.toolName.toLowerCase())) return;
+
+    const command = extractCommand(ctx.args);
+    if (!command) return;
+
+    const verifyClass = validationClass(command);
+    if (!verifyClass) return;
+
+    if (ctx.isError) {
+      validationFailures.set(
+        verifyClass,
+        (validationFailures.get(verifyClass) ?? 0) + 1,
+      );
+      return;
+    }
+
+    validationFailures.delete(verifyClass);
   };
 
-  return { hook, reset };
+  const reset = () => {
+    lastEditPath = null;
+    recentReads = new Set();
+    validationFailures = new Map();
+  };
+
+  return { hook, observeResult, reset };
 }

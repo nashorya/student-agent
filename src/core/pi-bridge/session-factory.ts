@@ -114,7 +114,7 @@ export async function createStudentSession(
     createStudentReadToolDefinition(cwd, { store: hashlineStore, tasksManager }),
     createStudentEditToolDefinition(cwd, { store: hashlineStore, fs: hashlineFs, tasksManager }),
     createStudentWriteToolDefinition(cwd),
-    createApplyPatchToolDefinition(cwd),
+    createApplyPatchToolDefinition(cwd, { tasksManager }),
   ] as CreateAgentSessionOptions['customTools'];
 
   const agentOptions: CreateAgentSessionOptions = {
