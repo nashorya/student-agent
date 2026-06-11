@@ -83,7 +83,32 @@
   grep `Overfull \hbox`，没有运行逐 token synonym-family 校验；日志未保存
   `apply_patch` payload，无法把非法替换归到某一笔 patch。按失败即停规则，
   未继续 seed 2/3 与 SWE 回归。
-- **状态**：PARTIAL（hardConstraints 装配已验证；同 family 行为约束仍 OPEN）
+- **2026-06-11 completion self-check 三 seed**：commit `488bb6c3`
+  增加一次性收尾自查后，用 gpt-5.5 跑
+  `p3-overfull-selfcheck-gpt55-seed{1,2,3}-20260611`。三轮自查均真实调用工具，
+  但 verifier 仅 seed 2 为 4/4；seed 1、3 仍为 3/4：
+  - seed 1：`177,461 / 255,396 / 20`（input/total/turns），
+    `selfCheck={ran:true, toolCalls:11, editsMade:false}`，失败差异
+    `an → a`。
+  - seed 2：`140,392 / 239,697 / 16`，
+    `selfCheck={ran:true, toolCalls:6, editsMade:false}`，verifier 4/4。
+  - seed 3：`148,327 / 242,658 / 17`，
+    `selfCheck={ran:true, toolCalls:8, editsMade:false}`，失败差异
+    `natures → moods`。
+- **失败 seed 自查 trace 原文摘录**：
+  - seed 1：
+    > Evidence examples from the final input.tex and synonyms.txt: communicative -> open, reserved -> quiet, curious -> odd...
+    >
+    > No constraint violations found.
+  - seed 3：
+    > every introduced replacement word appears in the synonym families in synonyms.txt, for example open, quiet, opinions, odd...
+    >
+    > Result: Task is complete.
+- **第三层验证结论**：self-check 已把核对变成工具动作，满足
+  `selfCheck.toolCalls >= 1`，但模型仍采用示例抽查而非完整逐 token 对照，
+  因而能对未枚举的非法替换给出错误的“全部满足”结论。关案双条件未满足；
+  按约定不继续 SWE、不打 tag、不自行增加第三层 hack。
+- **状态**：PARTIAL（completion self-check 已实现；3 seed 仅 1/3 全绿）
 
 ## BUG-005 · P2 overfull 回归为无效 run：provider 漂移 + 缺 API key
 
