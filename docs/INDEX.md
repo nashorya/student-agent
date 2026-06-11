@@ -24,7 +24,8 @@
 | 2026-06-11 | 验收发现 P2 overfull 回归为无效 run（BUG-005：provider 漂移 deepseek + 缺 key，agent 未运行）；cc-sonnet smoke ×2 errored。决策：**停止自跑 cc**，跨 agent 改引公开 leaderboard 数据（per-instance artifact 与子集求交集），matrix Tier C 已修订；sonnet 轮改为 student-agent 单边 | [benchmark-matrix](benchmark-matrix.md) · [buglog BUG-005](buglog.md) |
 | 2026-06-11 | `codex/context-runtime-benchmark` 按 11 批小步提交完成入库整理（repo ignore、非交互 context runtime、hardConstraints、verify_retry、外部 benchmark runner、fixtures、docs、CLI packaging、core/observability 支撑）；提交后完整 `npx vitest run` 通过：130 files passed / 1 skipped，909 tests passed / 1 skipped，duration 47s | [plan-tier-a-green-and-sonnet](plan-tier-a-green-and-sonnet.md) |
 | 2026-06-11 | BUG-005 哨兵完成并实战验证：gpt-5.5 中转链路 3 次 agent exit 1（503）均标记 `invalid_run=true`，不计 reward，BUG-005 关案。改用 DeepSeek 官方 endpoint 做 overfull 功能回归：有效 run 的 verifier 3/4 通过，编译与 overfull 目标达成，但残留非法 `to→of`；trace 证明 L1 `hardConstraints` 已渲染且含 synonym family 约束，故 BUG-004 定位为装配已修、行为/最终验证闭环仍 OPEN。seed 2 启动后按失败即停规则终止，未计结果 | [buglog BUG-004/005](buglog.md) · `evals/results/terminal-bench/p2-overfull-official-deepseek-seed1-20260611/` |
-| （待办） | 修复 overfull 同 family 最终验证闭环 → DeepSeek 官方渠道重跑至 Tier A 全绿 → tag → sonnet 单边轮 + Tier B | [plan-tier-a-green-and-sonnet](plan-tier-a-green-and-sonnet.md) |
+| 2026-06-11 | 新 key 的 gpt-5.5 overfull smoke 为有效 run（14 turns / 172,788 input），仍为 verifier 3/4：`natures→traits` 跨 family，复现最初症状；hardConstraints 已完整进入 L1，失败点收敛到“最终未运行可执行 synonym-family 校验”。按计划未继续另外两轮与 SWE，未打 tag | [buglog BUG-004](buglog.md) · `evals/results/terminal-bench/p2-overfull-gpt55-newkey-seed1-20260611/` |
+| （待办） | 修复 overfull 同 family 最终验证闭环 → gpt-5.5 重跑至 Tier A 全绿 → SWE 12907/14182 无回归 → tag → sonnet 单边轮 + Tier B | [plan-tier-a-green-and-sonnet](plan-tier-a-green-and-sonnet.md) |
 
 ## 横向 · 项目树地图
 

@@ -72,6 +72,15 @@
   `unbroken → steady`，但在多次大段替换和 edit 失败后，最终自检没有发现
   verifier 报出的 `to → of`。推断非法替换由大段文本改写夹带，尚无直接
   tool payload 证据，不据此加 hack。
+- **2026-06-11 gpt-5.5 回归证据**：更换可用 key 后运行
+  `p2-overfull-gpt55-newkey-seed1-20260611`，agent phase 正常完成，
+  14 turns / 172,788 input tokens。verifier 再次 3/4：编译、无 overfull、
+  保护文件均通过，`test_input_file_matches` 因 `natures → traits` 跨
+  family 失败，与最初 Tier A 症状同型。L1 `hardConstraints` 仍完整渲染
+  （437 chars / 125 estimated tokens）。该轮采用较小范围 patch，但收尾只
+  grep `Overfull \hbox`，没有运行逐 token synonym-family 校验；日志未保存
+  `apply_patch` payload，无法把非法替换归到某一笔 patch。按失败即停规则，
+  未继续 seed 2/3 与 SWE 回归。
 - **状态**：PARTIAL（hardConstraints 装配已验证；同 family 行为约束仍 OPEN）
 
 ## BUG-005 · P2 overfull 回归为无效 run：provider 漂移 + 缺 API key
