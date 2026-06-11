@@ -6,6 +6,7 @@ import type {
   EvalTokenUsage,
   EvalTokenUsageEvent,
 } from '../evals/types.js';
+import type { CompletionSelfCheckResult } from './completion-self-check.js';
 
 export interface NonInteractiveRunSummary {
   status: 'success' | 'failed';
@@ -24,6 +25,7 @@ export interface NonInteractiveRunSummary {
   contextAssemblyTraces?: EvalContextAssemblyTrace[];
   contextTokenEffect?: EvalContextTokenEffect;
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
+  selfCheck: CompletionSelfCheckResult;
 }
 
 export class NonInteractiveUsageCollector {
@@ -71,6 +73,7 @@ export function createNonInteractiveSummary(options: {
   contextTokenEffect?: EvalContextTokenEffect;
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
   protectedEvents?: ProtectedEvalEvent[];
+  selfCheck: CompletionSelfCheckResult;
 }): NonInteractiveRunSummary {
   const protectedEvents = cloneJson(options.protectedEvents ?? []);
   return {
@@ -93,6 +96,7 @@ export function createNonInteractiveSummary(options: {
     contextAssemblyTraces: cloneJson(options.contextAssemblyTraces),
     contextTokenEffect: cloneJson(options.contextTokenEffect),
     workingMemorySnapshot: cloneJson(options.workingMemorySnapshot),
+    selfCheck: cloneJson(options.selfCheck),
   };
 }
 

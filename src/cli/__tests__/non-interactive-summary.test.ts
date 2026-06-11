@@ -92,6 +92,11 @@ describe('NonInteractiveUsageCollector', () => {
         blocked: true,
         timestamp: '2026-06-10T00:00:01.000Z',
       }],
+      selfCheck: {
+        ran: true,
+        toolCalls: 2,
+        editsMade: true,
+      },
     });
 
     expect(summary.tokenUsage).toEqual({
@@ -114,6 +119,11 @@ describe('NonInteractiveUsageCollector', () => {
     expect(summary.protectedEvents).toHaveLength(1);
     expect(summary.contextAssemblyTraces).toHaveLength(1);
     expect(summary.contextTokenEffect?.layers.L0.sectionIds).toContain('taskInstruction');
+    expect(summary.selfCheck).toEqual({
+      ran: true,
+      toolCalls: 2,
+      editsMade: true,
+    });
   });
 });
 
