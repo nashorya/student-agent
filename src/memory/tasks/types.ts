@@ -87,6 +87,7 @@ export interface TaskWorkingMemory {
   taskId: string;
   runId: string;
   goal: string;
+  hardConstraints: string;
   phase: WorkingMemoryPhase;
   currentStep: string;
   todos: TaskWorkingMemoryTodo[];

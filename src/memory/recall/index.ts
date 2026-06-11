@@ -1,4 +1,11 @@
-export { ContextBuilder, estimateTokens } from './context-builder.js';
+export {
+  ANTHROPIC_EXECUTION_OVERRIDE,
+  ContextBuilder,
+  EVAL_AUTONOMY_RULE,
+  FULL_PI_SCHEMA,
+  PI_CONTRACT_SUMMARY,
+  estimateTokens,
+} from './context-builder.js';
 export { JsonlMemoryStore, type JsonlMemoryStoreOptions } from './jsonl-memory-store.js';
 export { RecallRouter, buildRecallQuery } from './recall-router.js';
 export {
@@ -20,6 +27,7 @@ export type {
   BuiltContext,
   ContextBuilderInput,
   ContextSection,
+  ContextRunMode,
   DocFinding,
   L1SectionBudget,
   L1Tier,
@@ -27,6 +35,7 @@ export type {
   L1TierInput,
   MemoryRecallResult,
   MemoryStore,
+  PiSchemaRenderMode,
   RecallBundle,
   RecallIndex,
   RecallIndexEntry,

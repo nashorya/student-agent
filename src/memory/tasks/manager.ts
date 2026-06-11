@@ -579,6 +579,7 @@ function normalizeWorkingMemory(
     taskId: typeof record.taskId === 'string' ? record.taskId : meta.taskId,
     runId: typeof record.runId === 'string' ? record.runId : `run_${Date.now()}`,
     goal: typeof record.goal === 'string' ? record.goal : '',
+    hardConstraints: typeof record.hardConstraints === 'string' ? record.hardConstraints : '',
     phase,
     currentStep: typeof record.currentStep === 'string' ? record.currentStep : meta.currentStep ?? '',
     todos: capArray(normalizeTodos(record.todos, now), WORKING_MEMORY_LIMITS.todos),
@@ -631,6 +632,9 @@ function mergeWorkingMemory(
     taskId: typeof patchRecord.taskId === 'string' ? patchRecord.taskId : current.taskId,
     runId: typeof patchRecord.runId === 'string' ? patchRecord.runId : current.runId,
     goal: typeof patchRecord.goal === 'string' ? patchRecord.goal : current.goal,
+    hardConstraints: typeof patchRecord.hardConstraints === 'string'
+      ? patchRecord.hardConstraints
+      : current.hardConstraints,
     phase: normalizeWorkingMemoryPhase(patchRecord.phase) ?? current.phase,
     currentStep: typeof patchRecord.currentStep === 'string' ? patchRecord.currentStep : current.currentStep,
     todos: capArray(mergeTodos(current.todos, normalizedPatch.todos), WORKING_MEMORY_LIMITS.todos),

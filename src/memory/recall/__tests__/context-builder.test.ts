@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { TaskWorkingMemory } from '../../tasks/types.js';
 import type { TaskLedgerInput } from '../../tasks/task-ledger.js';
-import { ContextBuilder } from '../context-builder.js';
+import {
+  ANTHROPIC_EXECUTION_OVERRIDE,
+  ContextBuilder,
+  EVAL_AUTONOMY_RULE,
+  FULL_PI_SCHEMA,
+  PI_CONTRACT_SUMMARY,
+} from '../context-builder.js';
 import type { RecallBundle, RecallScore, RecalledItem } from '../types.js';
 
 describe('ContextBuilder', () => {
@@ -21,6 +27,7 @@ describe('ContextBuilder', () => {
     });
 
     expect(context.sections.map((section) => section.name)).toEqual([
+      'piContractSummary',
       'taskSpec',
       'workingMemory',
       'recentErrors',
@@ -30,13 +37,82 @@ describe('ContextBuilder', () => {
       'docFindings',
     ]);
     expect(context.tier).toBe('standard');
-    expect(context.sections[0].content).toContain('Goal: Implement ContextBuilder');
-    expect(context.sections[1].content).toContain('[pending] Add tests');
-    expect(context.sections[1].content).not.toContain('Completed todo');
-    expect(context.sections[2].content).toContain('Error(tool/edit_failed)');
-    expect(context.sections[3].content).toContain('Signal(tool_error/medium)');
-    expect(context.sections[4].content).toContain('Fresh read before retrying edits');
+    expect(context.sections[0].content).toBe(PI_CONTRACT_SUMMARY);
+    expect(context.sections[1].content).toContain('Goal: Implement ContextBuilder');
+    expect(context.sections[2].content).toContain('[pending] Add tests');
+    expect(context.sections[2].content).not.toContain('Completed todo');
+    expect(context.sections[3].content).toContain('Error(tool/edit_failed)');
+    expect(context.sections[4].content).toContain('Signal(tool_error/medium)');
+    expect(context.sections[5].content).toContain('Fresh read before retrying edits');
     expect(context.truncated).toEqual([]);
+  });
+
+  it('defaults to summary pi contract and does not render full pi schema', () => {
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory(),
+      recallBundle: recallBundle(),
+      tier: 'standard',
+    });
+
+    expect(context.sections.find((section) => section.name === 'piContractSummary')?.content)
+      .toBe(PI_CONTRACT_SUMMARY);
+    expect(context.sections.some((section) => section.name === 'piSchemaFull')).toBe(false);
+    expect(context.sections.map((section) => section.content).join('\n')).not.toContain(FULL_PI_SCHEMA);
+  });
+
+  it('renders eval autonomy rule in eval mode while keeping pi schema summary-only', () => {
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory(),
+      recallBundle: recallBundle(),
+      tier: 'standard',
+      runMode: 'eval',
+    });
+
+    expect(context.sections.map((section) => section.name).slice(0, 3)).toEqual([
+      'evalAutonomyRule',
+      'anthropicExecutionOverride',
+      'piContractSummary',
+    ]);
+    expect(context.sections.find((section) => section.name === 'evalAutonomyRule')?.content)
+      .toBe(EVAL_AUTONOMY_RULE);
+    expect(EVAL_AUTONOMY_RULE).toContain(
+      'If validation fails for reasons unrelated to your change',
+    );
+    expect(EVAL_AUTONOMY_RULE).toContain(
+      'Do not retry the same failing validation approach more than twice.',
+    );
+    expect(EVAL_AUTONOMY_RULE).toContain(
+      're-read the HARD CONSTRAINTS section',
+    );
+    expect(context.sections.find((section) => section.name === 'anthropicExecutionOverride')?.content)
+      .toBe(ANTHROPIC_EXECUTION_OVERRIDE);
+    expect(context.sections.some((section) => section.name === 'piSchemaFull')).toBe(false);
+  });
+
+  it('renders full pi schema only when explicitly requested', () => {
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory(),
+      recallBundle: recallBundle(),
+      tier: 'standard',
+      piSchemaRenderMode: 'full',
+    });
+
+    expect(context.sections.find((section) => section.name === 'piContractSummary')?.content)
+      .toBe(PI_CONTRACT_SUMMARY);
+    expect(context.sections.find((section) => section.name === 'piSchemaFull')?.content)
+      .toBe(FULL_PI_SCHEMA);
+  });
+
+  it('supports disabling pi schema rendering entirely', () => {
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory(),
+      recallBundle: recallBundle(),
+      tier: 'standard',
+      piSchemaRenderMode: 'none',
+    });
+
+    expect(context.sections.some((section) => section.name === 'piContractSummary')).toBe(false);
+    expect(context.sections.some((section) => section.name === 'piSchemaFull')).toBe(false);
   });
 
   it('renders task ledger section between taskSpec and workingMemory', () => {
@@ -48,7 +124,7 @@ describe('ContextBuilder', () => {
     });
 
     const names = context.sections.map((section) => section.name);
-    expect(names.slice(0, 3)).toEqual(['taskSpec', 'taskLedger', 'workingMemory']);
+    expect(names.slice(0, 4)).toEqual(['piContractSummary', 'taskSpec', 'taskLedger', 'workingMemory']);
     const ledger = context.sections.find((section) => section.name === 'taskLedger');
     expect(ledger?.content).toContain('## Task Ledger');
     expect(ledger?.content).toContain('### Confirmed Facts');
@@ -77,6 +153,50 @@ describe('ContextBuilder', () => {
     expect(context.sections.some((section) => section.name === 'taskLedger')).toBe(false);
   });
 
+  it('renders hard constraints as a pinned L1 section after taskSpec', () => {
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory({
+        hardConstraints: [
+          'Only edit input.tex.',
+          'Every replacement must come from the same synonyms.txt family.',
+        ].join('\n'),
+      }),
+      recallBundle: recallBundle(),
+      tier: 'standard',
+    });
+
+    const names = context.sections.map((section) => section.name);
+    expect(names.slice(0, 4)).toEqual([
+      'piContractSummary',
+      'taskSpec',
+      'hardConstraints',
+      'workingMemory',
+    ]);
+    const hardConstraints = context.sections.find((section) => section.name === 'hardConstraints');
+    expect(hardConstraints?.content).toContain('HARD CONSTRAINTS');
+    expect(hardConstraints?.content).toContain('Only edit input.tex.');
+    expect(hardConstraints?.content).toContain('same synonyms.txt family');
+  });
+
+  it('truncates hard constraints under the minimal tier and records the truncation', () => {
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory({
+        hardConstraints: `Keep this visible. ${'constraint detail '.repeat(1000)}`,
+        todos: [],
+        recentErrors: [],
+        recentSignals: [],
+      }),
+      recallBundle: recallBundle(),
+      tier: 'minimal',
+      piSchemaRenderMode: 'none',
+    });
+
+    const hardConstraints = context.sections.find((section) => section.name === 'hardConstraints');
+    expect(hardConstraints?.content).toContain('Keep this visible.');
+    expect(context.truncated).toContain('hardConstraints');
+    expect(hardConstraints?.estimatedTokens).toBeLessThanOrEqual(300);
+  });
+
   it('omits retrieved context sections in minimal tier while keeping pinned context', () => {
     const context = new ContextBuilder().build({
       workingMemory: workingMemory(),
@@ -89,6 +209,7 @@ describe('ContextBuilder', () => {
     });
 
     expect(context.sections.map((section) => section.name)).toEqual([
+      'piContractSummary',
       'taskSpec',
       'workingMemory',
       'recentErrors',
@@ -174,6 +295,7 @@ describe('ContextBuilder', () => {
 
     const names = context.sections.map((section) => section.name);
     expect(names).toEqual([
+      'piContractSummary',
       'taskSpec',
       'workingMemory',
       'recentErrors',
@@ -189,21 +311,25 @@ describe('ContextBuilder', () => {
 
   it('preserves legacy maxTokenBudget behavior when tier is not provided', () => {
     const context = new ContextBuilder().build({
-      workingMemory: workingMemory(),
+      workingMemory: workingMemory({
+        hardConstraints: 'Legacy hard constraint',
+      }),
       recallBundle: recallBundle({
         knacks: [recalled('knack_1', 'knack', 'k'.repeat(300))],
         preferences: [recalled('pref_1', 'preference', 'p'.repeat(300))],
       }),
-      maxTokenBudget: 35,
+      maxTokenBudget: 60,
+      piSchemaRenderMode: 'none',
     });
 
     expect(context.sections.map((section) => section.name)).toEqual([
       'taskSpec',
+      'hardConstraints',
       'workingMemory',
       'recentErrors',
+      'recentSignals',
     ]);
-    expect(context.totalEstimatedTokens).toBeLessThanOrEqual(35);
-    expect(context.truncated).toContain('recentErrors');
+    expect(context.totalEstimatedTokens).toBeLessThanOrEqual(60);
     expect(context.truncated).toContain('recentSignals');
     expect(context.truncated).toContain('knacks');
   });
@@ -214,6 +340,7 @@ function workingMemory(overrides: Partial<TaskWorkingMemory> = {}): TaskWorkingM
     taskId: 'task_1',
     runId: 'run_1',
     goal: 'Implement ContextBuilder',
+    hardConstraints: '',
     phase: 'executing',
     currentStep: 'Build L1 prompt sections',
     todos: [

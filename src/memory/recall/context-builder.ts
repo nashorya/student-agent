@@ -1,9 +1,11 @@
 import type {
   BuiltContext,
   ContextBuilderInput,
+  ContextRunMode,
   ContextSection,
   L1SectionBudget,
   L1Tier,
+  PiSchemaRenderMode,
   RecalledItem,
 } from './types.js';
 import type { TaskLedgerInput } from '../tasks/task-ledger.js';
@@ -12,9 +14,14 @@ import { TIER_BUDGETS } from './tier-selector.js';
 const DEFAULT_TOKEN_BUDGET = 2000;
 const TOKEN_CHAR_RATIO = 3.5;
 const SECTION_ORDER = [
+  'evalAutonomyRule',
+  'anthropicExecutionOverride',
+  'piContractSummary',
+  'piSchemaFull',
   'systemRules',
   'toolRules',
   'taskSpec',
+  'hardConstraints',
   'taskLedger',
   'workingMemory',
   'recentErrors',
@@ -28,15 +35,57 @@ const SECTION_ORDER = [
   'currentUserMessage',
 ] as const;
 
+export const PI_CONTRACT_SUMMARY = `
+PI CONTRACT:
+- Inspect before editing.
+- Use tools for file/code changes.
+- Do not claim success without validation.
+- Keep assumptions explicit.
+- Respect user corrections and rejected assumptions.
+- Final answer must summarize changed files and validation status.
+`.trim();
+
+export const EVAL_AUTONOMY_RULE = `
+EVAL AUTONOMY RULE:
+- This is a non-interactive evaluation run.
+- There will be no follow-up user answer.
+- Do not ask the user questions or request confirmation.
+- Do not stop after planning.
+- Inspect files before asking for clarification.
+- Make reasonable assumptions, then edit and validate.
+- If blocked, document the blocker and complete the best possible partial implementation.
+- If validation fails for reasons unrelated to your change (pre-existing test configuration, environment, or build infrastructure), record it as an environment blocker and move on. Do not fight the environment.
+- Do not retry the same failing validation approach more than twice. Change strategy or record the blocker.
+- Before declaring the task complete, re-read the HARD CONSTRAINTS section and verify your changes satisfy every constraint. A solution that passes validation but violates a stated constraint is a failure.
+- Asking the user for confirmation during eval is considered task failure.
+`.trim();
+
+export const ANTHROPIC_EXECUTION_OVERRIDE = `
+CLAUDE EXECUTION OVERRIDE:
+- This is an autonomous local coding task.
+- Do not ask for permission to read, search, edit, or validate local files.
+- Do not ask for confirmation before the first tool call.
+- When uncertain, inspect first; do not ask first.
+- Continue until you complete the task, hit a real blocker, or validation fails.
+- Do not treat ordinary implementation uncertainty as a blocker.
+`.trim();
+
+export const FULL_PI_SCHEMA = `
+FULL PI SCHEMA:
+The complete Pi provider/tool schema is intentionally excluded from the default L1 working set.
+Render it only for strict/debug/schema-specific tasks or explicit user requests.
+`.trim();
+
 export class ContextBuilder {
   build(input: ContextBuilderInput): BuiltContext {
-    const sections = buildSections(input).sort((a, b) => a.priority - b.priority);
+    const policy = resolveContextPolicy(input);
+    const sections = buildSections(input, policy).sort((a, b) => a.priority - b.priority);
     if (!input.tier && input.maxTokenBudget !== undefined) {
-      return applyLegacyBudget(sections, input.maxTokenBudget, 'standard');
+      return applyLegacyBudget(sections, input.maxTokenBudget, 'standard', policy);
     }
 
     const tier = input.tier ?? 'standard';
-    return applySectionBudgets(sections, TIER_BUDGETS[tier].sectionBudgets, tier);
+    return applySectionBudgets(sections, TIER_BUDGETS[tier].sectionBudgets, tier, policy);
   }
 }
 
@@ -44,13 +93,54 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / TOKEN_CHAR_RATIO);
 }
 
-function buildSections(input: ContextBuilderInput): ContextSection[] {
+interface ContextPolicy {
+  runMode: ContextRunMode;
+  piSchemaRenderMode: PiSchemaRenderMode;
+  evalAutonomyEnabled: boolean;
+  fullPiSchemaRendered: boolean;
+  anthropicExecutionOverrideEnabled: boolean;
+}
+
+function resolveContextPolicy(input: ContextBuilderInput): ContextPolicy {
+  const runMode = input.runMode ?? 'interactive';
+  const piSchemaRenderMode = input.piSchemaRenderMode ?? 'summary';
+  return {
+    runMode,
+    piSchemaRenderMode,
+    evalAutonomyEnabled: runMode === 'eval',
+    fullPiSchemaRendered: piSchemaRenderMode === 'full',
+    anthropicExecutionOverrideEnabled: runMode === 'eval',
+  };
+}
+
+function buildSections(input: ContextBuilderInput, policy: ContextPolicy): ContextSection[] {
   const sections: ContextSection[] = [];
+  if (policy.evalAutonomyEnabled) {
+    sections.push(section('evalAutonomyRule', EVAL_AUTONOMY_RULE));
+  }
+  if (policy.anthropicExecutionOverrideEnabled) {
+    sections.push(section('anthropicExecutionOverride', ANTHROPIC_EXECUTION_OVERRIDE));
+  }
+  if (policy.piSchemaRenderMode === 'summary' || policy.piSchemaRenderMode === 'full') {
+    sections.push(section('piContractSummary', PI_CONTRACT_SUMMARY));
+  }
+  if (policy.fullPiSchemaRendered) {
+    sections.push(section('piSchemaFull', FULL_PI_SCHEMA));
+  }
+
   sections.push(section('taskSpec', [
     `Goal: ${input.workingMemory.goal}`,
     `Phase: ${input.workingMemory.phase}`,
     `Current step: ${input.workingMemory.currentStep}`,
   ].join('\n')));
+
+  const hardConstraints = input.workingMemory.hardConstraints.trim();
+  if (hardConstraints) {
+    sections.push(section('hardConstraints', [
+      'HARD CONSTRAINTS:',
+      hardConstraints,
+    ].join('\n')));
+  }
 
   const ledgerContent = renderTaskLedger(input.taskLedger);
   if (ledgerContent) {
@@ -136,6 +226,7 @@ function applySectionBudgets(
   sections: ContextSection[],
   budgets: L1SectionBudget,
   tier: L1Tier,
+  policy: ContextPolicy,
 ): BuiltContext {
   const kept: ContextSection[] = [];
   const truncated: string[] = [];
@@ -163,10 +254,16 @@ function applySectionBudgets(
     sections: kept,
     totalEstimatedTokens: kept.reduce((sum, current) => sum + current.estimatedTokens, 0),
     truncated,
+    ...policy,
   };
 }
 
-function applyLegacyBudget(sections: ContextSection[], budget: number, tier: L1Tier): BuiltContext {
+function applyLegacyBudget(
+  sections: ContextSection[],
+  budget: number,
+  tier: L1Tier,
+  policy: ContextPolicy,
+): BuiltContext {
   const kept: ContextSection[] = [];
   const truncated: string[] = [];
   let total = 0;
@@ -195,6 +292,7 @@ function applyLegacyBudget(sections: ContextSection[], budget: number, tier: L1T
     sections: kept,
     totalEstimatedTokens: total,
     truncated,
+    ...policy,
   };
 }
 
@@ -218,6 +316,12 @@ function sectionPriority(name: string): number {
 }
 
 function getSectionBudget(name: string, budgets: L1SectionBudget): number {
+  if (name === 'evalAutonomyRule' || name === 'anthropicExecutionOverride') {
+    return budgets.systemRules;
+  }
+  if (name === 'piContractSummary' || name === 'piSchemaFull') {
+    return budgets.toolRules;
+  }
   if (name === 'recentTasks') {
     return budgets.historicalTaskSnapshots ?? budgets.runArchiveRefs;
   }

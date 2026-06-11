@@ -7,6 +7,7 @@ export function workingMemory(overrides: Partial<TaskWorkingMemory> = {}): TaskW
     taskId: 'task_context_eval',
     runId: 'run_context_eval',
     goal: 'Audit Context Runtime',
+    hardConstraints: '',
     phase: 'executing',
     currentStep: 'Build deterministic eval context',
     todos: [
