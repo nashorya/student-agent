@@ -61,7 +61,18 @@
   `working_memory.hardConstraints` 与 L1 `hardConstraints` section；非交互路径
   确定性保存完整 instruction；eval autonomy rule 增加完工前重读 hard
   constraints 的收尾纪律。
-- **状态**：FIXED-待回归（待 `overfull-hbox` 重跑验证）
+- **2026-06-11 回归证据**：使用 DeepSeek 官方 endpoint 跑
+  `p2-overfull-official-deepseek-seed1-20260611`，agent phase 正常完成，
+  verifier 4 项通过 3 项：编译成功、无 overfull hbox、未修改
+  `main.tex`/`synonyms.txt`；`test_input_file_matches` 失败，最终文件含非法
+  `to → of`。trace 显示 `hardConstraints` 已作为 L1 section 渲染
+  （437 chars / 125 estimated tokens），working memory 中也保留了
+  "each line specifies a family of allowed synonyms" 的完整约束。
+  因此装配缺失已排除，残余问题属于行为/验证闭环：agent 曾主动发现并回退
+  `unbroken → steady`，但在多次大段替换和 edit 失败后，最终自检没有发现
+  verifier 报出的 `to → of`。推断非法替换由大段文本改写夹带，尚无直接
+  tool payload 证据，不据此加 hack。
+- **状态**：PARTIAL（hardConstraints 装配已验证；同 family 行为约束仍 OPEN）
 
 ## BUG-005 · P2 overfull 回归为无效 run：provider 漂移 + 缺 API key
 
@@ -74,8 +85,13 @@
   结果仍被当作正常 trial 落盘，容易误读为任务失败。
 - **修复/处置**：① 重跑用 gpt-5.5（与基线口径一致）；② runner 对
   agent-phase 非零退出应标记 `invalid_run` 而非进入 reward 统计；
-  ③ hardConstraints 修复仍属"未经实战验证"状态。
-- **状态**：FIXED-待回归（哨兵已加单测，待 gpt-5.5 overfull 重跑验证）
+  ③ hardConstraints 的实战验证独立记录在 BUG-004，不用无效 run 判断质量。
+- **2026-06-11 回归证据**：`gpt-5.5` 中转链路连续 3 次因
+  `503 No available accounts` 以 agent exit 1 结束；新汇总层均输出
+  `invalid_run=true`、`validRewardTrials=0`、`mean=null`，且 pass/fail
+  为空，没有进入 reward 统计。随后 DeepSeek 官方 endpoint 的有效 run
+  正常进入 verifier，未被误标 invalid。
+- **状态**：CLOSED
 
 ---
 
