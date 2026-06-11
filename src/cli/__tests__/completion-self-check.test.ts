@@ -6,6 +6,15 @@ import {
 } from '../completion-self-check.js';
 
 describe('CompletionSelfCheck', () => {
+  it('requires exhaustive scripted verification when constraints are mechanically checkable', () => {
+    expect(SELF_CHECK_PROMPT).toContain('EVERY change in the full diff');
+    expect(SELF_CHECK_PROMPT).toContain('Spot-checking a few examples is itself a verification failure');
+    expect(SELF_CHECK_PROMPT).toContain('write and run a small script to verify it exhaustively');
+    expect(SELF_CHECK_PROMPT).toContain(
+      'Inspection-based verification is only acceptable when scripting is impossible',
+    );
+  });
+
   it('sends one evidence-based follow-up when hard constraints are present', async () => {
     const events: AgentEvent[] = [
       toolStart('read'),

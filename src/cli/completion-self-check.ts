@@ -5,6 +5,8 @@ export const SELF_CHECK_PROMPT = `Before finishing, perform one evidence-based c
 2. Compare the evidence against every HARD CONSTRAINT.
 3. For each constraint, report "satisfied" or "violated" and cite the evidence.
 4. If any constraint is violated, fix it immediately and repeat the evidence-based check.
+5. Verification must cover EVERY change in the full diff. Spot-checking a few examples is itself a verification failure.
+6. If a hard constraint is mechanically checkable against file contents (diffs, word lists, line membership), write and run a small script to verify it exhaustively. Inspection-based verification is only acceptable when scripting is impossible.
 Only finish after every HARD CONSTRAINT is confirmed satisfied.`;
 
 export interface CompletionSelfCheckResult {
