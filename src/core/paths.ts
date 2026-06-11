@@ -1,10 +1,10 @@
 /**
  * 路径解析：统一封装"项目工作目录"与"项目 memory 目录"的读取逻辑。
  *
- * 背景：bin/student-agent 启动时会 process.chdir() 到 agent 安装目录，
- * 真实用户 cwd 被写入 STUDENT_AGENT_CWD。任何需要写入项目内的代码
- * （memory/、快照等）都必须从此 helper 取目录，不能直接用 process.cwd()，
- * 否则打包发布后会写到 agent 安装目录而不是用户项目。
+ * 背景：bin/student-agent 会把真实用户 cwd 写入 STUDENT_AGENT_CWD，
+ * 并让 runtime 子进程从该目录启动。任何需要写入项目内的代码
+ * （memory/、快照等）仍应从此 helper 取目录，避免嵌入式调用方改变
+ * process.cwd() 后把数据写入错误位置。
  *
  * 实现为函数而非常量：确保 dotenv / 测试 setEnv 在模块 import 之后
  * 调整 STUDENT_AGENT_CWD 也能被正确读到。

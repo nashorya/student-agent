@@ -12,6 +12,17 @@ export interface LoadedEnvFile {
   keys: string[];
 }
 
+export async function loadEnvLayersPreservingAmbient(
+  loadLayers: () => Promise<void>,
+): Promise<void> {
+  const ambient = { ...process.env };
+  try {
+    await loadLayers();
+  } finally {
+    Object.assign(process.env, ambient);
+  }
+}
+
 const ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export async function loadEnvFile(options: LoadEnvFileOptions = {}): Promise<LoadedEnvFile | null> {
