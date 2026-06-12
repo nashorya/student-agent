@@ -132,13 +132,13 @@ env -u ALL_PROXY -u all_proxy \
   HTTPS_PROXY=http://127.0.0.1:6518 \
   STUDENT_AGENT_HARBOR_INSTALL_COMMAND='rm -rf /tmp/student-agent && mkdir -p /tmp/student-agent && tar --exclude=node_modules --exclude=.git --exclude=evals/results -C /mnt/student-agent -cf - . | tar -C /tmp/student-agent -xf - && cd /tmp/student-agent && npm install && npm run build' \
   npm run eval:terminal-bench -- \
-    --path $HOME/.cache/harbor/tasks/kzqjKVWxvHZxV5xyLNLqJi \
+    --path "$HOME/.cache/harbor/tasks/kzqjKVWxvHZxV5xyLNLqJi" \
     --agent-import-path benchmarks.terminal_bench.student_agent:StudentAgent \
     --model deepseek-v4-pro \
     --n-concurrent 1 \
     -- \
     --include-task-name fix-git \
-    --mounts '[{"type":"bind","source":"$HOME/student-agent","target":"/mnt/student-agent","read_only":true}]'
+    --mounts '[{"type":"bind","source":"<repo-root>","target":"/mnt/student-agent","read_only":true}]'
 ```
 
 不要直接 `npm install -g /mnt/student-agent` 配合 read-only mount；npm 安装 bin 时会尝试 `chmod`，容易触发 `EROFS`。也不要把宿主机的 `node_modules` 复制进 Linux 任务容器，macOS 原生依赖可能不兼容。
@@ -158,13 +158,13 @@ env -u ALL_PROXY -u all_proxy \
 
 ```bash
 npm run eval:terminal-bench -- \
-  --path $HOME/.cache/harbor/tasks/<task-cache-root> \
+  --path "$HOME/.cache/harbor/tasks/<task-cache-root>" \
   --agent-import-path benchmarks.terminal_bench.student_agent:StudentAgent \
   --model deepseek-v4-pro \
   --n-concurrent 1 \
   -- \
   --include-task-name fix-git \
-  --mounts '[{"type":"bind","source":"$HOME/student-agent","target":"/mnt/student-agent","read_only":true},{"type":"bind","source":"/tmp/student-agent-linux-built-cache","target":"/mnt/student-agent-built","read_only":true},{"type":"bind","source":"/tmp/student-agent-node-cache","target":"/mnt/student-agent-node","read_only":true}]'
+  --mounts '[{"type":"bind","source":"<repo-root>","target":"/mnt/student-agent","read_only":true},{"type":"bind","source":"/tmp/student-agent-linux-built-cache","target":"/mnt/student-agent-built","read_only":true},{"type":"bind","source":"/tmp/student-agent-node-cache","target":"/mnt/student-agent-node","read_only":true}]'
 ```
 
 第三方 verifier 内部如果遇到 Debian/Ubuntu mirror 502，adapter 不能直接改

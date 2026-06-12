@@ -27,6 +27,7 @@ benchmarks/
 /interview-*.html
 /interview-*.md
 /ui-readability-mockup.*
+/scripts/probe_tools.py
 
 # memory/ 运行时数据（project-rules.md 手动维护，不忽略）
 memory/recall-index.json
