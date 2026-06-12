@@ -33,7 +33,8 @@
 | 2026-06-12 | BUG-006 代码修复完成、待回归：terminal 汇总新增 `invalid_reasons`，agent timeout 与 verifier setup failure 均标 invalid_run；新增 `prepare_terminal_bench_verifier_deps.py`，已生成本地 patched `overfull-hbox` task 与预装 `uv/uvx` 的 verifier 镜像，避免判分时访问 astral.sh。当前 shell 缺 `OPENROUTER_API_KEY`，未继续付费重测 | [buglog BUG-006](buglog.md) |
 | 2026-06-12 | OpenRouter key 从 `~/.student-agent/.env` 注入后重测 patched overfull：BUG-006 的 verifier 侧已修好（不再拉 astral.sh，pytest 可运行；secret env file 避免 key 出现在 compose 参数），但 overfull 两次均为 `AgentTimeoutError`，新哨兵均标 invalid（`validRewardTrials=0`）。第二次 timeout 已按 ×1.5 提到 1125s，仍在 agent 第一轮 bash 后长时间无输出，未形成有效 run；OpenRouter usage `$3.89538615`，低于 `$5`，按红线停止，不跑 SWE | [buglog BUG-006](buglog.md) · `evals/results/terminal-bench/openrouter-sonnet-tier-a-overfull-hbox-patched2-20260612/` |
 | 2026-06-12 | 零编辑续航哨兵完成（commit `cc40e3c8`）：非交互第一阶段结束后，若 `hardConstraints` 非空且 working memory `writeFiles` 仍为空，追加固定续航提示，最多 2 轮，每轮重查 `writeFiles`；JSON summary 记录 `continuationRounds`。overfull patched task 的 agent timeout 提到 2400s。预算预估：OpenRouter usage `$3.89538615`，距 `$5` 仅 `$1.1046`，而上一条 overfull 有效 agent 成本 `$1.3772`，预计单跑即可能越线，按熔断规则暂停等人工批准 | [benchmark-matrix](benchmark-matrix.md) |
-| （待办） | 若批准越过 `$5` 软预算：overfull-hbox patched task ×1（2400s + continuationRounds）→ 绿后 SWE 12907/14182 sonnet 基线 → 汇总 5 题成本/cache → 更新 benchmark-matrix 后定 Tier B 规模 | [benchmark-matrix](benchmark-matrix.md) |
+| 2026-06-12 | 预算重排决策：overfull 标 **deferred**（Tier A 最贵、对 Tier B GO/NO-GO 价值最低，BUG-004 已在 gpt-5.5 关案；续航哨兵实战验证顺延），优先跑 SWE 12907/14182 sonnet 基线（Tier B 直接前置，off 臂复用）。单 run 成本 >$1.5 中止；预计累计 ~$4.7 守住 $5 线 | [benchmark-matrix](benchmark-matrix.md) |
+| （待办） | SWE 12907/14182 sonnet 基线 → 汇报后人工定 Tier B：sonnet 直跑（~$5 紧）或 haiku 探针（$0.2 试 6938，可行则全序列换 haiku ~$2）| [benchmark-matrix](benchmark-matrix.md) · [ADR-002](adr/ADR-002-learning-eval-protocol.md) |
 
 ## 横向 · 项目树地图
 
