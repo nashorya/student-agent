@@ -27,6 +27,8 @@ benchmarks/
 /interview-*.html
 /interview-*.md
 /ui-readability-mockup.*
+/mariozechner-pi-ai-*.tgz
+/Round 1 安装依赖 + StudentAgentFilesystem + InMemorySnapshotStore.md
 /scripts/probe_tools.py
 
 # memory/ 运行时数据（project-rules.md 手动维护，不忽略）

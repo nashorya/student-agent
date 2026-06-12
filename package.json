@@ -1,6 +1,6 @@
 {
   "name": "student-agent",
-  "description": "hello",
+  "description": "A CLI coding agent with memory, self-reflection, and an honest eval harness",
   "version": "0.1.0",
   "type": "module",
   "bin": {
