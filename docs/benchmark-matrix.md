@@ -41,9 +41,10 @@ fails"，未定义"验证环境本身坏了"的出口。
 | 何时跑 | 每次改 harness / 政策文本 / guard 规则后 |
 | 任务 | SWE: astropy-12907、astropy-14182（镜像已缓存）；terminal: fix-git、overfull-hbox、prove-plus-comm |
 | 配置 | student-agent only，`--student-variant context_runtime --run-mode eval`，每题 1 trial |
+| 模型口径 | 2026-06-12 起：OpenRouter `anthropic/claude-sonnet-4.6`，`openai-completions`；metadata 必须记录 commit、模型、单价与实际 network route |
 | 预算 | 以 smoke 实测估算：SWE ~200k–500k input/题，terminal 较小；单轮全套 < 2M tokens |
 | 看什么 | turns、input tokens、pass、`verify_retry`/`patch_retry` 触发数 |
-| 本次验收 | 政策补丁 + 刹车后：12907 turns 应从 16 显著回落（基线 OFF 为 10）；14182 同理；pass 不降；fix-git 之前挂了，盯根因 |
+| 当前基线 | Sonnet 4/5：prove-plus-comm、fix-git、SWE 12907/14182 绿；overfull 因预算 deferred，续航哨兵实战验证顺延 |
 
 ## Tier B · 学习 eval（旗舰，协议见 ADR-002）
 
@@ -51,6 +52,7 @@ fails"，未定义"验证环境本身坏了"的出口。
 |---|---|
 | 先导序列 | astropy 全部 6 题，按时间序：6938 → 7746 → 12907 → 14182 → 14365 → 14995 |
 | 两臂 | on：`--memory-dir` 指向序列共享目录；off：每题指向全新目录 |
+| 模型候选 | 默认 OpenRouter `anthropic/claude-sonnet-4.6`；预算不足时先用 Haiku 单题探针，是否换型由人工确认 |
 | 规模 | 2 臂 × 6 题 × 2 seed = 24 run |
 | 看什么 | ADR-002 三项审计（召回/重复错误/污染）+ token/turns 随序号的斜率 |
 | 可证伪预测 | on 臂从第 2 题起应跳过 pytest warning 搏斗（lesson/knack 应记录 `-o filterwarnings` 解法并被召回命中） |
@@ -66,7 +68,7 @@ fails"，未定义"验证环境本身坏了"的出口。
 | 数据来源 | 公开 leaderboard + 提交 artifact（SWE-bench 提交含 per-instance resolved 结果，下载后与本项目子集求交集做逐题对照） |
 | 引用纪律 | 必须带四元组：系统名、模型、评测日期、子集口径；只作"背景参照"，不作"受控对比"；禁止"打败 X"与跨系统 token 对比宣称 |
 | 自有数字 | student-agent 自身数据仍须 commit hash、model、单价、`--student-variant` 齐全 |
-| sonnet 轮 | 改为 student-agent 单边（plain vs context_runtime，或 Tier B 的 on/off），目的：跨模型泛化证据 + 原生渠道 cache 采集验证（关案 BUG-002） |
+| sonnet 轮 | 改为 student-agent 单边（plain vs context_runtime，或 Tier B 的 on/off），目的：跨模型泛化证据 + OpenRouter cache 采集验证（BUG-002 已关案） |
 | 历史遗留 | cc 自跑数据（gpt-5.5 off-label）降级为内部参考，不对外引用；cc-sonnet smoke 调试停止 |
 
 ---

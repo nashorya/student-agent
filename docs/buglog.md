@@ -207,6 +207,10 @@
 - **附**：本轮有效数据——cache 探针 prove-plus-comm reward 1.0，
   `5,205 / 65,733 / 11`，$0.12，**cache read 占比 79.49%**（BUG-002 据此关案，
   口径：OpenRouter 渠道）；fix-git 绿 `18,175 / 148,787 / 18`，$0.19。
+- **2026-06-12 后续决策**：verifier infra 与 invalid_run 哨兵保持 FIXED；
+  overfull 的 agent 行为回归因预算标记 deferred，不再阻塞先行采集 SWE 基线。
+  续航哨兵的 overfull 实战验证顺延至 Tier B 或预算补充后，不将 deferred
+  误记为 verifier 修复失败。
 
 ---
 
