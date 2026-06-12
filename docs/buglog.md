@@ -30,7 +30,17 @@
   新增 `rawUsage` 字段原样留底；补单测。
 - **遗留**：terminal-bench 路径（`run_benchmark_comparison.py` 的 `n_cache_tokens`）
   另一条链路，未核；若代理本身丢字段则客户端无解，rawUsage 留底后可判别。
-- **状态**：FIXED-待回归（本地 `npx vitest run src/evals/__tests__/claude-code-runner.test.ts`）
+- **2026-06-12 OpenRouter Sonnet 回归**：跨 agent 自跑已按 Tier C 修订停止，
+  cache 关案口径迁移到 student-agent 的 OpenRouter Anthropic-compatible
+  通道。`prove-plus-comm` 探针（commit `71d1765e`，
+  `anthropic/claude-sonnet-4.6`）逐轮 usage 真实记录
+  `cacheReadTokens=48,998`、`cacheWriteTokens=7,436`、非缓存
+  `inputTokens=5,205`；cache read 占 prompt 输入总量
+  `48,998 / (5,205 + 48,998 + 7,436) = 79.49%`。第 1 轮写入 cache，
+  第 2~11 轮均有 cache read，证明 Pi 的 Anthropic `cache_control`
+  经 OpenRouter 透传且 usage 采集未丢字段。探针成本 `$0.1196094`。
+- **状态**：CLOSED（OpenRouter Sonnet cache_control 透传与 usage 采集实测正常；
+  已停止的 cc lane 不再作为关案前提）
 
 ## BUG-003 · 档案纪律失守：v0.37–v0.4 被打包进 batch commit
 
