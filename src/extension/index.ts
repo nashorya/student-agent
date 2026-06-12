@@ -22,6 +22,7 @@ import { loadEnvFile, loadEnvLayersPreservingAmbient } from '../core/env.js';
 import { getProjectCwd } from '../core/paths.js';
 import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
+import { resolveConfiguredModel } from '../core/config/model-resolver.js';
 import {
   createReadlinePrompt,
   runStartupInitializer,
@@ -170,19 +171,7 @@ interface RuntimeState {
 // ── 构建模型 ──────────────────────────────────────────
 
 function buildModel(config: StudentAgentConfig): Model<Api> {
-  const { provider, name, baseUrl } = config.model;
-
-  // 先从 Pi 注册表查找（支持所有已知提供商）
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const piModels = getModels(provider as any) as Model<Api>[];
-  const piModel = piModels.find((m) => m.id === name);
-
-  if (piModel) {
-    return { ...piModel, baseUrl: baseUrl ?? piModel.baseUrl };
-  }
-
-  // 未在注册表中：按 OpenAI-compatible 规范构建（兜底）
-  return buildOpenAIChatModel(config);
+  return resolveConfiguredModel(config.model);
 }
 
 function getDefaultModel(provider: string): Model<Api> {
@@ -200,27 +189,7 @@ const DEFAULT_OPENAI_CHAT_CONFIG: Pick<StudentAgentConfig, 'model'> = {
 };
 
 function buildOpenAIChatModel(config: Pick<StudentAgentConfig, 'model'>): Model<Api> {
-  const api = (config.model.api as Api | undefined) ?? 'openai-completions';
-  return {
-    id: config.model.name,
-    name: config.model.name,
-    api,
-    provider: config.model.provider,
-    baseUrl: config.model.baseUrl ?? 'https://api.openai.com/v1',
-    reasoning: false,
-    input: ['text', 'image'],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
-    contextWindow: 128_000,
-    maxTokens: 16_384,
-    compat: {
-      supportsDeveloperRole: false,
-    },
-  };
+  return resolveConfiguredModel(config.model);
 }
 
 // ── 组装 Hooks ────────────────────────────────────────

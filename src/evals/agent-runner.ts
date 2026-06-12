@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentEvent } from '@mariozechner/pi-agent-core';
-import { getModels, type Api, type Model } from '@mariozechner/pi-ai';
+import type { Api, Model } from '@mariozechner/pi-ai';
 import { loadEnvFile, loadEnvLayersPreservingAmbient } from '../core/env.js';
 import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
+import { resolveConfiguredModel } from '../core/config/model-resolver.js';
 import { getApiKeyEnvName, normalizeProviderApiKeyEnv } from '../core/setup/initializer.js';
 import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/session-factory.js';
 import { drainProtectedEvents } from '../core/hashline/index.js';
@@ -599,25 +600,7 @@ async function loadEvalConfig(cwd: string): Promise<StudentAgentConfig> {
 }
 
 function buildModel(config: StudentAgentConfig): Model<Api> {
-  const models = getModels(config.model.provider as never) as Model<Api>[];
-  const model = models.find((candidate) => candidate.id === config.model.name);
-  if (model) {
-    return { ...model, baseUrl: config.model.baseUrl ?? model.baseUrl };
-  }
-  const api = (config.model.api as Api | undefined) ?? 'openai-completions';
-  return {
-    id: config.model.name,
-    name: config.model.name,
-    api,
-    provider: config.model.provider,
-    baseUrl: config.model.baseUrl ?? 'https://api.openai.com/v1',
-    reasoning: false,
-    input: ['text', 'image'],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 128_000,
-    maxTokens: 16_384,
-    compat: { supportsDeveloperRole: false },
-  };
+  return resolveConfiguredModel(config.model);
 }
 
 function serializeTaskState(task: Task): EvalTaskStateTrace {

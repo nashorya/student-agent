@@ -5,6 +5,7 @@ import unittest
 from benchmarks.terminal_bench.student_agent import (
     DEFAULT_INSTALL_COMMAND,
     DEFAULT_NODE_INSTALL_COMMAND,
+    STUDENT_AGENT_ENV_KEYS,
     build_student_agent_run_command,
 )
 
@@ -48,6 +49,9 @@ class StudentAgentAdapterTests(unittest.TestCase):
         self.assertIn("/mnt/student-agent", DEFAULT_INSTALL_COMMAND)
         self.assertIn("npm run build", DEFAULT_INSTALL_COMMAND)
         self.assertIn("npm install -g student-agent", DEFAULT_INSTALL_COMMAND)
+
+    def test_openrouter_key_is_forwarded_to_harbor(self) -> None:
+        self.assertIn("OPENROUTER_API_KEY", STUDENT_AGENT_ENV_KEYS)
 
 
 if __name__ == "__main__":
