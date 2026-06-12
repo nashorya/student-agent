@@ -28,7 +28,7 @@ DEFAULT_UV_VERSION = "0.9.5"
 DEFAULT_UV_TARGET = "x86_64-unknown-linux-gnu"
 DEFAULT_IMAGE_TAG = "student-agent-overfull-hbox:20251031-uv0.9.5"
 DEFAULT_DOCKER_PLATFORM = "linux/amd64"
-DEFAULT_AGENT_TIMEOUT_MULTIPLIER = 1.5
+DEFAULT_AGENT_TIMEOUT_SEC = 2400.0
 
 
 PATCHED_TEST_SH = """#!/bin/bash
@@ -89,7 +89,7 @@ def main() -> int:
         source_task=source_task,
         output_task=output_task,
         image_tag=args.image_tag,
-        agent_timeout_multiplier=args.agent_timeout_multiplier,
+        agent_timeout_sec=args.agent_timeout_sec,
     )
     print(output_task)
     return 0
@@ -105,7 +105,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--base-image", default="alexgshaw/overfull-hbox:20251031")
     parser.add_argument("--image-tag", default=DEFAULT_IMAGE_TAG)
     parser.add_argument("--docker-platform", default=DEFAULT_DOCKER_PLATFORM)
-    parser.add_argument("--agent-timeout-multiplier", type=float, default=DEFAULT_AGENT_TIMEOUT_MULTIPLIER)
+    parser.add_argument("--agent-timeout-sec", type=float, default=DEFAULT_AGENT_TIMEOUT_SEC)
     parser.add_argument("--skip-docker-build", action="store_true")
     return parser.parse_args()
 
@@ -158,7 +158,7 @@ def copy_and_patch_task(
     source_task: Path,
     output_task: Path,
     image_tag: str,
-    agent_timeout_multiplier: float,
+    agent_timeout_sec: float,
 ) -> None:
     if not source_task.exists():
         raise FileNotFoundError(source_task)
@@ -169,7 +169,7 @@ def copy_and_patch_task(
     patch_task_toml(
         output_task / "task.toml",
         image_tag=image_tag,
-        agent_timeout_multiplier=agent_timeout_multiplier,
+        agent_timeout_sec=agent_timeout_sec,
     )
     for test_script in [
         output_task / "tests" / "test.sh",
@@ -180,7 +180,7 @@ def copy_and_patch_task(
             os.chmod(test_script, 0o755)
 
 
-def patch_task_toml(path: Path, *, image_tag: str, agent_timeout_multiplier: float) -> None:
+def patch_task_toml(path: Path, *, image_tag: str, agent_timeout_sec: float) -> None:
     text = path.read_text(encoding="utf-8")
     lines = []
     patched_image = False
@@ -194,9 +194,7 @@ def patch_task_toml(path: Path, *, image_tag: str, agent_timeout_multiplier: flo
             lines.append(f'docker_image = "{image_tag}"')
             patched_image = True
         elif section == "[agent]" and stripped.startswith("timeout_sec = "):
-            raw_value = stripped.split("=", 1)[1].strip()
-            timeout_sec = float(raw_value) * agent_timeout_multiplier
-            lines.append(f"timeout_sec = {timeout_sec:.1f}")
+            lines.append(f"timeout_sec = {agent_timeout_sec:.1f}")
             patched_agent_timeout = True
         else:
             lines.append(line)

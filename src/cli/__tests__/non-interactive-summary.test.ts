@@ -97,6 +97,7 @@ describe('NonInteractiveUsageCollector', () => {
         toolCalls: 2,
         editsMade: true,
       },
+      continuationRounds: 1,
     });
 
     expect(summary.tokenUsage).toEqual({
@@ -124,6 +125,7 @@ describe('NonInteractiveUsageCollector', () => {
       toolCalls: 2,
       editsMade: true,
     });
+    expect(summary.continuationRounds).toBe(1);
   });
 });
 

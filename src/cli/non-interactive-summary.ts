@@ -26,6 +26,7 @@ export interface NonInteractiveRunSummary {
   contextTokenEffect?: EvalContextTokenEffect;
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
   selfCheck: CompletionSelfCheckResult;
+  continuationRounds: number;
 }
 
 export class NonInteractiveUsageCollector {
@@ -74,6 +75,7 @@ export function createNonInteractiveSummary(options: {
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
   protectedEvents?: ProtectedEvalEvent[];
   selfCheck: CompletionSelfCheckResult;
+  continuationRounds?: number;
 }): NonInteractiveRunSummary {
   const protectedEvents = cloneJson(options.protectedEvents ?? []);
   return {
@@ -97,6 +99,7 @@ export function createNonInteractiveSummary(options: {
     contextTokenEffect: cloneJson(options.contextTokenEffect),
     workingMemorySnapshot: cloneJson(options.workingMemorySnapshot),
     selfCheck: cloneJson(options.selfCheck),
+    continuationRounds: options.continuationRounds ?? 0,
   };
 }
 

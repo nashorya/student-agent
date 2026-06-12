@@ -69,6 +69,7 @@ import {
   CompletionSelfCheck,
   emptySelfCheckResult,
 } from '../cli/completion-self-check.js';
+import { ZeroEditContinuation } from '../cli/zero-edit-continuation.js';
 import { buildContextTokenEffect } from '../evals/context-breakdown.js';
 import type { EvalContextAssemblyTrace, ProtectedEvalEvent } from '../evals/types.js';
 import { summarizePiToolSchema } from '../evals/agent-runner.js';
@@ -350,6 +351,7 @@ async function runNonInteractive(args: Exclude<NonInteractiveArgs, { mode: 'inte
   let contextTaskId: string | undefined;
   let hardConstraints = '';
   let selfCheck = emptySelfCheckResult();
+  let continuationRounds = 0;
   const memoryDir = args.memoryDir ?? MEMORY_DIR;
   const contextAssemblyTraces: EvalContextAssemblyTrace[] = [];
   const protectedEvents: ProtectedEvalEvent[] = [];
@@ -386,6 +388,16 @@ async function runNonInteractive(args: Exclude<NonInteractiveArgs, { mode: 'inte
     await runtime.session.prompt(prompt);
     await runtime.agent.waitForIdle();
 
+    if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
+      console.error(`[Agent Error] ${runtime.agent.state.errorMessage}`);
+      return finish(1, runtime.agent.state.errorMessage);
+    }
+    continuationRounds = await new ZeroEditContinuation({
+      session: runtime.session,
+      agent: runtime.agent,
+      memoryDir,
+      taskId: contextTaskId,
+    }).run(hardConstraints);
     if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
       console.error(`[Agent Error] ${runtime.agent.state.errorMessage}`);
       return finish(1, runtime.agent.state.errorMessage);
@@ -448,6 +460,7 @@ async function runNonInteractive(args: Exclude<NonInteractiveArgs, { mode: 'inte
         workingMemorySnapshot: contextTask?.working_memory,
         protectedEvents,
         selfCheck,
+        continuationRounds,
       })).catch((err) => {
         console.error('[student-agent] Failed to write JSON summary:', err instanceof Error ? err.message : String(err));
       });
