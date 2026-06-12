@@ -168,6 +168,35 @@
   正常进入 verifier，未被误标 invalid。
 - **状态**：CLOSED
 
+## BUG-006 · verifier 环境失败被计为 reward 0，污染判分与重跑配额
+
+- **时间**：2026-06-12，发现者：codex（sonnet Tier A 重定基线时）
+- **症状**：overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；
+  verifier 输出含 `curl SSL_connect`（astral.sh）失败与 `uvx: command not found`
+  ——verifier 依赖的 uv 安装失败，判分环境未就绪。另：首跑 AgentTimeoutError
+  （OpenRouter 渠道延迟，超时阈值可能需上调）。
+- **根因**：① verifier 运行时从网络安装 uv，受限网络下必败；
+  ② harness 未区分"verifier 环境失败"与"任务失败"，前者应标 invalid_run
+  （BUG-005 哨兵的姊妹场景：彼为 agent 非零退出，此为 verifier setup 失败）。
+- **修复/处置**：① verifier 依赖预烘焙（镜像内预装 uv 或本地缓存安装包），
+  与 P1c terminal 基础设施固化同类；② verifier setup 失败（依赖安装报错、
+  网络超时）标记 invalid_run，不计 reward、不消耗 agent 重跑配额；
+  ③ 红线修订：infra 失败不计入"最多重跑 1 次"，但须修复 infra 后才许重试。
+- **2026-06-12 修复**：`scripts/run_benchmark_comparison.py` 增加 terminal
+  infra invalid_run 分类：`NonZeroAgentExitCodeError`、`AgentTimeoutError`、
+  verifier 日志中的 astral/uvx/网络 setup failure 均剔出 reward 统计，并记录
+  `invalid_reasons`。新增 `scripts/prepare_terminal_bench_verifier_deps.py`，
+  将 Harbor 缓存的 `overfull-hbox` 复制为本地 patched task，构建
+  `student-agent/overfull-hbox:20251031-uv0.9.5` 派生镜像，把 Linux
+  `uv/uvx` 预装进 verifier 环境，`tests/test.sh` 不再运行时访问 astral.sh。
+  本地已生成 patched task：
+  `$HOME/.cache/student-agent/terminal-bench-local-tasks/overfull-hbox`。
+- **状态**：FIXED-待回归（代码与本地 verifier 依赖已就绪；待 OpenRouter key
+  进入当前 shell 后重测 overfull-hbox ×1）
+- **附**：本轮有效数据——cache 探针 prove-plus-comm reward 1.0，
+  `5,205 / 65,733 / 11`，$0.12，**cache read 占比 79.49%**（BUG-002 据此关案，
+  口径：OpenRouter 渠道）；fix-git 绿 `18,175 / 148,787 / 18`，$0.19。
+
 ---
 
 ## 模板

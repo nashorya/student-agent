@@ -278,6 +278,74 @@ class BenchmarkComparisonScriptTests(unittest.TestCase):
         self.assertEqual(summary["pass"], [])
         self.assertEqual(summary["fail"], [])
 
+    def test_terminal_summary_marks_verifier_setup_failure_as_invalid_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            trial = "overfull-hbox__A2pTvWJ"
+            verifier_stdout = root / trial / "verifier" / "test-stdout.txt"
+            verifier_stdout.parent.mkdir(parents=True)
+            verifier_stdout.write_text(
+                "curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to astral.sh:443\n"
+                "/tests/test.sh: line 15: /root/.local/bin/env: No such file or directory\n"
+                "/tests/test.sh: line 24: uvx: command not found\n",
+                encoding="utf-8",
+            )
+            path = root / "result.json"
+            path.write_text(json.dumps({
+                "stats": {
+                    "n_completed_trials": 1,
+                    "n_errored_trials": 0,
+                    "evals": {
+                        "student-agent__claude-sonnet-4.6__terminal-bench": {
+                            "n_trials": 1,
+                            "n_errors": 0,
+                            "metrics": [{"mean": 0.0}],
+                            "reward_stats": {"reward": {"0.0": [trial]}},
+                            "exception_stats": {},
+                        },
+                    },
+                },
+            }), encoding="utf-8")
+
+            summary = summarize_terminal_result(path)
+
+        self.assertTrue(summary["invalid_run"])
+        self.assertEqual(summary["invalid_runs"], ["overfull-hbox"])
+        self.assertEqual(summary["validRewardTrials"], 0)
+        self.assertIsNone(summary["mean"])
+        self.assertEqual(summary["pass"], [])
+        self.assertEqual(summary["fail"], [])
+
+    def test_terminal_summary_marks_agent_timeout_as_invalid_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            trial = "overfull-hbox__Timeout"
+            path = root / "result.json"
+            path.write_text(json.dumps({
+                "stats": {
+                    "n_completed_trials": 0,
+                    "n_errored_trials": 1,
+                    "evals": {
+                        "student-agent__claude-sonnet-4.6__terminal-bench": {
+                            "n_trials": 1,
+                            "n_errors": 1,
+                            "metrics": [{"mean": 0.0}],
+                            "reward_stats": {"reward": {"0.0": [trial]}},
+                            "exception_stats": {"AgentTimeoutError": [trial]},
+                        },
+                    },
+                },
+            }), encoding="utf-8")
+
+            summary = summarize_terminal_result(path)
+
+        self.assertTrue(summary["invalid_run"])
+        self.assertEqual(summary["invalid_runs"], ["overfull-hbox"])
+        self.assertEqual(summary["validRewardTrials"], 0)
+        self.assertIsNone(summary["mean"])
+        self.assertEqual(summary["pass"], [])
+        self.assertEqual(summary["fail"], [])
+
     def test_terminal_student_agent_tokens_are_summed_from_agent_summaries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_root = Path(tmp)

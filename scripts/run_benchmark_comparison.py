@@ -547,7 +547,8 @@ def summarize_terminal_result(path: Path) -> dict[str, Any]:
     eval_summary = next(iter(evals.values()), {})
     rewards = ((eval_summary.get("reward_stats") or {}).get("reward") or {})
     exceptions = eval_summary.get("exception_stats") or {}
-    invalid_trial_ids = set(nonzero_agent_exit_trials(path, exceptions))
+    invalid_reasons = invalid_terminal_trials(path, rewards, exceptions)
+    invalid_trial_ids = set(invalid_reasons)
     passed_trials = [trial for trial in rewards.get("1.0", []) if trial not in invalid_trial_ids]
     failed_trials = [trial for trial in rewards.get("0.0", []) if trial not in invalid_trial_ids]
     raw_mean = ((eval_summary.get("metrics") or [{}])[0]).get("mean")
@@ -566,6 +567,10 @@ def summarize_terminal_result(path: Path) -> dict[str, Any]:
         "validRewardTrials": valid_reward_trials,
         "invalid_run": bool(invalid_trial_ids),
         "invalid_runs": strip_trial_ids(sorted(invalid_trial_ids)),
+        "invalid_reasons": {
+            strip_trial_ids([trial])[0]: reasons
+            for trial, reasons in sorted(invalid_reasons.items())
+        },
         "pass": strip_trial_ids(passed_trials),
         "fail": strip_trial_ids(failed_trials),
         "exceptions": {key: strip_trial_ids(value) for key, value in exceptions.items()},
@@ -668,6 +673,45 @@ def nonzero_agent_exit_trials(result_path: Path, exceptions: dict[str, list[str]
         if not exception_text or "Command failed (exit " in exception_text:
             invalid_trials.append(trial)
     return invalid_trials
+
+
+def invalid_terminal_trials(
+    result_path: Path,
+    rewards: dict[str, list[str]],
+    exceptions: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    invalid: dict[str, list[str]] = {}
+    for trial in nonzero_agent_exit_trials(result_path, exceptions):
+        invalid.setdefault(trial, []).append("agent_nonzero_exit")
+    for trial in exceptions.get("AgentTimeoutError") or []:
+        invalid.setdefault(trial, []).append("agent_timeout")
+    for trial in rewards.get("0.0", []) or []:
+        if verifier_setup_failed(result_path.parent / trial):
+            invalid.setdefault(trial, []).append("verifier_setup_failure")
+    return invalid
+
+
+VERIFIER_SETUP_FAILURE_PATTERNS = [
+    "astral.sh",
+    "uvx: command not found",
+    "/root/.local/bin/env: No such file or directory",
+    "SSL_connect",
+    "Could not resolve host",
+    "Connection timed out",
+    "Temporary failure resolving",
+]
+
+
+def verifier_setup_failed(trial_root: Path) -> bool:
+    verifier_dir = trial_root / "verifier"
+    for name in ["test-stdout.txt", "test-stderr.txt"]:
+        log_path = verifier_dir / name
+        if not log_path.exists():
+            continue
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+        if any(pattern in text for pattern in VERIFIER_SETUP_FAILURE_PATTERNS):
+            return True
+    return False
 
 
 def write_report(output_root: Path, run_id: str, terminal_tasks: list[str]) -> None:
