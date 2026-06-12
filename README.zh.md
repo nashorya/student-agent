@@ -13,8 +13,26 @@
 
 ---
 
+## 评测结果
+
+三档评测矩阵（回归冒烟 / 学习 eval / 外部参照），每个 run 可溯源到
+commit + 模型 + 单价。2026 年 6 月要点：
+
+- **同模型同题下 token 消耗低约 2.6~4.1 倍**（SWE-bench Lite，历史内部参照，不构成产品对比）
+- **150 token 的常驻规则使成本波动 4~6 倍**——trace diff 定位，政策补丁修复（受影响题 -57%，质量不降）
+- **约束遵循四层下钻案例**（terminal-bench `overfull-hbox`）：从"约束装配丢失"修到"脚本化穷举自查"，3/3 seed 通过，全程无任务专用 hack
+- **跨任务记忆的诚实 NO-GO**：memory on/off 双臂均 4/6——召回管道实战可运行，质量收益尚未证明，病灶已定位到 lesson 写入层。先证明，再宣称。
+- Sonnet 4.6 全部评测花费 **$7.27**（cache 探针先行、成本熔断、无效 run 哨兵）
+
+→ [完整报告](docs/benchmark-report-2026-06.md) ·
+[学习 eval 协议](docs/adr/ADR-002-learning-eval-protocol.md) ·
+[宣称纪律](docs/adr/ADR-001-eval-claim-separation.md)
+
+---
+
 ## 目录
 
+- [评测结果](#评测结果)
 - [快速开始](#快速开始)
 - [功能特性](#功能特性)
 - [技术栈](#技术栈)

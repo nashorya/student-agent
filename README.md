@@ -13,8 +13,35 @@ A CLI coding agent with memory, self-reflection, and a healthy awareness of its 
 
 ---
 
+## Benchmark Results
+
+Three-tier eval matrix (regression smoke / learning eval / external reference),
+every run traceable to commit + model + pricing. June 2026 highlights:
+
+- **2.6–4.1x lower token usage** than a heavyweight scaffold on the same model
+  and tasks (SWE-bench Lite, historical internal reference; not a product
+  comparison)
+- **A 150-token standing rule moved cost 4–6x** — located by trace diff,
+  fixed by a policy patch (−57% on the affected task, quality unchanged)
+- **A 4-layer constraint-following case study** (terminal-bench
+  `overfull-hbox`): from "constraint lost in assembly" to "scripted exhaustive
+  self-verification", 3/3 seeds green, zero task-specific hacks
+- **An honest NO-GO on cross-task memory gains**: memory on/off both 4/6 on an
+  astropy task sequence — the recall pipeline works end-to-end, the quality
+  benefit is not yet proven, and the root cause is located in the lesson
+  write path. Prove first, then claim.
+- Entire Sonnet 4.6 campaign: **$7.27** (cache probing, cost circuit breakers,
+  invalid-run sentinels)
+
+→ [Full report (zh)](docs/benchmark-report-2026-06.md) ·
+[Learning-eval protocol](docs/adr/ADR-002-learning-eval-protocol.md) ·
+[Claim discipline](docs/adr/ADR-001-eval-claim-separation.md)
+
+---
+
 ## Table of Contents
 
+- [Benchmark Results](#benchmark-results)
 - [Getting Started](#getting-started)
 - [Features](#features)
 - [Technology Stack](#technology-stack)
