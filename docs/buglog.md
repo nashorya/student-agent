@@ -15,8 +15,12 @@
   次要：hook 创建时未传 `runMode: 'eval'`。
 - **影响**：65k vs 286k 的 token 对比不能归因 context runtime（归基座设计）；
   此 run 可复用为 ablation 的 off 臂。
-- **处置**：修复计划 [plan-noninteractive-context-runtime-fix.md](plan-noninteractive-context-runtime-fix.md)，交 codex 执行
-- **状态**：OPEN（计划已立）
+- **处置**：按
+  [plan-noninteractive-context-runtime-fix.md](plan-noninteractive-context-runtime-fix.md)
+  完成非交互 task 创建、eval run mode 与 context assembly 接线，并补齐测试和
+  context breakdown 观测。
+- **状态**：CLOSED（Tier A/B 实跑 trace 已持续记录 task lifecycle、
+  context assembly 与分层注入指标）
 
 ## BUG-002 · cc usage 采集不认 OpenAI 格式，cache 恒为 0
 
@@ -32,7 +36,7 @@
   另一条链路，未核；若代理本身丢字段则客户端无解，rawUsage 留底后可判别。
 - **2026-06-12 OpenRouter Sonnet 回归**：跨 agent 自跑已按 Tier C 修订停止，
   cache 关案口径迁移到 student-agent 的 OpenRouter Anthropic-compatible
-  通道。`prove-plus-comm` 探针（commit `71d1765e`，
+  通道。`prove-plus-comm` 探针（commit `452e46b0`，
   `anthropic/claude-sonnet-4.6`）逐轮 usage 真实记录
   `cacheReadTokens=48,998`、`cacheWriteTokens=7,436`、非缓存
   `inputTokens=5,205`；cache read 占 prompt 输入总量
@@ -51,7 +55,10 @@
 - **根因**：赶进度时档案流程停摆（本方法论的已知失败模式）。
 - **处置**：恢复小步提交 + 版本 tag；结果 metadata 强制含 commit/model/单价；
   会话末由 AI 追加 INDEX 时间轴，降低纪律成本。
-- **状态**：OPEN（待未提交改动分批入库）
+- **2026-06-12 关案证据**：功能分支恢复为 37 个独立小步提交；运行时 memory
+  与结果文件已取消跟踪并 ignore；评测 metadata 强制记录
+  commit/model/单价；INDEX 继续按会话追加时间轴。
+- **状态**：CLOSED
 
 ## BUG-004 · overfull-hbox 约束未进入近场，导致非法 synonym 替换
 
@@ -93,7 +100,7 @@
   grep `Overfull \hbox`，没有运行逐 token synonym-family 校验；日志未保存
   `apply_patch` payload，无法把非法替换归到某一笔 patch。按失败即停规则，
   未继续 seed 2/3 与 SWE 回归。
-- **2026-06-11 completion self-check 三 seed**：commit `488bb6c3`
+- **2026-06-11 completion self-check 三 seed**：commit `c1d2aff9`
   增加一次性收尾自查后，用 gpt-5.5 跑
   `p3-overfull-selfcheck-gpt55-seed{1,2,3}-20260611`。三轮自查均真实调用工具，
   但 verifier 仅 seed 2 为 4/4；seed 1、3 仍为 3/4：
@@ -118,7 +125,7 @@
   `selfCheck.toolCalls >= 1`，但模型仍采用示例抽查而非完整逐 token 对照，
   因而能对未枚举的非法替换给出错误的“全部满足”结论。关案双条件未满足；
   按约定不继续 SWE、不打 tag、不自行增加第三层 hack。
-- **第四层修复**：commit `7c3e8afa` 只升级新建的 `SELF_CHECK_PROMPT`，
+- **第四层修复**：commit `5537d326` 只升级新建的 `SELF_CHECK_PROMPT`，
   明确要求核验覆盖 full diff 的 EVERY change，抽查本身即验证失败；凡文件内容、
   diff、词表、行归属等机械可检约束，必须由 agent 编写并运行小脚本做穷举校验，
   仅在无法脚本化时才允许人工检查。未改 `EVAL_AUTONOMY_RULE`，也未加入
@@ -193,8 +200,6 @@
   verifier 改用 `uv run --python/--with` 长参数，避免预装 uvx 不接受旧短参数。
   本地已生成 patched task：
   `$HOME/.cache/student-agent/terminal-bench-local-tasks/overfull-hbox`。
-- **状态**：FIXED（verifier 依赖与 invalid_run 哨兵已修复；Tier A 继续被
-  OpenRouter agent timeout blocker 卡住，另按 run 级 infra 问题处理）
 - **2026-06-12 回归阻塞**：patched task 两次重测均按哨兵标为
   `invalid_run=true / validRewardTrials=0 / mean=null`，原因均为
   `agent_timeout`，不计 reward、不消耗题目重跑配额。第二次已确认 infra
@@ -211,6 +216,9 @@
   overfull 的 agent 行为回归因预算标记 deferred，不再阻塞先行采集 SWE 基线。
   续航哨兵的 overfull 实战验证顺延至 Tier B 或预算补充后，不将 deferred
   误记为 verifier 修复失败。
+- **状态**：CLOSED（verifier 依赖与 invalid_run 哨兵已实测生效；后续
+  OpenRouter agent timeout/overfull deferred 属 agent run 行为与预算事项，
+  不再归入 verifier 污染问题）
 
 ## BUG-007 · 本地 probe 凭据误入未推送分支历史
 
@@ -222,7 +230,11 @@
 - **修复/处置**：将该路径从 VCS 取消跟踪并加入 `.gitignore`，本地文件原样
   保留；发布前重写尚未推送的功能分支与 `v0.4.1-bench-frozen` tag 历史，
   从所有待发布提交中移除该路径。远端当前没有该功能分支或 tag。
-- **状态**：FIXED-待回归（待历史扫描确认零命中后关案；相关凭据仍建议轮换）
+- **2026-06-12 关案证据**：仅重写 `main..codex/context-runtime-benchmark`
+  的 37 个未推送提交并重建冻结 tag；`main` 与最终代码树均未改变。新历史中
+  `scripts/probe_tools.py` 路径、明文 key 模式和个人绝对路径扫描均为零命中；
+  本地 probe 文件保持 ignored，清理前后 SHA-256 一致。
+- **状态**：CLOSED（相关凭据仍建议轮换）
 
 ---
 

@@ -8,9 +8,9 @@
   cache write `$3.75/M`。
 - 顺序：6938 → 7746 → 12907 → 14182 → 14365 → 14995。
 - on：六题共享同一 `--memory-dir`；off：每题使用全新 memory dir。
-- 新跑的 10 个 run 使用 commit `53adbd418ab0b6d0c62dcb4dbf128808724ca22b`。
+- 新跑的 10 个 run 使用 commit `fa1cbdf0a21ab386236b59edd50a31741a581691`。
   12907/14182 off 复用 Tier A，commit 为
-  `acfafa2b023d09c4ccae931293cf6945f8e121ad`。这是预算批准的复用口径，
+  `bba4011fb22d16776ace3d89605403f6f0873c9f`。这是预算批准的复用口径，
   也意味着本轮不是完全同 commit 的严格 A/B。
 - 每臂仅 1 seed；官方 SWE-bench harness 按单实例 `--instance_ids`
   判分。以下成本为 trace 按官方单价计算的 `costUsd`。
