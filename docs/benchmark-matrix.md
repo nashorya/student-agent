@@ -71,6 +71,7 @@ fails"，未定义"验证环境本身坏了"的出口。
 | 自有数字 | student-agent 自身数据仍须 commit hash、model、单价、`--student-variant` 齐全 |
 | sonnet 轮 | 改为 student-agent 单边（plain vs context_runtime，或 Tier B 的 on/off），目的：跨模型泛化证据 + OpenRouter cache 采集验证（BUG-002 已关案） |
 | 历史遗留 | cc 自跑数据（gpt-5.5 off-label）降级为内部参考，不对外引用；cc-sonnet smoke 调试停止 |
+| 2026-06-12 证据盘点 | 本地 CC 仅有 gpt-5.5 的 12907/14182 两题，官方 harness 2/2；公开 Epoch Sonnet 4.6 与本项目相交四题为 4/4，但原始 log 是 `bash_agent`，不是 Claude Code。当前不具备同模型、同题集 CC 对比，详见 [完整对比](cc-reference-and-tier-b-comparison-20260612.md) |
 
 ---
 
