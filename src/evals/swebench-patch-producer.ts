@@ -11,6 +11,10 @@ import {
 } from './context-runtime-runner.js';
 import { defaultExternalBenchmarkOutputDir } from './external-benchmarks.js';
 import type { EvalTaskDefinition, StudentAgentEvalTrace } from './types.js';
+import {
+  finalizeEvalLearningRun,
+  type EvalLearningSummary,
+} from './eval-learning-lifecycle.js';
 
 export type SweBenchAgent = 'student-agent' | 'claude-code';
 
@@ -38,6 +42,8 @@ export interface SweBenchPatchProducerRecord {
   emptyPatch: boolean;
   suspiciousPatch: boolean;
   trace?: StudentAgentEvalTrace;
+  learningSummary?: EvalLearningSummary;
+  learningFinalizationError?: string;
   errorMessage?: string;
   durationMs: number;
   worktreePath?: string;
@@ -54,6 +60,7 @@ export interface SweBenchPatchProducerResult {
   outputDir: string;
   predictionsPath: string;
   recordsPath: string;
+  metadataPath: string;
   records: SweBenchPatchProducerRecord[];
 }
 
@@ -61,7 +68,11 @@ export interface SweBenchProductionPlan {
   outputDir: string;
   predictionsPath: string;
   recordsPath: string;
+  metadataPath: string;
   studentVariant: ContextRuntimeEvalVariant;
+  studentMemoryDir?: string;
+  studentLearningLifecycle: boolean;
+  studentLearningTaskOffset: number;
   instances: Array<{ instance_id: string }>;
 }
 
@@ -80,6 +91,9 @@ export interface ProduceSweBenchPatchesOptions {
   claudeMaxBudgetUsd?: number;
   claudeBare?: boolean;
   studentVariant?: ContextRuntimeEvalVariant;
+  studentMemoryDir?: string;
+  studentLearningLifecycle?: boolean;
+  studentLearningTaskOffset?: number;
 }
 
 export async function loadSweBenchInstances(path: string): Promise<SweBenchInstance[]> {
@@ -141,8 +155,8 @@ export async function produceSweBenchPatches(
   const records: SweBenchPatchProducerRecord[] = [];
 
   try {
-    for (const instance of instances) {
-      records.push(await runSweBenchInstance({
+    for (const [index, instance] of instances.entries()) {
+      const record = await runSweBenchInstance({
         instance,
         agent: options.agent,
         modelNameOrPath: options.modelNameOrPath ?? defaultModelName(options.agent),
@@ -154,7 +168,12 @@ export async function produceSweBenchPatches(
         claudeModel: options.claudeModel,
         claudeMaxBudgetUsd: options.claudeMaxBudgetUsd,
         claudeBare: options.claudeBare,
-      }));
+        studentMemoryDir: options.studentMemoryDir,
+        studentLearningLifecycle: options.studentLearningLifecycle ?? false,
+        learningTaskIndex: (options.studentLearningTaskOffset ?? 0) + index + 1,
+      });
+      records.push(record);
+      if (record.learningFinalizationError) break;
     }
   } finally {
     if (!options.keepWorktrees) {
@@ -164,12 +183,30 @@ export async function produceSweBenchPatches(
 
   const predictionsPath = join(outputDir, 'predictions.jsonl');
   const recordsPath = join(outputDir, 'records.json');
+  const metadataPath = join(outputDir, 'metadata.json');
   await writeSweBenchPredictionsFile(records.map((record) => record.prediction), predictionsPath);
   await writeFile(recordsPath, JSON.stringify({ records }, null, 2), 'utf-8');
+  const [commitResult, statusResult] = await Promise.all([
+    runProcess('git', ['rev-parse', 'HEAD'], process.cwd(), 30, false),
+    runProcess('git', ['status', '--porcelain'], process.cwd(), 30, false),
+  ]);
+  await writeFile(metadataPath, JSON.stringify(buildSweBenchProducerMetadata({
+    commit: commitResult.stdout.trim() || 'unknown',
+    agent: options.agent,
+    modelNameOrPath: options.modelNameOrPath ?? defaultModelName(options.agent),
+    studentVariant: options.studentVariant ?? 'context_runtime',
+    studentMemoryDir: options.studentMemoryDir ? resolve(options.studentMemoryDir) : undefined,
+    studentLearningLifecycle: options.studentLearningLifecycle ?? false,
+    studentLearningTaskOffset: options.studentLearningTaskOffset ?? 0,
+    records,
+    env: process.env,
+    dirtyPaths: statusResult.stdout.split(/\r?\n/u).filter(Boolean),
+  }), null, 2), 'utf-8');
   return {
     outputDir,
     predictionsPath,
     recordsPath,
+    metadataPath,
     records,
   };
 }
@@ -183,9 +220,65 @@ export async function createSweBenchProductionPlan(
     outputDir,
     predictionsPath: join(outputDir, 'predictions.jsonl'),
     recordsPath: join(outputDir, 'records.json'),
+    metadataPath: join(outputDir, 'metadata.json'),
     studentVariant: options.studentVariant ?? 'context_runtime',
+    ...(options.studentMemoryDir ? { studentMemoryDir: resolve(options.studentMemoryDir) } : {}),
+    studentLearningLifecycle: options.studentLearningLifecycle ?? false,
+    studentLearningTaskOffset: options.studentLearningTaskOffset ?? 0,
     instances: instances.map((instance) => ({ instance_id: instance.instance_id })),
   };
+}
+
+export function buildSweBenchProducerMetadata(options: {
+  commit: string;
+  agent: SweBenchAgent;
+  modelNameOrPath: string;
+  studentVariant: ContextRuntimeEvalVariant;
+  studentMemoryDir?: string;
+  studentLearningLifecycle: boolean;
+  studentLearningTaskOffset: number;
+  records: SweBenchPatchProducerRecord[];
+  env?: NodeJS.ProcessEnv;
+  dirtyPaths?: string[];
+}): Record<string, unknown> {
+  const env = options.env ?? process.env;
+  const runtimeModel = options.records.find((record) => record.trace?.model)?.trace?.model;
+  return {
+    commit: options.commit,
+    generatedAt: new Date().toISOString(),
+    agent: options.agent,
+    modelNameOrPath: options.modelNameOrPath,
+    studentVariant: options.studentVariant,
+    ...(options.studentMemoryDir ? { studentMemoryDir: options.studentMemoryDir } : {}),
+    studentLearningLifecycle: options.studentLearningLifecycle,
+    studentLearningTaskOffset: options.studentLearningTaskOffset,
+    networkRoute: describeNetworkRoute(env),
+    ...(runtimeModel ? { runtimeModel } : {}),
+    workingTreeDirty: (options.dirtyPaths?.length ?? 0) > 0,
+    dirtyPaths: options.dirtyPaths ?? [],
+    instances: options.records.map((record) => ({
+      instanceId: record.instanceId,
+      status: record.status,
+      costUsd: record.trace?.tokenUsage.costUsd.total ?? 0,
+      inputTokens: record.trace?.tokenUsage.inputTokens ?? 0,
+      totalTokens: record.trace?.tokenUsage.totalTokens ?? 0,
+      turns: record.trace?.turnCount ?? 0,
+      cacheReadTokens: record.trace?.tokenUsage.cacheReadTokens ?? 0,
+      learning: record.learningSummary,
+      error: record.errorMessage,
+    })),
+  };
+}
+
+function describeNetworkRoute(env: NodeJS.ProcessEnv): string {
+  const proxy = env.HTTPS_PROXY ?? env.HTTP_PROXY ?? env.ALL_PROXY
+    ?? env.https_proxy ?? env.http_proxy ?? env.all_proxy;
+  if (!proxy) return 'direct';
+  try {
+    return `proxy:${new URL(proxy).host}`;
+  } catch {
+    return 'proxy:configured';
+  }
 }
 
 function sweBenchOutputDir(outputDir?: string): string {
@@ -216,10 +309,15 @@ async function runSweBenchInstance(options: {
   claudeModel?: string;
   claudeMaxBudgetUsd?: number;
   claudeBare?: boolean;
+  studentMemoryDir?: string;
+  studentLearningLifecycle: boolean;
+  learningTaskIndex: number;
 }): Promise<SweBenchPatchProducerRecord> {
   const started = Date.now();
   const worktreePath = join(options.workRoot, safePathSegment(options.instance.instance_id));
   let trace: StudentAgentEvalTrace | undefined;
+  let learningSummary: EvalLearningSummary | undefined;
+  let learningFinalizationError: string | undefined;
   let errorMessage: string | undefined;
   try {
     await checkoutInstance(options.instance, worktreePath);
@@ -230,7 +328,11 @@ async function runSweBenchInstance(options: {
     if (options.agent === 'student-agent') {
       const studentContext = await resolveSweBenchStudentContext({
         variant: options.studentVariant,
-        memoryDir: join(options.workRoot, '.student-agent-memory', safePathSegment(options.instance.instance_id)),
+        memoryDir: resolveSweBenchStudentMemoryDir({
+          workRoot: options.workRoot,
+          instanceId: options.instance.instance_id,
+          studentMemoryDir: options.studentMemoryDir,
+        }),
         task,
         instruction,
       });
@@ -240,6 +342,7 @@ async function runSweBenchInstance(options: {
         instruction,
         memoryDir: studentContext.memoryDir,
         buildMemoryPrompt: studentContext.buildMemoryPrompt,
+        learningLifecycle: options.studentLearningLifecycle,
       });
     } else {
       trace = await runClaudeCodeTask({
@@ -268,6 +371,26 @@ async function runSweBenchInstance(options: {
   if (!errorMessage && patchAnalysis.emptyPatch) {
     errorMessage = 'Agent produced an empty patch';
   }
+  if (options.studentLearningLifecycle && trace?.learningRun) {
+    try {
+      learningSummary = await finalizeEvalLearningRun({
+        memoryDir: resolveSweBenchStudentMemoryDir({
+          workRoot: options.workRoot,
+          instanceId: options.instance.instance_id,
+          studentMemoryDir: options.studentMemoryDir,
+        }),
+        run: trace.learningRun,
+        taskDescription: options.instance.problem_statement ?? '',
+        gitDiff: patch,
+        status: errorMessage ? 'failed' : 'success',
+        finalSummary: trace.finalOutput || errorMessage || 'Eval run completed',
+        totalTaskCount: options.learningTaskIndex,
+      });
+    } catch (err) {
+      learningFinalizationError = err instanceof Error ? err.message : String(err);
+      errorMessage = `Learning lifecycle finalization failed: ${learningFinalizationError}`;
+    }
+  }
   const prediction = createSweBenchPrediction({
     instance: options.instance,
     modelNameOrPath: options.modelNameOrPath,
@@ -288,10 +411,22 @@ async function runSweBenchInstance(options: {
     emptyPatch: patchAnalysis.emptyPatch,
     suspiciousPatch: patchAnalysis.suspiciousPatch,
     trace,
+    learningSummary,
+    learningFinalizationError,
     errorMessage,
     durationMs,
     worktreePath: options.keepWorktrees ? worktreePath : undefined,
   };
+}
+
+export function resolveSweBenchStudentMemoryDir(options: {
+  workRoot: string;
+  instanceId: string;
+  studentMemoryDir?: string;
+}): string {
+  return options.studentMemoryDir
+    ? resolve(options.studentMemoryDir)
+    : join(options.workRoot, '.student-agent-memory', safePathSegment(options.instanceId));
 }
 
 export async function resolveSweBenchStudentContext(options: {

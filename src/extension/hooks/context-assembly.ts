@@ -149,9 +149,10 @@ export async function newPipelineHook(
     recentRawTurns: [],
   } satisfies RecallRouterInput);
 
+  const limitedRecallBundle = applyRecallLimits(recallBundle, tierDecision.tier);
   const built = new ContextBuilder().build({
     workingMemory: task.working_memory,
-    recallBundle: applyRecallLimits(recallBundle, tierDecision.tier),
+    recallBundle: limitedRecallBundle,
     taskLedger,
     tier: tierDecision.tier,
     runMode,
@@ -183,6 +184,7 @@ export async function newPipelineHook(
       traceSection('L1', 'contextAssemblyDiagnostics', 'Context assembly diagnostics', diagnostics),
     ],
     truncated: built.truncated,
+    recallBundle: limitedRecallBundle,
   }));
   return prompt;
 }
@@ -232,6 +234,7 @@ function buildAssemblyTrace(options: {
   tierReason?: string;
   sections: EvalContextBreakdownSection[];
   truncated: string[];
+  recallBundle?: RecallBundle;
 }): EvalContextAssemblyTrace {
   const renderedPromptEstimatedTokens = estimateTextTokens(options.prompt);
   const sectionEstimatedTokens = options.sections.reduce((sum, section) => sum + section.estimatedTokens, 0);
@@ -262,6 +265,34 @@ function buildAssemblyTrace(options: {
     renderedPromptEstimatedTokens,
     sections,
     layers: summarizeContextTraceLayers({ sections }),
+    ...(options.recallBundle ? { recall: buildRecallTrace(options.recallBundle) } : {}),
+  };
+}
+
+function buildRecallTrace(bundle: RecallBundle): NonNullable<EvalContextAssemblyTrace['recall']> {
+  const items = [
+    ...bundle.knacks,
+    ...bundle.preferences,
+    ...bundle.docFindings,
+    ...bundle.historicalTaskSnapshots,
+    ...bundle.artifactRefs,
+    ...bundle.runArchiveRefs,
+  ];
+  return {
+    items: [...new Map(items.map((item) => [item.id, item])).values()].map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      subtype: item.subtype,
+      summary: item.summary,
+      reason: item.reason,
+      score: item.score.total,
+    })),
+    diagnostics: {
+      queryText: bundle.diagnostics.queryText,
+      totalCandidates: bundle.diagnostics.totalCandidates,
+      dropped: bundle.diagnostics.dropped,
+      penalties: bundle.diagnostics.penalties,
+    },
   };
 }
 

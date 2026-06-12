@@ -19,6 +19,9 @@ interface CliOptions {
   claudeMaxBudgetUsd?: number;
   claudeBare?: boolean;
   studentVariant: ContextRuntimeEvalVariant;
+  studentMemoryDir?: string;
+  studentLearningLifecycle: boolean;
+  studentLearningTaskOffset: number;
   dryRun: boolean;
 }
 
@@ -38,6 +41,9 @@ async function main(): Promise<void> {
       claudeMaxBudgetUsd: options.claudeMaxBudgetUsd,
       claudeBare: options.claudeBare,
       studentVariant: options.studentVariant,
+      studentMemoryDir: options.studentMemoryDir,
+      studentLearningLifecycle: options.studentLearningLifecycle,
+      studentLearningTaskOffset: options.studentLearningTaskOffset,
     });
     console.log(JSON.stringify({
       ok: true,
@@ -46,9 +52,13 @@ async function main(): Promise<void> {
       dryRun: true,
       agent: options.agent,
       studentVariant: options.studentVariant,
+      studentMemoryDir: plan.studentMemoryDir,
+      studentLearningLifecycle: plan.studentLearningLifecycle,
+      studentLearningTaskOffset: plan.studentLearningTaskOffset,
       outputDir: plan.outputDir,
       predictionsPath: plan.predictionsPath,
       recordsPath: plan.recordsPath,
+      metadataPath: plan.metadataPath,
       instances: plan.instances,
     }, null, 2));
     return;
@@ -68,6 +78,9 @@ async function main(): Promise<void> {
     claudeMaxBudgetUsd: options.claudeMaxBudgetUsd,
     claudeBare: options.claudeBare,
     studentVariant: options.studentVariant,
+    studentMemoryDir: options.studentMemoryDir,
+    studentLearningLifecycle: options.studentLearningLifecycle,
+    studentLearningTaskOffset: options.studentLearningTaskOffset,
   });
   console.log(JSON.stringify({
     ok: true,
@@ -76,6 +89,7 @@ async function main(): Promise<void> {
     outputDir: result.outputDir,
     predictionsPath: result.predictionsPath,
     recordsPath: result.recordsPath,
+    metadataPath: result.metadataPath,
     records: result.records.map((record) => ({
       instance_id: record.instanceId,
       agent: record.agent,
@@ -85,6 +99,8 @@ async function main(): Promise<void> {
       duration_ms: record.durationMs,
       turns: record.trace?.turnCount ?? 0,
       input_tokens: record.trace?.tokenUsage.inputTokens ?? 0,
+      learning: record.learningSummary,
+      learning_finalization_error: record.learningFinalizationError,
       guard_rule_counts: record.trace?.guardRuleCounts ?? {},
       error: record.errorMessage,
     })),
@@ -98,6 +114,8 @@ function parseArgs(args: string[]): CliOptions {
     instanceIds: [],
     keepWorktrees: false,
     dryRun: false,
+    studentLearningLifecycle: false,
+    studentLearningTaskOffset: 0,
     studentVariant: parseStudentVariant(process.env.SWEBENCH_STUDENT_VARIANT ?? 'context_runtime'),
   };
 
@@ -113,6 +131,18 @@ function parseArgs(args: string[]): CliOptions {
     }
     if (arg === '--student-variant' && args[index + 1]) {
       parsed.studentVariant = parseStudentVariant(args[++index]);
+      continue;
+    }
+    if (arg === '--memory-dir' && args[index + 1]) {
+      parsed.studentMemoryDir = args[++index];
+      continue;
+    }
+    if (arg === '--learning-lifecycle') {
+      parsed.studentLearningLifecycle = true;
+      continue;
+    }
+    if (arg === '--learning-task-offset' && args[index + 1]) {
+      parsed.studentLearningTaskOffset = Number.parseInt(args[++index], 10);
       continue;
     }
     if (arg === '--output-dir' && args[index + 1]) {
@@ -170,6 +200,9 @@ function parseArgs(args: string[]): CliOptions {
   }
   if (parsed.timeoutSeconds !== undefined && (!Number.isInteger(parsed.timeoutSeconds) || parsed.timeoutSeconds <= 0)) {
     throw new Error('--timeout-seconds must be a positive integer');
+  }
+  if (!Number.isInteger(parsed.studentLearningTaskOffset) || parsed.studentLearningTaskOffset < 0) {
+    throw new Error('--learning-task-offset must be a non-negative integer');
   }
   if (parsed.claudeMaxBudgetUsd !== undefined && (!Number.isFinite(parsed.claudeMaxBudgetUsd) || parsed.claudeMaxBudgetUsd <= 0)) {
     throw new Error('--claude-max-budget-usd must be a positive number');

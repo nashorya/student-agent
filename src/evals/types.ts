@@ -93,6 +93,31 @@ export interface EvalContextAssemblyTrace {
   renderedPromptEstimatedTokens: number;
   sections: EvalContextBreakdownSection[];
   layers: Record<EvalContextLayer, EvalContextLayerSummary>;
+  recall?: EvalRecallTrace;
+}
+
+export interface EvalRecallTrace {
+  items: Array<{
+    id: string;
+    kind: string;
+    subtype?: string;
+    summary: string;
+    reason: string;
+    score: number;
+  }>;
+  diagnostics: {
+    queryText: string;
+    totalCandidates: number;
+    dropped: Array<{ id: string; reason: string }>;
+    penalties: Array<{
+      id: string;
+      reason: string;
+      rejectionId?: string;
+      assumption?: string;
+      severity?: 'hard' | 'soft';
+      multiplier?: number;
+    }>;
+  };
 }
 
 export interface EvalContextTokenEffect {
@@ -108,6 +133,19 @@ export interface EvalContextTokenEffect {
   unclassifiedInputTokens: number;
   estimatedClassifiedShareOfObservedInput: number;
   note: string;
+}
+
+export interface EvalModelTrace {
+  id: string;
+  provider: string;
+  api: string;
+  baseUrl: string;
+  pricingUsdPerMillionTokens: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+  };
 }
 
 type L1TierString = 'minimal' | 'standard' | 'heavy';
@@ -146,12 +184,18 @@ export interface StudentAgentEvalTrace {
   piSchemaTrace?: EvalPiSchemaTrace;
   contextAssemblyTraces?: EvalContextAssemblyTrace[];
   contextTokenEffect?: EvalContextTokenEffect;
+  model?: EvalModelTrace;
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
   taskState?: EvalTaskStateTrace;
   /** Protected eval events collected during the run (hashline, signal, toolguard). */
   protectedEvents?: ProtectedEvalEvent[];
   /** Protected ToolGuard events grouped by rule name. */
   guardRuleCounts?: Record<string, number>;
+  /** Active run-archive identity when eval learning lifecycle is enabled. */
+  learningRun?: {
+    taskId: string;
+    runId: string;
+  };
 }
 
 export interface FileSnapshotEntry {

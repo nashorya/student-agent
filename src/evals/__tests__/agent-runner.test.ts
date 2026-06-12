@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -10,9 +10,11 @@ import {
   createEvalTracingHooks,
   shouldContinueDirectRun,
   shouldContinuePhaseRun,
+  summarizeEvalModel,
   summarizePiToolSchema,
   getActiveWorkingMemorySnapshot,
 } from '../agent-runner.js';
+import { beginEvalLearningRun } from '../eval-learning-lifecycle.js';
 import type { ToolTraceEntry } from '../types.js';
 import { TasksManager } from '../../memory/tasks/manager.js';
 import { drainProtectedEvents } from '../../core/hashline/index.js';
@@ -165,6 +167,35 @@ describe('Pi schema trace helpers', () => {
   });
 });
 
+describe('eval model metadata', () => {
+  it('records the resolved provider route and per-million token pricing', () => {
+    expect(summarizeEvalModel({
+      id: 'anthropic/claude-sonnet-4.6',
+      name: 'anthropic/claude-sonnet-4.6',
+      provider: 'openrouter',
+      api: 'openai-completions',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      cost: {
+        input: 3,
+        output: 15,
+        cacheRead: 0.3,
+        cacheWrite: 3.75,
+      },
+    } as never)).toEqual({
+      id: 'anthropic/claude-sonnet-4.6',
+      provider: 'openrouter',
+      api: 'openai-completions',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      pricingUsdPerMillionTokens: {
+        input: 3,
+        output: 15,
+        cacheRead: 0.3,
+        cacheWrite: 3.75,
+      },
+    });
+  });
+});
+
 describe('eval tracing hooks', () => {
   it('enforces verify_retry and emits a protected event in eval runs', async () => {
     drainProtectedEvents();
@@ -198,6 +229,40 @@ describe('eval tracing hooks', () => {
       ruleName: 'verify_retry',
       blocked: true,
     }));
+  });
+
+  it('persists tool errors to the signal store and run archive in learning mode', async () => {
+    const memoryDir = await mkdtemp(join(tmpdir(), 'agent-runner-learning-'));
+    try {
+      TasksManager.resetInstance();
+      await TasksManager.getInstance(memoryDir).createTask('Learning task', ['Execute'], {
+        workflowStatus: 'executing',
+      });
+      const run = await beginEvalLearningRun(memoryDir);
+      const hooks = createEvalTracingHooks([], { memoryDir, learningRun: run });
+
+      await hooks.onBeforeToolCall?.({
+        toolName: 'bash',
+        toolCallId: 'call_failed_pytest',
+        args: { command: 'pytest -q' },
+      });
+      await hooks.onAfterToolCall?.({
+        toolName: 'bash',
+        toolCallId: 'call_failed_pytest',
+        args: { command: 'pytest -q' },
+        isError: true,
+        resultText: 'warnings treated as errors',
+      });
+
+      const signals = await readFile(join(memoryDir, 'signals.jsonl'), 'utf-8');
+      const events = await readFile(join(memoryDir, 'runs', run.runId, 'events.jsonl'), 'utf-8');
+      expect(signals).toContain('warnings treated as errors');
+      expect(events).toContain('"kind":"tool_call"');
+      expect(events).toContain('"kind":"tool_error"');
+    } finally {
+      TasksManager.resetInstance();
+      await rm(memoryDir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -4,10 +4,12 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   analyzeSweBenchPatch,
+  buildSweBenchProducerMetadata,
   createSweBenchPrediction,
   createSweBenchProductionPlan,
   isEmptyAgentTrace,
   loadSweBenchInstances,
+  resolveSweBenchStudentMemoryDir,
   resolveSweBenchStudentContext,
   verifyCleanInitialWorktree,
   writeSweBenchPredictionsFile,
@@ -88,9 +90,74 @@ describe('SWE-bench patch producer helpers', () => {
       outputDir: join(tmpDir, 'out'),
       predictionsPath: join(tmpDir, 'out', 'predictions.jsonl'),
       recordsPath: join(tmpDir, 'out', 'records.json'),
+      metadataPath: join(tmpDir, 'out', 'metadata.json'),
       studentVariant: 'context_runtime',
+      studentLearningLifecycle: false,
+      studentLearningTaskOffset: 0,
       instances: [{ instance_id: 'repo__project-1' }],
     });
+  });
+
+  it('uses one configured memory directory across a learning sequence', () => {
+    expect(resolveSweBenchStudentMemoryDir({
+      workRoot: join(tmpDir, 'work'),
+      instanceId: 'astropy__astropy-6938',
+      studentMemoryDir: join(tmpDir, 'shared-memory'),
+    })).toBe(join(tmpDir, 'shared-memory'));
+
+    expect(resolveSweBenchStudentMemoryDir({
+      workRoot: join(tmpDir, 'work'),
+      instanceId: 'astropy__astropy-7746',
+    })).toBe(join(tmpDir, 'work', '.student-agent-memory', 'astropy__astropy-7746'));
+  });
+
+  it('makes the shared memory and learning lifecycle explicit in dry-run plans', async () => {
+    const inputPath = join(tmpDir, 'instances.jsonl');
+    await writeFile(inputPath, JSON.stringify(instance('astropy__astropy-6938')), 'utf-8');
+    const memoryDir = join(tmpDir, 'shared-memory');
+
+    const plan = await createSweBenchProductionPlan({
+      instancesPath: inputPath,
+      agent: 'student-agent',
+      outputDir: join(tmpDir, 'out'),
+      studentMemoryDir: memoryDir,
+      studentLearningLifecycle: true,
+      studentLearningTaskOffset: 2,
+    });
+
+    expect(plan).toMatchObject({
+      studentMemoryDir: memoryDir,
+      studentLearningLifecycle: true,
+      studentLearningTaskOffset: 2,
+    });
+  });
+
+  it('builds commit and route metadata without exposing credentials', () => {
+    const metadata = buildSweBenchProducerMetadata({
+      commit: 'abc123',
+      agent: 'student-agent',
+      modelNameOrPath: 'anthropic/claude-sonnet-4.6',
+      studentVariant: 'context_runtime',
+      studentMemoryDir: '/tmp/tier-b-memory',
+      studentLearningLifecycle: true,
+      studentLearningTaskOffset: 0,
+      records: [],
+      env: {
+        HTTPS_PROXY: 'http://127.0.0.1:6518',
+        OPENROUTER_API_KEY: 'must-not-appear',
+      },
+    });
+
+    expect(metadata).toMatchObject({
+      commit: 'abc123',
+      agent: 'student-agent',
+      modelNameOrPath: 'anthropic/claude-sonnet-4.6',
+      studentVariant: 'context_runtime',
+      studentMemoryDir: '/tmp/tier-b-memory',
+      studentLearningLifecycle: true,
+      networkRoute: 'proxy:127.0.0.1:6518',
+    });
+    expect(JSON.stringify(metadata)).not.toContain('must-not-appear');
   });
 
   it('seeds L1 context for the SWE context_runtime student variant', async () => {

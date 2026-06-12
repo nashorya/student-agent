@@ -10,6 +10,8 @@ import { getApiKeyEnvName, normalizeProviderApiKeyEnv } from '../core/setup/init
 import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/session-factory.js';
 import { drainProtectedEvents } from '../core/hashline/index.js';
 import { createToolGuardHook } from '../extension/hooks/tool-guard.js';
+import { createSignalPipeline } from '../memory/signals/index.js';
+import { RunArchiveWriter } from '../memory/run-archive/index.js';
 import {
   buildPlanningPrompt,
   buildPlanningRepairPrompt,
@@ -21,6 +23,7 @@ import { TasksManager } from '../memory/tasks/manager.js';
 import type { Task } from '../memory/tasks/types.js';
 import type {
   EvalContextAssemblyTrace,
+  EvalModelTrace,
   EvalTaskDefinition,
   EvalPiSchemaTrace,
   EvalTaskStateTrace,
@@ -30,6 +33,10 @@ import type {
   ToolTraceEntry,
 } from './types.js';
 import { buildContextTokenEffect } from './context-breakdown.js';
+import {
+  beginEvalLearningRun,
+  type EvalLearningRunRef,
+} from './eval-learning-lifecycle.js';
 
 const MAX_DIRECT_CONTINUATIONS = 2;
 const MAX_PHASE_CONTINUATIONS = 2;
@@ -42,6 +49,7 @@ export interface RunStudentAgentEvalOptions {
   instruction?: string;
   memoryDir?: string;
   buildMemoryPrompt?: () => Promise<string>;
+  learningLifecycle?: boolean;
 }
 
 export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): Promise<StudentAgentEvalTrace> {
@@ -54,6 +62,9 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   let piSchemaTrace: EvalPiSchemaTrace | undefined;
   let taskState: EvalTaskStateTrace | undefined;
   let errorMessage: string | undefined;
+  let modelTrace: EvalModelTrace | undefined;
+  let learningRun: EvalLearningRunRef | undefined;
+  const protectedEventsDuringRun: import('./types.js').ProtectedEvalEvent[] = [];
 
   try {
     if (options.memoryDir) {
@@ -62,9 +73,20 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     }
     const config = await loadEvalConfig(options.sandboxDir);
     const model = buildModel(config);
+    modelTrace = summarizeEvalModel(model);
     normalizeProviderApiKeyEnv(config.model.provider);
     const apiKey = process.env[getApiKeyEnvName(config.model.provider)];
-    const hooks = createEvalTracingHooks(toolCalls);
+    if (options.learningLifecycle) {
+      if (!options.memoryDir) {
+        throw new Error('Eval learning lifecycle requires memoryDir');
+      }
+      learningRun = await beginEvalLearningRun(options.memoryDir);
+    }
+    const hooks = createEvalTracingHooks(toolCalls, learningRun ? {
+      memoryDir: options.memoryDir,
+      learningRun,
+      onProtectedEvents: (events) => protectedEventsDuringRun.push(...events),
+    } : {});
     if (options.buildMemoryPrompt) {
       hooks.buildMemoryPrompt = options.buildMemoryPrompt;
     }
@@ -105,7 +127,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
 
   const endedMs = Date.now();
   const usageEvents = outputCollector.usageEvents();
-  const protectedEvents = drainProtectedEvents();
+  const protectedEvents = [...protectedEventsDuringRun, ...drainProtectedEvents()];
   const finalPiSchemaTrace = piSchemaTrace
     ? withPiSchemaRequestCount(piSchemaTrace, usageEvents.length)
     : undefined;
@@ -135,10 +157,27 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       piSchemaTrace: finalPiSchemaTrace,
       instruction,
     }),
+    model: modelTrace,
     workingMemorySnapshot,
     taskState,
     protectedEvents,
     guardRuleCounts: countGuardRules(protectedEvents),
+    learningRun,
+  };
+}
+
+export function summarizeEvalModel(model: Model<Api>): EvalModelTrace {
+  return {
+    id: model.id,
+    provider: model.provider,
+    api: model.api,
+    baseUrl: model.baseUrl,
+    pricingUsdPerMillionTokens: {
+      input: model.cost?.input ?? 0,
+      output: model.cost?.output ?? 0,
+      cacheRead: model.cost?.cacheRead ?? 0,
+      cacheWrite: model.cost?.cacheWrite ?? 0,
+    },
   };
 }
 
@@ -375,9 +414,26 @@ function isValidTaskStartSignal(signal: ReturnType<typeof parsePhaseSignal>): bo
   return signal?.type === 'task_start' && signal.phases.length > 0;
 }
 
-export function createEvalTracingHooks(toolCalls: ToolTraceEntry[]): StudentAgentHooks {
+export function createEvalTracingHooks(
+  toolCalls: ToolTraceEntry[],
+  options: {
+    memoryDir?: string;
+    learningRun?: EvalLearningRunRef;
+    onProtectedEvents?: (events: import('./types.js').ProtectedEvalEvent[]) => void;
+  } = {},
+): StudentAgentHooks {
   const byId = new Map<string, ToolTraceEntry>();
   const toolGuard = createToolGuardHook();
+  const archive = options.learningRun && options.memoryDir
+    ? new RunArchiveWriter({ memoryDir: options.memoryDir })
+    : undefined;
+  const signalPipeline = options.memoryDir
+    ? createSignalPipeline({
+      memoryDir: options.memoryDir,
+      tasksManager: TasksManager.getInstance(options.memoryDir),
+      onProtectedEvents: options.onProtectedEvents,
+    })
+    : undefined;
   return {
     onBeforeToolCall: async (ctx) => {
       const entry: ToolTraceEntry = {
@@ -388,10 +444,22 @@ export function createEvalTracingHooks(toolCalls: ToolTraceEntry[]): StudentAgen
       };
       byId.set(ctx.toolCallId, entry);
       toolCalls.push(entry);
+      if (archive && options.learningRun) {
+        await archive.appendEvent(options.learningRun.runId, {
+          timestamp: entry.startedAt,
+          kind: 'tool_call',
+          summary: `${ctx.toolName} tool call`,
+          toolName: ctx.toolName,
+          metadata: {
+            evidenceRef: ctx.toolCallId,
+          },
+        });
+      }
       return toolGuard.hook(ctx);
     },
     onAfterToolCall: async (ctx) => {
       toolGuard.observeResult(ctx);
+      await signalPipeline?.processAfterToolCall(ctx);
       const entry = byId.get(ctx.toolCallId);
       if (!entry) return undefined;
       const ended = Date.now();
@@ -400,6 +468,17 @@ export function createEvalTracingHooks(toolCalls: ToolTraceEntry[]): StudentAgen
       entry.durationMs = Number.isFinite(started) ? ended - started : undefined;
       entry.isError = ctx.isError;
       entry.resultText = ctx.resultText.slice(0, 4_000);
+      if (ctx.isError && archive && options.learningRun) {
+        await archive.appendEvent(options.learningRun.runId, {
+          timestamp: entry.endedAt,
+          kind: 'tool_error',
+          summary: entry.resultText,
+          toolName: ctx.toolName,
+          metadata: {
+            evidenceRef: ctx.toolCallId,
+          },
+        });
+      }
       return undefined;
     },
   };

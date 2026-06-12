@@ -1,0 +1,83 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  beginEvalLearningRun,
+  finalizeEvalLearningRun,
+} from '../eval-learning-lifecycle.js';
+import { appendSignal } from '../../memory/signals/index.js';
+import { TasksManager } from '../../memory/tasks/manager.js';
+
+describe('eval learning lifecycle', () => {
+  let memoryDir: string;
+
+  beforeEach(async () => {
+    memoryDir = await mkdtemp(join(tmpdir(), 'eval-learning-lifecycle-'));
+    TasksManager.resetInstance();
+  });
+
+  afterEach(async () => {
+    TasksManager.resetInstance();
+    await rm(memoryDir, { recursive: true, force: true });
+  });
+
+  it('finalizes archive and reflection before clearing the active task', async () => {
+    const manager = TasksManager.getInstance(memoryDir);
+    const task = await manager.createTask('Astropy sequence task', ['Fix the issue'], {
+      workflowStatus: 'executing',
+      workingMemory: {
+        goal: 'Fix pytest warning handling',
+        phase: 'executing',
+        currentStep: 'Run targeted tests',
+      },
+    });
+    await manager.trackFileRead(task.id, 'astropy/tests/helper.py');
+    await manager.trackFileWrite(task.id, 'astropy/tests/helper.py');
+    await appendSignal({
+      id: 'sig_warning_failure',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'pytest failed because warnings were treated as errors',
+      toolName: 'bash',
+      toolCallId: 'call_1',
+      pattern: 'warnings treated as errors',
+      createdAt: '2026-06-12T00:00:00.000Z',
+    }, memoryDir);
+
+    const ref = await beginEvalLearningRun(memoryDir);
+    const summary = await finalizeEvalLearningRun({
+      memoryDir,
+      run: ref,
+      taskDescription: 'Fix pytest warning handling',
+      gitDiff: 'diff --git a/astropy/tests/helper.py b/astropy/tests/helper.py\n',
+      status: 'success',
+      finalSummary: 'Implemented and verified the warning fix',
+      totalTaskCount: 1,
+    });
+
+    const outcome = JSON.parse(await readFile(
+      join(memoryDir, 'runs', task.working_memory.runId, 'outcome.json'),
+      'utf-8',
+    )) as Record<string, unknown>;
+    const lessons = await readFile(join(memoryDir, 'lessons.jsonl'), 'utf-8');
+
+    expect(summary).toMatchObject({
+      taskId: task.id,
+      runId: task.working_memory.runId,
+      lessonsExtracted: 1,
+    });
+    expect(outcome).toMatchObject({
+      taskId: task.id,
+      runId: task.working_memory.runId,
+      status: 'success',
+      wmSnapshot: {
+        goal: 'Fix pytest warning handling',
+        readFiles: ['astropy/tests/helper.py'],
+        writtenFiles: ['astropy/tests/helper.py'],
+      },
+    });
+    expect(lessons).toContain('warnings were treated as errors');
+    await expect(manager.getActive()).resolves.toBeNull();
+  });
+});

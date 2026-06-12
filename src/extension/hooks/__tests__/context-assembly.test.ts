@@ -10,6 +10,7 @@ import { ProjectKbManager } from '../../../memory/project-kb/manager.js';
 import { QuestionsManager } from '../../../memory/questions/manager.js';
 import { TaskLedgerManager } from '../../../memory/tasks/task-ledger-manager.js';
 import { TasksManager } from '../../../memory/tasks/manager.js';
+import { RunArchiveWriter } from '../../../memory/run-archive/run-archive-writer.js';
 import { createContextAssemblyHook } from '../context-assembly.js';
 
 describe('createContextAssemblyHook', () => {
@@ -114,6 +115,52 @@ describe('createContextAssemblyHook', () => {
     expect(trace.layers.L2.sectionIds).toContain('workingMemory');
     expect(trace.sections.find((section) => section.id === 'taskSpec')?.layer).toBe('L1');
     expect(trace.sections.find((section) => section.id === 'workingMemory')?.layer).toBe('L2');
+  });
+
+  it('records recalled item ids and summaries for learning audits', async () => {
+    const archive = new RunArchiveWriter({ memoryDir: tmpDir });
+    await archive.finalizeRun('run_previous', {
+      taskId: 'task_previous',
+      status: 'success',
+      finalSummary: 'Previous task completed',
+      wmSnapshot: {
+        taskId: 'task_previous',
+        runId: 'run_previous',
+        goal: 'Fix an earlier astropy warning failure',
+        phase: 'verifying',
+        finalStep: 'Run pytest with warning filters',
+        completedTodos: [],
+        completedTodoCount: 0,
+        readFiles: ['astropy/tests/helper.py'],
+        writtenFiles: ['astropy/tests/helper.py'],
+        keyFiles: [{ path: 'astropy/tests/helper.py', role: 'read_and_written' }],
+        keySignalSummaries: ['pytest warning collection failed'],
+        errorPatterns: ['warnings treated as errors'],
+        evidenceRefs: ['runs/run_previous/outcome.json'],
+        createdAt: '2026-06-11T00:00:00.000Z',
+      },
+    });
+    await TasksManager.getInstance(tmpDir).createTask('Current astropy task', ['Build context'], {
+      workflowStatus: 'executing',
+      workingMemory: {
+        goal: 'Fix a related astropy warning failure',
+        phase: 'executing',
+        currentStep: 'Inspect pytest warning behavior',
+      },
+    });
+
+    const hook = createContextAssemblyHook({
+      memoryDir: tmpDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+    });
+    await hook();
+
+    expect(hook.contextAssemblyTraces[0]?.recall?.items).toContainEqual(expect.objectContaining({
+      id: 'wm_snapshot:run_previous',
+      kind: 'run_archive_ref',
+      summary: expect.stringContaining('Fix an earlier astropy warning failure'),
+    }));
   });
 
   it('injects eval autonomy rule and summary-only pi contract in eval mode', async () => {
