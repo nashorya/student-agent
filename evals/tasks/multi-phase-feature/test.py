@@ -1,8 +1,10 @@
+import os
+
 import anthropic
 
-API_KEY = "REDACTED_SECRET"
-BASE_URL = "https://work.poloapi.com"
-MODEL = "claude-sonnet-4-6"
+API_KEY = os.environ["ANTHROPIC_API_KEY"]
+BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 client = anthropic.Anthropic(
     api_key=API_KEY,

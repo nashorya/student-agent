@@ -26,10 +26,9 @@ except ModuleNotFoundError:  # pragma: no cover - direct script execution path.
     from cache_claude_code_cli import ensure_claude_code_cache
 
 
-# Manual config for local benchmark runs. Fill these in directly if you do not
-# want to export keys/base URLs in the shell. Leave keys empty to use env vars.
-CLAUDE_CODE_API_KEY = "REDACTED_SECRET"
-STUDENT_AGENT_API_KEY = "REDACTED_SECRET"
+# Optional local overrides. Keep credentials in environment variables.
+CLAUDE_CODE_API_KEY = ""
+STUDENT_AGENT_API_KEY = ""
 CLAUDE_CODE_BASE_URL = "https://api.muskapi.cc"
 STUDENT_AGENT_BASE_URL = "https://api.muskapi.cc/v1"
 CLAUDE_CODE_MODEL = "gpt-5.5"
@@ -52,7 +51,7 @@ DEFAULT_FLASH_MODEL = FLASH_MODEL
 DEFAULT_SWE_INSTANCES = Path("evals/inputs/swebench-lite-2.jsonl")
 DEFAULT_SWE_LIMIT = 2
 DEFAULT_SWEBENCH_VENV_PYTHON = Path("/tmp/swebench-harness-venv/bin/python")
-DEFAULT_TERMINAL_PATH = Path("$HOME/.cache/harbor/tasks/kzqjKVWxvHZxV5xyLNLqJi")
+DEFAULT_TERMINAL_PATH = Path.home() / ".cache" / "harbor" / "tasks" / "kzqjKVWxvHZxV5xyLNLqJi"
 DEFAULT_TERMINAL_DATASET = "terminal-bench@2.0"
 DEFAULT_TERMINAL_TASKS = [
     "overfull-hbox",
@@ -215,20 +214,22 @@ def build_deepseek_env(
     student_model = student_model or model or STUDENT_AGENT_MODEL
     claude_key = first_non_empty(
         CLAUDE_CODE_API_KEY,
+        base_env.get("CLAUDE_CODE_API_KEY"),
         base_env.get("ANTHROPIC_AUTH_TOKEN"),
         base_env.get("DEEPSEEK_API_KEY"),
         STUDENT_AGENT_API_KEY,
     )
     student_key = first_non_empty(
         STUDENT_AGENT_API_KEY,
+        base_env.get("STUDENT_AGENT_API_KEY"),
         base_env.get("DEEPSEEK_API_KEY"),
         base_env.get("ANTHROPIC_AUTH_TOKEN"),
         CLAUDE_CODE_API_KEY,
     )
     if not claude_key or not student_key:
         raise ValueError(
-            "Set CLAUDE_CODE_API_KEY/STUDENT_AGENT_API_KEY in scripts/run_benchmark_comparison.py "
-            "or export DEEPSEEK_API_KEY before running comparison."
+            "Export CLAUDE_CODE_API_KEY and STUDENT_AGENT_API_KEY, or export "
+            "DEEPSEEK_API_KEY before running comparison."
         )
     env = dict(base_env)
     env.update({

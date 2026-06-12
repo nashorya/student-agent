@@ -21,7 +21,14 @@ import urllib.request
 from pathlib import Path
 
 
-DEFAULT_OVERFULL_TASK = Path("$HOME/.cache/harbor/tasks/ca36CXF7yAdWnRdpyfoihT/overfull-hbox")
+DEFAULT_OVERFULL_TASK = (
+    Path.home()
+    / ".cache"
+    / "harbor"
+    / "tasks"
+    / "ca36CXF7yAdWnRdpyfoihT"
+    / "overfull-hbox"
+)
 DEFAULT_OUTPUT_ROOT = Path.home() / ".cache" / "student-agent" / "terminal-bench-local-tasks"
 DEFAULT_UV_CACHE = Path.home() / ".cache" / "student-agent" / "uv"
 DEFAULT_UV_VERSION = "0.9.5"

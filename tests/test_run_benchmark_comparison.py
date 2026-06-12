@@ -79,6 +79,18 @@ class BenchmarkComparisonScriptTests(unittest.TestCase):
         self.assertEqual(env["ANTHROPIC_BASE_URL"], "https://cc.example/anthropic")
         self.assertEqual(env["STUDENT_AGENT_BASE_URL"], "https://student.example/v1")
 
+    def test_environment_can_set_separate_agent_keys(self) -> None:
+        env = build_deepseek_env(
+            {
+                "CLAUDE_CODE_API_KEY": "cc-test-token",
+                "STUDENT_AGENT_API_KEY": "student-test-token",
+            },
+            model="deepseek-v4-pro",
+        )
+
+        self.assertEqual(env["ANTHROPIC_AUTH_TOKEN"], "cc-test-token")
+        self.assertEqual(env["DEEPSEEK_API_KEY"], "student-test-token")
+
     def test_models_can_be_configured_per_agent_lane(self) -> None:
         env = build_deepseek_env(
             {"DEEPSEEK_API_KEY": "sk-test"},
@@ -204,7 +216,7 @@ class BenchmarkComparisonScriptTests(unittest.TestCase):
     def test_terminal_path_defaults_to_local_harbor_cache(self) -> None:
         self.assertEqual(
             DEFAULT_TERMINAL_PATH,
-            Path("$HOME/.cache/harbor/tasks/kzqjKVWxvHZxV5xyLNLqJi"),
+            Path.home() / ".cache" / "harbor" / "tasks" / "kzqjKVWxvHZxV5xyLNLqJi",
         )
 
     def test_default_swe_input_runs_two_instances(self) -> None:

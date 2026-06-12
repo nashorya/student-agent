@@ -67,7 +67,7 @@ describe('external benchmark command builders', () => {
 
   it('builds a Harbor Terminal-Bench command for a local task path without registry dataset lookup', () => {
     expect(buildTerminalBenchCommand({
-      path: '$HOME/.cache/harbor/tasks/task-id/fix-git',
+      path: '/tmp/harbor/tasks/task-id/fix-git',
       agentImportPath: 'benchmarks.terminal_bench.student_agent:StudentAgent',
       model: 'deepseek-v4-pro',
       nConcurrent: 1,
@@ -77,7 +77,7 @@ describe('external benchmark command builders', () => {
       args: [
         'run',
         '--path',
-        '$HOME/.cache/harbor/tasks/task-id/fix-git',
+        '/tmp/harbor/tasks/task-id/fix-git',
         '--agent-import-path',
         'benchmarks.terminal_bench.student_agent:StudentAgent',
         '--model',
