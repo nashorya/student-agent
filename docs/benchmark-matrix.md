@@ -57,6 +57,7 @@ fails"，未定义"验证环境本身坏了"的出口。
 | 看什么 | ADR-002 三项审计（召回/重复错误/污染）+ token/turns 随序号的斜率 |
 | 可证伪预测 | on 臂从第 2 题起应跳过 pytest warning 搏斗（lesson/knack 应记录 `-o filterwarnings` 解法并被召回命中） |
 | 扩量条件 | astropy 出正信号 → django 10 题序列；无信号 → 停，按归因表修记忆管道 |
+| 2026-06-12 pilot | 1 seed 完成，resolved 两臂均 4/6；on 聚合 input -10.72%、total -19.48%、turns -20.71%、trace cost -5.41%，但改善由 14995 单题主导，排除后四项均回涨。第 2 题起 recall 均命中，但内容主要为临时工具/环境错误，未观察到使用证据；**NO-GO 扩量**，先修准入、排序与利用审计。详见 [结果报告](tier-b-openrouter-sonnet-20260612.md) |
 
 ## Tier C · 对外参照（2026-06-11 修订：不再自跑竞品）
 
