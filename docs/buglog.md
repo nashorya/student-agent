@@ -108,7 +108,36 @@
   `selfCheck.toolCalls >= 1`，但模型仍采用示例抽查而非完整逐 token 对照，
   因而能对未枚举的非法替换给出错误的“全部满足”结论。关案双条件未满足；
   按约定不继续 SWE、不打 tag、不自行增加第三层 hack。
-- **状态**：PARTIAL（completion self-check 已实现；3 seed 仅 1/3 全绿）
+- **第四层修复**：commit `7c3e8afa` 只升级新建的 `SELF_CHECK_PROMPT`，
+  明确要求核验覆盖 full diff 的 EVERY change，抽查本身即验证失败；凡文件内容、
+  diff、词表、行归属等机械可检约束，必须由 agent 编写并运行小脚本做穷举校验，
+  仅在无法脚本化时才允许人工检查。未改 `EVAL_AUTONOMY_RULE`，也未加入
+  synonym/LaTeX 专用逻辑。
+- **2026-06-11~12 第四层回归证据**：gpt-5.5 运行
+  `p4-overfull-scripted-selfcheck-gpt55-seed{1,2,3}-20260611`，三轮 verifier
+  均 4/4；三元组（input/total/turns）分别为
+  `552,804 / 675,094 / 34`、`1,058,943 / 1,219,319 / 38`、
+  `561,541 / 630,920 / 25`。`selfCheck.toolCalls` 分别为 16/25/22，
+  且 trace 均有 agent 生成并执行 Node 校验器的证据。脚本不是走形式：
+  seed 1 抓到 `an -> a` 与尾部空行丢失；seed 2 抓到
+  `great -> fine`、article 变化；seed 3 抓到
+  `unmistakable -> clear`、`reaction -> concern`，修复后重新编译与全量校验才
+  通过。
+- **成本归因**：三轮 input 与 turns 均超过第三层基线
+  （140k~177k / 16~20 turns）的 20% 阈值。trace 显示增量集中在自查回合：
+  容器无 `git`/`python3`，Node 脚本先后经历 LaTeX quoting、LCS/位置对齐修复，
+  并在发现真实违规后触发编辑、重编译和再次穷举；这是为获得可执行完备性证据
+  支付的验证与返工成本，不是 context 装配漂移。
+- **SWE 回归**：官方 harness 均 resolved。12907 为
+  `425,030 / 447,385 / 16`，相对基线 `189,152 / 190,615 / 11` 的 input
+  回涨 124.7%；trace 为 31 次工具调用（基线 11），主要消耗在 pytest warning
+  策略、缺扩展、Python 3.13 `build_ext` 失败后改走 stub 执行验证。14182 有效
+  重跑为 `136,215 / 148,775 / 8`，低于基线
+  `189,407 / 211,708 / 9`。14182 首次联合运行被外部终止，随后工作目录清理使
+  `git diff` 表现为全仓删除（11.6 MB suspicious patch）；该失败产物未送判分，
+  单题重跑正常。
+- **状态**：CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件；
+  SWE 12907/14182 官方 resolved）
 
 ## BUG-005 · P2 overfull 回归为无效 run：provider 漂移 + 缺 API key
 
