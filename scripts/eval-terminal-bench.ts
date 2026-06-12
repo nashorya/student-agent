@@ -185,6 +185,7 @@ const STUDENT_AGENT_ENV_KEYS = [
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
   'ANTHROPIC_BASE_URL',
+  'STUDENT_AGENT_HARBOR_SECRET_ENV_FILE',
 ] as const;
 
 function shouldAutoForwardStudentAgentEnv(options: CliOptions): boolean {

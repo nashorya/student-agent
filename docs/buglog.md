@@ -187,8 +187,10 @@
   verifier 日志中的 astral/uvx/网络 setup failure 均剔出 reward 统计，并记录
   `invalid_reasons`。新增 `scripts/prepare_terminal_bench_verifier_deps.py`，
   将 Harbor 缓存的 `overfull-hbox` 复制为本地 patched task，构建
-  `student-agent/overfull-hbox:20251031-uv0.9.5` 派生镜像，把 Linux
+  `student-agent-overfull-hbox:20251031-uv0.9.5` 派生镜像，把 Linux
   `uv/uvx` 预装进 verifier 环境，`tests/test.sh` 不再运行时访问 astral.sh。
+  patched task 同时把 `[agent].timeout_sec` 从 750s 提到 1125s（×1.5），
+  verifier 改用 `uv run --python/--with` 长参数，避免预装 uvx 不接受旧短参数。
   本地已生成 patched task：
   `$HOME/.cache/student-agent/terminal-bench-local-tasks/overfull-hbox`。
 - **状态**：FIXED-待回归（代码与本地 verifier 依赖已就绪；待 OpenRouter key

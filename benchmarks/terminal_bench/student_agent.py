@@ -93,6 +93,7 @@ STUDENT_AGENT_ENV_KEYS = (
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL",
+    "STUDENT_AGENT_HARBOR_SECRET_ENV_FILE",
 )
 
 DEFAULT_STUDENT_AGENT_EXECUTABLE = (
@@ -188,6 +189,12 @@ def build_student_agent_run_command(
         f"log_path={shlex.quote(log_path)} && "
         f"summary_path={shlex.quote(summary_path)} && "
         "rm -f \"$log_path\" \"$summary_path\" && "
+        "if [ -n \"${STUDENT_AGENT_HARBOR_SECRET_ENV_FILE:-}\" ]; then "
+        "if [ ! -f \"$STUDENT_AGENT_HARBOR_SECRET_ENV_FILE\" ]; then "
+        "echo \"Secret env file not found: $STUDENT_AGENT_HARBOR_SECRET_ENV_FILE\" >&2; exit 98; "
+        "fi; "
+        "set -a; . \"$STUDENT_AGENT_HARBOR_SECRET_ENV_FILE\"; set +a; "
+        "fi && "
         "if [ -n \"${STUDENT_AGENT_HARBOR_WORKDIR:-}\" ]; then "
         "cd \"$STUDENT_AGENT_HARBOR_WORKDIR\"; "
         "elif ! git -C \"$PWD\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then "

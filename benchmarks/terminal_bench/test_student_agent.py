@@ -27,6 +27,8 @@ class StudentAgentAdapterTests(unittest.TestCase):
         self.assertIn("sh -c", command)
         self.assertNotIn("sh -lc", command)
         self.assertIn("STUDENT_AGENT_HARBOR_WORKDIR", command)
+        self.assertIn("STUDENT_AGENT_HARBOR_SECRET_ENV_FILE", command)
+        self.assertIn("set -a; . \"$STUDENT_AGENT_HARBOR_SECRET_ENV_FILE\"; set +a", command)
         self.assertIn("find /app", command)
         self.assertIn('export STUDENT_AGENT_CWD="$PWD"', command)
 
@@ -52,6 +54,9 @@ class StudentAgentAdapterTests(unittest.TestCase):
 
     def test_openrouter_key_is_forwarded_to_harbor(self) -> None:
         self.assertIn("OPENROUTER_API_KEY", STUDENT_AGENT_ENV_KEYS)
+
+    def test_secret_env_file_path_is_forwarded_to_harbor(self) -> None:
+        self.assertIn("STUDENT_AGENT_HARBOR_SECRET_ENV_FILE", STUDENT_AGENT_ENV_KEYS)
 
 
 if __name__ == "__main__":
