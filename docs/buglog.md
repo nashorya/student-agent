@@ -193,8 +193,17 @@
   verifier 改用 `uv run --python/--with` 长参数，避免预装 uvx 不接受旧短参数。
   本地已生成 patched task：
   `$HOME/.cache/student-agent/terminal-bench-local-tasks/overfull-hbox`。
-- **状态**：FIXED-待回归（代码与本地 verifier 依赖已就绪；待 OpenRouter key
-  进入当前 shell 后重测 overfull-hbox ×1）
+- **状态**：FIXED（verifier 依赖与 invalid_run 哨兵已修复；Tier A 继续被
+  OpenRouter agent timeout blocker 卡住，另按 run 级 infra 问题处理）
+- **2026-06-12 回归阻塞**：patched task 两次重测均按哨兵标为
+  `invalid_run=true / validRewardTrials=0 / mean=null`，原因均为
+  `agent_timeout`，不计 reward、不消耗题目重跑配额。第二次已确认 infra
+  修复生效：`[agent].timeout_sec=1125.0`，secret env file 模式避免 key 出现在
+  `docker compose` 参数中，verifier 不再访问 astral.sh，且能启动 pytest；
+  但 agent 在超时前尚未完成编辑，verifier 测到的是原始 overfull 文件，因此
+  `test_no_overfull_hboxes` 失败。OpenRouter key usage 查得 `$3.89538615`，
+  未超过 `$5` 熔断线；按红线停止，不继续 SWE，下一步需先排查
+  OpenRouter/agent 第一轮 bash 后长时间无输出的问题。
 - **附**：本轮有效数据——cache 探针 prove-plus-comm reward 1.0，
   `5,205 / 65,733 / 11`，$0.12，**cache read 占比 79.49%**（BUG-002 据此关案，
   口径：OpenRouter 渠道）；fix-git 绿 `18,175 / 148,787 / 18`，$0.19。
