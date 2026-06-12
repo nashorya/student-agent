@@ -1,0 +1,6 @@
+id = "lcb-pollution-large"
+title = "Find and fix proratedAmount amid 70 distractor files"
+mode = "direct"
+tags = ["pollution", "long-context", "discovery", "billing", "debug"]
+timeout_seconds = 480
+expected_files = ["src/billing/proration.js"]

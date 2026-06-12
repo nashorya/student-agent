@@ -1,0 +1,225 @@
+{
+  "$schema": "https://edugate.scholarlink/schemas/routes-v1.json",
+  "metadata": {
+    "gateway": "EduGate ScholarLink",
+    "generated_at": "2024-05-12T14:30:00Z",
+    "curriculum_year": "v2024_Spring",
+    "environment": "production",
+    "authoritative_source": "registry.edugate.local"
+  },
+
+  "global": {
+    "timeout_ms": 8000,
+    "retry_policy": {
+      "attempts": 2,
+      "per_try_timeout_ms": 2500
+    },
+    "cors": {
+      "allowed_origins": ["https://*.campus.edu", "https://lms.campus.edu"],
+      "allowed_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      "allowed_headers": ["Authorization", "Content-Type", "X-Trace-Id"],
+      "max_age_seconds": 3600
+    },
+    "observability": {
+      "sampling_rate": 0.25,
+      "metric_namespace": "edugate_prod",
+      "log_level": "INFO"
+    },
+    "plugins": [
+      "auth_basic",
+      "rate_limit",
+      "schema_validation",
+      "graphql_stitch",
+      "metrics_prometheus",
+      "openapi_doc"
+    ]
+  },
+
+  "routes": [
+    /* --------------------------------------------------------------------- */
+    /*  Course Catalog – Search & Discovery                                  */
+    /* --------------------------------------------------------------------- */
+    {
+      "id": "course_catalog_list",
+      "path": "/v2024_Spring/courses",
+      "methods": ["GET"],
+      "upstream": {
+        "service": "course_catalog",
+        "protocol": "http",
+        "host": "course-catalog.svc.cluster.local",
+        "port": 8080,
+        "strip_path_prefix": "/v2024_Spring"
+      },
+      "auth": {
+        "required": true,
+        "scopes": ["student:read", "instructor:read"]
+      },
+      "rate_limit": {
+        "requests_per_enrolled_student": 120,
+        "burst": 20,
+        "interval": "1h"
+      },
+      "validation": {
+        "query_schema_ref": "schemas/course-search-query.json"
+      },
+      "monitoring": {
+        "pedagogic_objective": "Course Discovery",
+        "label": "Course Catalog – List"
+      }
+    },
+
+    {
+      "id": "course_catalog_single",
+      "path": "/v2024_Spring/courses/{courseId}",
+      "methods": ["GET"],
+      "upstream": {
+        "service": "course_catalog",
+        "protocol": "http",
+        "host": "course-catalog.svc.cluster.local",
+        "port": 8080,
+        "strip_path_prefix": "/v2024_Spring"
+      },
+      "auth": {
+        "required": true,
+        "scopes": ["student:read", "instructor:read"]
+      },
+      "path_params": {
+        "courseId": {
+          "type": "string",
+          "pattern": "^[A-Z]{2,5}[0-9]{3}$"
+        }
+      },
+      "rate_limit": {
+        "requests_per_enrolled_student": 240,
+        "burst": 30,
+        "interval": "1h"
+      },
+      "monitoring": {
+        "pedagogic_objective": "Course Exploration",
+        "label": "Course Catalog – Detail"
+      }
+    },
+
+    /* --------------------------------------------------------------------- */
+    /*  Assessment Engine – GraphQL Endpoint                                  */
+    /* --------------------------------------------------------------------- */
+    {
+      "id": "quiz_graphql",
+      "path": "/v2024_Spring/quiz/graphql",
+      "methods": ["POST"],
+      "upstream": {
+        "service": "assessment_engine",
+        "protocol": "http",
+        "host": "assessment-engine.svc.cluster.local",
+        "port": 7070,
+        "strip_path_prefix": "/v2024_Spring/quiz"
+      },
+      "auth": {
+        "required": true,
+        "scopes": ["student:write", "instructor:write"]
+      },
+      "graphql": {
+        "schema_ref": "schemas/quiz.graphql",
+        "operation_whitelist": [
+          "submitQuizAttempt",
+          "fetchQuizById",
+          "getStudentAttempts"
+        ]
+      },
+      "rate_limit": {
+        "requests_per_enrolled_student": 60,
+        "burst": 10,
+        "interval": "1h"
+      },
+      "monitoring": {
+        "pedagogic_objective": "Formative Assessment",
+        "label": "Quiz Engine – GraphQL"
+      }
+    },
+
+    /* --------------------------------------------------------------------- */
+    /*  Student Profiles – Mutation Endpoint                                  */
+    /* --------------------------------------------------------------------- */
+    {
+      "id": "student_profile_update",
+      "path": "/v2024_Spring/students/{studentId}",
+      "methods": ["PUT"],
+      "upstream": {
+        "service": "student_profiles",
+        "protocol": "http",
+        "host": "student-profiles.svc.cluster.local",
+        "port": 8090,
+        "strip_path_prefix": "/v2024_Spring"
+      },
+      "auth": {
+        "required": true,
+        "scopes": ["student:write"]
+      },
+      "path_params": {
+        "studentId": {
+          "type": "string",
+          "pattern": "^[0-9]{7}$"
+        }
+      },
+      "validation": {
+        "body_schema_ref": "schemas/student-profile-update.json"
+      },
+      "rate_limit": {
+        "requests_per_enrolled_student": 30,
+        "burst": 5,
+        "interval": "1h"
+      },
+      "monitoring": {
+        "pedagogic_objective": "Learner Record Management",
+        "label": "Student Profile – Update"
+      }
+    },
+
+    /* --------------------------------------------------------------------- */
+    /*  Analytics – Dashboard Aggregate                                       */
+    /* --------------------------------------------------------------------- */
+    {
+      "id": "analytics_dashboard",
+      "path": "/v2024_Spring/analytics/dashboard",
+      "methods": ["GET"],
+      "upstream": {
+        "service": "analytics_hub",
+        "protocol": "http",
+        "host": "analytics-hub.svc.cluster.local",
+        "port": 9090,
+        "strip_path_prefix": "/v2024_Spring"
+      },
+      "auth": {
+        "required": true,
+        "scopes": ["instructor:read", "admin:read"]
+      },
+      "rate_limit": {
+        "requests_per_enrolled_student": 15,
+        "burst": 5,
+        "interval": "1h"
+      },
+      "cache": {
+        "enabled": true,
+        "ttl_seconds": 300
+      },
+      "monitoring": {
+        "pedagogic_objective": "Summative Insight",
+        "label": "Analytics – Dashboard"
+      }
+    }
+  ],
+
+  "fallbacks": {
+    "default_error_response": {
+      "status_code": 503,
+      "body": {
+        "error": "SERVICE_UNAVAILABLE",
+        "message": "EduGate is currently experiencing high load. Please try again later.",
+        "support_contact": "support@edugate.scholarlink"
+      },
+      "headers": {
+        "Retry-After": "30"
+      }
+    }
+  }
+}

@@ -75,18 +75,39 @@ Phase 2: 具体描述
 [/TASK_START]`;
 }
 
+const ANALYSIS_PHASE_RE =
+  /(分析|理解|解释|说明|总结|审计|评估|调研|梳理|设计|方案|提案|建议|architectural|architecture|understanding|analy[sz]e|explain|design|proposal|audit|assess|review|recommend)/iu;
+const EXPLICIT_IMPLEMENTATION_RE =
+  /(实现|修复|修改|新增|添加|更新|编辑|写入|改代码|改文件|落地|执行修改|implement|fix|modify|change|add|update|create|edit|write|apply_patch)/iu;
+
+export function isReadOnlyAnalysisPhase(phaseDesc: string): boolean {
+  return ANALYSIS_PHASE_RE.test(phaseDesc) && !EXPLICIT_IMPLEMENTATION_RE.test(phaseDesc);
+}
+
 export function buildPhaseExecutionPrompt(phaseName: string, phaseDesc: string, phaseIndex: number, totalPhases: number): string {
+  const readOnlyPhase = isReadOnlyAnalysisPhase(phaseDesc);
+  const actionGuidance = readOnlyPhase
+    ? `- 本 Phase 判定为分析/方案类：保持只读，不要修改任何文件。
+- 可以读取相关文件、运行只读检查，或在上下文充分时直接产出结论、设计方案或审计结果。
+- 不要调用 edit/write/apply_patch；除非本 Phase 明确要求实现、修改或修复代码。`
+    : `- 必须实际调用工具完成本 Phase 的读取、修改或验证动作；不要只用文字描述“将要读取/将要修改/将要运行”`;
+  const mutationGuidance = readOnlyPhase
+    ? ''
+    : `- 修改文件前必须先读取目标文件的当前内容，不能凭旧上下文猜测
+- 避免对大块 JSX/TSX 使用 edit 精确 oldText 替换；多处或结构性改动优先使用 apply_patch
+- edit 只用于小范围、稳定、刚读到的单点文本替换`;
+
   return `[执行模式 — Phase ${phaseIndex + 1}/${totalPhases}]
 
 当前任务：${phaseName}
 本 Phase 目标：${phaseDesc}
 
 请专注执行上述 Phase 目标：
+${actionGuidance}
+- 路径默认是相对项目根目录；如果 Phase 目标包含 "src/foo.ts" 这类路径，直接用 Phase 目标中的相对路径调用工具，不要向用户询问路径格式
 - 只读取与本 Phase 直接相关的文件（不超过 5 个）
-- 修改文件前必须先读取目标文件的当前内容，不能凭旧上下文猜测
-- 避免对大块 JSX/TSX 使用 edit 精确 oldText 替换；多处或结构性改动优先使用 apply_patch
-- edit 只用于小范围、稳定、刚读到的单点文本替换
-- 如果任何工具调用失败，最终说明必须区分“已验证事实”和“失败/未验证检查”，不要仅凭失败工具输出给出确定审计结论
+${mutationGuidance ? `${mutationGuidance}\n` : ''}- 如果任何工具调用失败，最终说明必须区分“已验证事实”和“失败/未验证检查”，不要仅凭失败工具输出给出确定审计结论
+- 没有实际完成本 Phase 目标前，不要输出 PHASE_DONE
 - 完成后输出完整信号（Phase 编号从 1 开始）：
   [PHASE_DONE phase=${phaseIndex + 1}]
   已完成：简短说明本 Phase 实际完成了什么

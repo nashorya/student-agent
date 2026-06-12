@@ -67,6 +67,10 @@ export interface ContextInspectorResult {
     droppedCount: number;
     estimatedTokens: number;
     truncatedSections: string[];
+    piSchemaRenderMode: string;
+    fullPiSchemaRendered: boolean;
+    evalAutonomyRuleEnabled: boolean;
+    anthropicExecutionOverrideEnabled: boolean;
   };
 }
 
@@ -122,6 +126,10 @@ export async function inspectContext(memoryDir: string): Promise<ContextInspecto
       droppedCount: recallBundle.diagnostics.dropped.length,
       estimatedTokens: built.totalEstimatedTokens,
       truncatedSections: built.truncated,
+      piSchemaRenderMode: built.piSchemaRenderMode,
+      fullPiSchemaRendered: built.fullPiSchemaRendered,
+      evalAutonomyRuleEnabled: built.evalAutonomyEnabled,
+      anthropicExecutionOverrideEnabled: built.anthropicExecutionOverrideEnabled,
     },
   };
 }
@@ -162,6 +170,10 @@ export function formatContextInspection(result: ContextInspectorResult): string 
     `  Total candidates: ${result.diagnostics.totalCandidates}, dropped: ${result.diagnostics.droppedCount}`,
     `  Estimated prompt tokens: ${result.diagnostics.estimatedTokens}`,
     `  Truncated sections: ${result.diagnostics.truncatedSections.length > 0 ? result.diagnostics.truncatedSections.join(', ') : 'none'}`,
+    `  Pi schema render mode: ${result.diagnostics.piSchemaRenderMode}`,
+    `  Full pi schema rendered: ${result.diagnostics.fullPiSchemaRendered}`,
+    `  Eval autonomy rule enabled: ${result.diagnostics.evalAutonomyRuleEnabled}`,
+    `  Anthropic execution override enabled: ${result.diagnostics.anthropicExecutionOverrideEnabled}`,
   ].join('\n');
 }
 
@@ -202,6 +214,10 @@ function emptyInspection(): ContextInspectorResult {
       droppedCount: 0,
       estimatedTokens: 0,
       truncatedSections: [],
+      piSchemaRenderMode: 'summary',
+      fullPiSchemaRendered: false,
+      evalAutonomyRuleEnabled: false,
+      anthropicExecutionOverrideEnabled: false,
     },
   };
 }

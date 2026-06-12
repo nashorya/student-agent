@@ -167,6 +167,8 @@ export interface ContextBuilderInput {
   taskLedger?: RecallRouterInput['taskLedger'];
   maxTokenBudget?: number;
   tier?: L1Tier;
+  runMode?: ContextRunMode;
+  piSchemaRenderMode?: PiSchemaRenderMode;
 }
 
 export interface ContextSection {
@@ -181,14 +183,22 @@ export interface BuiltContext {
   sections: ContextSection[];
   totalEstimatedTokens: number;
   truncated: string[];
+  runMode: ContextRunMode;
+  piSchemaRenderMode: PiSchemaRenderMode;
+  evalAutonomyEnabled: boolean;
+  fullPiSchemaRendered: boolean;
+  anthropicExecutionOverrideEnabled: boolean;
 }
 
 export type L1Tier = 'minimal' | 'standard' | 'heavy';
+export type ContextRunMode = 'interactive' | 'eval' | 'yolo';
+export type PiSchemaRenderMode = 'none' | 'summary' | 'full';
 
 export interface L1SectionBudget {
   systemRules: number;
   toolRules: number;
   taskSpec: number;
+  hardConstraints: number;
   taskLedger: number;
   workingMemory: number;
   recentErrors: number;

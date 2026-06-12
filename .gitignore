@@ -19,8 +19,22 @@ vitest.config.ts.timestamp-*.mjs
 __pycache__/
 *.pyc
 docs/superpowers/
+.superpowers/
+logs/
+benchmarks/
+/student-agent-*.json
+/claude-code*.json
+/interview-*.html
+/interview-*.md
+/ui-readability-mockup.*
+/mariozechner-pi-ai-*.tgz
+/Round 1 安装依赖 + StudentAgentFilesystem + InMemorySnapshotStore.md
+/scripts/probe_tools.py
 
 # memory/ 运行时数据（project-rules.md 手动维护，不忽略）
+memory/recall-index.json
+memory/tasks.json
+memory/*.jsonl
 memory/preference-candidates.json
 memory/preferences.md
 memory/preferences-history/

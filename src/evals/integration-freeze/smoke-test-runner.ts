@@ -121,6 +121,7 @@ function minimalWorkingMemory(): TaskWorkingMemory {
     taskId: 'task_smoke',
     runId: 'run_smoke',
     goal: 'Smoke test working memory',
+    hardConstraints: '',
     phase: 'executing',
     currentStep: 'Verify component integration',
     todos: [],

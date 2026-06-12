@@ -1,23 +1,47 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentEvent } from '@mariozechner/pi-agent-core';
-import { getModels, type Api, type Model } from '@mariozechner/pi-ai';
-import { loadEnvFile } from '../core/env.js';
+import type { Api, Model } from '@mariozechner/pi-ai';
+import { loadEnvFile, loadEnvLayersPreservingAmbient } from '../core/env.js';
 import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
+import { resolveConfiguredModel } from '../core/config/model-resolver.js';
 import { getApiKeyEnvName, normalizeProviderApiKeyEnv } from '../core/setup/initializer.js';
 import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/session-factory.js';
-import { buildPlanningPrompt, buildPlanningRepairPrompt, buildPhaseExecutionPrompt } from '../core/task-planner/planning-prompt.js';
+import { drainProtectedEvents } from '../core/hashline/index.js';
+import { createToolGuardHook } from '../extension/hooks/tool-guard.js';
+import { createSignalPipeline } from '../memory/signals/index.js';
+import { RunArchiveWriter } from '../memory/run-archive/index.js';
+import {
+  buildPlanningPrompt,
+  buildPlanningRepairPrompt,
+  buildPhaseExecutionPrompt,
+  isReadOnlyAnalysisPhase,
+} from '../core/task-planner/planning-prompt.js';
 import { parsePhaseSignal } from '../core/task-planner/phase-signal.js';
 import { TasksManager } from '../memory/tasks/manager.js';
 import type { Task } from '../memory/tasks/types.js';
 import type {
+  EvalContextAssemblyTrace,
+  EvalModelTrace,
   EvalTaskDefinition,
+  EvalPiSchemaTrace,
   EvalTaskStateTrace,
+  EvalTokenUsageEvent,
   EvalTokenUsage,
   StudentAgentEvalTrace,
   ToolTraceEntry,
 } from './types.js';
+import { buildContextTokenEffect } from './context-breakdown.js';
+import {
+  beginEvalLearningRun,
+  type EvalLearningRunRef,
+} from './eval-learning-lifecycle.js';
+
+const MAX_DIRECT_CONTINUATIONS = 2;
+const MAX_PHASE_CONTINUATIONS = 2;
+const MUTATING_TOOL_NAMES = new Set(['edit', 'write', 'apply_patch']);
+const SCHEMA_TOKEN_CHAR_RATIO = 3.5;
 
 export interface RunStudentAgentEvalOptions {
   task: EvalTaskDefinition;
@@ -25,16 +49,22 @@ export interface RunStudentAgentEvalOptions {
   instruction?: string;
   memoryDir?: string;
   buildMemoryPrompt?: () => Promise<string>;
+  learningLifecycle?: boolean;
 }
 
 export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): Promise<StudentAgentEvalTrace> {
+  drainProtectedEvents();
   const instruction = options.instruction ?? await readFile(options.task.instructionPath, 'utf8');
   const startedMs = Date.now();
   const startedAt = new Date(startedMs).toISOString();
   const toolCalls: ToolTraceEntry[] = [];
   const outputCollector = new AssistantTextCollector();
+  let piSchemaTrace: EvalPiSchemaTrace | undefined;
   let taskState: EvalTaskStateTrace | undefined;
   let errorMessage: string | undefined;
+  let modelTrace: EvalModelTrace | undefined;
+  let learningRun: EvalLearningRunRef | undefined;
+  const protectedEventsDuringRun: import('./types.js').ProtectedEvalEvent[] = [];
 
   try {
     if (options.memoryDir) {
@@ -43,9 +73,20 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     }
     const config = await loadEvalConfig(options.sandboxDir);
     const model = buildModel(config);
+    modelTrace = summarizeEvalModel(model);
     normalizeProviderApiKeyEnv(config.model.provider);
     const apiKey = process.env[getApiKeyEnvName(config.model.provider)];
-    const hooks = createTracingHooks(toolCalls);
+    if (options.learningLifecycle) {
+      if (!options.memoryDir) {
+        throw new Error('Eval learning lifecycle requires memoryDir');
+      }
+      learningRun = await beginEvalLearningRun(options.memoryDir);
+    }
+    const hooks = createEvalTracingHooks(toolCalls, learningRun ? {
+      memoryDir: options.memoryDir,
+      learningRun,
+      onProtectedEvents: (events) => protectedEventsDuringRun.push(...events),
+    } : {});
     if (options.buildMemoryPrompt) {
       hooks.buildMemoryPrompt = options.buildMemoryPrompt;
     }
@@ -65,14 +106,14 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
         agentDir: join(options.sandboxDir, '.pi'),
       },
     });
+    piSchemaTrace = summarizePiToolSchema(agent.state.tools);
 
     const unsubscribe = agent.subscribe((event) => outputCollector.handleEvent(event));
     try {
       if (options.task.mode === 'task') {
-        taskState = await runTaskMode(session, agent, instruction);
+        taskState = await runTaskMode(session, agent, instruction, toolCalls);
       } else {
-        await session.prompt(instruction);
-        await agent.waitForIdle();
+        await runDirectMode(session, agent, instruction, options.task.expectedFiles, toolCalls);
       }
       if (agent.state.errorMessage) {
         errorMessage = agent.state.errorMessage;
@@ -85,6 +126,15 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   }
 
   const endedMs = Date.now();
+  const usageEvents = outputCollector.usageEvents();
+  const protectedEvents = [...protectedEventsDuringRun, ...drainProtectedEvents()];
+  const finalPiSchemaTrace = piSchemaTrace
+    ? withPiSchemaRequestCount(piSchemaTrace, usageEvents.length)
+    : undefined;
+  const contextAssemblyTraces = getContextAssemblyTraces(options.buildMemoryPrompt);
+  const workingMemorySnapshot = options.memoryDir
+    ? await getActiveWorkingMemorySnapshot(options.memoryDir)
+    : undefined;
   return {
     taskId: options.task.id,
     mode: options.task.mode,
@@ -95,16 +145,145 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     status: errorMessage ? 'failed' : 'success',
     finalOutput: outputCollector.text(),
     errorMessage,
+    turnCount: usageEvents.length,
     toolCalls,
     tokenUsage: outputCollector.usage(),
+    usageEvents,
+    piSchemaTrace: finalPiSchemaTrace,
+    contextAssemblyTraces,
+    contextTokenEffect: buildContextTokenEffect({
+      contextAssemblyTraces,
+      usageEvents,
+      piSchemaTrace: finalPiSchemaTrace,
+      instruction,
+    }),
+    model: modelTrace,
+    workingMemorySnapshot,
     taskState,
+    protectedEvents,
+    guardRuleCounts: countGuardRules(protectedEvents),
+    learningRun,
   };
+}
+
+export function summarizeEvalModel(model: Model<Api>): EvalModelTrace {
+  return {
+    id: model.id,
+    provider: model.provider,
+    api: model.api,
+    baseUrl: model.baseUrl,
+    pricingUsdPerMillionTokens: {
+      input: model.cost?.input ?? 0,
+      output: model.cost?.output ?? 0,
+      cacheRead: model.cost?.cacheRead ?? 0,
+      cacheWrite: model.cost?.cacheWrite ?? 0,
+    },
+  };
+}
+
+export async function getActiveWorkingMemorySnapshot(
+  memoryDir: string,
+): Promise<Task['working_memory'] | undefined> {
+  try {
+    const active = await TasksManager.getInstance(memoryDir).getActive();
+    return active
+      ? JSON.parse(JSON.stringify(active.working_memory)) as Task['working_memory']
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getContextAssemblyTraces(
+  buildMemoryPrompt: RunStudentAgentEvalOptions['buildMemoryPrompt'],
+): EvalContextAssemblyTrace[] | undefined {
+  const maybeTraced = buildMemoryPrompt as
+    | (RunStudentAgentEvalOptions['buildMemoryPrompt'] & {
+      contextAssemblyTraces?: EvalContextAssemblyTrace[];
+    })
+    | undefined;
+  const traces = maybeTraced?.contextAssemblyTraces;
+  return traces && traces.length > 0
+    ? JSON.parse(JSON.stringify(traces)) as EvalContextAssemblyTrace[]
+    : undefined;
+}
+
+export function summarizePiToolSchema(
+  tools: Array<{ name: string; description?: string; parameters?: unknown }>,
+): EvalPiSchemaTrace {
+  const perTool = tools.map((tool) => {
+    const schemaChars = JSON.stringify({
+      name: tool.name,
+      description: tool.description ?? '',
+      input_schema: normalizeToolParameters(tool.parameters),
+    }).length;
+    return {
+      name: tool.name,
+      schemaChars,
+      approxSchemaTokens: estimateSchemaTokens(schemaChars),
+    };
+  });
+  const schemaChars = perTool.reduce((sum, tool) => sum + tool.schemaChars, 0);
+  const approxSchemaTokens = perTool.reduce((sum, tool) => sum + tool.approxSchemaTokens, 0);
+  return {
+    toolCount: tools.length,
+    toolNames: tools.map((tool) => tool.name),
+    schemaChars,
+    approxSchemaTokens,
+    llmRequestCount: 0,
+    estimatedSchemaInjectionCount: 0,
+    estimatedTotalSchemaTokens: 0,
+    perTool,
+    note: 'Estimated from active Pi tools and assistant message_end count; provider SDK sends tools with each LLM request while tools are active.',
+  };
+}
+
+function withPiSchemaRequestCount(
+  trace: EvalPiSchemaTrace,
+  llmRequestCount: number,
+): EvalPiSchemaTrace {
+  return {
+    ...trace,
+    llmRequestCount,
+    estimatedSchemaInjectionCount: trace.toolCount > 0 ? llmRequestCount : 0,
+    estimatedTotalSchemaTokens: trace.approxSchemaTokens * (trace.toolCount > 0 ? llmRequestCount : 0),
+  };
+}
+
+function normalizeToolParameters(parameters: unknown): unknown {
+  if (parameters === undefined || parameters === null) {
+    return { type: 'object', properties: {} };
+  }
+  return parameters;
+}
+
+function estimateSchemaTokens(schemaChars: number): number {
+  return Math.ceil(schemaChars / SCHEMA_TOKEN_CHAR_RATIO);
+}
+
+async function runDirectMode(
+  session: Awaited<ReturnType<typeof createStudentSession>>['session'],
+  agent: Awaited<ReturnType<typeof createStudentSession>>['agent'],
+  instruction: string,
+  expectedFiles: string[],
+  toolCalls: ToolTraceEntry[],
+): Promise<void> {
+  await session.prompt(instruction);
+  await agent.waitForIdle();
+
+  let continuationCount = 0;
+  while (shouldContinueDirectRun({ toolCalls, expectedFiles, continuationCount })) {
+    continuationCount++;
+    await session.prompt(buildDirectContinuationPrompt(expectedFiles));
+    await agent.waitForIdle();
+  }
 }
 
 async function runTaskMode(
   session: Awaited<ReturnType<typeof createStudentSession>>['session'],
   agent: Awaited<ReturnType<typeof createStudentSession>>['agent'],
   instruction: string,
+  toolCalls: ToolTraceEntry[],
 ): Promise<EvalTaskStateTrace> {
   TasksManager.resetInstance();
   const tasks = TasksManager.getInstance(':memory:');
@@ -142,14 +321,30 @@ async function runTaskMode(
     const phase = active.phases[active.active_phase_index];
     if (!phase) break;
     const phaseOutput = new AssistantTextCollector();
-    const phaseUnsub = agent.subscribe((event) => phaseOutput.handleEvent(event));
-    try {
-      await session.prompt(buildPhaseExecutionPrompt(active.name, phase.description, active.active_phase_index, active.phases.length));
-      await agent.waitForIdle();
-    } finally {
-      phaseUnsub();
+    let signal: ReturnType<typeof parsePhaseSignal> = null;
+    let continuationCount = 0;
+    while (true) {
+      const phaseUnsub = agent.subscribe((event) => phaseOutput.handleEvent(event));
+      try {
+        const prompt = continuationCount === 0
+          ? buildPhaseExecutionPrompt(active.name, phase.description, active.active_phase_index, active.phases.length)
+          : buildPhaseContinuationPrompt(active.active_phase_index + 1, phase.description);
+        await session.prompt(prompt);
+        await agent.waitForIdle();
+      } finally {
+        phaseUnsub();
+      }
+      signal = parsePhaseSignal(phaseOutput.text());
+      if (signal?.type === 'phase_done') break;
+      if (!shouldContinuePhaseRun({
+        phaseText: phaseOutput.text(),
+        continuationCount,
+        toolCallCount: toolCalls.length,
+      })) {
+        break;
+      }
+      continuationCount++;
     }
-    const signal = parsePhaseSignal(phaseOutput.text());
     if (signal?.type !== 'phase_done') break;
     await tasks.completePhase(active.id);
     active = await tasks.getActive();
@@ -157,12 +352,88 @@ async function runTaskMode(
   return serializeTaskState(task);
 }
 
+export function shouldContinueDirectRun(options: {
+  toolCalls: ToolTraceEntry[];
+  expectedFiles: string[];
+  continuationCount: number;
+}): boolean {
+  if (options.continuationCount >= MAX_DIRECT_CONTINUATIONS) return false;
+  if (options.expectedFiles.length === 0) return false;
+  return !options.toolCalls.some((call) => MUTATING_TOOL_NAMES.has(normalizeToolName(call.name)));
+}
+
+export function shouldContinuePhaseRun(options: {
+  phaseText: string;
+  continuationCount: number;
+  toolCallCount?: number;
+}): boolean {
+  if (options.continuationCount >= MAX_PHASE_CONTINUATIONS) return false;
+  return parsePhaseSignal(options.phaseText)?.type !== 'phase_done';
+}
+
+export function buildDirectContinuationPrompt(expectedFiles: string[]): string {
+  const files = expectedFiles.length > 0 ? expectedFiles.join(', ') : '目标文件';
+  return `你还没有完成实际文件修改。必须继续调用工具。下一条回复必须是工具调用，不要输出文字说明。
+
+目标文件：${files}
+
+如果刚才只读取了文件，现在优先使用 edit/write/apply_patch 修改目标文件；如果需要验证，再调用 bash。不要说“现在编辑/准备编辑”，直接发起工具调用。`;
+}
+
+export function buildPhaseContinuationPrompt(phaseNumber: number, phaseDescription: string): string {
+  if (isReadOnlyAnalysisPhase(phaseDescription)) {
+    return `继续执行当前 Phase ${phaseNumber}。
+
+本 Phase 目标：${phaseDescription}
+
+本 Phase 判定为分析/方案类：保持只读，不要调用 edit/write/apply_patch，不要修改任何文件。如果还缺事实依据，可以读取相关文件或运行只读检查；如果已经完成分析或方案，请直接输出 PHASE_DONE。
+
+完成后输出：
+[PHASE_DONE phase=${phaseNumber}]
+已完成：简短说明实际完成了什么
+[/PHASE_DONE]`;
+  }
+
+  return `继续执行当前 Phase ${phaseNumber}。下一条回复必须优先调用工具；不要输出文字说明。
+
+本 Phase 目标：${phaseDescription}
+
+你还没有输出有效 PHASE_DONE。必须继续调用工具完成真实读取、修改或验证动作；不要只解释或描述“将要做什么”。不要说“我将读取/我将修改”，直接调用 read/edit/apply_patch/bash。如果路径是 "src/foo.ts" 这类形式，直接按项目根目录相对路径调用工具，不要向用户询问路径格式。
+
+完成真实动作后，输出：
+[PHASE_DONE phase=${phaseNumber}]
+已完成：简短说明实际完成了什么
+[/PHASE_DONE]`;
+}
+
+function normalizeToolName(name: string): string {
+  return name.toLowerCase().replace(/^student_/, '');
+}
+
 function isValidTaskStartSignal(signal: ReturnType<typeof parsePhaseSignal>): boolean {
   return signal?.type === 'task_start' && signal.phases.length > 0;
 }
 
-function createTracingHooks(toolCalls: ToolTraceEntry[]): StudentAgentHooks {
+export function createEvalTracingHooks(
+  toolCalls: ToolTraceEntry[],
+  options: {
+    memoryDir?: string;
+    learningRun?: EvalLearningRunRef;
+    onProtectedEvents?: (events: import('./types.js').ProtectedEvalEvent[]) => void;
+  } = {},
+): StudentAgentHooks {
   const byId = new Map<string, ToolTraceEntry>();
+  const toolGuard = createToolGuardHook();
+  const archive = options.learningRun && options.memoryDir
+    ? new RunArchiveWriter({ memoryDir: options.memoryDir })
+    : undefined;
+  const signalPipeline = options.memoryDir
+    ? createSignalPipeline({
+      memoryDir: options.memoryDir,
+      tasksManager: TasksManager.getInstance(options.memoryDir),
+      onProtectedEvents: options.onProtectedEvents,
+    })
+    : undefined;
   return {
     onBeforeToolCall: async (ctx) => {
       const entry: ToolTraceEntry = {
@@ -173,9 +444,22 @@ function createTracingHooks(toolCalls: ToolTraceEntry[]): StudentAgentHooks {
       };
       byId.set(ctx.toolCallId, entry);
       toolCalls.push(entry);
-      return undefined;
+      if (archive && options.learningRun) {
+        await archive.appendEvent(options.learningRun.runId, {
+          timestamp: entry.startedAt,
+          kind: 'tool_call',
+          summary: `${ctx.toolName} tool call`,
+          toolName: ctx.toolName,
+          metadata: {
+            evidenceRef: ctx.toolCallId,
+          },
+        });
+      }
+      return toolGuard.hook(ctx);
     },
     onAfterToolCall: async (ctx) => {
+      toolGuard.observeResult(ctx);
+      await signalPipeline?.processAfterToolCall(ctx);
       const entry = byId.get(ctx.toolCallId);
       if (!entry) return undefined;
       const ended = Date.now();
@@ -184,14 +468,37 @@ function createTracingHooks(toolCalls: ToolTraceEntry[]): StudentAgentHooks {
       entry.durationMs = Number.isFinite(started) ? ended - started : undefined;
       entry.isError = ctx.isError;
       entry.resultText = ctx.resultText.slice(0, 4_000);
+      if (ctx.isError && archive && options.learningRun) {
+        await archive.appendEvent(options.learningRun.runId, {
+          timestamp: entry.endedAt,
+          kind: 'tool_error',
+          summary: entry.resultText,
+          toolName: ctx.toolName,
+          metadata: {
+            evidenceRef: ctx.toolCallId,
+          },
+        });
+      }
       return undefined;
     },
   };
 }
 
+export function countGuardRules(
+  events: Array<{ source: string; ruleName?: string; blocked?: boolean }>,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const event of events) {
+    if (event.source !== 'toolguard' || !event.blocked || !event.ruleName) continue;
+    counts[event.ruleName] = (counts[event.ruleName] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export class AssistantTextCollector {
   private readonly completedMessages: string[] = [];
   private readonly tokenUsage: EvalTokenUsage = emptyTokenUsage();
+  private readonly tokenUsageEvents: EvalTokenUsageEvent[] = [];
   private currentMessage = '';
   private inAssistantMessage = false;
 
@@ -239,12 +546,24 @@ export class AssistantTextCollector {
     return cloneTokenUsage(this.tokenUsage);
   }
 
+  usageEvents(): EvalTokenUsageEvent[] {
+    return this.tokenUsageEvents.map((event) => ({
+      index: event.index,
+      usage: cloneTokenUsage(event.usage),
+    }));
+  }
+
   private captureUsage(event: AgentEvent): void {
     const record = event as unknown as Record<string, unknown>;
     if (!isRecord(record.message)) return;
     const message = record.message;
     if (message.role !== 'assistant' || !isRecord(message.usage)) return;
+    const usage = usageFromRaw(message.usage);
     addUsage(this.tokenUsage, message.usage);
+    this.tokenUsageEvents.push({
+      index: this.tokenUsageEvents.length + 1,
+      usage,
+    });
   }
 
   private commitCurrentMessage(): void {
@@ -321,6 +640,12 @@ function cloneTokenUsage(usage: EvalTokenUsage): EvalTokenUsage {
   };
 }
 
+function usageFromRaw(raw: Record<string, unknown>): EvalTokenUsage {
+  const usage = emptyTokenUsage();
+  addUsage(usage, raw);
+  return usage;
+}
+
 function addUsage(target: EvalTokenUsage, raw: Record<string, unknown>): void {
   target.inputTokens += numberValue(raw.input);
   target.outputTokens += numberValue(raw.output);
@@ -345,32 +670,16 @@ function roundCost(value: number): number {
 }
 
 async function loadEvalConfig(cwd: string): Promise<StudentAgentConfig> {
-  await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: true });
-  const initial = await loadStudentAgentConfig({ cwd });
-  await loadEnvFile({ cwd, filename: initial.envFile, override: true });
+  await loadEnvLayersPreservingAmbient(async () => {
+    await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: true });
+    const initial = await loadStudentAgentConfig({ cwd });
+    await loadEnvFile({ cwd, filename: initial.envFile, override: true });
+  });
   return loadStudentAgentConfig({ cwd });
 }
 
 function buildModel(config: StudentAgentConfig): Model<Api> {
-  const models = getModels(config.model.provider as never) as Model<Api>[];
-  const model = models.find((candidate) => candidate.id === config.model.name);
-  if (model) {
-    return { ...model, baseUrl: config.model.baseUrl ?? model.baseUrl };
-  }
-  const api = (config.model.api as Api | undefined) ?? 'openai-completions';
-  return {
-    id: config.model.name,
-    name: config.model.name,
-    api,
-    provider: config.model.provider,
-    baseUrl: config.model.baseUrl ?? 'https://api.openai.com/v1',
-    reasoning: false,
-    input: ['text', 'image'],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: 128_000,
-    maxTokens: 16_384,
-    compat: { supportsDeveloperRole: false },
-  };
+  return resolveConfiguredModel(config.model);
 }
 
 function serializeTaskState(task: Task): EvalTaskStateTrace {

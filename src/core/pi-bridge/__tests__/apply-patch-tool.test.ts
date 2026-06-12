@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApplyPatchToolDefinition } from '../apply-patch-tool.js';
+import { TasksManager } from '../../../memory/tasks/manager.js';
 
 describe('apply_patch tool', () => {
   let tmpDir: string;
@@ -12,6 +13,7 @@ describe('apply_patch tool', () => {
   });
 
   afterEach(async () => {
+    TasksManager.resetInstance();
     await rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -67,5 +69,35 @@ describe('apply_patch tool', () => {
         '*** End Patch',
       ].join('\n'),
     }, undefined, undefined, undefined as never)).rejects.toThrow('Path escapes project root');
+  });
+
+  it('tracks every successfully patched file in active working memory', async () => {
+    await writeFile(join(tmpDir, 'app.ts'), 'const value = 1;\n');
+    const memoryDir = join(tmpDir, 'memory');
+    TasksManager.resetInstance();
+    const manager = TasksManager.getInstance(memoryDir);
+    const task = await manager.createTask('Patch task', ['Apply patch'], {
+      workflowStatus: 'executing',
+    });
+    const tool = createApplyPatchToolDefinition(tmpDir, { tasksManager: manager });
+
+    await tool.execute('tool_1', {
+      input: [
+        '*** Begin Patch',
+        '*** Update File: app.ts',
+        '@@',
+        '-const value = 1;',
+        '+const value = 2;',
+        '*** Add File: added.ts',
+        '+export const added = true;',
+        '*** End Patch',
+      ].join('\n'),
+    }, undefined, undefined, undefined as never);
+
+    const updated = await manager.getTask(task.id);
+    expect(updated?.working_memory.writeFiles.map((file) => file.path)).toEqual([
+      'app.ts',
+      'added.ts',
+    ]);
   });
 });

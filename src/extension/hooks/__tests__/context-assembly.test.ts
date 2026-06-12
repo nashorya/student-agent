@@ -10,6 +10,7 @@ import { ProjectKbManager } from '../../../memory/project-kb/manager.js';
 import { QuestionsManager } from '../../../memory/questions/manager.js';
 import { TaskLedgerManager } from '../../../memory/tasks/task-ledger-manager.js';
 import { TasksManager } from '../../../memory/tasks/manager.js';
+import { RunArchiveWriter } from '../../../memory/run-archive/run-archive-writer.js';
 import { createContextAssemblyHook } from '../context-assembly.js';
 
 describe('createContextAssemblyHook', () => {
@@ -70,6 +71,151 @@ describe('createContextAssemblyHook', () => {
     expect(prompt).toContain('### taskSpec');
     expect(prompt).toContain('Goal: Assemble L1 prompt from working memory');
     expect(prompt).toContain('### workingMemory');
+    expect(prompt).toContain('PI CONTRACT');
+    expect(prompt).not.toContain('FULL PI SCHEMA');
+  });
+
+  it('records L0-L3 context assembly trace when a recorder is provided', async () => {
+    await writeProjectRules(tmpDir, 'Respect repository conventions.');
+    await TasksManager.getInstance(tmpDir).createTask('Context trace task', ['Build context'], {
+      workflowStatus: 'executing',
+      workingMemory: {
+        goal: 'Measure context layers',
+        phase: 'executing',
+        currentStep: 'Record layer trace',
+        todos: [{
+          id: 'todo_1',
+          content: 'Keep current todo in L2',
+          status: 'pending',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }],
+      },
+    });
+    const traces: unknown[] = [];
+
+    await createContextAssemblyHook({
+      memoryDir: tmpDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+      piSchemaRenderMode: 'summary',
+      onTrace: (trace) => traces.push(trace),
+    })();
+
+    expect(traces).toHaveLength(1);
+    const trace = traces[0] as {
+      tier: string;
+      tierReason: string;
+      layers: Record<string, { estimatedTokens: number; sectionIds: string[] }>;
+      sections: Array<{ id: string; layer: string; estimatedTokens: number }>;
+    };
+    expect(trace.tier).toBe('standard');
+    expect(trace.tierReason).toBe('default_standard');
+    expect(trace.layers.L0.estimatedTokens).toBeGreaterThan(0);
+    expect(trace.layers.L1.sectionIds).toContain('taskSpec');
+    expect(trace.layers.L2.sectionIds).toContain('workingMemory');
+    expect(trace.sections.find((section) => section.id === 'taskSpec')?.layer).toBe('L1');
+    expect(trace.sections.find((section) => section.id === 'workingMemory')?.layer).toBe('L2');
+  });
+
+  it('records recalled item ids and summaries for learning audits', async () => {
+    const archive = new RunArchiveWriter({ memoryDir: tmpDir });
+    await archive.finalizeRun('run_previous', {
+      taskId: 'task_previous',
+      status: 'success',
+      finalSummary: 'Previous task completed',
+      wmSnapshot: {
+        taskId: 'task_previous',
+        runId: 'run_previous',
+        goal: 'Fix an earlier astropy warning failure',
+        phase: 'verifying',
+        finalStep: 'Run pytest with warning filters',
+        completedTodos: [],
+        completedTodoCount: 0,
+        readFiles: ['astropy/tests/helper.py'],
+        writtenFiles: ['astropy/tests/helper.py'],
+        keyFiles: [{ path: 'astropy/tests/helper.py', role: 'read_and_written' }],
+        keySignalSummaries: ['pytest warning collection failed'],
+        errorPatterns: ['warnings treated as errors'],
+        evidenceRefs: ['runs/run_previous/outcome.json'],
+        createdAt: '2026-06-11T00:00:00.000Z',
+      },
+    });
+    await TasksManager.getInstance(tmpDir).createTask('Current astropy task', ['Build context'], {
+      workflowStatus: 'executing',
+      workingMemory: {
+        goal: 'Fix a related astropy warning failure',
+        phase: 'executing',
+        currentStep: 'Inspect pytest warning behavior',
+      },
+    });
+
+    const hook = createContextAssemblyHook({
+      memoryDir: tmpDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+    });
+    await hook();
+
+    expect(hook.contextAssemblyTraces[0]?.recall?.items).toContainEqual(expect.objectContaining({
+      id: 'wm_snapshot:run_previous',
+      kind: 'run_archive_ref',
+      summary: expect.stringContaining('Fix an earlier astropy warning failure'),
+    }));
+  });
+
+  it('injects eval autonomy rule and summary-only pi contract in eval mode', async () => {
+    await TasksManager.getInstance(tmpDir).createTask('Eval context task', ['Build eval context'], {
+      workflowStatus: 'executing',
+      workingMemory: {
+        goal: 'Run non-interactive eval',
+        phase: 'executing',
+        currentStep: 'Do not ask user',
+      },
+    });
+
+    const prompt = await createContextAssemblyHook({
+      memoryDir: tmpDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+      piSchemaRenderMode: 'summary',
+    })();
+
+    expect(prompt).toContain('EVAL AUTONOMY RULE');
+    expect(prompt).toContain('PI CONTRACT');
+    expect(prompt).not.toContain('FULL PI SCHEMA');
+    expect(prompt).toContain('Pi schema render mode: summary');
+    expect(prompt).toContain('Eval autonomy rule enabled: true');
+  });
+
+  it('renders hard constraints in the prompt and records them as L1 trace', async () => {
+    await TasksManager.getInstance(tmpDir).createTask('Hard constraints task', ['Build eval context'], {
+      workflowStatus: 'executing',
+      workingMemory: {
+        goal: 'Fix a terminal-bench task',
+        hardConstraints: 'Only edit input.tex.\nEvery changed word must stay in its synonyms.txt family.',
+        phase: 'executing',
+        currentStep: 'Respect hard constraints',
+      },
+    });
+    const traces: unknown[] = [];
+
+    const prompt = await createContextAssemblyHook({
+      memoryDir: tmpDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+      piSchemaRenderMode: 'summary',
+      onTrace: (trace) => traces.push(trace),
+    })();
+
+    expect(prompt).toContain('### hardConstraints');
+    expect(prompt).toContain('HARD CONSTRAINTS');
+    expect(prompt).toContain('Every changed word must stay in its synonyms.txt family.');
+    const trace = traces[0] as {
+      layers: Record<string, { sectionIds: string[] }>;
+      sections: Array<{ id: string; layer: string }>;
+    };
+    expect(trace.layers.L1.sectionIds).toContain('hardConstraints');
+    expect(trace.sections.find((section) => section.id === 'hardConstraints')?.layer).toBe('L1');
   });
 
   it('includes task ledger facts, rejections, and questions in new pipeline mode', async () => {

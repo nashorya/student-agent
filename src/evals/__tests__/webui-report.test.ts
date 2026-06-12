@@ -241,6 +241,7 @@ function baselineRecord(
       behaviorFindings: [],
     },
     changedFiles: [],
+    modifiedFiles: {},
   };
 }
 

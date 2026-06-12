@@ -21,6 +21,7 @@ describe('TasksManager', () => {
       taskId: task.id,
       phase: 'planning',
       currentStep: '调整颜色',
+      hardConstraints: '',
       todos: [],
       readFiles: [],
       writeFiles: [],
@@ -227,6 +228,7 @@ describe('TasksManager', () => {
     expect(task.working_memory.recentErrors).toEqual([]);
     expect(task.working_memory.recentSignals).toEqual([]);
     expect(task.working_memory.artifactRefs).toEqual([]);
+    expect(task.working_memory.hardConstraints).toBe('');
   });
 
   it('migrates legacy flat working memory fields into structured entries', async () => {

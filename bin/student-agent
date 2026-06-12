@@ -1,17 +1,38 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const binPath = fileURLToPath(import.meta.url);
 const agentDir = resolve(dirname(binPath), '..');
 const entryPath = resolve(agentDir, 'dist/extension/index.js');
+const projectCwd = process.env.STUDENT_AGENT_CWD || process.cwd();
+const tsxImport = import.meta.resolve('tsx');
 
 if (!existsSync(entryPath)) {
   console.error('[student-agent] Missing dist/extension/index.js. Run `npm run build` before using the packaged CLI.');
   process.exit(1);
 }
 
-process.env.STUDENT_AGENT_CWD ??= process.cwd();
-process.chdir(agentDir);
-await import(pathToFileURL(entryPath).href);
+process.env.STUDENT_AGENT_CWD = projectCwd;
+const child = spawnSync(
+  process.execPath,
+  ['--import', tsxImport, entryPath, ...process.argv.slice(2)],
+  {
+    cwd: projectCwd,
+    env: process.env,
+    stdio: 'inherit',
+  },
+);
+
+if (child.error) {
+  console.error('[student-agent] Failed to start:', child.error.message);
+  process.exit(1);
+}
+
+if (child.signal) {
+  process.kill(process.pid, child.signal);
+}
+
+process.exit(child.status ?? 1);

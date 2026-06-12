@@ -1,6 +1,6 @@
 {
   "name": "student-agent",
-  "description": "hello",
+  "description": "A CLI coding agent with memory, self-reflection, and an honest eval harness",
   "version": "0.1.0",
   "type": "module",
   "bin": {
@@ -14,6 +14,16 @@
     "eval:claude-code": "npx tsx scripts/eval-claude-code.ts",
     "eval:context-runtime": "npx tsx scripts/eval-context-runtime.ts",
     "eval:webui:report": "npx tsx scripts/eval-webui-report.ts",
+    "eval:terminal-bench": "npx tsx scripts/eval-terminal-bench.ts",
+    "eval:swebench": "npx tsx scripts/eval-swebench.ts",
+    "eval:swebench:produce": "npx tsx scripts/eval-swebench-produce.ts",
+    "import:locobench-agent": "npx tsx scripts/import-locobench-agent.ts",
+    "eval:locobench-agent:official": "npx tsx scripts/eval-locobench-agent-official.ts",
+    "eval:locobench-agent:unified": "npx tsx scripts/eval-locobench-agent-unified.ts",
+    "eval:locobench-agent:deepseek": "bash scripts/run-locobench-unified-deepseek.sh",
+    "eval:comparison:deepseek": "python3 scripts/run_benchmark_comparison.py",
+    "score:locobench-agent": "npx tsx scripts/score-locobench-agent.ts",
+    "score:locobench-agent:official": "npx tsx scripts/score-locobench-agent-official.ts",
     "test": "vitest",
     "prepack": "npm run build"
   },
@@ -39,6 +49,7 @@
     "solid-js": "^1.9.12",
     "sqlite-vec": "^0.1.9",
     "string-width": "^7.2.0",
+    "tsx": "^4.22.4",
     "turndown": "^7.2.4",
     "xstate": "^5.18.0"
   },

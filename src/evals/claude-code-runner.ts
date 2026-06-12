@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { createEvalSandbox, runVerifier, snapshotFiles } from './sandbox.js';
+import { createEvalSandbox, diffSnapshots, readChangedFileContents, runVerifier, snapshotFiles } from './sandbox.js';
 import { scoreEvalRun } from './scorer.js';
 import { loadEvalTasks } from './task-loader.js';
-import type { EvalRunRecord, EvalTaskDefinition, EvalTokenUsage, StudentAgentEvalTrace } from './types.js';
+import type { EvalRunRecord, EvalTaskDefinition, EvalTokenUsage, StudentAgentEvalTrace, ToolTraceEntry } from './types.js';
 
 export interface ClaudeCodeRunOptions {
   tasksRoot?: string;
@@ -52,6 +52,12 @@ export interface ParsedClaudeCodeResult {
   finalOutput: string;
   errorMessage?: string;
   tokenUsage: EvalTokenUsage;
+  /** Verbatim `usage` object from claude stdout, kept for auditing normalization. */
+  rawUsage?: Record<string, unknown>;
+}
+
+export interface ParsedClaudeCodeStream extends ParsedClaudeCodeResult {
+  toolCalls: ToolTraceEntry[];
 }
 
 export async function runClaudeCodeEval(
@@ -77,8 +83,10 @@ export async function runClaudeCodeEval(
           bare: options.bare,
         });
         const afterAgent = await snapshotFiles(sandbox.path);
+        const changedFiles = diffSnapshots(before, afterAgent);
+        const modifiedFiles = await readChangedFileContents(sandbox.path, changedFiles);
         const verifier = await runVerifier(task, sandbox);
-        const scored = scoreEvalRun({ task, trace, verifier, before, after: afterAgent });
+        const scored = scoreEvalRun({ task, trace, verifier, before, after: afterAgent, modifiedFiles });
         records.push({
           variant: 'claude_code',
           taskId: task.id,
@@ -123,7 +131,7 @@ export async function runClaudeCodeTask(options: {
     bare: options.bare,
   });
   const result = await runProcess(command, args, options.sandboxDir, options.task.timeoutSeconds * 1000);
-  const parsed = parseClaudeCodeJsonResult(result.stdout);
+  const parsed = parseClaudeCodeStream(result.stdout);
   const processError = result.exitCode === 0 ? undefined : `claude exited with code ${result.exitCode}`;
   const errorMessage = parsed.errorMessage ?? processError;
   const endedMs = Date.now();
@@ -138,8 +146,9 @@ export async function runClaudeCodeTask(options: {
     status: errorMessage ? 'failed' : 'success',
     finalOutput: parsed.finalOutput || result.stdout || result.stderr,
     errorMessage,
-    toolCalls: [],
+    toolCalls: parsed.toolCalls,
     tokenUsage: parsed.tokenUsage,
+    rawUsage: parsed.rawUsage,
     taskState: options.task.mode === 'task'
       ? {
         status: errorMessage ? 'planning_failed' : 'completed',
@@ -160,7 +169,8 @@ export function buildClaudeCodeArgs(options: {
     '-p',
     ...(options.bare === false ? [] : ['--bare']),
     '--output-format',
-    'json',
+    'stream-json',
+    '--verbose',
     '--permission-mode',
     'bypassPermissions',
     '--no-session-persistence',
@@ -183,13 +193,87 @@ export function parseClaudeCodeJsonResult(stdout: string): ParsedClaudeCodeResul
       tokenUsage: emptyTokenUsage(),
     };
   }
+  return parseResultRecord(parsed, stdout);
+}
 
+function parseResultRecord(parsed: Record<string, unknown>, stdout: string): ParsedClaudeCodeResult {
   const result = stringValue(parsed.result) ?? stdout;
   return {
     finalOutput: result,
     errorMessage: parsed.is_error === true ? result : undefined,
     tokenUsage: usageFromClaudeJson(parsed),
+    rawUsage: isRecord(parsed.usage) ? parsed.usage : undefined,
   };
+}
+
+/**
+ * Parse a `--output-format stream-json` transcript: one JSON object per line.
+ * Extracts tool_use calls from assistant messages and pairs them with their
+ * tool_result blocks from subsequent user messages. Falls back to the same
+ * usage/result parsing as the plain-JSON path for the final `result` line.
+ */
+export function parseClaudeCodeStream(stdout: string): ParsedClaudeCodeStream {
+  const toolCalls: ToolTraceEntry[] = [];
+  const byId = new Map<string, ToolTraceEntry>();
+  let resultObj: Record<string, unknown> | null = null;
+
+  for (const raw of stdout.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (!line.startsWith('{') || !line.endsWith('}')) continue;
+    let obj: unknown;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isRecord(obj)) continue;
+
+    if (obj.type === 'assistant' && isRecord(obj.message)) {
+      for (const block of contentBlocks(obj.message.content)) {
+        if (block.type !== 'tool_use') continue;
+        const id = stringValue(block.id) ?? `tool_${toolCalls.length}`;
+        const entry: ToolTraceEntry = {
+          id,
+          name: stringValue(block.name) ?? 'unknown',
+          args: block.input ?? {},
+          startedAt: new Date().toISOString(),
+        };
+        toolCalls.push(entry);
+        byId.set(id, entry);
+      }
+    } else if (obj.type === 'user' && isRecord(obj.message)) {
+      for (const block of contentBlocks(obj.message.content)) {
+        if (block.type !== 'tool_result') continue;
+        const id = stringValue(block.tool_use_id);
+        const entry = id ? byId.get(id) : undefined;
+        if (!entry) continue;
+        entry.endedAt = new Date().toISOString();
+        entry.isError = block.is_error === true;
+        entry.resultText = toolResultText(block.content);
+      }
+    } else if (obj.type === 'result') {
+      resultObj = obj;
+    }
+  }
+
+  const base = resultObj
+    ? parseResultRecord(resultObj, stdout)
+    : { finalOutput: stdout, tokenUsage: emptyTokenUsage() };
+  return { ...base, toolCalls };
+}
+
+function contentBlocks(content: unknown): Record<string, unknown>[] {
+  return Array.isArray(content) ? content.filter(isRecord) : [];
+}
+
+function toolResultText(content: unknown): string | undefined {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return undefined;
+  const parts = content
+    .filter(isRecord)
+    .map((block) => stringValue(block.text) ?? '')
+    .filter((text) => text.length > 0);
+  return parts.length > 0 ? parts.join('\n') : undefined;
 }
 
 export function summarizeClaudeCodeRecords(records: ClaudeCodeEvalRecord[]): ClaudeCodeSummary {
@@ -325,9 +409,18 @@ function parseLastJsonObject(stdout: string): Record<string, unknown> | null {
 
 function usageFromClaudeJson(raw: Record<string, unknown>): EvalTokenUsage {
   const usage = isRecord(raw.usage) ? raw.usage : {};
-  const inputTokens = numberValue(usage.input_tokens);
-  const outputTokens = numberValue(usage.output_tokens);
-  const cacheReadTokens = numberValue(usage.cache_read_input_tokens);
+  // OpenAI-compatible endpoints report usage as prompt_tokens/completion_tokens,
+  // with cache hits nested in prompt_tokens_details.cached_tokens. Note the
+  // semantic difference: OpenAI's prompt_tokens INCLUDES cached tokens, while
+  // Anthropic's input_tokens EXCLUDES cache reads. Normalize both to our schema
+  // (inputTokens excludes cacheReadTokens).
+  const promptDetails = isRecord(usage.prompt_tokens_details) ? usage.prompt_tokens_details : {};
+  const openaiCachedTokens = numberValue(promptDetails.cached_tokens);
+  const openaiPromptTokens = numberValue(usage.prompt_tokens);
+  const cacheReadTokens = numberValue(usage.cache_read_input_tokens) || openaiCachedTokens;
+  const inputTokens = numberValue(usage.input_tokens)
+    || Math.max(openaiPromptTokens - openaiCachedTokens, 0);
+  const outputTokens = numberValue(usage.output_tokens) || numberValue(usage.completion_tokens);
   const cacheWriteTokens = cacheCreationTokens(usage);
   const totalTokens = numberValue(usage.total_tokens)
     || inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens;

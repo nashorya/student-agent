@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadEnvFile, parseEnvFile } from '../env.js';
+import {
+  loadEnvFile,
+  loadEnvLayersPreservingAmbient,
+  parseEnvFile,
+} from '../env.js';
 
 describe('env loader', () => {
   let tmpDir: string;
@@ -52,5 +56,32 @@ describe('env loader', () => {
 
   it('文件不存在时返回 null', async () => {
     await expect(loadEnvFile({ cwd: tmpDir })).resolves.toBeNull();
+  });
+
+  it('分层加载时保留启动环境变量的最高优先级', async () => {
+    const globalDir = join(tmpDir, 'global');
+    const projectDir = join(tmpDir, 'project');
+    await Promise.all([
+      mkdir(globalDir, { recursive: true }),
+      mkdir(projectDir, { recursive: true }),
+    ]);
+    await writeFile(join(globalDir, '.env'), [
+      'STUDENT_AGENT_BASE_URL=https://global.example/v1',
+      'GLOBAL_ONLY=global',
+    ].join('\n'));
+    await writeFile(join(projectDir, '.env'), [
+      'STUDENT_AGENT_BASE_URL=https://project.example/v1',
+      'GLOBAL_ONLY=project',
+    ].join('\n'));
+    process.env.STUDENT_AGENT_BASE_URL = 'https://ambient.example/v1';
+    delete process.env.GLOBAL_ONLY;
+
+    await loadEnvLayersPreservingAmbient(async () => {
+      await loadEnvFile({ cwd: globalDir, override: true });
+      await loadEnvFile({ cwd: projectDir, override: true });
+    });
+
+    expect(process.env.STUDENT_AGENT_BASE_URL).toBe('https://ambient.example/v1');
+    expect(process.env.GLOBAL_ONLY).toBe('project');
   });
 });

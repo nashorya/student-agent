@@ -1,0 +1,105 @@
+{
+  "specification": {
+    "unique_id": "c_api_gateway_easy_009",
+    "name": "EduGate ScholarLink",
+    "description": "EduGate ScholarLink is an entry-level API Gateway tailored for educational platforms that need to consolidate multiple micro-services\u2014such as course catalogs, assessment engines, student profiles, and analytics\u2014behind a single, well-governed entry point. Although classified as an easy project, it brings real-world gateway concerns (versioning, request validation, GraphQL schema stitching, error handling, monitoring, and live API documentation) into a compact, component-based codebase written in C. \n\nThe project\u2019s educational twist lies in its domain-specific fa\u00e7ade: every route, policy, and metric is anchored in learning concepts. For example, request throttling is expressed in *\u201crequests per enrolled student\u201d*, version tags follow the curriculum year (e.g., v2024_Spring), and its monitoring dashboard labels endpoints by pedagogic objectives (e.g., /v1/quiz \u2192 \u201cFormative Assessment\u201d). By decomposing gateway concerns into pluggable components (router, validator, schema registry, metrics reporter, doc generator), students and instructors can mix-and-match or hot-swap modules to demonstrate best practices in modular design without drowning in complexity.\n\nUltimately, EduGate ScholarLink serves as a hands-on springboard for learners who want to explore microservices, REST, and GraphQL in a controlled academic context while appreciating how a clean component boundary accelerates maintenance, experimentation, and knowledge transfer.",
+    "domain": "api_gateway",
+    "complexity": "easy",
+    "language": "c",
+    "architecture": "component_based",
+    "theme": "education",
+    "target_file_count": 12,
+    "target_token_count": 43811,
+    "features": [
+      "versioning",
+      "request_validation",
+      "graphql_schema",
+      "error_handling",
+      "monitoring",
+      "api_documentation"
+    ],
+    "architecture_patterns": [
+      "Microservices",
+      "API_Gateway",
+      "REST_Architecture"
+    ],
+    "dependencies": [
+      "libuv (event loop / async I/O)",
+      "libcurl (upstream micro-service HTTP client)",
+      "cJSON (lightweight JSON parsing & serialization for validation and REST payloads)",
+      "libgraphqlparser or cgql (GraphQL parsing and schema validation)",
+      "prometheus-c-client (metrics exposition / monitoring)",
+      "libbson or uthash (request/response object maps)",
+      "OpenAPI-C or libswagger (generates live API documentation)",
+      "jansson or equivalent optional JSON schema validator",
+      "cmocka (unit testing of isolated components)",
+      "CMake (build orchestration across independent components)"
+    ],
+    "seed": 543209
+  },
+  "generated_timestamp": 1754355561.956392,
+  "phase_1_complete": true,
+  "uniqueness_factors": {
+    "domain": "api_gateway",
+    "complexity": "easy",
+    "architecture": "component_based",
+    "theme": "education",
+    "seed": 543209
+  },
+  "files": [
+    {
+      "path": "EduGate_ScholarLink//README.md",
+      "type": "documentation"
+    },
+    {
+      "path": "EduGate_ScholarLink//Makefile",
+      "type": "source"
+    },
+    {
+      "path": "EduGate_ScholarLink//config//gateway.conf",
+      "type": "config"
+    },
+    {
+      "path": "EduGate_ScholarLink//config//routes.json",
+      "type": "config"
+    },
+    {
+      "path": "EduGate_ScholarLink//src//main.c",
+      "type": "source"
+    },
+    {
+      "path": "EduGate_ScholarLink//src//http_handler.c",
+      "type": "source"
+    },
+    {
+      "path": "EduGate_ScholarLink//src//components//router.c",
+      "type": "source"
+    },
+    {
+      "path": "EduGate_ScholarLink//src//components//validator.c",
+      "type": "source"
+    },
+    {
+      "path": "EduGate_ScholarLink//src//components//monitoring.c",
+      "type": "source"
+    },
+    {
+      "path": "EduGate_ScholarLink//include//edugate.h",
+      "type": "source"
+    },
+    {
+      "path": "EduGate_ScholarLink//docs//API_GUIDE.md",
+      "type": "documentation"
+    },
+    {
+      "path": "EduGate_ScholarLink//tests//test_router.c",
+      "type": "test"
+    }
+  ],
+  "generated_stats": {
+    "files_count": 12,
+    "lines_count": 3990,
+    "generation_time": 2313.536500930786,
+    "timestamp": 1754363273.795799
+  }
+}

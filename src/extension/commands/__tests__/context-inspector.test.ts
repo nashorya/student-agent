@@ -62,6 +62,10 @@ describe('Context Inspector', () => {
       droppedCount: 0,
       estimatedTokens: 0,
       truncatedSections: [],
+      piSchemaRenderMode: 'summary',
+      fullPiSchemaRendered: false,
+      evalAutonomyRuleEnabled: false,
+      anthropicExecutionOverrideEnabled: false,
     });
   });
 
@@ -159,6 +163,9 @@ describe('Context Inspector', () => {
     expect(result.diagnostics.triggerSummary).toContain('hashline_rejection');
     expect(result.diagnostics.estimatedTokens).toBeGreaterThan(0);
     expect(result.diagnostics.truncatedSections).toEqual([]);
+    expect(result.diagnostics.piSchemaRenderMode).toBe('summary');
+    expect(result.diagnostics.fullPiSchemaRendered).toBe(false);
+    expect(result.diagnostics.evalAutonomyRuleEnabled).toBe(false);
   });
 
   it('does not write a recall index while inspecting context', async () => {
@@ -198,6 +205,10 @@ describe('Context Inspector', () => {
         droppedCount: 1,
         estimatedTokens: 1234,
         truncatedSections: [],
+        piSchemaRenderMode: 'summary',
+        fullPiSchemaRendered: false,
+        evalAutonomyRuleEnabled: false,
+        anthropicExecutionOverrideEnabled: false,
       },
     }));
 
@@ -213,6 +224,9 @@ describe('Context Inspector', () => {
     expect(output).toContain('Task: none');
     expect(output).toContain('Top item: knack_1 (total: 0.988, trigger: 0.123, keyword: 0.200, recency: 0.000, relevance: 0.444, metadata: 1.000, evidence: 0.556)');
     expect(output).toContain('Truncated sections: none');
+    expect(output).toContain('Pi schema render mode: summary');
+    expect(output).toContain('Full pi schema rendered: false');
+    expect(output).toContain('Eval autonomy rule enabled: false');
     const queryLine = output.split('\n').find((line) => line.includes('Query text:')) ?? '';
     expect(queryLine.length).toBeLessThan(210);
   });
@@ -293,6 +307,10 @@ function sampleInspection(overrides: Partial<ContextInspectorResult> = {}): Cont
       droppedCount: 0,
       estimatedTokens: 0,
       truncatedSections: [],
+      piSchemaRenderMode: 'summary',
+      fullPiSchemaRendered: false,
+      evalAutonomyRuleEnabled: false,
+      anthropicExecutionOverrideEnabled: false,
     },
     ...overrides,
   };
