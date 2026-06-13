@@ -10,8 +10,11 @@ import { getApiKeyEnvName, normalizeProviderApiKeyEnv } from '../core/setup/init
 import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/session-factory.js';
 import { drainProtectedEvents } from '../core/hashline/index.js';
 import { createToolGuardHook } from '../extension/hooks/tool-guard.js';
+import { FailureEscalationContext } from '../extension/hooks/failure-escalation.js';
+import { Context7Client } from '../knowledge/context7-client.js';
 import { createSignalPipeline } from '../memory/signals/index.js';
 import { RunArchiveWriter } from '../memory/run-archive/index.js';
+import { ProjectKbManager } from '../memory/project-kb/manager.js';
 import {
   buildPlanningPrompt,
   buildPlanningRepairPrompt,
@@ -82,11 +85,30 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       }
       learningRun = await beginEvalLearningRun(options.memoryDir);
     }
-    const hooks = createEvalTracingHooks(toolCalls, learningRun ? {
-      memoryDir: options.memoryDir,
-      learningRun,
-      onProtectedEvents: (events) => protectedEventsDuringRun.push(...events),
-    } : {});
+    const context7Client = config.features.context7
+      ? new Context7Client({
+        apiKey: config.context7.apiKey,
+        timeoutMs: config.context7.timeoutMs,
+        maxDocsChars: config.context7.maxDocsChars,
+        projectKb: options.memoryDir
+          ? ProjectKbManager.getInstance(options.memoryDir)
+          : undefined,
+      })
+      : undefined;
+    const hooks = createEvalTracingHooks(toolCalls, {
+      ...(learningRun ? {
+        memoryDir: options.memoryDir,
+        learningRun,
+        onProtectedEvents: (events: import('./types.js').ProtectedEvalEvent[]) => {
+          protectedEventsDuringRun.push(...events);
+        },
+      } : {}),
+      failureEscalation: {
+        context7Client,
+        taskDescription: instruction,
+        cwd: options.sandboxDir,
+      },
+    });
     if (options.buildMemoryPrompt) {
       hooks.buildMemoryPrompt = options.buildMemoryPrompt;
     }
@@ -420,6 +442,11 @@ export function createEvalTracingHooks(
     memoryDir?: string;
     learningRun?: EvalLearningRunRef;
     onProtectedEvents?: (events: import('./types.js').ProtectedEvalEvent[]) => void;
+    failureEscalation?: {
+      context7Client?: Pick<Context7Client, 'query'>;
+      taskDescription: string;
+      cwd: string;
+    };
   } = {},
 ): StudentAgentHooks {
   const byId = new Map<string, ToolTraceEntry>();
@@ -434,6 +461,17 @@ export function createEvalTracingHooks(
       onProtectedEvents: options.onProtectedEvents,
     })
     : undefined;
+  const failureEscalation = options.failureEscalation
+    ? new FailureEscalationContext({
+      context7Client: options.failureEscalation.context7Client,
+      memoryDir: options.memoryDir,
+    })
+    : undefined;
+  failureEscalation?.initTask(
+    options.failureEscalation?.taskDescription ?? '',
+    options.failureEscalation?.cwd ?? '',
+  );
+  const failureEscalationHook = failureEscalation?.createHook();
   return {
     onBeforeToolCall: async (ctx) => {
       const entry: ToolTraceEntry = {
@@ -461,25 +499,26 @@ export function createEvalTracingHooks(
       toolGuard.observeResult(ctx);
       await signalPipeline?.processAfterToolCall(ctx);
       const entry = byId.get(ctx.toolCallId);
-      if (!entry) return undefined;
-      const ended = Date.now();
-      const started = Date.parse(entry.startedAt);
-      entry.endedAt = new Date(ended).toISOString();
-      entry.durationMs = Number.isFinite(started) ? ended - started : undefined;
-      entry.isError = ctx.isError;
-      entry.resultText = ctx.resultText.slice(0, 4_000);
-      if (ctx.isError && archive && options.learningRun) {
-        await archive.appendEvent(options.learningRun.runId, {
-          timestamp: entry.endedAt,
-          kind: 'tool_error',
-          summary: entry.resultText,
-          toolName: ctx.toolName,
-          metadata: {
-            evidenceRef: ctx.toolCallId,
-          },
-        });
+      if (entry) {
+        const ended = Date.now();
+        const started = Date.parse(entry.startedAt);
+        entry.endedAt = new Date(ended).toISOString();
+        entry.durationMs = Number.isFinite(started) ? ended - started : undefined;
+        entry.isError = ctx.isError;
+        entry.resultText = ctx.resultText.slice(0, 4_000);
+        if (ctx.isError && archive && options.learningRun) {
+          await archive.appendEvent(options.learningRun.runId, {
+            timestamp: entry.endedAt,
+            kind: 'tool_error',
+            summary: entry.resultText,
+            toolName: ctx.toolName,
+            metadata: {
+              evidenceRef: ctx.toolCallId,
+            },
+          });
+        }
       }
-      return undefined;
+      return failureEscalationHook?.(ctx);
     },
   };
 }

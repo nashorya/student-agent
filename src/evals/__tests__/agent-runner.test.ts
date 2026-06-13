@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AgentEvent } from '@mariozechner/pi-agent-core';
 import {
   AssistantTextCollector,
@@ -197,6 +197,49 @@ describe('eval model metadata', () => {
 });
 
 describe('eval tracing hooks', () => {
+  it('queries Context7 on the second eligible failure when the eval client is present', async () => {
+    const query = vi.fn().mockResolvedValue({
+      libraryId: '/microsoft/typescript',
+      topic: 'TS2307',
+      content: 'Check package installation and module resolution settings.',
+      source: 'context7',
+    });
+    const hooks = createEvalTracingHooks([], {
+      failureEscalation: {
+        context7Client: { query },
+        taskDescription: 'Fix the TypeScript build',
+        cwd: '/tmp/eval-sandbox',
+      },
+    });
+    const resultText = 'npx tsc --noEmit\nsrc/index.ts(1,1): error TS2307: Cannot find module x';
+
+    for (const toolCallId of ['compile_1', 'compile_2']) {
+      await hooks.onBeforeToolCall?.({
+        toolName: 'bash',
+        toolCallId,
+        args: { command: 'npx tsc --noEmit' },
+      });
+    }
+    await hooks.onAfterToolCall?.({
+      toolName: 'bash',
+      toolCallId: 'compile_1',
+      args: { command: 'npx tsc --noEmit' },
+      isError: true,
+      resultText,
+    });
+    const decision = await hooks.onAfterToolCall?.({
+      toolName: 'bash',
+      toolCallId: 'compile_2',
+      args: { command: 'npx tsc --noEmit' },
+      isError: true,
+      resultText,
+    });
+
+    expect(query).toHaveBeenCalledOnce();
+    expect(decision?.overrideContent).toContain('已触发 Context7 文档检索');
+    expect(decision?.overrideContent).toContain('module resolution settings');
+  });
+
   it('enforces verify_retry and emits a protected event in eval runs', async () => {
     drainProtectedEvents();
     const hooks = createEvalTracingHooks([]);
