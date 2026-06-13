@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>student-agent · 开发仪表盘</title>
+<style>
+/* ── 设计系统 ───────────────────────────────────── */
+:root {
+  --bg:      #09090b;
+  --bg1:     #111113;
+  --bg2:     #18181b;
+  --bg3:     #27272a;
+  --border:  #2e2e33;
+  --border2: #3f3f46;
+  --text:    #fafafa;
+  --text2:   #a1a1aa;
+  --text3:   #71717a;
+  --blue:    #60a5fa;
+  --blue-dim:#1e3a5f;
+  --purple:  #a78bfa;
+  --purp-dim:#2e1e5f;
+  --green:   #4ade80;
+  --green-dim:#14532d;
+  --red:     #f87171;
+  --red-dim: #450a0a;
+  --yellow:  #facc15;
+  --yell-dim:#422006;
+  --radius:  10px;
+  --radius-sm:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Inter','Segoe UI',sans-serif;line-height:1.55;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ── HEADER ─────────────────────────────────────── */
+header {
+  display:flex;align-items:center;gap:12px;
+  padding:14px 28px;
+  border-bottom:1px solid var(--border);
+  background:var(--bg1);
+  position:sticky;top:0;z-index:50;
+  backdrop-filter:blur(12px);
+}
+.logo {
+  font-weight:700;font-size:15px;letter-spacing:-.03em;
+  background:linear-gradient(135deg,#fff 0%,#a1a1aa 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.logo-tag {
+  font-size:11px;color:var(--text3);
+  background:var(--bg3);border:1px solid var(--border2);
+  padding:2px 8px;border-radius:20px;
+}
+.gen-time{margin-left:auto;font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums}
+
+/* ── STATS ROW ───────────────────────────────────── */
+.stats {
+  display:grid;grid-template-columns:repeat(5,1fr);
+  border-bottom:1px solid var(--border);
+}
+.stat {
+  padding:20px 24px;border-right:1px solid var(--border);
+  background:var(--bg1);
+}
+.stat:last-child{border-right:none}
+.stat-val {
+  font-size:32px;font-weight:700;letter-spacing:-.04em;line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+.stat-val.c-green{color:var(--green)}
+.stat-val.c-red{color:var(--red)}
+.stat-val.c-blue{color:var(--blue)}
+.stat-lbl{font-size:11px;color:var(--text3);margin-top:6px;text-transform:uppercase;letter-spacing:.06em;font-weight:500}
+
+/* ── NAV TABS ────────────────────────────────────── */
+nav {
+  display:flex;gap:2px;padding:10px 20px;
+  background:var(--bg1);border-bottom:1px solid var(--border);
+}
+.tab {
+  padding:6px 14px;border-radius:var(--radius-sm);cursor:pointer;
+  font-size:13px;font-weight:500;color:var(--text3);
+  transition:all .15s;user-select:none;
+}
+.tab:hover{color:var(--text2);background:var(--bg3)}
+.tab.active{color:var(--text);background:var(--bg3)}
+
+/* ── PANELS ──────────────────────────────────────── */
+.panel{display:none;padding:28px;max-width:960px}
+.panel.active{display:block}
+
+/* ── TIMELINE ────────────────────────────────────── */
+.tl-row{display:grid;grid-template-columns:130px 1fr;gap:0 20px;padding:4px 0}
+.tl-left{display:flex;flex-direction:column;align-items:flex-end;gap:6px;padding-top:10px}
+.tl-dot{width:8px;height:8px;border-radius:50%;background:var(--border2);flex-shrink:0;margin-right:-4px;position:relative;z-index:1}
+.tl-dot-active{background:var(--blue);box-shadow:0 0 0 3px rgba(96,165,250,.2)}
+.tl-datebox{font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;line-height:1.3}
+.tl-latest .tl-datebox{color:var(--blue)}
+.tl-card{
+  border-left:2px solid var(--border);
+  padding:8px 0 12px 20px;
+  position:relative;
+}
+.tl-latest .tl-card{border-left-color:var(--blue)}
+.tl-list{list-style:none;display:flex;flex-direction:column;gap:4px}
+.tl-list li{font-size:13px;color:var(--text2);line-height:1.5;padding:5px 8px;border-radius:var(--radius-sm);transition:background .12s}
+.tl-list li:hover{background:var(--bg2);color:var(--text)}
+
+/* ── RUNS ────────────────────────────────────────── */
+.runs-section{margin-bottom:36px}
+.sec-head{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.sec-title{font-size:15px;font-weight:600;color:var(--text)}
+.sec-note{font-size:12px;color:var(--text3);margin-left:4px}
+.tier-chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.05em}
+.chip-a{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(96,165,250,.25)}
+.chip-b{background:var(--purp-dim);color:var(--purple);border:1px solid rgba(167,139,250,.25)}
+.rc-group{margin-bottom:16px}
+.rc-col-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px}
+.on-label{color:var(--green)}
+.off-label{color:var(--text3)}
+.tier-b-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.rc-grid{display:flex;flex-direction:column;gap:6px}
+
+/* Run card */
+.rc{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 14px;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  border-left:3px solid var(--border2);
+  transition:border-color .15s,background .15s;
+  gap:12px;
+}
+.rc:hover{background:var(--bg3);border-color:var(--border2)}
+.rc-pass{border-left-color:var(--green)}
+.rc-fail{border-left-color:var(--red)}
+.rc-inv,.rc-nd{opacity:.45;border-left-color:var(--border2)}
+.rc-head{display:flex;align-items:center;gap:8px;min-width:0}
+.rc-dot{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
+.dot-pass{background:var(--green-dim);color:var(--green)}
+.dot-fail{background:var(--red-dim);color:var(--red)}
+.dot-nd{background:var(--bg3);color:var(--text3)}
+/* checkmark via pseudo */
+.dot-pass::after{content:'✓';font-size:10px}
+.rc-task{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-stats{display:flex;align-items:center;gap:6px;color:var(--text3);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums;flex-shrink:0}
+.rc-sep{color:var(--border2)}
+.rc-cost{color:var(--text2)}
+.arm-badge{padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
+.arm-on{background:var(--green-dim);color:var(--green)}
+.arm-off{background:var(--bg3);color:var(--text3)}
+
+/* ── BUGS ────────────────────────────────────────── */
+.bugs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.bug-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative;overflow:hidden;transition:border-color .15s}
+.bug-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.bc-open::before{background:var(--red)}
+.bc-closed::before{background:var(--green)}
+.bc-wip::before{background:var(--yellow)}
+.bug-card:hover{border-color:var(--border2)}
+.bug-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bug-id{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.05em}
+.bug-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.bdot-open{background:var(--red)}
+.bdot-closed{background:var(--green)}
+.bdot-wip{background:var(--yellow)}
+.bug-status-text{font-size:10px;font-weight:600;color:var(--text3)}
+.bc-open .bug-status-text{color:var(--red)}
+.bc-closed .bug-status-text{color:var(--green)}
+.bc-wip .bug-status-text{color:var(--yellow)}
+.bug-title{font-size:13px;font-weight:500;line-height:1.4;color:var(--text);margin-bottom:6px}
+.bug-cause{font-size:12px;color:var(--text3);line-height:1.4;margin-bottom:8px}
+.bug-date{font-size:11px;color:var(--text3)}
+
+/* ── ADR ─────────────────────────────────────────── */
+.adrs-list{display:flex;flex-direction:column;gap:10px}
+.adr-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;display:grid;grid-template-columns:90px 1fr auto;gap:16px;align-items:start;transition:border-color .15s}
+.adr-card:hover{border-color:var(--border2)}
+.adr-id{font-size:13px;font-weight:700;color:var(--blue);margin-bottom:4px}
+.adr-status{font-size:11px;color:var(--green)}
+.adr-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.4}
+.adr-summary{font-size:12px;color:var(--text3);line-height:1.5}
+.adr-date{font-size:11px;color:var(--text3);white-space:nowrap}
+
+/* ── MINI CHART ──────────────────────────────────── */
+.mini-chart-wrap{margin-top:24px;padding:16px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:inline-block}
+.mini-chart-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;font-weight:500}
+.mini-chart-legend{margin-top:8px;font-size:11px;color:var(--text3);display:flex;gap:12px;align-items:center}
+.dot-blue,.dot-purple{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+.dot-blue{background:var(--blue)}
+.dot-purple{background:var(--purple)}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">student-agent</span>
+  <span class="logo-tag">dev dashboard</span>
+  <span class="gen-time">生成于 2026-06-13 03:37 UTC</span>
+</header>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-val c-blue">$4.64</div>
+    <div class="stat-lbl">累计花费</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val">12/12</div>
+    <div class="stat-lbl">SWE resolved</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val c-red">1</div>
+    <div class="stat-lbl">Open bug</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val">3</div>
+    <div class="stat-lbl">ADR 决策</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val">28</div>
+    <div class="stat-lbl">开发事件</div>
+  </div>
+</div>
+
+<nav>
+  <div class="tab active" data-panel="timeline">时间轴</div>
+  <div class="tab" data-panel="runs">Eval Runs</div>
+  <div class="tab" data-panel="bugs">Bug 档案</div>
+  <div class="tab" data-panel="adrs">ADR 决策</div>
+</nav>
+
+<div id="timeline" class="panel active">
+  <div class="tl-row tl-latest">
+    <div class="tl-left">
+      <div class="tl-dot tl-dot-active"></div>
+      <div class="tl-datebox">2026-06-13</div>
+    </div>
+    <div class="tl-card">
+      <ul class="tl-list"><li>基于 Tier B 数据完成 v0.4x 优先级重排（ADR-003）：P0 离线蒸馏化验（零成本验证 skill/knack 前提）→ P1 lesson 准入门控（batch …</li></ul>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-left">
+      <div class="tl-dot"></div>
+      <div class="tl-datebox">2026-06-12</div>
+    </div>
+    <div class="tl-card">
+      <ul class="tl-list"><li>BUG-004 第四层关案：`SELF_CHECK_PROMPT` 增加 full-diff 穷举与机械约束脚本化原则（commit `5537d326`），gpt-5.5 ove…</li><li>Tier A 全绿：SWE 官方 harness 12907/14182 均 resolved…</li><li>OpenRouter Sonnet cache 探针通过，BUG-002 关案：`prove-plus-comm` reward 1.0，`5,205 / 65,733 / 11`…</li><li>渠道切换 OpenRouter sonnet-4.6（预算 $10）…</li><li>BUG-006 代码修复完成、待回归：terminal 汇总新增 `invalid_reasons`，agent timeout 与 verifier setup failure …</li><li>OpenRouter key 从 `~/.student-agent/.env` 注入后重测 patched overfull：BUG-006 的 verifier 侧已修好（不再…</li><li>零编辑续航哨兵完成（commit `bc036f02`）：非交互第一阶段结束后，若 `hardConstraints` 非空且 working memory `writeFiles…</li><li>预算重排决策：overfull 标 **deferred**（Tier A 最贵、对 Tier B GO/NO-GO 价值最低，BUG-004 已在 gpt-5.5 关案…</li><li>OpenRouter Sonnet Tier A 重定基线完成 **4/5**（overfull deferred）：SWE 官方 harness 均 resolved…</li><li>Tier B OpenRouter Sonnet astropy pilot 完成（commit `fa1cbdf0`，1 seed…</li><li>CC/外部参照证据盘点完成，未新增付费 run：本地 Claude Code 2.1.153 + gpt-5.5 仅覆盖 SWE 12907/14182，merged 官方 har…</li><li>发布前门面与安全清理：根目录遗留物取消跟踪并 ignore，package description 正式化，README 中英文新增评测结果入口与六月完整报告…</li></ul>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-left">
+      <div class="tl-dot"></div>
+      <div class="tl-datebox">2026-06-11</div>
+    </div>
+    <div class="tl-card">
+      <ul class="tl-list"><li>发现 benchmark 未接入 context runtime（BUG-001）</li><li>旧版 TUI 与遗留物清理立项（待 benchmark 收尾后执行）</li><li>BUG-001 接线修复完成（codex，分支 `codex/context-runtime-benchmark`）…</li><li>Benchmark 矩阵 v1 敲定（Tier A 冒烟 / B 学习 / C 跨 agent…</li><li>Tier A 结果（口径：final records 的 inputTokens/turns）：SWE 两题官方 resolved，12907 = 189k/11 calls，14…</li><li>Tier A 收尾 + Sonnet 锚点轮计划立项（P0 归因 → P1 Hard Constraints MVP + 政策补丁 + 基础设施固化 → P2 全量回归 → P3 …</li><li>验收发现 P2 overfull 回归为无效 run（BUG-005：provider 漂移 deepseek + 缺 key，agent 未运行）…</li><li>`codex/context-runtime-benchmark` 按 11 批小步提交完成入库整理（repo ignore、非交互 context runtime、hardCon…</li><li>BUG-005 哨兵完成并实战验证：gpt-5.5 中转链路 3 次 agent exit 1（503）均标记 `invalid_run=true`，不计 reward，BUG-0…</li><li>新 key 的 gpt-5.5 overfull smoke 为有效 run（14 turns / 172,788 input），仍为 verifier 3/4：`natures→…</li><li>completion self-check 已实现（commit `c1d2aff9`，全量 131 files / 912 tests 通过），gpt-5.5 overfull …</li></ul>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-left">
+      <div class="tl-dot"></div>
+      <div class="tl-datebox">2026-06-10</div>
+    </div>
+    <div class="tl-card">
+      <ul class="tl-list"><li>SWE/terminal-bench 对比跑分（gpt-5.5，cc vs student-agent）</li></ul>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-left">
+      <div class="tl-dot"></div>
+      <div class="tl-datebox">2026-06-08</div>
+    </div>
+    <div class="tl-card">
+      <ul class="tl-list"><li>v0.4 Context Runtime Freeze（batch commit `79ad7f64`，教训见 BUG-003）</li></ul>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-left">
+      <div class="tl-dot"></div>
+      <div class="tl-datebox">2026-06-07</div>
+    </div>
+    <div class="tl-card">
+      <ul class="tl-list"><li>v0.34 Hashline / v0.35 WM+XState / v0.36 ToolGuard</li></ul>
+    </div>
+  </div>
+  <div class="tl-row">
+    <div class="tl-left">
+      <div class="tl-dot"></div>
+      <div class="tl-datebox">2026-06-04</div>
+    </div>
+    <div class="tl-card">
+      <ul class="tl-list"><li>v0.33 TUI/Trace 稳定化</li></ul>
+    </div>
+  </div></div>
+<div id="runs" class="panel">
+<section class="runs-section">
+  <header class="sec-head">
+    <span class="tier-chip chip-a">Tier A</span>
+    <span class="sec-title">回归冒烟</span>
+    <span class="sec-note">每次 harness 变更必跑</span>
+  </header>
+  <div class="rc-group">
+    <div class="rc-col-label">SWE-bench</div>
+    <div class="rc-grid"><div class="rc rc-nd">
+  <div class="rc-head">
+    <span class="rc-dot dot-nd">·</span>
+    <span class="rc-task">astropy-12907</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">—</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">— turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.000</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-12907</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">168.1k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">14 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.220</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-14182</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">486.2k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">34 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.432</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">fix-git</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">148.8k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">18 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.185</span>
+  </div>
+</div><div class="rc rc-nd">
+  <div class="rc-head">
+    <span class="rc-dot dot-nd">·</span>
+    <span class="rc-task">overfull-hbox</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">—</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">— turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.618</span>
+  </div>
+</div><div class="rc rc-nd">
+  <div class="rc-head">
+    <span class="rc-dot dot-nd">·</span>
+    <span class="rc-task">overfull-hbox</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">—</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">— turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">—</span>
+  </div>
+</div><div class="rc rc-nd">
+  <div class="rc-head">
+    <span class="rc-dot dot-nd">·</span>
+    <span class="rc-task">overfull-hbox</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">—</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">— turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">—</span>
+  </div>
+</div><div class="rc rc-nd">
+  <div class="rc-head">
+    <span class="rc-dot dot-nd">·</span>
+    <span class="rc-task">overfull-hbox</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">—</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">— turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">—</span>
+  </div>
+</div></div>
+  </div>
+  <div class="rc-group">
+    <div class="rc-col-label">Terminal-bench</div>
+    <div class="rc-grid"><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">Terminal</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">65.7k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">11 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.120</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">fix-git</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">148.8k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">18 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.185</span>
+  </div>
+</div><div class="rc rc-nd">
+  <div class="rc-head">
+    <span class="rc-dot dot-nd">·</span>
+    <span class="rc-task">overfull-hbox</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">—</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">— turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.618</span>
+  </div>
+</div><div class="rc rc-nd">
+  <div class="rc-head">
+    <span class="rc-dot dot-nd">·</span>
+    <span class="rc-task">overfull-hbox</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">—</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">— turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">—</span>
+  </div>
+</div><div class="rc rc-nd">
+  <div class="rc-head">
+    <span class="rc-dot dot-nd">·</span>
+    <span class="rc-task">overfull-hbox</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">—</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">— turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">—</span>
+  </div>
+</div><div class="rc rc-nd">
+  <div class="rc-head">
+    <span class="rc-dot dot-nd">·</span>
+    <span class="rc-task">overfull-hbox</span>
+
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">—</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">— turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">—</span>
+  </div>
+</div></div>
+  </div>
+</section>
+
+<section class="runs-section">
+  <header class="sec-head">
+    <span class="tier-chip chip-b">Tier B</span>
+    <span class="sec-title">学习 eval — memory on vs off</span>
+    <span class="sec-note">on 6/6 resolved　·　off 4/4 resolved</span>
+  </header>
+  <div class="tier-b-grid">
+    <div class="rc-group">
+      <div class="rc-col-label on-label">memory ON</div>
+      <div class="rc-grid"><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-12907</span>
+    <span class="arm-badge arm-on">on</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">171.4k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">13 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.212</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-14182</span>
+    <span class="arm-badge arm-on">on</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">501.0k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">30 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.595</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-14365</span>
+    <span class="arm-badge arm-on">on</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">186.5k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">12 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.204</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-14995</span>
+    <span class="arm-badge arm-on">on</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">223.8k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">18 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.250</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-6938</span>
+    <span class="arm-badge arm-on">on</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">123.6k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">14 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.137</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-7746</span>
+    <span class="arm-badge arm-on">on</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">365.4k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">24 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.408</span>
+  </div>
+</div></div>
+    </div>
+    <div class="rc-group">
+      <div class="rc-col-label off-label">memory OFF</div>
+      <div class="rc-grid"><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-14365</span>
+    <span class="arm-badge arm-off">off</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">165.7k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">12 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.215</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-14995</span>
+    <span class="arm-badge arm-off">off</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">770.0k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">49 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.590</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-6938</span>
+    <span class="arm-badge arm-off">off</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">86.8k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">11 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.119</span>
+  </div>
+</div><div class="rc rc-pass">
+  <div class="rc-head">
+    <span class="rc-dot dot-pass"></span>
+    <span class="rc-task">astropy-7746</span>
+    <span class="arm-badge arm-off">off</span>
+  </div>
+  <div class="rc-stats">
+    <span title="totalTokens">275.1k</span>
+    <span class="rc-sep">·</span>
+    <span title="turns">20 turns</span>
+    <span class="rc-sep">·</span>
+    <span title="cost" class="rc-cost">$0.333</span>
+  </div>
+</div></div>
+    </div>
+  </div>
+</section>
+<div class="mini-chart-wrap">
+  <div class="mini-chart-label">近期 run 成本</div>
+  <svg width="288" height="52" viewBox="0 0 288 52" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="2" width="20" height="46" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-14995: $0.590</title><rect x="24" y="39" width="20" height="9" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-6938: $0.119</title><rect x="48" y="22" width="20" height="26" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-7746: $0.333</title><rect x="72" y="32" width="20" height="16" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-12907: $0.212</title><rect x="96" y="2" width="20" height="46" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-14182: $0.595</title><rect x="120" y="32" width="20" height="16" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-14365: $0.204</title><rect x="144" y="29" width="20" height="19" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-14995: $0.250</title><rect x="168" y="37" width="20" height="11" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-6938: $0.137</title><rect x="192" y="16" width="20" height="32" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-7746: $0.408</title><rect x="216" y="39" width="20" height="9" fill="#374151" rx="3" opacity="0.85"/><title>undefined: $0.120</title><rect x="240" y="34" width="20" height="14" fill="#3b82f6" rx="3" opacity="0.85"/><title>fix-git: $0.185</title><rect x="264" y="0" width="20" height="48" fill="#3b82f6" rx="3" opacity="0.85"/><title>overfull-hbox: $0.618</title></svg>
+  <div class="mini-chart-legend"><span class="dot-blue"></span>Tier A　<span class="dot-purple"></span>Tier B</div>
+</div></div>
+<div id="bugs" class="panel"><div class="bugs-grid"><div class="bug-card bc-closed">
+  <div class="bug-top">
+    <span class="bug-id">BUG-001</span>
+    <span class="bug-dot bdot-closed"></span>
+    <span class="bug-status-text">CLOSED</span>
+  </div>
+  <div class="bug-title">BUG-001</div>
+  <div class="bug-cause">`runNonInteractive` 从未在 TasksManager 创建 task；</div>
+  <div class="bug-date">2026-06-11</div>
+</div><div class="bug-card bc-closed">
+  <div class="bug-top">
+    <span class="bug-id">BUG-002</span>
+    <span class="bug-dot bdot-closed"></span>
+    <span class="bug-status-text">CLOSED</span>
+  </div>
+  <div class="bug-title">BUG-002</div>
+  <div class="bug-cause">`usageFromClaudeJson` 只解析 Anthropic 字段</div>
+  <div class="bug-date">2026-06-11</div>
+</div><div class="bug-card bc-closed">
+  <div class="bug-top">
+    <span class="bug-id">BUG-003</span>
+    <span class="bug-dot bdot-closed"></span>
+    <span class="bug-status-text">CLOSED</span>
+  </div>
+  <div class="bug-title">BUG-003</div>
+  <div class="bug-cause">赶进度时档案流程停摆（本方法论的已知失败模式）。</div>
+  <div class="bug-date">2026-06-08 发生</div>
+</div><div class="bug-card bc-closed">
+  <div class="bug-top">
+    <span class="bug-id">BUG-004</span>
+    <span class="bug-dot bdot-closed"></span>
+    <span class="bug-status-text">CLOSED</span>
+  </div>
+  <div class="bug-title">BUG-004</div>
+  <div class="bug-cause">归因已推进三层。第一层是原始失败 run 未把完整约束保留到</div>
+  <div class="bug-date">2026-06-11 18:20</div>
+</div><div class="bug-card bc-closed">
+  <div class="bug-top">
+    <span class="bug-id">BUG-005</span>
+    <span class="bug-dot bdot-closed"></span>
+    <span class="bug-status-text">CLOSED</span>
+  </div>
+  <div class="bug-title">BUG-005</div>
+  <div class="bug-cause">run 配置漂移到 `student-agent__deepseek-v4-pro`，违反矩阵</div>
+  <div class="bug-date">2026-06-11 19:35 run / 验收时发现</div>
+</div><div class="bug-card bc-closed">
+  <div class="bug-top">
+    <span class="bug-id">BUG-006</span>
+    <span class="bug-dot bdot-closed"></span>
+    <span class="bug-status-text">CLOSED</span>
+  </div>
+  <div class="bug-title">BUG-006</div>
+  <div class="bug-cause">① verifier 运行时从网络安装 uv，受限网络下必败；</div>
+  <div class="bug-date">2026-06-12</div>
+</div><div class="bug-card bc-open">
+  <div class="bug-top">
+    <span class="bug-id">BUG-007</span>
+    <span class="bug-dot bdot-open"></span>
+    <span class="bug-status-text">OPEN / FIXED / FIXED-待回归 / WONTFIX</span>
+  </div>
+  <div class="bug-title">BUG-007</div>
+  <div class="bug-cause">一次性连通性探针被当作通用 eval 脚本提交，缺少</div>
+  <div class="bug-date">2026-06-12</div>
+</div></div></div>
+<div id="adrs" class="panel"><div class="adrs-list"><div class="adr-card">
+  <div class="adr-left">
+    <div class="adr-id">ADR-001</div>
+    <div class="adr-status">已采纳</div>
+  </div>
+  <div class="adr-body">
+    <div class="adr-title">评测口径：跨 agent 对比与自建 eval 严格分离</div>
+    <div class="adr-summary">跨 agent 对比（vs claude-code / opencode 等）只使用公开 benchmark</div>
+  </div>
+  <div class="adr-date">2026-06-11</div>
+</div><div class="adr-card">
+  <div class="adr-left">
+    <div class="adr-id">ADR-002</div>
+    <div class="adr-status">已采纳；astropy pilot 完成，扩量暂缓</div>
+  </div>
+  <div class="adr-body">
+    <div class="adr-title">学习 eval：别人的题 + 自己的协议</div>
+    <div class="adr-summary">学习曲线评测采用"外部任务 + 自有协议"：从 SWE-bench 选取**同一仓库**</div>
+  </div>
+  <div class="adr-date">2026-06-11</div>
+</div><div class="adr-card">
+  <div class="adr-left">
+    <div class="adr-id">ADR-003</div>
+    <div class="adr-status">已采纳</div>
+  </div>
+  <div class="adr-body">
+    <div class="adr-title">v0.4x 优先级重排（基于 Tier B 数据）</div>
+
+  </div>
+  <div class="adr-date">2026-06-13</div>
+</div></div></div>
+
+<script>
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab,.panel').forEach(el => el.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.panel).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
