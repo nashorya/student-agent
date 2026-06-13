@@ -75,7 +75,6 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
   const lastOperation = operations.at(-1);
   if (!lastOperation) return null;
 
-  const symptom = summarizeText(stringValue(error.data.summary) ?? 'Unknown tool error', 280);
   const actionSequence = operations
     .map(({ data }) => stringValue(data.toolName) ?? stringValue(data.name) ?? 'tool')
     .join(' -> ');
@@ -83,6 +82,10 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     ? ` ${summarizeText(input.finalSummary, 600)}`
     : '';
   const verifiedFix = `Tool sequence: ${actionSequence}.${summary}`.trim();
+  const symptom = extractSymptom(
+    verifiedFix,
+    stringValue(error.data.summary) ?? 'Unknown tool error',
+  );
   const hash = createHash('sha256')
     .update(`${input.repo}\n${input.evidenceTask}\n${symptom}\n${verifiedFix}`)
     .digest('hex')
@@ -102,6 +105,16 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
       ? 'Verified by exit 0.'
       : 'Verified by verifier reward=1.',
   };
+}
+
+function extractSymptom(verifiedFix: string, fallback: string): string {
+  const markedText = verifiedFix.match(
+    /(?:The bug is|Root cause:|The issue is)\s*(.+)$/i,
+  )?.[1]
+    ?.replace(/^clear\s*(?:[.:]\s*)/i, '')
+    .trim();
+  const firstSentence = markedText?.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? markedText;
+  return summarizeText(firstSentence || fallback, 280);
 }
 
 export async function distillResults(

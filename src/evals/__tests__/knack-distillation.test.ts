@@ -34,6 +34,27 @@ describe('knack distillation', () => {
     });
   });
 
+  it.each([
+    ['The bug is the parser drops escaped delimiters. The fix preserves them.', 'the parser drops escaped delimiters.'],
+    ['Root cause: the cache key omits the locale. Added the locale to the key.', 'the cache key omits the locale.'],
+    ['The issue is an off-by-one boundary check. Updated the comparison.', 'an off-by-one boundary check.'],
+    ['The bug is clear. chararray.replace returns a copy. Assigned it back.', 'chararray.replace returns a copy.'],
+    ['The bug is clear: output_field.replace returns a copy. Assigned it back.', 'output_field.replace returns a copy.'],
+  ])('prefers the verified fix cause marker for the symptom', (finalSummary, expectedSymptom) => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary,
+    })?.symptom).toBe(expectedSymptom);
+  });
+
   it('does not emit a candidate without exit 0 or verifier reward 1', () => {
     const events = parseJsonLines([
       '{"kind":"tool_error","toolName":"bash","summary":"tests failed"}',
