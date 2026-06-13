@@ -73,7 +73,7 @@ export const TIER_BUDGETS: Record<L1Tier, L1TierBudget> = {
 
 export const RECALL_LIMITS: Record<L1Tier, RecallLimits> = {
   minimal: { knacks: 0, docFindings: 0, preferences: 1, artifactRefs: 0, runArchiveRefs: 0 },
-  standard: { knacks: 3, docFindings: 2, preferences: 2, artifactRefs: 2, runArchiveRefs: 1 },
+  standard: { knacks: 4, docFindings: 2, preferences: 2, artifactRefs: 2, runArchiveRefs: 1 },
   heavy: { knacks: 5, docFindings: 4, preferences: 3, artifactRefs: 5, runArchiveRefs: 3 },
 };
 
