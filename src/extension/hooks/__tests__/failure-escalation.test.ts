@@ -193,6 +193,46 @@ describe('failure escalation', () => {
     expect(decision?.overrideContent).toContain('TypeScript docs snippet');
   });
 
+  it('从 Python from import 错误中提取 astropy 作为 Context7 库名', async () => {
+    const query = vi.fn(async () => null);
+    const ctx = new FailureEscalationContext({
+      context7Client: { query },
+    });
+    ctx.initTask('修复 Python 导入错误', process.cwd());
+    const hook = ctx.createHook();
+    const error = [
+      'from astropy.io import fits',
+      "ModuleNotFoundError: No module named 'astropy'",
+    ].join('\n');
+
+    await hook(makeErrorContext(error));
+    await hook(makeErrorContext(error));
+
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      libraryName: 'astropy',
+    }));
+  });
+
+  it('从 Python import 错误中提取 numpy 作为 Context7 库名', async () => {
+    const query = vi.fn(async () => null);
+    const ctx = new FailureEscalationContext({
+      context7Client: { query },
+    });
+    ctx.initTask('修复 Python 导入错误', process.cwd());
+    const hook = ctx.createHook();
+    const error = [
+      'import numpy',
+      "ModuleNotFoundError: No module named 'numpy'",
+    ].join('\n');
+
+    await hook(makeErrorContext(error));
+    await hook(makeErrorContext(error));
+
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      libraryName: 'numpy',
+    }));
+  });
+
   it('edit 精确文本失败时第二次不触发 Context7，要求重新读取目标文件', async () => {
     const query = vi.fn();
     const ctx = new FailureEscalationContext({

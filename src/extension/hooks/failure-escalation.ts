@@ -594,6 +594,7 @@ const KNOWN_LIBRARY_NAMES = [
   'anthropic',
   'claude',
   'sqlite',
+  'astropy',
 ];
 
 function extractContext7Query(
@@ -651,5 +652,13 @@ function extractPackageName(text: string): string | null {
   }
 
   const dependency = text.match(/(?:package|module|library|import|from)\s+['"]?([a-z0-9][a-z0-9._-]*)/);
+
+  // Python: from astropy.xxx import yyy / import numpy
+  const pyFrom = text.match(/from\s+([a-z_][a-z0-9_]*)[\s.]/);
+  if (pyFrom) return pyFrom[1];
+
+  const pyImport = text.match(/import\s+([a-z_][a-z0-9_]*)/);
+  if (pyImport) return pyImport[1];
+
   return dependency?.[1] ?? null;
 }
