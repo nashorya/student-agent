@@ -2,7 +2,12 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { distillResults, distillRunEvents, parseJsonLines } from '../knack-distillation.js';
+import {
+  deduplicateCandidates,
+  distillResults,
+  distillRunEvents,
+  parseJsonLines,
+} from '../knack-distillation.js';
 
 describe('knack distillation', () => {
   it('extracts the operation sequence from the first error through verified success', () => {
@@ -24,12 +29,16 @@ describe('knack distillation', () => {
     })).toMatchObject({
       repo: 'owner/repo',
       symptom: 'AssertionError: expected 2, got 1',
+      fix_summary: 'Tool sequence: read -> edit -> bash.',
       verified_fix: expect.stringContaining('read -> edit -> bash'),
       evidence_task: 'owner__repo-123',
       evidence_turns: [2, 5],
       compression_level: 'knack',
       confidence: 'verified',
       reuse_count: 0,
+      injected_count: 0,
+      last_succeeded_task: null,
+      last_injected_task: null,
       unit_test: 'Verified by exit 0.',
     });
   });
@@ -53,6 +62,91 @@ describe('knack distillation', () => {
       repo: 'owner/repo',
       finalSummary,
     })?.symptom).toBe(expectedSymptom);
+  });
+
+  it.each([
+    ['The fix is assign the replacement back. Ignore this. Fix: lower priority.', 'assign the replacement back.'],
+    ['Fix: validate every changed line. The solution is inspect manually.', 'validate every changed line.'],
+    ['The solution is preserve the existing matrix values. Done.', 'preserve the existing matrix values.'],
+    ['No explicit marker appears here. The rest is audit detail.', 'Tool sequence: edit.'],
+  ])('extracts fix_summary by marker priority', (finalSummary, expectedFixSummary) => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary,
+    })?.fix_summary).toBe(expectedFixSummary);
+  });
+
+  it('deduplicates normalized symptoms and keeps the shorter evidence span', () => {
+    const longer = distillRunEvents({
+      events: parseJsonLines([
+        '{"kind":"tool_error","toolName":"bash","summary":"Parser ERROR: escaped delimiters are dropped!"}',
+        '{"kind":"tool_call","toolName":"read","summary":"inspect"}',
+        '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+        '{"kind":"tool_call","toolName":"bash","summary":"verify"}',
+        '{"kind":"verifier","reward":1}',
+      ].join('\n')),
+      evidenceTask: 'owner__repo-older',
+      repo: 'owner/repo',
+    });
+    const shorter = distillRunEvents({
+      events: parseJsonLines([
+        '{"kind":"tool_error","toolName":"bash","summary":"parser error escaped delimiters are dropped"}',
+        '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+        '{"kind":"verifier","reward":1}',
+      ].join('\n')),
+      evidenceTask: 'owner__repo-newer',
+      repo: 'owner/repo',
+    });
+
+    expect(longer?.dedup_key).toBe(shorter?.dedup_key);
+    expect(deduplicateCandidates([longer!, shorter!])).toEqual([shorter]);
+  });
+
+  it.each([
+    [
+      'The bug is clear. The `replace` call does not reassign the result.',
+      'The bug is clear: `output_field.replace(...)` returns a new array but the result is discarded.',
+    ],
+    [
+      'I can see the bug. In `_arithmetic_mask`, `operand.mask` is None and falls through to `handle_mask`.',
+      'Now I can see the issue. In `_arithmetic_mask`, the else branch does not handle `operand.mask is None`.',
+    ],
+  ])('fingerprints equivalent code-root causes consistently', (firstSummary, secondSummary) => {
+    const makeCandidate = (finalSummary: string) => distillRunEvents({
+      events: parseJsonLines([
+        '{"kind":"tool_error","toolName":"bash","summary":"environment failed"}',
+        '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+        '{"kind":"verifier","reward":1}',
+      ].join('\n')),
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary,
+    });
+
+    expect(makeCandidate(firstSummary)?.dedup_key).toBe(makeCandidate(secondSummary)?.dedup_key);
+  });
+
+  it('does not treat an embedded phrase as a fix marker', () => {
+    const candidate = distillRunEvents({
+      events: parseJsonLines([
+        '{"kind":"tool_error","toolName":"bash","summary":"tests failed"}',
+        '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+        '{"kind":"verifier","reward":1}',
+      ].join('\n')),
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary: 'Let me verify the fix is logically correct. No explicit fix marker follows.',
+    });
+
+    expect(candidate?.fix_summary).toBe('Tool sequence: edit.');
   });
 
   it('does not emit a candidate without exit 0 or verifier reward 1', () => {

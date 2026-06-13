@@ -9,14 +9,20 @@ export interface DistillationEvent {
 
 export interface CandidateKnack {
   id: string;
+  dedup_key: string;
   repo: string;
   symptom: string;
+  fix_summary: string;
+  /** audit only, not injected */
   verified_fix: string;
   evidence_task: string;
   evidence_turns: [number, number];
   compression_level: 'knack';
   confidence: 'verified';
   reuse_count: 0;
+  injected_count: 0;
+  last_succeeded_task: null;
+  last_injected_task: null;
   unit_test: string;
 }
 
@@ -86,6 +92,8 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     verifiedFix,
     stringValue(error.data.summary) ?? 'Unknown tool error',
   );
+  const fixSummary = extractFixSummary(verifiedFix);
+  const dedupKey = buildDedupKey(input.repo, symptom);
   const hash = createHash('sha256')
     .update(`${input.repo}\n${input.evidenceTask}\n${symptom}\n${verifiedFix}`)
     .digest('hex')
@@ -93,28 +101,49 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
 
   return {
     id: `knack-${slug(input.repo)}-${hash}`,
+    dedup_key: dedupKey,
     repo: input.repo,
     symptom,
+    fix_summary: fixSummary,
+    // audit only, not injected
     verified_fix: verifiedFix,
     evidence_task: input.evidenceTask,
     evidence_turns: [error.line, lastOperation.line],
     compression_level: 'knack',
     confidence: 'verified',
     reuse_count: 0,
+    injected_count: 0,
+    last_succeeded_task: null,
+    last_injected_task: null,
     unit_test: verification === 'exit 0'
       ? 'Verified by exit 0.'
       : 'Verified by verifier reward=1.',
   };
 }
 
+function extractFixSummary(verifiedFix: string): string {
+  for (const marker of [
+    /(?:^|[.!?\n])(?:\s|\*)*The fix is\s*[:\s]\s*(.+)$/i,
+    /(?:^|[\s\n])\*{0,2}Fix\*{0,2}\s*:\s*(.+)$/i,
+    /(?:^|[.!?\n])(?:\s|\*)*The solution is\s*[:\s]\s*(.+)$/i,
+  ]) {
+    const markedText = verifiedFix.match(marker)?.[1]?.trim();
+    if (markedText) return summarizeText(firstSentence(markedText), 150);
+  }
+  return summarizeText(firstSentence(verifiedFix), 150);
+}
+
 function extractSymptom(verifiedFix: string, fallback: string): string {
-  const markedText = verifiedFix.match(
+  const exactMarkerText = verifiedFix.match(
     /(?:The bug is|Root cause:|The issue is)\s*(.+)$/i,
   )?.[1]
     ?.replace(/^clear\s*(?:[.:]\s*)/i, '')
     .trim();
-  const firstSentence = markedText?.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? markedText;
-  return summarizeText(firstSentence || fallback, 280);
+  const conversationalMarkerText = verifiedFix.match(
+    /(?:I can see the bug|I can see the issue|I understand the issue)[.!:]\s*(.+)$/i,
+  )?.[1]?.trim();
+  const markedText = exactMarkerText || conversationalMarkerText;
+  return summarizeText(markedText ? meaningfulRootCause(markedText) : fallback, 150);
 }
 
 export async function distillResults(
@@ -146,10 +175,90 @@ export async function distillResults(
     if (candidate) candidates.push(candidate);
   }
 
-  const unique = [...new Map(candidates.map((candidate) => [candidate.id, candidate])).values()];
+  const unique = deduplicateCandidates(candidates);
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(unique, null, 2)}\n`, 'utf8');
   return unique;
+}
+
+export function deduplicateCandidates(candidates: CandidateKnack[]): CandidateKnack[] {
+  const byKey = new Map<string, CandidateKnack>();
+  for (const candidate of candidates) {
+    const existing = byKey.get(candidate.dedup_key);
+    if (!existing || evidenceSpan(candidate) < evidenceSpan(existing)) {
+      byKey.set(candidate.dedup_key, candidate);
+    }
+  }
+  return [...byKey.values()];
+}
+
+function buildDedupKey(repo: string, symptom: string): string {
+  const fingerprint = createHash('sha256')
+    .update(normalizeSymptom(symptom))
+    .digest('hex')
+    .slice(0, 12);
+  return `${slug(repo)}:${fingerprint}`;
+}
+
+function normalizeSymptom(symptom: string): string {
+  const normalizedText = symptom
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  const anchor = codeAnchor(symptom);
+  const category = failureCategory(normalizedText);
+  return anchor && category
+    ? `${anchor} ${category}`
+    : normalizedText;
+}
+
+function evidenceSpan(candidate: CandidateKnack): number {
+  return candidate.evidence_turns[1] - candidate.evidence_turns[0];
+}
+
+function firstSentence(value: string): string {
+  return value.match(/^.*?[.!?](?=\s|$|[A-Z][a-z]+\s)/)?.[0] ?? value;
+}
+
+function meaningfulRootCause(value: string): string {
+  const first = firstSentence(value);
+  const remainder = value.slice(first.length).trim();
+  if (remainder && /^(?:in\s+)?`[^`]+`[.!?]?$/i.test(first.trim())) {
+    return `${first} ${firstSentence(remainder)}`;
+  }
+  return first;
+}
+
+function codeAnchor(symptom: string): string | undefined {
+  const raw = symptom.match(/`([^`]+)`/)?.[1]
+    ?.replace(/\([^)]*\)/g, '')
+    .trim();
+  if (!raw) return undefined;
+  const parts = raw.split('.').filter(Boolean);
+  const canonical = /^[A-Z]/.test(raw) || raw.startsWith('_')
+    ? raw
+    : parts.at(-1) ?? raw;
+  return canonical.toLowerCase().replace(/[^a-z0-9_]+/g, '');
+}
+
+function failureCategory(normalizedText: string): string | undefined {
+  if (/\b(?:none|null)\b/.test(normalizedText)) return 'null-handling';
+  if (
+    /(?:does not|doesn t|never)\s+(?:re)?assign\b.*\bresult\b/.test(normalizedText)
+    || /\bresult\b.*\bdiscard(?:ed)?\b/.test(normalizedText)
+    || /\bnot\s+(?:an?\s+)?in\s+place\b/.test(normalizedText)
+  ) {
+    return 'discarded-return';
+  }
+  if (/(?:does not|doesn t)\s+accept\b|\bmissing\b.*\bparameter\b/.test(normalizedText)) {
+    return 'missing-parameter';
+  }
+  if (/\bfill(?:s|ed)?\b.*\b1\b|\bcopy(?:ing|ied)?\b.*\bmatrix\b/.test(normalizedText)) {
+    return 'incorrect-copy';
+  }
+  return undefined;
 }
 
 async function buildVerificationIndex(
