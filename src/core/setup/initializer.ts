@@ -4,35 +4,22 @@ import type { Interface } from 'node:readline/promises';
 import chalk from 'chalk';
 import { getProviders, getModels } from '@mariozechner/pi-ai';
 import type { KnownProvider } from '@mariozechner/pi-ai';
-import type { StudentAgentConfig, StudentAgentConfigInput, StudentAgentProvider } from '../config/types.js';
+import type { ProviderProfile, StudentAgentConfig, StudentAgentProvider } from '../config/types.js';
 import { GLOBAL_CONFIG_DIR } from '../config/loader.js';
 import { parseEnvFile } from '../env.js';
+import {
+  getApiKeyEnvName,
+  saveProviderProfile,
+  updateActiveProviderProfileModel,
+  updateStudentAgentConfigFile,
+  validateProviderProfileName,
+} from './provider-profiles.js';
 
-const API_KEY_MAP: Record<string, string> = {
-  'anthropic': 'ANTHROPIC_API_KEY',
-  'openai': 'OPENAI_API_KEY',
-  'openai-codex': 'OPENAI_API_KEY',
-  'deepseek': 'DEEPSEEK_API_KEY',
-  'google': 'GEMINI_API_KEY',
-  'google-vertex': 'GOOGLE_CLOUD_API_KEY',
-  'groq': 'GROQ_API_KEY',
-  'xai': 'XAI_API_KEY',
-  'mistral': 'MISTRAL_API_KEY',
-  'openrouter': 'OPENROUTER_API_KEY',
-  'cerebras': 'CEREBRAS_API_KEY',
-  'fireworks': 'FIREWORKS_API_KEY',
-  'github-copilot': 'GITHUB_TOKEN',
-  'amazon-bedrock': 'AWS_ACCESS_KEY_ID',
-  'azure-openai-responses': 'AZURE_OPENAI_API_KEY',
-  'huggingface': 'HUGGINGFACE_API_KEY',
-  'moonshotai': 'MOONSHOT_API_KEY',
-  'minimax': 'MINIMAX_API_KEY',
-  'vercel-ai-gateway': 'VERCEL_OPENAI_API_KEY',
-  'zai': 'ZAI_API_KEY',
-};
+export { getApiKeyEnvName } from './provider-profiles.js';
 
 export interface StartupInitializerOptions {
   cwd: string;
+  globalConfigDir?: string;
   config: StudentAgentConfig;
   env?: NodeJS.ProcessEnv;
   prompt?: (question: string) => Promise<string>;
@@ -49,8 +36,16 @@ export interface StartupInitializationResult {
   configuredEmbedding: boolean;
 }
 
-const CONFIG_FILENAME = '.student-agent.json';
 const GLOBAL_ENV_FILENAME = '.env';
+const LEGACY_MODEL_ROUTE_ENV_KEYS = [
+  'STUDENT_AGENT_PROVIDER',
+  'STUDENT_AGENT_MODEL',
+  'STUDENT_AGENT_BASE_URL',
+  'STUDENT_AGENT_MODEL_BASE_URL',
+  'STUDENT_AGENT_API',
+  'STUDENT_AGENT_API_KEY_ENV',
+  'STUDENT_AGENT_PROVIDER_PROFILE',
+];
 
 export async function runStartupInitializer(
   options: StartupInitializerOptions,
@@ -65,7 +60,7 @@ export async function runStartupInitializer(
     configuredEmbedding: false,
   };
 
-  if (options.forceModelProviderSetup || !hasModelProviderKey(options.config.model.provider, env)) {
+  if (options.forceModelProviderSetup || !hasModelProviderKey(options.config.model, env)) {
     const configured = await configureModelProvider(options, env, log);
     result.wroteEnv = result.wroteEnv || configured;
     result.wroteConfig = result.wroteConfig || configured;
@@ -96,8 +91,11 @@ async function configureModelProvider(
   log: (message: string) => void,
 ): Promise<boolean> {
   const prompt = options.prompt;
+  const globalConfigDir = options.globalConfigDir ?? GLOBAL_CONFIG_DIR;
+  const currentApiKeyEnv = options.config.model.apiKeyEnv
+    ?? getApiKeyEnvName(options.config.model.provider);
   if (!prompt) {
-    log(chalk.yellow(`未检测到 ${getApiKeyEnvName(options.config.model.provider)}。请在 .env 中配置后重新启动。`));
+    log(chalk.yellow(`未检测到 ${currentApiKeyEnv}。请在 .env 中配置后重新启动。`));
     return false;
   }
 
@@ -137,8 +135,6 @@ async function configureModelProvider(
     log('    2) Anthropic Messages（Anthropic 官方 / 兼容代理）');
     const formatChoice = (await prompt('  选择 API 格式 [1]: ')).trim();
     apiFormat = formatChoice === '2' ? 'anthropic-messages' : 'openai-completions';
-    // 归一化到 Pi SDK 已知的 provider，确保 API Key env var 名称正确
-    provider = apiFormat === 'anthropic-messages' ? 'anthropic' : 'openai';
   }
 
   // ── Base URL（仅自定义 provider 需要）─────────────────────────────
@@ -161,43 +157,46 @@ async function configureModelProvider(
 
   // ── 选择模型 ───────────────────────────────────────────────────────
   const modelName = await promptModelName(prompt, provider, log);
+  const defaultProfileName = deriveProviderProfileName(provider, modelName);
+  const profileNameInput = await prompt(`  Profile 名称 [${defaultProfileName}]: `);
+  const profileName = validateProviderProfileName(profileNameInput.trim() || defaultProfileName);
+  if (options.config.providerProfiles[profileName]) {
+    const confirmation = (await prompt(`  Profile "${profileName}" 已存在，覆盖？(y/N): `))
+      .trim()
+      .toLowerCase();
+    if (confirmation !== 'y' && confirmation !== 'yes') {
+      log(chalk.yellow('已取消覆盖 provider profile。'));
+      return false;
+    }
+  }
 
   // ── 写入 ──────────────────────────────────────────────────────────
-  const values: Record<string, string> = {
-    STUDENT_AGENT_PROVIDER: provider,
-    STUDENT_AGENT_MODEL: modelName,
+  const profile: ProviderProfile = {
+    provider,
+    name: modelName,
+    ...(baseUrl ? { baseUrl } : {}),
+    ...(apiFormat ? { api: apiFormat } : {}),
+    apiKeyEnv: apiKeyName,
   };
-  env.STUDENT_AGENT_PROVIDER = provider;
-  env.STUDENT_AGENT_MODEL = modelName;
 
-  const configPatch: StudentAgentConfigInput = { model: { provider, name: modelName } };
-
-  if (baseUrl) {
-    values['STUDENT_AGENT_BASE_URL'] = baseUrl;
-    configPatch.model = { ...configPatch.model, baseUrl };
-    env['STUDENT_AGENT_BASE_URL'] = baseUrl;
-  } else {
-    configPatch.model = { ...configPatch.model, baseUrl: undefined };
-    delete env['STUDENT_AGENT_BASE_URL'];
-  }
-
-  if (apiFormat) {
-    values['STUDENT_AGENT_API'] = apiFormat;
-    configPatch.model = { ...configPatch.model, api: apiFormat };
-    env['STUDENT_AGENT_API'] = apiFormat;
-  } else {
-    delete env['STUDENT_AGENT_API'];
-  }
-
+  await mkdir(globalConfigDir, { recursive: true });
   if (apiKey) {
-    values[apiKeyName] = apiKey;
+    await upsertEnvFile(join(globalConfigDir, GLOBAL_ENV_FILENAME), { [apiKeyName]: apiKey });
     env[apiKeyName] = apiKey;
   }
-
-  await mkdir(GLOBAL_CONFIG_DIR, { recursive: true });
-  await upsertEnvFile(join(GLOBAL_CONFIG_DIR, GLOBAL_ENV_FILENAME), values);
-  await updateStudentAgentConfig(GLOBAL_CONFIG_DIR, configPatch);
-  log(chalk.green(`\nOK: 已写入 ${GLOBAL_CONFIG_DIR}（Provider: ${provider}, 模型: ${modelName}）`));
+  await removeEnvFileKeys(join(globalConfigDir, GLOBAL_ENV_FILENAME), LEGACY_MODEL_ROUTE_ENV_KEYS);
+  for (const key of LEGACY_MODEL_ROUTE_ENV_KEYS) {
+    delete env[key];
+  }
+  await saveProviderProfile({
+    globalConfigDir,
+    projectDir: options.cwd,
+    profileName,
+    profile,
+  });
+  log(chalk.green(
+    `\nOK: 已保存 profile ${profileName}（Provider: ${provider}, 模型: ${modelName}）`,
+  ));
   return true;
 }
 
@@ -226,8 +225,9 @@ async function maybeRemindEmbeddingConfig(
     return { wroteConfig: false, suppressed: false };
   }
 
-  await mkdir(GLOBAL_CONFIG_DIR, { recursive: true });
-  await updateStudentAgentConfig(GLOBAL_CONFIG_DIR, {
+  const globalConfigDir = options.globalConfigDir ?? GLOBAL_CONFIG_DIR;
+  await mkdir(globalConfigDir, { recursive: true });
+  await updateStudentAgentConfigFile(globalConfigDir, {
     setup: {
       suppressEmbeddingReminder: true,
     },
@@ -269,14 +269,15 @@ async function configureEmbeddingProvider(
   };
   Object.assign(env, values);
 
-  await mkdir(GLOBAL_CONFIG_DIR, { recursive: true });
-  await upsertEnvFile(join(GLOBAL_CONFIG_DIR, GLOBAL_ENV_FILENAME), values);
-  await updateStudentAgentConfig(GLOBAL_CONFIG_DIR, {
+  const globalConfigDir = options.globalConfigDir ?? GLOBAL_CONFIG_DIR;
+  await mkdir(globalConfigDir, { recursive: true });
+  await upsertEnvFile(join(globalConfigDir, GLOBAL_ENV_FILENAME), values);
+  await updateStudentAgentConfigFile(globalConfigDir, {
     setup: {
       suppressEmbeddingReminder: suppressReminder,
     },
   });
-  log(chalk.green(`已写入向量模型配置到 ${GLOBAL_CONFIG_DIR}`));
+  log(chalk.green(`已写入向量模型配置到 ${globalConfigDir}`));
   return true;
 }
 
@@ -329,30 +330,25 @@ export function renderEnvWithValues(raw: string, values: Record<string, string>)
   return `${trimTrailingEmptyLines(nextLines).join('\n')}\n`;
 }
 
-async function updateStudentAgentConfig(cwd: string, patch: StudentAgentConfigInput): Promise<void> {
-  const path = join(cwd, CONFIG_FILENAME);
-  let current: StudentAgentConfigInput = {};
+export async function removeEnvFileKeys(path: string, keys: string[]): Promise<void> {
+  let raw = '';
   try {
-    current = JSON.parse(await readFile(path, 'utf8')) as StudentAgentConfigInput;
+    raw = await readFile(path, 'utf8');
   } catch (err) {
     if (!isFileMissingError(err)) {
       throw err;
     }
   }
 
-  const next: StudentAgentConfigInput = {
-    ...current,
-    ...patch,
-    model: { ...current.model, ...patch.model },
-    llm: { ...current.llm, ...patch.llm },
-    features: { ...current.features, ...patch.features },
-    context7: { ...current.context7, ...patch.context7 },
-    setup: { ...current.setup, ...patch.setup },
-    playwright: { ...current.playwright, ...patch.playwright },
-    subAgents: { ...current.subAgents, ...patch.subAgents },
-  };
-
-  await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  const removed = new Set(keys);
+  const nextLines = raw.split(/\r?\n/).filter((line) => {
+    const key = readEnvLineKey(line);
+    return !key || !removed.has(key);
+  });
+  await writeFile(path, `${trimTrailingEmptyLines(nextLines).join('\n')}\n`, {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
 }
 
 async function promptModelName(
@@ -398,6 +394,7 @@ async function promptModelName(
  */
 export async function switchModelName(options: {
   config: StudentAgentConfig;
+  globalConfigDir?: string;
   prompt: (question: string) => Promise<string>;
   log?: (message: string) => void;
 }): Promise<string | null> {
@@ -438,21 +435,31 @@ export async function switchModelName(options: {
     }
   }
 
-  await mkdir(GLOBAL_CONFIG_DIR, { recursive: true });
-  await upsertEnvFile(join(GLOBAL_CONFIG_DIR, GLOBAL_ENV_FILENAME), { STUDENT_AGENT_MODEL: newName });
-  await updateStudentAgentConfig(GLOBAL_CONFIG_DIR, { model: { name: newName } });
-  process.env.STUDENT_AGENT_MODEL = newName;
+  const globalConfigDir = options.globalConfigDir ?? GLOBAL_CONFIG_DIR;
+  await mkdir(globalConfigDir, { recursive: true });
+  if (config.activeProviderProfile) {
+    await updateActiveProviderProfileModel({
+      globalConfigDir,
+      profileName: config.activeProviderProfile,
+      modelName: newName,
+    });
+  } else {
+    await upsertEnvFile(join(globalConfigDir, GLOBAL_ENV_FILENAME), {
+      STUDENT_AGENT_MODEL: newName,
+    });
+    await updateStudentAgentConfigFile(globalConfigDir, { model: { name: newName } });
+    process.env.STUDENT_AGENT_MODEL = newName;
+  }
 
   log(chalk.green(`\nOK: 模型已切换为 ${provider} / ${newName}`));
   return newName;
 }
 
-function hasModelProviderKey(provider: StudentAgentProvider, env: NodeJS.ProcessEnv): boolean {
-  return hasValue(env[getApiKeyEnvName(provider)]);
-}
-
-export function getApiKeyEnvName(provider: StudentAgentProvider): string {
-  return API_KEY_MAP[provider] ?? `${provider.toUpperCase().replace(/-/g, '_')}_API_KEY`;
+function hasModelProviderKey(
+  model: StudentAgentConfig['model'],
+  env: NodeJS.ProcessEnv,
+): boolean {
+  return hasValue(env[model.apiKeyEnv ?? getApiKeyEnvName(model.provider)]);
 }
 
 export interface NormalizeProviderApiKeyEnvResult {
@@ -535,6 +542,11 @@ function trimTrailingEmptyLines(lines: string[]): string[] {
 
 function hasValue(value: string | undefined): boolean {
   return value !== undefined && value.trim().length > 0;
+}
+
+function deriveProviderProfileName(provider: string, modelName: string): string {
+  const raw = `${provider}-${modelName}`.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+  return raw.replace(/^-+|-+$/g, '') || 'provider-profile';
 }
 
 function isFileMissingError(err: unknown): boolean {
