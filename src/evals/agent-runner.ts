@@ -78,7 +78,8 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     const model = buildModel(config);
     modelTrace = summarizeEvalModel(model);
     normalizeProviderApiKeyEnv(config.model.provider);
-    const apiKey = process.env[getApiKeyEnvName(config.model.provider)];
+    const apiKeyEnvName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
+    const apiKey = process.env[apiKeyEnvName];
     if (options.learningLifecycle) {
       if (!options.memoryDir) {
         throw new Error('Eval learning lifecycle requires memoryDir');

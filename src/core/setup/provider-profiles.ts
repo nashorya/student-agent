@@ -103,10 +103,21 @@ export async function selectProviderProfile(options: {
     throw new Error(`Missing ${apiKeyEnv} for provider profile "${profileName}"`);
   }
 
-  await updateStudentAgentConfigFile(options.cwd, {
-    activeProviderProfile: profileName,
-  });
+  await setActiveProviderProfile(options.cwd, profileName);
   return { selected: true, profileName };
+}
+
+export async function setActiveProviderProfile(
+  cwd: string,
+  profileName: string | undefined,
+): Promise<void> {
+  const current = await readStudentAgentConfigFile(cwd);
+  if (profileName) {
+    current.activeProviderProfile = profileName;
+  } else {
+    delete current.activeProviderProfile;
+  }
+  await writeStudentAgentConfigFile(cwd, current);
 }
 
 export async function saveProviderProfile(options: {
@@ -188,8 +199,7 @@ export async function updateStudentAgentConfigFile(
     delete next.providerProfiles;
   }
 
-  await mkdir(cwd, { recursive: true });
-  await writeFile(join(cwd, CONFIG_FILENAME), `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  await writeStudentAgentConfigFile(cwd, next);
 }
 
 async function readStudentAgentConfigFile(cwd: string): Promise<StudentAgentConfigInput> {
@@ -203,6 +213,14 @@ async function readStudentAgentConfigFile(cwd: string): Promise<StudentAgentConf
     }
     throw err;
   }
+}
+
+async function writeStudentAgentConfigFile(
+  cwd: string,
+  config: StudentAgentConfigInput,
+): Promise<void> {
+  await mkdir(cwd, { recursive: true });
+  await writeFile(join(cwd, CONFIG_FILENAME), `${JSON.stringify(config, null, 2)}\n`, 'utf8');
 }
 
 function validateProviderProfile(profile: ProviderProfile): void {

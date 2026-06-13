@@ -9,6 +9,7 @@ export type SlashCommand =
   | { type: 'status' }
   | { type: 'abort' }
   | { type: 'setting' }
+  | { type: 'provider' }
   | { type: 'model' }
   | { type: 'clear' }
   | { type: 'candidates' }
@@ -35,6 +36,7 @@ export const COMMANDS = [
   '/status',
   '/abort',
   '/setting',
+  '/provider',
   '/model',
   '/clear',
   '/candidates',
@@ -100,6 +102,9 @@ export function parseCommand(input: string): SlashCommand | null {
     case 'setting':
     case 'settings':
       return { type: 'setting' };
+
+    case 'provider':
+      return { type: 'provider' };
 
     case 'model':
       return { type: 'model' };
@@ -176,6 +181,7 @@ export function getHelpText(): string {
     '    /status               显示当前状态',
     '    /abort                中止当前运行中的任务（TUI 中也可按 Esc）',
     '    /setting              重新配置 Provider / API Key',
+    '    /provider             切换已保存的 Provider profile',
     '    /model                快速切换模型（保持其他设置不变）',
     '    /clear                清空屏幕',
     '    /candidates           查看偏好候选',

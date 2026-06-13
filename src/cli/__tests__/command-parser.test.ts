@@ -36,6 +36,12 @@ describe('parseCommand', () => {
     expect(parseCommand('/settings')).toEqual({ type: 'setting' });
   });
 
+  it('解析 provider 命令', () => {
+    expect(parseCommand('/provider')).toEqual({ type: 'provider' });
+    expect(COMMAND_COMPLETIONS).toContain('/provider');
+    expect(getHelpText()).toContain('/provider');
+  });
+
   it('解析 clear 命令', () => {
     expect(parseCommand('/clear')).toEqual({ type: 'clear' });
   });

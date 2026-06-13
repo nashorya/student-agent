@@ -42,6 +42,7 @@ import { createReflectHook, markReflectBaseline } from './hooks/reflect.js';
 import { createQualityWatchdogHook } from './hooks/quality-watchdog.js';
 import { formatContextInspection, inspectContext } from './commands/context-inspector.js';
 import { buildSettingTargetPrompt, parseSettingTargetAnswer, type SettingTarget } from './setting-target.js';
+import { runProviderProfileCommand } from './provider-command.js';
 import { shouldShowAgentErrorMessage } from './tui-message-policy.js';
 import {
   buildPlanningRecoveryPromptQuestion,
@@ -360,7 +361,7 @@ async function runNonInteractive(args: Exclude<NonInteractiveArgs, { mode: 'inte
     const config = await reloadConfig();
     provider = config.model.provider;
     model = config.model.name;
-    const apiKeyName = getApiKeyEnvName(config.model.provider);
+    const apiKeyName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
     if (!process.env[apiKeyName]) {
       const message = `Missing ${apiKeyName} for provider ${config.model.provider}`;
       console.error(`[student-agent] ${message}`);
@@ -603,6 +604,40 @@ async function main(): Promise<void> {
           case 'abort':
             abortCurrentRun();
             continue;
+
+          case 'provider': {
+            if (runtime.agent.state.isStreaming) {
+              tui.bridge.setStatus('当前任务仍在运行，不能切换 Provider');
+              continue;
+            }
+            const promptLog = createBufferedPromptLog({
+              writeLog: (message) => tui.bridge.addMessage('system', message),
+              prompt: tui.bridge.promptSettings,
+            });
+            try {
+              const result = await runProviderProfileCommand({
+                cwd: CWD,
+                config: runtime.config,
+                prompt: promptLog.prompt,
+                log: promptLog.log,
+                activate: async () => createRuntime(await reloadConfig()),
+              });
+              if (!result.switched) {
+                tui.bridge.setStatus('已取消');
+                continue;
+              }
+              runtime.renderer.cleanup();
+              runtime.unsubscribe();
+              runtime = result.value;
+              bindRuntimeToTui(runtime, tui.bridge);
+              tui.bridge.setStatus(
+                `OK: 已切换至 ${result.profileName}：${runtime.config.model.provider}/${runtime.config.model.name}`,
+              );
+            } catch (err) {
+              tui.bridge.setStatus(err instanceof Error ? err.message : String(err));
+            }
+            continue;
+          }
 
           case 'model': {
             if (runtime.agent.state.isStreaming) {
@@ -1090,6 +1125,36 @@ async function main(): Promise<void> {
               console.log(chalk.yellow('  已请求中止当前任务。'));
             }
             continue;
+
+          case 'provider': {
+            if (runtime.agent.state.isStreaming) {
+              console.log(chalk.yellow('  当前任务仍在运行，不能切换 Provider。'));
+              continue;
+            }
+            try {
+              const result = await runProviderProfileCommand({
+                cwd: CWD,
+                config: runtime.config,
+                prompt: createReadlinePrompt(rl),
+                log: console.log,
+                activate: async () => createRuntime(await reloadConfig()),
+              });
+              if (!result.switched) {
+                console.log(chalk.dim('  已取消。'));
+                continue;
+              }
+              runtime.renderer.cleanup();
+              runtime.unsubscribe();
+              runtime = result.value;
+              bindConsoleRiskConfirmation(runtime, rl);
+              console.log(chalk.green(
+                `  OK: 已切换至 ${result.profileName}：${runtime.config.model.provider}/${runtime.config.model.name}`,
+              ));
+            } catch (err) {
+              console.log(chalk.red(`  ${err instanceof Error ? err.message : String(err)}`));
+            }
+            continue;
+          }
 
           case 'model': {
             if (runtime.agent.state.isStreaming) {
@@ -2196,7 +2261,8 @@ async function createRuntime(
 
   // Pi SDK 只认识内置 provider 的 env var（OPENAI_API_KEY 等）。
   // 对自定义 provider，用 API_KEY_MAP 规则找到对应 env var，显式注入 apiKey。
-  const resolvedApiKey = process.env[getApiKeyEnvName(config.model.provider)];
+  const apiKeyEnvName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
+  const resolvedApiKey = process.env[apiKeyEnvName];
 
   const { session, agent } = await createStudentSession({
     cwd: CWD,
