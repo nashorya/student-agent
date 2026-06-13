@@ -220,6 +220,10 @@ describe('student agent config loader', () => {
       }));
       await writeFile(join(tmpDir, '.student-agent.json'), JSON.stringify({
         activeProviderProfile: 'anthropic-direct',
+        model: {
+          provider: 'openai',
+          name: 'legacy-project-model-must-not-win',
+        },
         providerProfiles: {
           'anthropic-direct': {
             provider: 'openai',

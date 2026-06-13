@@ -48,7 +48,11 @@ export async function loadStudentAgentConfig(
   if (selectedProfile) {
     config = mergeConfig(config, { model: selectedProfile });
   }
-  config = mergeConfig(config, withoutProfileMetadata(localConfig));
+  const localOverrides = withoutProfileMetadata(localConfig);
+  if (localConfig.activeProviderProfile || envConfig.activeProviderProfile) {
+    delete localOverrides.model;
+  }
+  config = mergeConfig(config, localOverrides);
   config = mergeConfig(config, envConfig);
 
   if (hasExplicitModelRouteEnv(env)) {
