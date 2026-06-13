@@ -164,6 +164,151 @@ describe('student agent config loader', () => {
     expect(config.model.baseUrl).toBe('https://openai-relay.example/v1');
   });
 
+  it('从全局配置解析当前 provider profile', async () => {
+    const globalDir = await mkdtemp(join(tmpdir(), 'student-global-config-test-'));
+    try {
+      await writeFile(join(globalDir, '.student-agent.json'), JSON.stringify({
+        activeProviderProfile: 'openrouter-sonnet',
+        providerProfiles: {
+          'openrouter-sonnet': {
+            provider: 'openrouter',
+            name: 'anthropic/claude-sonnet-4.6',
+            baseUrl: 'https://openrouter.ai/api/v1',
+            api: 'openai-completions',
+            apiKeyEnv: 'OPENROUTER_API_KEY',
+          },
+        },
+      }));
+
+      const config = await loadStudentAgentConfig({
+        cwd: tmpDir,
+        globalConfigDir: globalDir,
+        env: {},
+      });
+
+      expect(config.activeProviderProfile).toBe('openrouter-sonnet');
+      expect(config.providerProfiles).toHaveProperty('openrouter-sonnet');
+      expect(config.model).toMatchObject({
+        provider: 'openrouter',
+        name: 'anthropic/claude-sonnet-4.6',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        api: 'openai-completions',
+        apiKeyEnv: 'OPENROUTER_API_KEY',
+      });
+    } finally {
+      await rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('项目配置可以选择另一个全局 profile，但不能覆盖 profile 定义', async () => {
+    const globalDir = await mkdtemp(join(tmpdir(), 'student-global-config-test-'));
+    try {
+      await writeFile(join(globalDir, '.student-agent.json'), JSON.stringify({
+        activeProviderProfile: 'openrouter-sonnet',
+        providerProfiles: {
+          'openrouter-sonnet': {
+            provider: 'openrouter',
+            name: 'anthropic/claude-sonnet-4.6',
+            apiKeyEnv: 'OPENROUTER_API_KEY',
+          },
+          'anthropic-direct': {
+            provider: 'anthropic',
+            name: 'claude-sonnet-4-6',
+            apiKeyEnv: 'ANTHROPIC_API_KEY',
+          },
+        },
+      }));
+      await writeFile(join(tmpDir, '.student-agent.json'), JSON.stringify({
+        activeProviderProfile: 'anthropic-direct',
+        providerProfiles: {
+          'anthropic-direct': {
+            provider: 'openai',
+            name: 'must-not-win',
+            apiKeyEnv: 'WRONG_API_KEY',
+          },
+        },
+      }));
+
+      const config = await loadStudentAgentConfig({
+        cwd: tmpDir,
+        globalConfigDir: globalDir,
+        env: {},
+      });
+
+      expect(config.activeProviderProfile).toBe('anthropic-direct');
+      expect(config.model).toMatchObject({
+        provider: 'anthropic',
+        name: 'claude-sonnet-4-6',
+        apiKeyEnv: 'ANTHROPIC_API_KEY',
+      });
+      expect(config.providerProfiles['anthropic-direct'].provider).toBe('anthropic');
+    } finally {
+      await rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('环境变量可以选择 profile，并继续覆盖 profile 的模型路由', async () => {
+    const globalDir = await mkdtemp(join(tmpdir(), 'student-global-config-test-'));
+    try {
+      await writeFile(join(globalDir, '.student-agent.json'), JSON.stringify({
+        activeProviderProfile: 'anthropic-direct',
+        providerProfiles: {
+          'anthropic-direct': {
+            provider: 'anthropic',
+            name: 'claude-sonnet-4-6',
+            apiKeyEnv: 'ANTHROPIC_API_KEY',
+          },
+          'openrouter-sonnet': {
+            provider: 'openrouter',
+            name: 'anthropic/claude-sonnet-4.6',
+            baseUrl: 'https://openrouter.ai/api/v1',
+            api: 'openai-completions',
+            apiKeyEnv: 'OPENROUTER_API_KEY',
+          },
+        },
+      }));
+
+      const config = await loadStudentAgentConfig({
+        cwd: tmpDir,
+        globalConfigDir: globalDir,
+        env: {
+          STUDENT_AGENT_PROVIDER_PROFILE: 'openrouter-sonnet',
+          STUDENT_AGENT_PROVIDER: 'openai',
+          STUDENT_AGENT_MODEL: 'gpt-5.5',
+          STUDENT_AGENT_BASE_URL: 'https://example.test/v1',
+        },
+      });
+
+      expect(config.activeProviderProfile).toBe('openrouter-sonnet');
+      expect(config.model).toMatchObject({
+        provider: 'openai',
+        name: 'gpt-5.5',
+        baseUrl: 'https://example.test/v1',
+      });
+      expect(config.model.apiKeyEnv).toBeUndefined();
+    } finally {
+      await rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('选择不存在的 provider profile 时明确报错', async () => {
+    const globalDir = await mkdtemp(join(tmpdir(), 'student-global-config-test-'));
+    try {
+      await writeFile(join(globalDir, '.student-agent.json'), JSON.stringify({
+        activeProviderProfile: 'missing-profile',
+        providerProfiles: {},
+      }));
+
+      await expect(loadStudentAgentConfig({
+        cwd: tmpDir,
+        globalConfigDir: globalDir,
+        env: {},
+      })).rejects.toThrow('Provider profile "missing-profile" was not found');
+    } finally {
+      await rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
   it('支持通过 env.STUDENT_AGENT_CONFIG 指定配置文件名', async () => {
     await writeFile(join(tmpDir, 'custom-config.json'), JSON.stringify({
       features: {

@@ -4,11 +4,14 @@ export type StudentAgentExecutionMode = 'safe' | 'yolo';
 export interface StudentAgentConfig {
   envFile: string;
   executionMode: StudentAgentExecutionMode;
+  activeProviderProfile?: string;
+  providerProfiles: Record<string, ProviderProfile>;
   model: {
     provider: StudentAgentProvider;
     name: string;
     baseUrl?: string;
     api?: string;
+    apiKeyEnv?: string;
   };
   llm: {
     requestTimeoutMs: number;
@@ -54,11 +57,19 @@ export interface StudentAgentModelInput {
   name?: string;
   baseUrl?: string;
   api?: string;
+  apiKeyEnv?: string;
+}
+
+export interface ProviderProfile extends StudentAgentModelInput {
+  provider: StudentAgentProvider;
+  name: string;
 }
 
 export type StudentAgentConfigInput = Partial<{
   envFile: string;
   executionMode: StudentAgentExecutionMode;
+  activeProviderProfile: string;
+  providerProfiles: Record<string, ProviderProfile>;
   model: StudentAgentModelInput;
   llm: Partial<StudentAgentConfig['llm']>;
   features: Partial<StudentAgentConfig['features']>;
@@ -72,6 +83,7 @@ export type StudentAgentConfigInput = Partial<{
 export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
   envFile: '.env',
   executionMode: 'yolo',
+  providerProfiles: {},
   model: {
     provider: 'anthropic',
     name: 'claude-sonnet-4-6',

@@ -32,11 +32,34 @@ export async function loadStudentAgentConfig(
   const globalConfig = await readConfigFile(globalDir, filename);
   const localConfig = cwd !== globalDir ? await readConfigFile(cwd, filename) : {};
   const envConfig = readEnvConfig(env);
+  const providerProfiles = globalConfig.providerProfiles ?? {};
+  const activeProviderProfile = envConfig.activeProviderProfile
+    ?? localConfig.activeProviderProfile
+    ?? globalConfig.activeProviderProfile;
+  const selectedProfile = activeProviderProfile
+    ? providerProfiles[activeProviderProfile]
+    : undefined;
 
-  return mergeConfig(
-    DEFAULT_STUDENT_AGENT_CONFIG,
-    mergeConfig(globalConfig, mergeConfig(localConfig, envConfig)),
-  );
+  if (activeProviderProfile && !selectedProfile) {
+    throw new Error(`Provider profile "${activeProviderProfile}" was not found in the global configuration`);
+  }
+
+  let config = mergeConfig(DEFAULT_STUDENT_AGENT_CONFIG, withoutProfileMetadata(globalConfig));
+  if (selectedProfile) {
+    config = mergeConfig(config, { model: selectedProfile });
+  }
+  config = mergeConfig(config, withoutProfileMetadata(localConfig));
+  config = mergeConfig(config, envConfig);
+
+  if (hasExplicitModelRouteEnv(env)) {
+    config.model.apiKeyEnv = readOptionalString(env.STUDENT_AGENT_API_KEY_ENV);
+  }
+
+  return {
+    ...config,
+    activeProviderProfile,
+    providerProfiles,
+  };
 }
 
 export function mergeConfig(
@@ -46,6 +69,12 @@ export function mergeConfig(
   return {
     envFile: override.envFile ?? base.envFile ?? DEFAULT_STUDENT_AGENT_CONFIG.envFile,
     executionMode: normalizeExecutionMode(override.executionMode ?? base.executionMode),
+    activeProviderProfile: override.activeProviderProfile ?? base.activeProviderProfile,
+    providerProfiles: {
+      ...DEFAULT_STUDENT_AGENT_CONFIG.providerProfiles,
+      ...base.providerProfiles,
+      ...override.providerProfiles,
+    },
     model: mergeModelConfig(base, override),
     llm: {
       ...DEFAULT_STUDENT_AGENT_CONFIG.llm,
@@ -100,6 +129,15 @@ function mergeModelConfig(
   };
 }
 
+function withoutProfileMetadata(config: StudentAgentConfigInput): StudentAgentConfigInput {
+  const {
+    activeProviderProfile: _activeProviderProfile,
+    providerProfiles: _providerProfiles,
+    ...rest
+  } = config;
+  return rest;
+}
+
 function normalizeProvider(provider: string | undefined): StudentAgentProvider {
   return provider ?? DEFAULT_STUDENT_AGENT_CONFIG.model.provider;
 }
@@ -129,11 +167,13 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
   return {
     envFile: env.STUDENT_AGENT_ENV_FILE,
     executionMode: readExecutionMode(env.STUDENT_AGENT_EXECUTION_MODE ?? env.STUDENT_AGENT_MODE),
+    activeProviderProfile: readOptionalString(env.STUDENT_AGENT_PROVIDER_PROFILE),
     model: compactObject({
       provider,
       baseUrl: readModelBaseUrl(env, provider),
       name: readOptionalString(env.STUDENT_AGENT_MODEL),
       api: readOptionalString(env.STUDENT_AGENT_API),
+      apiKeyEnv: readOptionalString(env.STUDENT_AGENT_API_KEY_ENV),
     }),
     llm: compactObject({
       requestTimeoutMs: readInteger(env.STUDENT_AGENT_LLM_REQUEST_TIMEOUT_MS),
@@ -173,6 +213,17 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       maxConcurrency: readInteger(env.SUB_AGENT_MAX_CONCURRENCY),
     }),
   };
+}
+
+function hasExplicitModelRouteEnv(env: NodeJS.ProcessEnv): boolean {
+  return [
+    env.STUDENT_AGENT_PROVIDER,
+    env.STUDENT_AGENT_MODEL,
+    env.STUDENT_AGENT_BASE_URL,
+    env.STUDENT_AGENT_MODEL_BASE_URL,
+    env.STUDENT_AGENT_API,
+    env.STUDENT_AGENT_API_KEY_ENV,
+  ].some((value) => readOptionalString(value) !== undefined);
 }
 
 function readExecutionMode(value: string | undefined): StudentAgentExecutionMode | undefined {
