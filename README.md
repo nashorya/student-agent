@@ -123,8 +123,9 @@ Useful slash commands:
 |---|---|
 | `/help` | Show available commands. |
 | `/status` | Show current task/runtime status. |
+| `/provider` | Switch a saved provider profile, including endpoint, API format, key reference, and model. |
 | `/model` | Quickly switch model while keeping the current provider/API settings. |
-| `/setting` or `/settings` | Re-run setup for model or embedding settings. |
+| `/setting` or `/settings` | Create or replace a named provider profile, or configure embeddings. |
 | `/task status` | Show active task details. |
 | `/review up|ok|down` | Record quality feedback. |
 | `/design study <url>` | Learn a visual style from a reference page when Design Study is enabled. |
@@ -251,11 +252,51 @@ student-agent/
 
 All settings can be set in `.env` or `.student-agent.json`.
 
+### Provider profiles
+
+Interactive setup saves named provider profiles globally in
+`~/.student-agent/.student-agent.json`. API key values stay in
+`~/.student-agent/.env`; JSON stores only the key variable name.
+
+```json
+{
+  "activeProviderProfile": "openrouter-sonnet",
+  "providerProfiles": {
+    "openrouter-sonnet": {
+      "provider": "openrouter",
+      "name": "anthropic/claude-sonnet-4.6",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "api": "openai-completions",
+      "apiKeyEnv": "OPENROUTER_API_KEY"
+    },
+    "muskapi-sonnet": {
+      "provider": "muskapi",
+      "name": "claude-sonnet-4-6",
+      "baseUrl": "https://api.muskapi.cc/v1",
+      "api": "openai-completions",
+      "apiKeyEnv": "MUSKAPI_API_KEY"
+    }
+  }
+}
+```
+
+Use `/setting` to add profiles and `/provider` to switch the complete route.
+`/model` changes only the active profile's model. A project can select a global
+profile by placing `"activeProviderProfile": "profile-name"` in its local
+`.student-agent.json`.
+
+Legacy top-level `model` configuration remains supported. Environment variables
+remain the highest-priority override for CI and eval runs. Set
+`STUDENT_AGENT_PROVIDER_PROFILE` to select a profile non-interactively, or keep
+using `STUDENT_AGENT_PROVIDER`, `STUDENT_AGENT_MODEL`,
+`STUDENT_AGENT_BASE_URL`, and `STUDENT_AGENT_API` for a temporary route.
+
 ### Core settings
 
 | Variable | Default | Description |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | Required. Your Anthropic API key. |
+| `STUDENT_AGENT_PROVIDER_PROFILE` | — | Select a named global provider profile. |
 | `STUDENT_AGENT_PROVIDER` | `anthropic` | LLM provider (`anthropic` or OpenAI-compatible). |
 | `STUDENT_AGENT_MODEL` | `claude-sonnet-4-6` | Model identifier. |
 | `ANTHROPIC_BASE_URL` | — | Optional Anthropic-compatible relay/proxy URL. |

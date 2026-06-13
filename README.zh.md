@@ -114,8 +114,9 @@ Benchmark 或脚本里可以用非交互模式：`student-agent --prompt "修复
 |---|---|
 | `/help` | 查看可用命令。 |
 | `/status` | 查看当前任务/运行时状态。 |
+| `/provider` | 切换已保存的 provider profile，包括 endpoint、API 格式、密钥引用和模型。 |
 | `/model` | 在保持当前 provider/API 设置不变的情况下快速切换模型。 |
-| `/setting` 或 `/settings` | 重新进入模型或 embedding 设置流程。 |
+| `/setting` 或 `/settings` | 新增或覆盖具名 provider profile，或配置 embedding。 |
 | `/task status` | 查看活跃任务详情。 |
 | `/review up|ok|down` | 记录质量反馈。 |
 | `/design study <url>` | 在启用 Design Study 时从参考页面学习视觉风格。 |
@@ -241,11 +242,51 @@ student-agent/
 
 所有配置可通过 `.env` 或 `.student-agent.json` 设置。
 
+### Provider profiles
+
+交互式设置会把具名 provider profile 保存在全局
+`~/.student-agent/.student-agent.json`。API Key 的值仍存放在
+`~/.student-agent/.env`，JSON 只记录对应的环境变量名。
+
+```json
+{
+  "activeProviderProfile": "openrouter-sonnet",
+  "providerProfiles": {
+    "openrouter-sonnet": {
+      "provider": "openrouter",
+      "name": "anthropic/claude-sonnet-4.6",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "api": "openai-completions",
+      "apiKeyEnv": "OPENROUTER_API_KEY"
+    },
+    "muskapi-sonnet": {
+      "provider": "muskapi",
+      "name": "claude-sonnet-4-6",
+      "baseUrl": "https://api.muskapi.cc/v1",
+      "api": "openai-completions",
+      "apiKeyEnv": "MUSKAPI_API_KEY"
+    }
+  }
+}
+```
+
+使用 `/setting` 新增 profile，使用 `/provider` 切换整套路由。
+`/model` 只修改当前 profile 的模型。项目可以在本地
+`.student-agent.json` 中写入
+`"activeProviderProfile": "profile-name"`，选择一个全局 profile。
+
+旧的顶层 `model` 配置继续兼容。环境变量仍拥有最高优先级，适合 CI 和
+eval 临时覆盖。非交互选择 profile 可使用
+`STUDENT_AGENT_PROVIDER_PROFILE`；也可以继续用
+`STUDENT_AGENT_PROVIDER`、`STUDENT_AGENT_MODEL`、
+`STUDENT_AGENT_BASE_URL` 和 `STUDENT_AGENT_API` 指定一次性路由。
+
 ### 核心配置
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | 必填。Anthropic API 密钥。 |
+| `STUDENT_AGENT_PROVIDER_PROFILE` | — | 选择一个全局具名 provider profile。 |
 | `STUDENT_AGENT_PROVIDER` | `anthropic` | LLM 提供商（`anthropic` 或 OpenAI 兼容接口）。 |
 | `STUDENT_AGENT_MODEL` | `claude-sonnet-4-6` | 模型标识符。 |
 | `ANTHROPIC_BASE_URL` | — | 可选 Anthropic 兼容 relay/proxy URL。 |
