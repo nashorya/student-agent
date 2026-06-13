@@ -18,6 +18,7 @@ import { BreakerLogManager } from './breaker-log-manager.js';
 import { LessonsManager } from '../memory/lessons/index.js';
 import { KnacksManager } from '../memory/knacks/index.js';
 import type { LessonCandidate } from '../memory/lessons/index.js';
+import type { LessonVerificationEvidence } from '../memory/lessons/index.js';
 import type { SignalKind } from '../memory/signals/index.js';
 
 export interface ReflectInput {
@@ -28,6 +29,7 @@ export interface ReflectInput {
   gitDiff: string;
   /** 累计任务计数，用于冷启动保护判断 */
   totalTaskCount: number;
+  lessonVerificationEvidence?: LessonVerificationEvidence[];
 }
 
 export interface ReflectResult {
@@ -77,6 +79,7 @@ export class ReflectAgent {
           taskId: input.taskId,
           sessionRef: input.sessionRef,
           limit: 20,
+          verificationEvidence: input.lessonVerificationEvidence,
         });
         result.lessonsExtracted = lessons.length;
       }
@@ -134,7 +137,7 @@ export class ReflectAgent {
     lesson: LessonCandidate,
     signalKindCounts: Map<SignalKind, number>,
   ): boolean {
-    if (lesson.status !== 'observed') return false;
+    if (lesson.status !== 'observed' || lesson.quality !== 'high') return false;
     if ((lesson.counterexamples ?? []).some((counterexample) => counterexample.severity === 'high')) {
       return false;
     }

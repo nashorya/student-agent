@@ -1,6 +1,15 @@
 import type { SignalKind, SignalSeverity } from '../signals/types.js';
 
 export type LessonCandidateStatus = 'observed' | 'promoted' | 'archived';
+export type LessonQuality = 'high' | 'low';
+
+export interface LessonVerification {
+  sourceToolCallId: string;
+  successfulToolCallId: string;
+  toolName: string;
+  exitCode: 0;
+  completedAt: string;
+}
 
 export interface LessonTrigger {
   signalKinds: SignalKind[];
@@ -26,6 +35,8 @@ export interface LessonCandidate {
   doNotApplyWhen: string[];
   evidenceRefs: string[];
   severity: SignalSeverity;
+  quality: LessonQuality;
+  verification?: LessonVerification;
   status: LessonCandidateStatus;
   counterexamples?: LessonCounterexample[];
   provenance: {

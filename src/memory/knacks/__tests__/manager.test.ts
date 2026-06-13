@@ -19,6 +19,7 @@ function makeLesson(overrides: Partial<LessonCandidate> = {}): LessonCandidate {
     doNotApplyWhen: ['No file edit is being retried'],
     evidenceRefs: ['hash123'],
     severity: 'high',
+    quality: 'high',
     status: 'observed',
     provenance: {
       taskId: 'task_1',

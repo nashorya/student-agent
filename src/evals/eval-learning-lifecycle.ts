@@ -1,6 +1,7 @@
 import { PreferenceCandidatesManager } from '../memory/candidates/manager.js';
 import { KnacksManager } from '../memory/knacks/index.js';
 import { LessonsManager } from '../memory/lessons/index.js';
+import type { LessonVerificationEvidence } from '../memory/lessons/index.js';
 import { PreferencesManager } from '../memory/preferences/manager.js';
 import {
   RunArchiveWriter,
@@ -9,6 +10,7 @@ import {
 import { TasksManager } from '../memory/tasks/manager.js';
 import { BreakerLogManager } from '../reflect/breaker-log-manager.js';
 import { ReflectAgent } from '../reflect/reflect-agent.js';
+import type { ToolTraceEntry } from './types.js';
 
 export interface EvalLearningRunRef {
   taskId: string;
@@ -42,6 +44,7 @@ export async function finalizeEvalLearningRun(options: {
   status: 'success' | 'partial' | 'failed' | 'cancelled';
   finalSummary: string;
   totalTaskCount: number;
+  toolCalls?: ToolTraceEntry[];
 }): Promise<EvalLearningSummary> {
   const tasks = TasksManager.getInstance(options.memoryDir);
   const task = await tasks.getTask(options.run.taskId);
@@ -75,6 +78,7 @@ export async function finalizeEvalLearningRun(options: {
     taskDescription: options.taskDescription,
     gitDiff: options.gitDiff,
     totalTaskCount: options.totalTaskCount,
+    lessonVerificationEvidence: buildLessonVerificationEvidence(options.toolCalls ?? []),
   });
 
   await tasks.completePhase(options.run.taskId);
@@ -85,6 +89,40 @@ export async function finalizeEvalLearningRun(options: {
     lessonsExtracted: reflect.lessonsExtracted,
     knacksPromoted: reflect.knacksPromoted,
   };
+}
+
+export function buildLessonVerificationEvidence(
+  toolCalls: ToolTraceEntry[],
+): LessonVerificationEvidence[] {
+  return toolCalls.flatMap((call) => {
+    if (call.isError !== false || !call.endedAt || !isProcessTool(call.name)) {
+      return [];
+    }
+    const command = extractCommand(call.args);
+    if (!command || !isVerificationCommand(command)) {
+      return [];
+    }
+    return [{
+      toolCallId: call.id,
+      toolName: call.name,
+      exitCode: 0,
+      completedAt: call.endedAt,
+    }];
+  });
+}
+
+function isProcessTool(name: string): boolean {
+  return /^(?:student_)?(?:bash|shell|exec)$/.test(name.toLowerCase());
+}
+
+function extractCommand(args: unknown): string | undefined {
+  if (typeof args !== 'object' || args === null) return undefined;
+  const command = (args as Record<string, unknown>).command;
+  return typeof command === 'string' ? command : undefined;
+}
+
+function isVerificationCommand(command: string): boolean {
+  return /\b(?:test|tests|pytest|vitest|jest|tsc|lint|check|verify)\b/i.test(command);
 }
 
 function resetReflectManagers(): void {

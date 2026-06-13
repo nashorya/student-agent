@@ -54,6 +54,15 @@ describe('eval learning lifecycle', () => {
       status: 'success',
       finalSummary: 'Implemented and verified the warning fix',
       totalTaskCount: 1,
+      toolCalls: [{
+        id: 'call_2',
+        name: 'bash',
+        args: { command: 'pytest astropy/tests/helper.py' },
+        startedAt: '2026-06-12T00:00:30.000Z',
+        endedAt: '2026-06-12T00:01:00.000Z',
+        isError: false,
+        resultText: '1 passed',
+      }],
     });
 
     const outcome = JSON.parse(await readFile(
@@ -78,6 +87,8 @@ describe('eval learning lifecycle', () => {
       },
     });
     expect(lessons).toContain('warnings were treated as errors');
+    expect(lessons).toContain('"quality":"high"');
+    expect(lessons).toContain('"successfulToolCallId":"call_2"');
     await expect(manager.getActive()).resolves.toBeNull();
   });
 });

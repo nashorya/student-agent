@@ -334,7 +334,7 @@ describe('ReflectAgent', () => {
     expect(typeof result.cleanupStats.discarded).toBe('number');
   });
 
-  it('从 signal 流产出 lesson candidates', async () => {
+  it('将没有成功验证配对的 lesson 路由到 ephemeral', async () => {
     const lessonsMgr = LessonsManager.getInstance(tmpDir);
     await appendSignal({
       id: 'sig_reflect_1',
@@ -363,11 +363,13 @@ describe('ReflectAgent', () => {
     });
 
     expect(result.lessonsExtracted).toBe(1);
-    const lessons = await lessonsMgr.getAll();
-    expect(lessons).toHaveLength(1);
-    expect(lessons[0]).toMatchObject({
+    expect(await lessonsMgr.getAll()).toHaveLength(0);
+    const ephemeral = await lessonsMgr.getEphemeral();
+    expect(ephemeral).toHaveLength(1);
+    expect(ephemeral[0]).toMatchObject({
       sourceSignalId: 'sig_reflect_1',
       lesson: 'Treat tool error as a retry pattern: oldText must match exactly',
+      quality: 'low',
     });
   });
 
@@ -407,6 +409,12 @@ describe('ReflectAgent', () => {
       taskDescription: '修复重复编辑失败',
       gitDiff: '',
       totalTaskCount: 50,
+      lessonVerificationEvidence: [{
+        toolCallId: 'call_verify',
+        toolName: 'bash',
+        exitCode: 0,
+        completedAt: '2026-01-03T00:00:00.000Z',
+      }],
     });
 
     expect(result.lessonsExtracted).toBe(2);

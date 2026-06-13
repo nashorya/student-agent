@@ -11,16 +11,26 @@ export interface ObserveRecentSignalsOptions {
   taskId: string;
   sessionRef: string;
   limit?: number;
+  verificationEvidence?: LessonVerificationEvidence[];
+}
+
+export interface LessonVerificationEvidence {
+  toolCallId: string;
+  toolName: string;
+  exitCode: number;
+  completedAt: string;
 }
 
 export class LessonsManager {
   private static instance: LessonsManager | null = null;
   private readonly memoryDir: string;
   private readonly filePath: string;
+  private readonly ephemeralFilePath: string;
 
   private constructor(memoryDir: string) {
     this.memoryDir = memoryDir;
     this.filePath = join(memoryDir, 'lessons.jsonl');
+    this.ephemeralFilePath = join(memoryDir, 'ephemeral', 'lessons.jsonl');
   }
 
   static getInstance(memoryDir?: string): LessonsManager {
@@ -36,19 +46,11 @@ export class LessonsManager {
   }
 
   async getAll(): Promise<LessonCandidate[]> {
-    try {
-      const raw = await readFile(this.filePath, 'utf-8');
-      return raw.split('\n').filter(Boolean).flatMap((line) => {
-        try {
-          return [JSON.parse(line) as LessonCandidate];
-        } catch {
-          return [];
-        }
-      });
-    } catch (err) {
-      if (isNodeError(err) && err.code === 'ENOENT') return [];
-      throw err;
-    }
+    return readLessons(this.filePath);
+  }
+
+  async getEphemeral(): Promise<LessonCandidate[]> {
+    return readLessons(this.ephemeralFilePath);
   }
 
   async observeRecentSignals(options: ObserveRecentSignalsOptions): Promise<LessonCandidate[]> {
@@ -58,9 +60,15 @@ export class LessonsManager {
 
   async observeSignals(
     signals: Signal[],
-    options: Pick<ObserveRecentSignalsOptions, 'taskId' | 'sessionRef'>,
+    options: Pick<
+      ObserveRecentSignalsOptions,
+      'taskId' | 'sessionRef' | 'verificationEvidence'
+    >,
   ): Promise<LessonCandidate[]> {
-    const existing = await this.getAll();
+    const existing = [
+      ...await this.getAll(),
+      ...await this.getEphemeral(),
+    ];
     const seenSignalIds = new Set(existing.map((lesson) => lesson.sourceSignalId));
     const candidates = signals
       .filter((signal) => !seenSignalIds.has(signal.id))
@@ -92,18 +100,25 @@ export class LessonsManager {
   }
 
   private async append(candidate: LessonCandidate): Promise<void> {
-    await mkdir(dirname(this.filePath), { recursive: true });
-    await appendFile(this.filePath, JSON.stringify(candidate) + '\n', 'utf-8');
+    const targetPath = candidate.quality === 'low'
+      ? this.ephemeralFilePath
+      : this.filePath;
+    await mkdir(dirname(targetPath), { recursive: true });
+    await appendFile(targetPath, JSON.stringify(candidate) + '\n', 'utf-8');
   }
 }
 
 function signalToLessonCandidate(
   signal: Signal,
-  options: Pick<ObserveRecentSignalsOptions, 'taskId' | 'sessionRef'>,
+  options: Pick<
+    ObserveRecentSignalsOptions,
+    'taskId' | 'sessionRef' | 'verificationEvidence'
+  >,
 ): LessonCandidate {
   const now = new Date().toISOString();
   const path = signal.path ? [signal.path] : [];
   const evidenceRefs = [signal.evidenceRef, signal.toolCallId].filter((value): value is string => Boolean(value));
+  const verification = findVerification(signal, options.verificationEvidence ?? []);
 
   return {
     id: `lesson_${randomUUID()}`,
@@ -119,6 +134,8 @@ function signalToLessonCandidate(
     doNotApplyWhen: doNotApplyWhen(signal),
     evidenceRefs,
     severity: signal.severity,
+    quality: verification ? 'high' : 'low',
+    verification,
     status: 'observed',
     provenance: {
       taskId: options.taskId,
@@ -128,6 +145,46 @@ function signalToLessonCandidate(
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function findVerification(
+  signal: Signal,
+  evidence: LessonVerificationEvidence[],
+): LessonCandidate['verification'] {
+  if (!signal.toolCallId) return undefined;
+  const signalTime = Date.parse(signal.createdAt);
+  const successful = evidence.find((item) => {
+    if (item.exitCode !== 0) return false;
+    const completedAt = Date.parse(item.completedAt);
+    return Number.isFinite(signalTime)
+      && Number.isFinite(completedAt)
+      && completedAt >= signalTime;
+  });
+  return successful
+    ? {
+      sourceToolCallId: signal.toolCallId,
+      successfulToolCallId: successful.toolCallId,
+      toolName: successful.toolName,
+      exitCode: 0,
+      completedAt: successful.completedAt,
+    }
+    : undefined;
+}
+
+async function readLessons(path: string): Promise<LessonCandidate[]> {
+  try {
+    const raw = await readFile(path, 'utf-8');
+    return raw.split('\n').filter(Boolean).flatMap((line) => {
+      try {
+        return [JSON.parse(line) as LessonCandidate];
+      } catch {
+        return [];
+      }
+    });
+  } catch (err) {
+    if (isNodeError(err) && err.code === 'ENOENT') return [];
+    throw err;
+  }
 }
 
 function lessonText(signal: Signal): string {

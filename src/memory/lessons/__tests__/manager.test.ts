@@ -17,14 +17,14 @@ describe('LessonsManager', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('turns a signal into a lesson candidate', async () => {
+  it('routes an unverified process-error lesson to ephemeral storage', async () => {
     await appendSignal({
       id: 'sig_1',
-      kind: 'hashline_rejection',
-      severity: 'high',
-      summary: 'Hashline stale rejection: src/App.tsx',
-      path: 'src/App.tsx',
-      evidenceRef: 'hash123',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'pytest failed before the fix was verified',
+      toolName: 'bash',
+      toolCallId: 'call_failed',
       createdAt: '2026-01-01T00:00:00.000Z',
     }, tmpDir);
     const mgr = LessonsManager.getInstance(tmpDir);
@@ -38,18 +38,44 @@ describe('LessonsManager', () => {
     expect(created).toHaveLength(1);
     expect(created[0]).toMatchObject({
       sourceSignalId: 'sig_1',
-      lesson: 'Avoid repeating stale edits after Hashline stale rejection: src/App.tsx',
-      trigger: {
-        signalKinds: ['hashline_rejection'],
-        paths: ['src/App.tsx'],
-      },
+      quality: 'low',
       status: 'observed',
-      provenance: {
-        taskId: 'task_1',
-        sessionRef: 'session_1',
+    });
+    expect(await mgr.getAll()).toHaveLength(0);
+    expect(await mgr.getEphemeral()).toHaveLength(1);
+  });
+
+  it('stores a lesson in the main library when tool evidence is followed by exit 0', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const created = await mgr.observeSignals([{
+      id: 'sig_verified',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'targeted test failed',
+      toolName: 'bash',
+      toolCallId: 'call_failed',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1',
+      sessionRef: 'session_1',
+      verificationEvidence: [{
+        toolCallId: 'call_passed',
+        toolName: 'bash',
+        exitCode: 0,
+        completedAt: '2026-01-01T00:01:00.000Z',
+      }],
+    });
+
+    expect(created[0]).toMatchObject({
+      quality: 'high',
+      verification: {
+        sourceToolCallId: 'call_failed',
+        successfulToolCallId: 'call_passed',
+        exitCode: 0,
       },
     });
     expect(await mgr.getAll()).toHaveLength(1);
+    expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
   it('deduplicates candidates by source signal', async () => {
@@ -65,6 +91,7 @@ describe('LessonsManager', () => {
     await mgr.observeRecentSignals({ taskId: 'task_1', sessionRef: 's1', limit: 5 });
     await mgr.observeRecentSignals({ taskId: 'task_1', sessionRef: 's1', limit: 5 });
 
-    expect(await mgr.getAll()).toHaveLength(1);
+    expect(await mgr.getAll()).toHaveLength(0);
+    expect(await mgr.getEphemeral()).toHaveLength(1);
   });
 });
