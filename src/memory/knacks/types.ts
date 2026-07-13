@@ -23,6 +23,13 @@ export interface Knack {
   allowPromptInjection: boolean;
   writesHardToolRule: false;
   breakerReport: CandidateBreakerReport | null;
+  repo?: string;
+  symptom?: string;
+  fixSummary?: string;
+  reuseCount?: number;
+  injectedCount?: number;
+  lastSucceededTask?: string | null;
+  lastInjectedTask?: string | null;
   createdAt: string;
   updatedAt: string;
 }

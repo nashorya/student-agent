@@ -5,750 +5,356 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>student-agent · 开发仪表盘</title>
 <style>
-/* ── 设计系统 ───────────────────────────────────── */
-:root {
-  --bg:      #09090b;
-  --bg1:     #111113;
-  --bg2:     #18181b;
-  --bg3:     #27272a;
-  --border:  #2e2e33;
-  --border2: #3f3f46;
-  --text:    #fafafa;
-  --text2:   #a1a1aa;
-  --text3:   #71717a;
-  --blue:    #60a5fa;
-  --blue-dim:#1e3a5f;
-  --purple:  #a78bfa;
-  --purp-dim:#2e1e5f;
-  --green:   #4ade80;
-  --green-dim:#14532d;
-  --red:     #f87171;
-  --red-dim: #450a0a;
-  --yellow:  #facc15;
-  --yell-dim:#422006;
-  --radius:  10px;
-  --radius-sm:6px;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html{font-size:14px}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,'Inter','Segoe UI',sans-serif;line-height:1.55;min-height:100vh;-webkit-font-smoothing:antialiased}
-
-/* ── HEADER ─────────────────────────────────────── */
-header {
-  display:flex;align-items:center;gap:12px;
-  padding:14px 28px;
-  border-bottom:1px solid var(--border);
-  background:var(--bg1);
-  position:sticky;top:0;z-index:50;
-  backdrop-filter:blur(12px);
-}
-.logo {
-  font-weight:700;font-size:15px;letter-spacing:-.03em;
-  background:linear-gradient(135deg,#fff 0%,#a1a1aa 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-}
-.logo-tag {
-  font-size:11px;color:var(--text3);
-  background:var(--bg3);border:1px solid var(--border2);
-  padding:2px 8px;border-radius:20px;
-}
-.gen-time{margin-left:auto;font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums}
-
-/* ── STATS ROW ───────────────────────────────────── */
-.stats {
-  display:grid;grid-template-columns:repeat(5,1fr);
-  border-bottom:1px solid var(--border);
-}
-.stat {
-  padding:20px 24px;border-right:1px solid var(--border);
-  background:var(--bg1);
-}
-.stat:last-child{border-right:none}
-.stat-val {
-  font-size:32px;font-weight:700;letter-spacing:-.04em;line-height:1;
-  font-variant-numeric:tabular-nums;
-}
-.stat-val.c-green{color:var(--green)}
-.stat-val.c-red{color:var(--red)}
-.stat-val.c-blue{color:var(--blue)}
-.stat-lbl{font-size:11px;color:var(--text3);margin-top:6px;text-transform:uppercase;letter-spacing:.06em;font-weight:500}
-
-/* ── NAV TABS ────────────────────────────────────── */
-nav {
-  display:flex;gap:2px;padding:10px 20px;
-  background:var(--bg1);border-bottom:1px solid var(--border);
-}
-.tab {
-  padding:6px 14px;border-radius:var(--radius-sm);cursor:pointer;
-  font-size:13px;font-weight:500;color:var(--text3);
-  transition:all .15s;user-select:none;
-}
-.tab:hover{color:var(--text2);background:var(--bg3)}
-.tab.active{color:var(--text);background:var(--bg3)}
-
-/* ── PANELS ──────────────────────────────────────── */
-.panel{display:none;padding:28px;max-width:960px}
-.panel.active{display:block}
-
-/* ── TIMELINE ────────────────────────────────────── */
-.tl-row{display:grid;grid-template-columns:130px 1fr;gap:0 20px;padding:4px 0}
-.tl-left{display:flex;flex-direction:column;align-items:flex-end;gap:6px;padding-top:10px}
-.tl-dot{width:8px;height:8px;border-radius:50%;background:var(--border2);flex-shrink:0;margin-right:-4px;position:relative;z-index:1}
-.tl-dot-active{background:var(--blue);box-shadow:0 0 0 3px rgba(96,165,250,.2)}
-.tl-datebox{font-size:11px;color:var(--text3);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;line-height:1.3}
-.tl-latest .tl-datebox{color:var(--blue)}
-.tl-card{
-  border-left:2px solid var(--border);
-  padding:8px 0 12px 20px;
-  position:relative;
-}
-.tl-latest .tl-card{border-left-color:var(--blue)}
-.tl-list{list-style:none;display:flex;flex-direction:column;gap:4px}
-.tl-list li{font-size:13px;color:var(--text2);line-height:1.5;padding:5px 8px;border-radius:var(--radius-sm);transition:background .12s}
-.tl-list li:hover{background:var(--bg2);color:var(--text)}
-
-/* ── RUNS ────────────────────────────────────────── */
-.runs-section{margin-bottom:36px}
-.sec-head{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
-.sec-title{font-size:15px;font-weight:600;color:var(--text)}
-.sec-note{font-size:12px;color:var(--text3);margin-left:4px}
-.tier-chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.05em}
-.chip-a{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(96,165,250,.25)}
-.chip-b{background:var(--purp-dim);color:var(--purple);border:1px solid rgba(167,139,250,.25)}
-.rc-group{margin-bottom:16px}
-.rc-col-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px}
-.on-label{color:var(--green)}
-.off-label{color:var(--text3)}
-.tier-b-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
-.rc-grid{display:flex;flex-direction:column;gap:6px}
-
-/* Run card */
-.rc{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:10px 14px;
-  background:var(--bg2);border:1px solid var(--border);
-  border-radius:var(--radius-sm);
-  border-left:3px solid var(--border2);
-  transition:border-color .15s,background .15s;
-  gap:12px;
-}
-.rc:hover{background:var(--bg3);border-color:var(--border2)}
-.rc-pass{border-left-color:var(--green)}
-.rc-fail{border-left-color:var(--red)}
-.rc-inv,.rc-nd{opacity:.45;border-left-color:var(--border2)}
-.rc-head{display:flex;align-items:center;gap:8px;min-width:0}
-.rc-dot{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
-.dot-pass{background:var(--green-dim);color:var(--green)}
-.dot-fail{background:var(--red-dim);color:var(--red)}
-.dot-nd{background:var(--bg3);color:var(--text3)}
-/* checkmark via pseudo */
-.dot-pass::after{content:'✓';font-size:10px}
-.rc-task{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rc-stats{display:flex;align-items:center;gap:6px;color:var(--text3);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums;flex-shrink:0}
-.rc-sep{color:var(--border2)}
-.rc-cost{color:var(--text2)}
-.arm-badge{padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
-.arm-on{background:var(--green-dim);color:var(--green)}
-.arm-off{background:var(--bg3);color:var(--text3)}
-
-/* ── BUGS ────────────────────────────────────────── */
-.bugs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-.bug-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative;overflow:hidden;transition:border-color .15s}
-.bug-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
-.bc-open::before{background:var(--red)}
-.bc-closed::before{background:var(--green)}
-.bc-wip::before{background:var(--yellow)}
-.bug-card:hover{border-color:var(--border2)}
-.bug-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.bug-id{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.05em}
-.bug-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-.bdot-open{background:var(--red)}
-.bdot-closed{background:var(--green)}
-.bdot-wip{background:var(--yellow)}
-.bug-status-text{font-size:10px;font-weight:600;color:var(--text3)}
-.bc-open .bug-status-text{color:var(--red)}
-.bc-closed .bug-status-text{color:var(--green)}
-.bc-wip .bug-status-text{color:var(--yellow)}
-.bug-title{font-size:13px;font-weight:500;line-height:1.4;color:var(--text);margin-bottom:6px}
-.bug-cause{font-size:12px;color:var(--text3);line-height:1.4;margin-bottom:8px}
-.bug-date{font-size:11px;color:var(--text3)}
-
-/* ── ADR ─────────────────────────────────────────── */
-.adrs-list{display:flex;flex-direction:column;gap:10px}
-.adr-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;display:grid;grid-template-columns:90px 1fr auto;gap:16px;align-items:start;transition:border-color .15s}
-.adr-card:hover{border-color:var(--border2)}
-.adr-id{font-size:13px;font-weight:700;color:var(--blue);margin-bottom:4px}
-.adr-status{font-size:11px;color:var(--green)}
-.adr-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.4}
-.adr-summary{font-size:12px;color:var(--text3);line-height:1.5}
-.adr-date{font-size:11px;color:var(--text3);white-space:nowrap}
-
-/* ── MINI CHART ──────────────────────────────────── */
-.mini-chart-wrap{margin-top:24px;padding:16px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:inline-block}
-.mini-chart-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;font-weight:500}
-.mini-chart-legend{margin-top:8px;font-size:11px;color:var(--text3);display:flex;gap:12px;align-items:center}
-.dot-blue,.dot-purple{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
-.dot-blue{background:var(--blue)}
-.dot-purple{background:var(--purple)}
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff;
+    --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', sans-serif; font-size: 14px; }
+  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .stats { display: flex; gap: 12px; padding: 16px 24px; flex-wrap: wrap; }
+  .stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; min-width: 130px; }
+  .stat .val { font-size: 24px; font-weight: 700; }
+  .stat .lbl { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .tabs { display: flex; gap: 2px; padding: 0 24px; border-bottom: 1px solid var(--border); }
+  .tab { padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); font-size: 13px; transition: color .15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .panel { display: none; padding: 24px; }
+  .panel.active { display: block; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.4; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg2); }
+  tr.dim td { opacity: .45; }
+  .date { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .small { font-size: 12px; color: var(--muted); max-width: 360px; }
+  .mono { font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge.green { background: #1f4a23; color: var(--green); }
+  .badge.red { background: #3d1a18; color: var(--red); }
+  .badge.yellow { background: #3d2e00; color: var(--yellow); }
+  .badge.grey { background: var(--bg3); color: var(--muted); }
+  .tier-badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; }
+  .tier-tiera { background: #0d2a4a; color: var(--blue); }
+  .tier-tierb { background: #1e1060; color: var(--purple); }
+  .tier-cacheprobe { background: #1f3a1f; color: var(--green); }
+  .tier-comparison { background: var(--bg3); color: var(--muted); }
+  .tier-other { background: var(--bg3); color: var(--muted); }
+  .scroll-wrap { overflow-x: auto; }
 </style>
 </head>
 <body>
-
 <header>
-  <span class="logo">student-agent</span>
-  <span class="logo-tag">dev dashboard</span>
-  <span class="gen-time">生成于 2026-06-13 03:37 UTC</span>
+  <h1>student-agent</h1>
+  <span>开发仪表盘</span>
+  <span class="sub">生成于 2026-07-13 08:23　·　数据源：docs/ + evals/results/</span>
 </header>
 
 <div class="stats">
-  <div class="stat">
-    <div class="stat-val c-blue">$4.64</div>
-    <div class="stat-lbl">累计花费</div>
-  </div>
-  <div class="stat">
-    <div class="stat-val">12/12</div>
-    <div class="stat-lbl">SWE resolved</div>
-  </div>
-  <div class="stat">
-    <div class="stat-val c-red">1</div>
-    <div class="stat-lbl">Open bug</div>
-  </div>
-  <div class="stat">
-    <div class="stat-val">3</div>
-    <div class="stat-lbl">ADR 决策</div>
-  </div>
-  <div class="stat">
-    <div class="stat-val">28</div>
-    <div class="stat-lbl">开发事件</div>
+  <div class="stat"><div class="val">0</div><div class="lbl">总 eval run</div></div>
+  <div class="stat"><div class="val" style="color:var(--green)">—</div><div class="lbl">有效 run 通过率</div></div>
+  <div class="stat"><div class="val">$0.00</div><div class="lbl">累计花费</div></div>
+  <div class="stat"><div class="val" style="color:var(--red)">1</div><div class="lbl">OPEN bug</div></div>
+  <div class="stat"><div class="val">5</div><div class="lbl">ADR 决策</div></div>
+  <div class="stat"><div class="val">35</div><div class="lbl">时间轴条目</div></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('timeline')">时间轴</div>
+  <div class="tab" onclick="showTab('runs')">Eval Runs <span style="color:var(--muted);font-size:11px">(0)</span></div>
+  <div class="tab" onclick="showTab('bugs')">Bug 档案 <span style="color:var(--muted);font-size:11px">(10)</span></div>
+  <div class="tab" onclick="showTab('adrs')">决策 ADR <span style="color:var(--muted);font-size:11px">(5)</span></div>
+</div>
+
+<div id="timeline" class="panel active">
+  <div class="scroll-wrap">
+  <table>
+    <thead><tr><th>日期</th><th>事件</th></tr></thead>
+    <tbody>
+    <tr>
+      <td class="date">2026-07-13</td>
+      <td>ADR-003 P2 / ADR-005 实现：distilled knack 运行时字段完整保留并可 upsert；召回改为 repository/symptom eligibility 后按 reuse、confidence、repo、semantic similarity、anti-repeat 稳定排序；embedding 失败确定性降级 lexical；候选池从旧全局 top-8 分离为 bounded 64，standard top-3/heavy top-5 不扩容；注入按 task/run 幂等计数。6938/12907 shaped fixtures 均进入 standard top-3</td>
+    </tr>
+    <tr>
+      <td class="date">2026-07-13</td>
+      <td>安装与确定性验证修复：pi 从未锁定的本地 main 改为 npm 0.73.1 精确版本；oracle fixture validation 跳过无 reference solution 的 LocoBench session-scored smoke；Vitest 升到 4.1.10 消除 audit critical。隔离试迁 earendil 0.80.6 证实存在 API 迁移面，oh-my-pi runtime 仍按路线图排除。Roadmap 新增 v0.4x-H：Student-agent 为每个目标项目发现/维护 INDEX、ADR、buglog，并生成静态 HTML 人类视图；下一产品项仍为 ADR-003 P2 召回排序去 recency 偏置</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-13</td>
+      <td>Context7 Python import 提取修复（astropy + `from x import y` 语法）；distilled knack 导入 recall store（4 条，idempotent）；dashboard HTML 生成脚本</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-13</td>
+      <td>P1 knack 注入验证（Tier A）：12907/6938 均 resolved；6938 命中对应 distilled knack，turns 11；12907 turns 14→9、total token -36.87%，knack 因 top-3 截断未命中对应条目，归因留待 P2 排序修复后再验；合计 $0.3389</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-13</td>
+      <td>ADR-004 knack schema v1 定稿并实现（`f78ed974`）：fix_summary 提取、dedup_key 去重（6→4 条）、生命周期字段（injected_count / last_succeeded_task / last_injected_task）、verified_fix 标记 audit only。945 tests passed。待推远端</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-13</td>
+      <td>P0/P1 实现完成并合并 main（`de06fe06`）：Context7 接入 eval failure escalation（`e41a057e`）、离线 knack 蒸馏脚本（`0934d40b`）、lesson 验证准入与 ephemeral 隔离（`8a15065b`）、symptom 提取修复（`de06fe06`）。蒸馏产出 6 条 verified knack（覆盖 6938/12907/14182/14995），symptom 改为优先提取根因 marker。P0 通过验收：轨迹里存在可蒸馏的验证解法。937 tests passed。待推远端</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-13</td>
+      <td>基于 Tier B 数据完成 v0.4x 优先级重排（ADR-003）：P0 离线蒸馏化验（零成本验证 skill/knack 前提）→ P1 lesson 准入门控（batch distillation 管道）→ P2 召回排序去 recency 偏置 → P3 利用可观测 → P4 Requirement Ledger → P5 较真税治理；tombstone 四条废案</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>发布到远端：`codex/context-runtime-benchmark` 以 `--no-ff` 合入 `main`（merge `2a764bfb`），`main` 与 `v0.4.1-bench-frozen` 已推送。合并后 `tsc --noEmit`、Vitest 135 files / 926 tests 与 Python runner 20 tests 全绿；GitHub 首页 README、三条评测链接及根目录文件列表完成浏览器验收</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>发布前门面与安全清理：根目录遗留物取消跟踪并 ignore，package description 正式化，README 中英文新增评测结果入口与六月完整报告；秘密/个人路径扫描修复 BUG-007，37 个未推送提交定向重写且冻结 tag 重建，`main` 与最终代码树不变。BUG-001/003/006/007 状态核对关案</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>CC/外部参照证据盘点完成，未新增付费 run：本地 Claude Code 2.1.153 + gpt-5.5 仅覆盖 SWE 12907/14182，merged 官方 harness 2/2，但属于 off-label 历史内部参考；未在 SWE-bench 官方 experiments 找到命名为 Claude Code 的逐题提交。Epoch 公开 Sonnet 4.6 为 `bash_agent` 而非 CC，与 Tier B 相交四题 4/4；student-agent on/off 在同四题均 3/4，差题 14365 已定位为只改 case-insensitive regex、漏改小写 `no` 的后续 masked-value 判断。故当前不能下“vs CC”胜负结论。验证：`tsc --noEmit` 通过，Vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>Tier B OpenRouter Sonnet astropy pilot 完成（commit `fa1cbdf0`，1 seed；12907/14182 off 复用 Tier A）：两臂官方 resolved 均 `4/6`。on 聚合为 `141,190 / 1,571,658 / 111`，off 为 `158,142 / 1,951,947 / 140`，trace cost `$1.8058 vs $1.9091`；但效率改善由 14995 单题主导，排除后 on 的 input/total/turns/cost 分别回涨 6.03%/14.04%/2.20%/17.94%。第 2 题起均召回 4 条，证明跨任务链路可运行，但内容主要为临时工具/环境错误，未见明确利用证据；resolved 无提升，按 ADR-002 **NO-GO 扩量**。10 个新 run 账户最终结算增量 `$2.7225`，累计 `$7.2696`，未触发熔断。收尾验证：`tsc --noEmit` 通过，Vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>OpenRouter Sonnet Tier A 重定基线完成 **4/5**（overfull deferred）：SWE 官方 harness 均 resolved。12907=`14,035 / 168,143 / 14`，`$0.21995895`，cache read 79.43%；14182=`39,355 / 486,207 / 34`，`$0.43223445`，cache read 86.85%。两题合计 trace 成本 `$0.6521934`、cache read 84.96%；OpenRouter 账户增量 `$0.5816424`，账户累计 `$4.54712565`，低于 `$5` 熔断线。直连因地区限制 403，commit `bba4011f` 增加通用 Node proxy bootstrap 后经系统代理完成；metadata 如实记录 route/model/单价/commit。有效 4 题 trace 成本合计 `$0.9569841`</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>预算重排决策：overfull 标 **deferred**（Tier A 最贵、对 Tier B GO/NO-GO 价值最低，BUG-004 已在 gpt-5.5 关案；续航哨兵实战验证顺延），优先跑 SWE 12907/14182 sonnet 基线（Tier B 直接前置，off 臂复用）。单 run 成本 &gt;$1.5 中止；预计累计 ~$4.7 守住 $5 线</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>零编辑续航哨兵完成（commit `bc036f02`）：非交互第一阶段结束后，若 `hardConstraints` 非空且 working memory `writeFiles` 仍为空，追加固定续航提示，最多 2 轮，每轮重查 `writeFiles`；JSON summary 记录 `continuationRounds`。overfull patched task 的 agent timeout 提到 2400s。预算预估：OpenRouter usage `$3.89538615`，距 `$5` 仅 `$1.1046`，而上一条 overfull 有效 agent 成本 `$1.3772`，预计单跑即可能越线，按熔断规则暂停等人工批准</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>OpenRouter key 从 `~/.student-agent/.env` 注入后重测 patched overfull：BUG-006 的 verifier 侧已修好（不再拉 astral.sh，pytest 可运行；secret env file 避免 key 出现在 compose 参数），但 overfull 两次均为 `AgentTimeoutError`，新哨兵均标 invalid（`validRewardTrials=0`）。第二次 timeout 已按 ×1.5 提到 1125s，仍在 agent 第一轮 bash 后长时间无输出，未形成有效 run；OpenRouter usage `$3.89538615`，低于 `$5`，按红线停止，不跑 SWE</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>BUG-006 代码修复完成、待回归：terminal 汇总新增 `invalid_reasons`，agent timeout 与 verifier setup failure 均标 invalid_run；新增 `prepare_terminal_bench_verifier_deps.py`，已生成本地 patched `overfull-hbox` task 与预装 `uv/uvx` 的 verifier 镜像，避免判分时访问 astral.sh。当前 shell 缺 `OPENROUTER_API_KEY`，未继续付费重测</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>渠道切换 OpenRouter sonnet-4.6（预算 $10）。cache 探针通过：prove-plus-comm reward 1.0、cache read 占比 79.49%、$0.12 → **BUG-002 关案**（OpenRouter 口径）。Tier A 重定基线进行中：fix-git 绿（$0.19）；overfull-hbox 判分无效——verifier 装 uv 失败（astral.sh SSL + uvx not found），记 **BUG-006**（verifier infra 失败应标 invalid_run，依赖需预烘焙；红线修订：infra 失败不耗重跑配额）。累计 $2.30</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>OpenRouter Sonnet cache 探针通过，BUG-002 关案：`prove-plus-comm` reward 1.0，`5,205 / 65,733 / 11`，cache read/write=`48,998 / 7,436`，cache read 占 prompt 输入 79.49%，实际成本 `$0.1196094`。逐轮 usage 显示首轮创建 cache、后续每轮读取，确认 Pi 的 Anthropic `cache_control` 经 OpenRouter 透传；run metadata 含 commit `452e46b0`、模型与 OpenRouter 单价</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>Tier A 全绿：SWE 官方 harness 12907/14182 均 resolved。12907=`425,030 / 447,385 / 16`，input 较 189k 基线上涨 124.7%，trace 归因为验证环境摩擦导致 31 次工具调用（基线 11）；14182 有效重跑=`136,215 / 148,775 / 8`，低于基线。14182 首次联合运行被外部终止并形成全仓删除式 suspicious patch，作为无效产物排除，未送判分</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-12</td>
+      <td>BUG-004 第四层关案：`SELF_CHECK_PROMPT` 增加 full-diff 穷举与机械约束脚本化原则（commit `5537d326`），gpt-5.5 overfull 3 seed 全部 verifier 4/4，三元组为 553k/675k/34、1,059k/1,219k/38、562k/631k/25；三轮自查均生成并运行 Node 校验器，实际抓出 article、跨 family 和文件尾结构违规后修复。成本显著高于 140k~177k/16~20 基线，归因为容器缺 git/python、脚本修复及真实违规返工</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>completion self-check 已实现（commit `c1d2aff9`，全量 131 files / 912 tests 通过），gpt-5.5 overfull 3 seed 均有工具取证，但仅 1/3 verifier 4/4：seed 1 `an→a`、seed 3 `natures→moods`。自查 trace 显示模型用 examples 抽查后错误声明全部满足，未做完整逐 token 对照。按失败停止规则未跑 SWE、未打 tag</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>新 key 的 gpt-5.5 overfull smoke 为有效 run（14 turns / 172,788 input），仍为 verifier 3/4：`natures→traits` 跨 family，复现最初症状；hardConstraints 已完整进入 L1，失败点收敛到“最终未运行可执行 synonym-family 校验”。按计划未继续另外两轮与 SWE，未打 tag</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>BUG-005 哨兵完成并实战验证：gpt-5.5 中转链路 3 次 agent exit 1（503）均标记 `invalid_run=true`，不计 reward，BUG-005 关案。改用 DeepSeek 官方 endpoint 做 overfull 功能回归：有效 run 的 verifier 3/4 通过，编译与 overfull 目标达成，但残留非法 `to→of`；trace 证明 L1 `hardConstraints` 已渲染且含 synonym family 约束，故 BUG-004 定位为装配已修、行为/最终验证闭环仍 OPEN。seed 2 启动后按失败即停规则终止，未计结果</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>`codex/context-runtime-benchmark` 按 11 批小步提交完成入库整理（repo ignore、非交互 context runtime、hardConstraints、verify_retry、外部 benchmark runner、fixtures、docs、CLI packaging、core/observability 支撑）；提交后完整 `npx vitest run` 通过：130 files passed / 1 skipped，909 tests passed / 1 skipped，duration 47s</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>验收发现 P2 overfull 回归为无效 run（BUG-005：provider 漂移 deepseek + 缺 key，agent 未运行）；cc-sonnet smoke ×2 errored。决策：**停止自跑 cc**，跨 agent 改引公开 leaderboard 数据（per-instance artifact 与子集求交集），matrix Tier C 已修订；sonnet 轮改为 student-agent 单边</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>Tier A 收尾 + Sonnet 锚点轮计划立项（P0 归因 → P1 Hard Constraints MVP + 政策补丁 + 基础设施固化 → P2 全量回归 → P3 tag 冻结 + sonnet），交 codex 执行</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>Tier A 结果（口径：final records 的 inputTokens/turns）：SWE 两题官方 resolved，12907 = 189k/11 calls，14182 = 189k/9 turns（政策补丁前 22 calls/493k input，降幅成立）；`verify_retry`/`patch_retry` 均 0 触发——补丁在上游消灭死磕，刹车仅有单测覆盖。Terminal：prove-plus-comm ✓、fix-git ✓（首次 verifier 被 Debian mirror 502 绊倒，重跑过）、**overfull-hbox ✗（红）**：消除 warning 但用了非法 synonym（natures→traits，跨 family）——约束跟踪失败，归因方法：查失败轮 prompt 中约束是否仍在，在=渲染问题/不在=装配问题；此为 v0.4x Requirement Ledger 的首份实证证据。首跑 401 令牌失效，fallback 渠道完成</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>Benchmark 矩阵 v1 敲定（Tier A 冒烟 / B 学习 / C 跨 agent；LoCoBench parked）；前置改动：autonomy rule 环境豁免补丁 + ToolGuard `verify_retry` 刹车</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>BUG-001 接线修复完成（codex，分支 `codex/context-runtime-benchmark`）；ON/OFF smoke 对比：token ×4~6、轮次 10→16/8→18，归因为注入的验证工作流引发&quot;较真行为&quot;+ 环境摩擦（astropy pytest warning 配置、build_ext），非上下文迷路；质量持平（题太简单）。治理方向：验证重试刹车（Bounded Breaker 用例），不减配 autonomy rule</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>旧版 TUI 与遗留物清理立项（待 benchmark 收尾后执行）</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-11</td>
+      <td>发现 benchmark 未接入 context runtime（BUG-001）；cc usage 采集修复（BUG-002）；评测口径敲定（ADR-001/002）</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-10 ~ 11</td>
+      <td>SWE/terminal-bench 对比跑分（gpt-5.5，cc vs student-agent）</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-08</td>
+      <td>v0.4 Context Runtime Freeze（batch commit `79ad7f64`，教训见 BUG-003）</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-07</td>
+      <td>v0.34 Hashline / v0.35 WM+XState / v0.36 ToolGuard</td>
+    </tr>
+    <tr>
+      <td class="date">2026-06-04 ~ 06</td>
+      <td>v0.33 TUI/Trace 稳定化；砍掉 design-study</td>
+    </tr></tbody>
+  </table>
   </div>
 </div>
 
-<nav>
-  <div class="tab active" data-panel="timeline">时间轴</div>
-  <div class="tab" data-panel="runs">Eval Runs</div>
-  <div class="tab" data-panel="bugs">Bug 档案</div>
-  <div class="tab" data-panel="adrs">ADR 决策</div>
-</nav>
-
-<div id="timeline" class="panel active">
-  <div class="tl-row tl-latest">
-    <div class="tl-left">
-      <div class="tl-dot tl-dot-active"></div>
-      <div class="tl-datebox">2026-06-13</div>
-    </div>
-    <div class="tl-card">
-      <ul class="tl-list"><li>基于 Tier B 数据完成 v0.4x 优先级重排（ADR-003）：P0 离线蒸馏化验（零成本验证 skill/knack 前提）→ P1 lesson 准入门控（batch …</li></ul>
-    </div>
-  </div>
-  <div class="tl-row">
-    <div class="tl-left">
-      <div class="tl-dot"></div>
-      <div class="tl-datebox">2026-06-12</div>
-    </div>
-    <div class="tl-card">
-      <ul class="tl-list"><li>BUG-004 第四层关案：`SELF_CHECK_PROMPT` 增加 full-diff 穷举与机械约束脚本化原则（commit `5537d326`），gpt-5.5 ove…</li><li>Tier A 全绿：SWE 官方 harness 12907/14182 均 resolved…</li><li>OpenRouter Sonnet cache 探针通过，BUG-002 关案：`prove-plus-comm` reward 1.0，`5,205 / 65,733 / 11`…</li><li>渠道切换 OpenRouter sonnet-4.6（预算 $10）…</li><li>BUG-006 代码修复完成、待回归：terminal 汇总新增 `invalid_reasons`，agent timeout 与 verifier setup failure …</li><li>OpenRouter key 从 `~/.student-agent/.env` 注入后重测 patched overfull：BUG-006 的 verifier 侧已修好（不再…</li><li>零编辑续航哨兵完成（commit `bc036f02`）：非交互第一阶段结束后，若 `hardConstraints` 非空且 working memory `writeFiles…</li><li>预算重排决策：overfull 标 **deferred**（Tier A 最贵、对 Tier B GO/NO-GO 价值最低，BUG-004 已在 gpt-5.5 关案…</li><li>OpenRouter Sonnet Tier A 重定基线完成 **4/5**（overfull deferred）：SWE 官方 harness 均 resolved…</li><li>Tier B OpenRouter Sonnet astropy pilot 完成（commit `fa1cbdf0`，1 seed…</li><li>CC/外部参照证据盘点完成，未新增付费 run：本地 Claude Code 2.1.153 + gpt-5.5 仅覆盖 SWE 12907/14182，merged 官方 har…</li><li>发布前门面与安全清理：根目录遗留物取消跟踪并 ignore，package description 正式化，README 中英文新增评测结果入口与六月完整报告…</li></ul>
-    </div>
-  </div>
-  <div class="tl-row">
-    <div class="tl-left">
-      <div class="tl-dot"></div>
-      <div class="tl-datebox">2026-06-11</div>
-    </div>
-    <div class="tl-card">
-      <ul class="tl-list"><li>发现 benchmark 未接入 context runtime（BUG-001）</li><li>旧版 TUI 与遗留物清理立项（待 benchmark 收尾后执行）</li><li>BUG-001 接线修复完成（codex，分支 `codex/context-runtime-benchmark`）…</li><li>Benchmark 矩阵 v1 敲定（Tier A 冒烟 / B 学习 / C 跨 agent…</li><li>Tier A 结果（口径：final records 的 inputTokens/turns）：SWE 两题官方 resolved，12907 = 189k/11 calls，14…</li><li>Tier A 收尾 + Sonnet 锚点轮计划立项（P0 归因 → P1 Hard Constraints MVP + 政策补丁 + 基础设施固化 → P2 全量回归 → P3 …</li><li>验收发现 P2 overfull 回归为无效 run（BUG-005：provider 漂移 deepseek + 缺 key，agent 未运行）…</li><li>`codex/context-runtime-benchmark` 按 11 批小步提交完成入库整理（repo ignore、非交互 context runtime、hardCon…</li><li>BUG-005 哨兵完成并实战验证：gpt-5.5 中转链路 3 次 agent exit 1（503）均标记 `invalid_run=true`，不计 reward，BUG-0…</li><li>新 key 的 gpt-5.5 overfull smoke 为有效 run（14 turns / 172,788 input），仍为 verifier 3/4：`natures→…</li><li>completion self-check 已实现（commit `c1d2aff9`，全量 131 files / 912 tests 通过），gpt-5.5 overfull …</li></ul>
-    </div>
-  </div>
-  <div class="tl-row">
-    <div class="tl-left">
-      <div class="tl-dot"></div>
-      <div class="tl-datebox">2026-06-10</div>
-    </div>
-    <div class="tl-card">
-      <ul class="tl-list"><li>SWE/terminal-bench 对比跑分（gpt-5.5，cc vs student-agent）</li></ul>
-    </div>
-  </div>
-  <div class="tl-row">
-    <div class="tl-left">
-      <div class="tl-dot"></div>
-      <div class="tl-datebox">2026-06-08</div>
-    </div>
-    <div class="tl-card">
-      <ul class="tl-list"><li>v0.4 Context Runtime Freeze（batch commit `79ad7f64`，教训见 BUG-003）</li></ul>
-    </div>
-  </div>
-  <div class="tl-row">
-    <div class="tl-left">
-      <div class="tl-dot"></div>
-      <div class="tl-datebox">2026-06-07</div>
-    </div>
-    <div class="tl-card">
-      <ul class="tl-list"><li>v0.34 Hashline / v0.35 WM+XState / v0.36 ToolGuard</li></ul>
-    </div>
-  </div>
-  <div class="tl-row">
-    <div class="tl-left">
-      <div class="tl-dot"></div>
-      <div class="tl-datebox">2026-06-04</div>
-    </div>
-    <div class="tl-card">
-      <ul class="tl-list"><li>v0.33 TUI/Trace 稳定化</li></ul>
-    </div>
-  </div></div>
 <div id="runs" class="panel">
-<section class="runs-section">
-  <header class="sec-head">
-    <span class="tier-chip chip-a">Tier A</span>
-    <span class="sec-title">回归冒烟</span>
-    <span class="sec-note">每次 harness 变更必跑</span>
-  </header>
-  <div class="rc-group">
-    <div class="rc-col-label">SWE-bench</div>
-    <div class="rc-grid"><div class="rc rc-nd">
-  <div class="rc-head">
-    <span class="rc-dot dot-nd">·</span>
-    <span class="rc-task">astropy-12907</span>
+  <div class="scroll-wrap">
+  <table>
+    <thead><tr><th>日期</th><th>档</th><th>任务</th><th>模型</th><th>结果</th><th>inputTokens</th><th>totalTokens</th><th>turns</th><th>cost</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  </div>
+</div>
 
+<div id="bugs" class="panel">
+  <div class="scroll-wrap">
+  <table>
+    <thead><tr><th>ID</th><th>标题</th><th>时间</th><th>状态</th><th>症状</th></tr></thead>
+    <tbody>
+    <tr>
+      <td><strong>BUG-010</strong></td>
+      <td>BUG-010</td>
+      <td>2026-07-13</td>
+      <td><span class="badge green">CLOSED</span></td>
+      <td class="small">`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。</td>
+    </tr>
+    <tr>
+      <td><strong>BUG-009</strong></td>
+      <td>BUG-009</td>
+      <td>2026-07-13</td>
+      <td><span class="badge green">CLOSED</span></td>
+      <td class="small">`npm run eval:validate` 报</td>
+    </tr>
+    <tr>
+      <td><strong>BUG-008</strong></td>
+      <td>BUG-008</td>
+      <td>2026-07-13</td>
+      <td><span class="badge green">CLOSED</span></td>
+      <td class="small">README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从</td>
+    </tr>
+    <tr>
+      <td><strong>BUG-001</strong></td>
+      <td>BUG-001</td>
+      <td>2026-06-11</td>
+      <td><span class="badge green">CLOSED</span></td>
+      <td class="small">SWE 对比 run 的 trace 中 `layers.L1/L2/L3.sectionCount = 0`、</td>
+    </tr>
+    <tr>
+      <td><strong>BUG-002</strong></td>
+      <td>BUG-002</td>
+      <td>2026-06-11</td>
+      <td><span class="badge green">CLOSED</span></td>
+      <td class="small">cc（经代理跑 gpt-5.5）的 `cacheReadTokens` 恒为 0</td>
+    </tr>
+    <tr>
+      <td><strong>BUG-003</strong></td>
+      <td>BUG-003</td>
+      <td>2026-06-08 发生</td>
+      <td><span class="badge green">CLOSED</span></td>
+      <td class="small">git log 最后的版本化提交停在 v0.36，v0.4 成果埋在</td>
+    </tr>
+    <tr>
+      <td><strong>BUG-004</strong></td>
+      <td>BUG-004</td>
+      <td>2026-06-11 18:20</td>
+      <td><span class="badge green">CLOSED</span></td>
+      <td class="small">Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了</td>
+    </tr>
+    <tr>
+      <td><strong>BUG-005</strong></td>
+      <td>BUG-005</td>
+      <td>2026-06-11 19:35 run / 验收时发现</td>
+      <td><span class="badge green">CLOSED</span></td>
+      <td class="small">`p2-overfull-hard-constraints-20260611` reward=0 看似红灯，</td>
+    </tr>
+    <tr>
+      <td><strong>BUG-006</strong></td>
+      <td>BUG-006</td>
+      <td>2026-06-12</td>
+      <td><span class="badge green">CLOSED</span></td>
+      <td class="small">overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；</td>
+    </tr>
+    <tr>
+      <td><strong>BUG-007</strong></td>
+      <td>BUG-007</td>
+      <td>2026-06-12</td>
+      <td><span class="badge red">OPEN / FIXED / FIXED-待回归 / WONTFIX</span></td>
+      <td class="small">`scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置</td>
+    </tr></tbody>
+  </table>
   </div>
-  <div class="rc-stats">
-    <span title="totalTokens">—</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">— turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.000</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-12907</span>
+</div>
 
+<div id="adrs" class="panel">
+  <div class="scroll-wrap">
+  <table>
+    <thead><tr><th>ID</th><th>标题</th><th>日期</th><th>状态</th></tr></thead>
+    <tbody>
+    <tr>
+      <td><strong>ADR-001</strong></td>
+      <td>评测口径：跨 agent 对比与自建 eval 严格分离</td>
+      <td>2026-06-11</td>
+      <td><span class="badge grey">已采纳</span></td>
+    </tr>
+    <tr>
+      <td><strong>ADR-002</strong></td>
+      <td>学习 eval：别人的题 + 自己的协议</td>
+      <td>2026-06-11</td>
+      <td><span class="badge grey">已采纳；astropy pilot 完成，扩量暂缓</span></td>
+    </tr>
+    <tr>
+      <td><strong>ADR-003</strong></td>
+      <td>v0.4x 优先级重排（基于 Tier B 数据）</td>
+      <td>2026-06-13</td>
+      <td><span class="badge grey">已采纳</span></td>
+    </tr>
+    <tr>
+      <td><strong>ADR-004</strong></td>
+      <td>Knack Schema v1（定稿）</td>
+      <td>2026-06-13</td>
+      <td><span class="badge grey">已采纳</span></td>
+    </tr>
+    <tr>
+      <td><strong>ADR-005</strong></td>
+      <td>Recall Ranking Protocol（P2）</td>
+      <td>2026-07-13</td>
+      <td><span class="badge grey">已采纳</span></td>
+    </tr></tbody>
+  </table>
   </div>
-  <div class="rc-stats">
-    <span title="totalTokens">168.1k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">14 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.220</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-14182</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">486.2k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">34 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.432</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">fix-git</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">148.8k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">18 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.185</span>
-  </div>
-</div><div class="rc rc-nd">
-  <div class="rc-head">
-    <span class="rc-dot dot-nd">·</span>
-    <span class="rc-task">overfull-hbox</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">—</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">— turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.618</span>
-  </div>
-</div><div class="rc rc-nd">
-  <div class="rc-head">
-    <span class="rc-dot dot-nd">·</span>
-    <span class="rc-task">overfull-hbox</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">—</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">— turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">—</span>
-  </div>
-</div><div class="rc rc-nd">
-  <div class="rc-head">
-    <span class="rc-dot dot-nd">·</span>
-    <span class="rc-task">overfull-hbox</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">—</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">— turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">—</span>
-  </div>
-</div><div class="rc rc-nd">
-  <div class="rc-head">
-    <span class="rc-dot dot-nd">·</span>
-    <span class="rc-task">overfull-hbox</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">—</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">— turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">—</span>
-  </div>
-</div></div>
-  </div>
-  <div class="rc-group">
-    <div class="rc-col-label">Terminal-bench</div>
-    <div class="rc-grid"><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">Terminal</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">65.7k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">11 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.120</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">fix-git</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">148.8k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">18 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.185</span>
-  </div>
-</div><div class="rc rc-nd">
-  <div class="rc-head">
-    <span class="rc-dot dot-nd">·</span>
-    <span class="rc-task">overfull-hbox</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">—</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">— turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.618</span>
-  </div>
-</div><div class="rc rc-nd">
-  <div class="rc-head">
-    <span class="rc-dot dot-nd">·</span>
-    <span class="rc-task">overfull-hbox</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">—</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">— turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">—</span>
-  </div>
-</div><div class="rc rc-nd">
-  <div class="rc-head">
-    <span class="rc-dot dot-nd">·</span>
-    <span class="rc-task">overfull-hbox</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">—</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">— turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">—</span>
-  </div>
-</div><div class="rc rc-nd">
-  <div class="rc-head">
-    <span class="rc-dot dot-nd">·</span>
-    <span class="rc-task">overfull-hbox</span>
-
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">—</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">— turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">—</span>
-  </div>
-</div></div>
-  </div>
-</section>
-
-<section class="runs-section">
-  <header class="sec-head">
-    <span class="tier-chip chip-b">Tier B</span>
-    <span class="sec-title">学习 eval — memory on vs off</span>
-    <span class="sec-note">on 6/6 resolved　·　off 4/4 resolved</span>
-  </header>
-  <div class="tier-b-grid">
-    <div class="rc-group">
-      <div class="rc-col-label on-label">memory ON</div>
-      <div class="rc-grid"><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-12907</span>
-    <span class="arm-badge arm-on">on</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">171.4k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">13 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.212</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-14182</span>
-    <span class="arm-badge arm-on">on</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">501.0k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">30 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.595</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-14365</span>
-    <span class="arm-badge arm-on">on</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">186.5k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">12 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.204</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-14995</span>
-    <span class="arm-badge arm-on">on</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">223.8k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">18 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.250</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-6938</span>
-    <span class="arm-badge arm-on">on</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">123.6k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">14 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.137</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-7746</span>
-    <span class="arm-badge arm-on">on</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">365.4k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">24 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.408</span>
-  </div>
-</div></div>
-    </div>
-    <div class="rc-group">
-      <div class="rc-col-label off-label">memory OFF</div>
-      <div class="rc-grid"><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-14365</span>
-    <span class="arm-badge arm-off">off</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">165.7k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">12 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.215</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-14995</span>
-    <span class="arm-badge arm-off">off</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">770.0k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">49 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.590</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-6938</span>
-    <span class="arm-badge arm-off">off</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">86.8k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">11 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.119</span>
-  </div>
-</div><div class="rc rc-pass">
-  <div class="rc-head">
-    <span class="rc-dot dot-pass"></span>
-    <span class="rc-task">astropy-7746</span>
-    <span class="arm-badge arm-off">off</span>
-  </div>
-  <div class="rc-stats">
-    <span title="totalTokens">275.1k</span>
-    <span class="rc-sep">·</span>
-    <span title="turns">20 turns</span>
-    <span class="rc-sep">·</span>
-    <span title="cost" class="rc-cost">$0.333</span>
-  </div>
-</div></div>
-    </div>
-  </div>
-</section>
-<div class="mini-chart-wrap">
-  <div class="mini-chart-label">近期 run 成本</div>
-  <svg width="288" height="52" viewBox="0 0 288 52" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="2" width="20" height="46" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-14995: $0.590</title><rect x="24" y="39" width="20" height="9" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-6938: $0.119</title><rect x="48" y="22" width="20" height="26" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-7746: $0.333</title><rect x="72" y="32" width="20" height="16" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-12907: $0.212</title><rect x="96" y="2" width="20" height="46" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-14182: $0.595</title><rect x="120" y="32" width="20" height="16" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-14365: $0.204</title><rect x="144" y="29" width="20" height="19" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-14995: $0.250</title><rect x="168" y="37" width="20" height="11" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-6938: $0.137</title><rect x="192" y="16" width="20" height="32" fill="#8b5cf6" rx="3" opacity="0.85"/><title>astropy-7746: $0.408</title><rect x="216" y="39" width="20" height="9" fill="#374151" rx="3" opacity="0.85"/><title>undefined: $0.120</title><rect x="240" y="34" width="20" height="14" fill="#3b82f6" rx="3" opacity="0.85"/><title>fix-git: $0.185</title><rect x="264" y="0" width="20" height="48" fill="#3b82f6" rx="3" opacity="0.85"/><title>overfull-hbox: $0.618</title></svg>
-  <div class="mini-chart-legend"><span class="dot-blue"></span>Tier A　<span class="dot-purple"></span>Tier B</div>
-</div></div>
-<div id="bugs" class="panel"><div class="bugs-grid"><div class="bug-card bc-closed">
-  <div class="bug-top">
-    <span class="bug-id">BUG-001</span>
-    <span class="bug-dot bdot-closed"></span>
-    <span class="bug-status-text">CLOSED</span>
-  </div>
-  <div class="bug-title">BUG-001</div>
-  <div class="bug-cause">`runNonInteractive` 从未在 TasksManager 创建 task；</div>
-  <div class="bug-date">2026-06-11</div>
-</div><div class="bug-card bc-closed">
-  <div class="bug-top">
-    <span class="bug-id">BUG-002</span>
-    <span class="bug-dot bdot-closed"></span>
-    <span class="bug-status-text">CLOSED</span>
-  </div>
-  <div class="bug-title">BUG-002</div>
-  <div class="bug-cause">`usageFromClaudeJson` 只解析 Anthropic 字段</div>
-  <div class="bug-date">2026-06-11</div>
-</div><div class="bug-card bc-closed">
-  <div class="bug-top">
-    <span class="bug-id">BUG-003</span>
-    <span class="bug-dot bdot-closed"></span>
-    <span class="bug-status-text">CLOSED</span>
-  </div>
-  <div class="bug-title">BUG-003</div>
-  <div class="bug-cause">赶进度时档案流程停摆（本方法论的已知失败模式）。</div>
-  <div class="bug-date">2026-06-08 发生</div>
-</div><div class="bug-card bc-closed">
-  <div class="bug-top">
-    <span class="bug-id">BUG-004</span>
-    <span class="bug-dot bdot-closed"></span>
-    <span class="bug-status-text">CLOSED</span>
-  </div>
-  <div class="bug-title">BUG-004</div>
-  <div class="bug-cause">归因已推进三层。第一层是原始失败 run 未把完整约束保留到</div>
-  <div class="bug-date">2026-06-11 18:20</div>
-</div><div class="bug-card bc-closed">
-  <div class="bug-top">
-    <span class="bug-id">BUG-005</span>
-    <span class="bug-dot bdot-closed"></span>
-    <span class="bug-status-text">CLOSED</span>
-  </div>
-  <div class="bug-title">BUG-005</div>
-  <div class="bug-cause">run 配置漂移到 `student-agent__deepseek-v4-pro`，违反矩阵</div>
-  <div class="bug-date">2026-06-11 19:35 run / 验收时发现</div>
-</div><div class="bug-card bc-closed">
-  <div class="bug-top">
-    <span class="bug-id">BUG-006</span>
-    <span class="bug-dot bdot-closed"></span>
-    <span class="bug-status-text">CLOSED</span>
-  </div>
-  <div class="bug-title">BUG-006</div>
-  <div class="bug-cause">① verifier 运行时从网络安装 uv，受限网络下必败；</div>
-  <div class="bug-date">2026-06-12</div>
-</div><div class="bug-card bc-open">
-  <div class="bug-top">
-    <span class="bug-id">BUG-007</span>
-    <span class="bug-dot bdot-open"></span>
-    <span class="bug-status-text">OPEN / FIXED / FIXED-待回归 / WONTFIX</span>
-  </div>
-  <div class="bug-title">BUG-007</div>
-  <div class="bug-cause">一次性连通性探针被当作通用 eval 脚本提交，缺少</div>
-  <div class="bug-date">2026-06-12</div>
-</div></div></div>
-<div id="adrs" class="panel"><div class="adrs-list"><div class="adr-card">
-  <div class="adr-left">
-    <div class="adr-id">ADR-001</div>
-    <div class="adr-status">已采纳</div>
-  </div>
-  <div class="adr-body">
-    <div class="adr-title">评测口径：跨 agent 对比与自建 eval 严格分离</div>
-    <div class="adr-summary">跨 agent 对比（vs claude-code / opencode 等）只使用公开 benchmark</div>
-  </div>
-  <div class="adr-date">2026-06-11</div>
-</div><div class="adr-card">
-  <div class="adr-left">
-    <div class="adr-id">ADR-002</div>
-    <div class="adr-status">已采纳；astropy pilot 完成，扩量暂缓</div>
-  </div>
-  <div class="adr-body">
-    <div class="adr-title">学习 eval：别人的题 + 自己的协议</div>
-    <div class="adr-summary">学习曲线评测采用"外部任务 + 自有协议"：从 SWE-bench 选取**同一仓库**</div>
-  </div>
-  <div class="adr-date">2026-06-11</div>
-</div><div class="adr-card">
-  <div class="adr-left">
-    <div class="adr-id">ADR-003</div>
-    <div class="adr-status">已采纳</div>
-  </div>
-  <div class="adr-body">
-    <div class="adr-title">v0.4x 优先级重排（基于 Tier B 数据）</div>
-
-  </div>
-  <div class="adr-date">2026-06-13</div>
-</div></div></div>
+</div>
 
 <script>
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab,.panel').forEach(el => el.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById(tab.dataset.panel).classList.add('active');
-  });
-});
+function showTab(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
 </script>
 </body>
 </html>

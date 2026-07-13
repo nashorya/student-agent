@@ -4,8 +4,14 @@ import { createEvalSandbox, runSolution, runVerifier } from '../src/evals/sandbo
 async function main(): Promise<void> {
   const tasks = await loadEvalTasks();
   const results: Array<{ id: string; initial: number; solution?: number }> = [];
+  const skipped: Array<{ id: string; reason: string }> = [];
 
   for (const task of tasks) {
+    if (!task.solutionScriptPath) {
+      skipped.push({ id: task.id, reason: 'no_reference_solution' });
+      continue;
+    }
+
     const initialSandbox = await createEvalSandbox(task);
     try {
       const initial = await runVerifier(task, initialSandbox);
@@ -17,28 +23,28 @@ async function main(): Promise<void> {
       await initialSandbox.cleanup();
     }
 
-    if (task.solutionScriptPath) {
-      const solutionSandbox = await createEvalSandbox(task);
-      try {
-        const solutionRun = await runSolution(task, solutionSandbox);
-        if (solutionRun.exitCode !== 0) {
-          throw new Error(`${task.id}: solution exited ${solutionRun.exitCode}\n${solutionRun.stderr}`);
-        }
-        const verified = await runVerifier(task, solutionSandbox);
-        if (verified.correctnessScore < 1) {
-          throw new Error(`${task.id}: solution verifier score ${verified.correctnessScore}\n${verified.stdout}\n${verified.stderr}`);
-        }
-        const row = results.find((item) => item.id === task.id);
-        if (row) row.solution = verified.correctnessScore;
-      } finally {
-        await solutionSandbox.cleanup();
+    const solutionSandbox = await createEvalSandbox(task);
+    try {
+      const solutionRun = await runSolution(task, solutionSandbox);
+      if (solutionRun.exitCode !== 0) {
+        throw new Error(`${task.id}: solution exited ${solutionRun.exitCode}\n${solutionRun.stderr}`);
       }
+      const verified = await runVerifier(task, solutionSandbox);
+      if (verified.correctnessScore < 1) {
+        throw new Error(`${task.id}: solution verifier score ${verified.correctnessScore}\n${verified.stdout}\n${verified.stderr}`);
+      }
+      const row = results.find((item) => item.id === task.id);
+      if (row) row.solution = verified.correctnessScore;
+    } finally {
+      await solutionSandbox.cleanup();
     }
   }
 
   console.log(JSON.stringify({
     ok: true,
     task_count: tasks.length,
+    validated_task_count: results.length,
+    skipped,
     results,
   }, null, 2));
 }

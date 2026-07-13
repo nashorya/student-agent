@@ -117,4 +117,4 @@ P0 离线蒸馏（`evals/distillation/candidate-knacks.json`）产出 6 条 veri
 
 - 前置：[ADR-003](ADR-003-v04x-priority-reorder.md)（P0 验收）
 - 实现：`scripts/distill-knacks.ts`、`evals/distillation/candidate-knacks.json`
-- 下一个：ADR-005（P2 召回排序正式协议，待 P1 稳定后写）
+- 下一个：[ADR-005](ADR-005-recall-ranking-protocol.md)（P2 召回排序正式协议，已采纳）

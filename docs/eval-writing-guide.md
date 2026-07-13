@@ -99,6 +99,11 @@ alternative-valid solution→ PASS
 exploit attempts          → FAIL
 ```
 
+`npm run eval:validate` 只执行带 `solution/solve.sh` 的 oracle-backed fixture。
+没有 reference solution、由外部 session/metric scorer 判分的 imported smoke task
+只接受 schema/文件完整性检查，不得伪装成满足 initial FAIL → oracle PASS 的
+deterministic correctness fixture。
+
 常见 exploit 包括：只创建标志文件、伪造 reward、读取 tests/solution、利用上轮残留
 状态、输出固定 success 字符串，以及用等价格式绕过脆弱字符串匹配。
 

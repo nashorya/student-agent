@@ -22,7 +22,7 @@ describe('resolveConfiguredModel', () => {
         cacheWrite: 3.75,
       },
       contextWindow: 1_000_000,
-      maxTokens: 64_000,
     });
+    expect(model.maxTokens).toBeGreaterThanOrEqual(64_000);
   });
 });

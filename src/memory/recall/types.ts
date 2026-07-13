@@ -60,6 +60,7 @@ export interface RecallRouterInput {
   taskId: string;
   currentTaskId?: string;
   currentRunId?: string;
+  repository?: string;
   excludeRunIds?: string[];
   excludeTaskIds?: string[];
   tier?: L1Tier;
@@ -120,6 +121,13 @@ export interface RecallableMemoryItem {
     createdAt?: string;
     updatedAt?: string;
     evidenceRefs?: string[];
+    repo?: string;
+    symptom?: string;
+    fixSummary?: string;
+    reuseCount?: number;
+    injectedCount?: number;
+    lastSucceededTask?: string | null;
+    lastInjectedTask?: string | null;
   };
   payload: unknown;
 }
@@ -127,6 +135,20 @@ export interface RecallableMemoryItem {
 export interface MemoryRecallResult {
   item: RecallableMemoryItem;
   score: RecallScore;
+  ranking?: KnackRankingDiagnostics;
+}
+
+export type RecallSimilaritySource = 'embedding' | 'lexical';
+
+export interface KnackRankingDiagnostics {
+  repoMatch: boolean;
+  similarity: number;
+  similaritySource: RecallSimilaritySource;
+  reuseCount: number;
+  confidence: number;
+  antiRepeat: number;
+  eligible: boolean;
+  rankReason: string;
 }
 
 export interface RecalledItem {
@@ -136,6 +158,7 @@ export interface RecalledItem {
   summary: string;
   reason: string;
   score: RecallScore;
+  ranking?: KnackRankingDiagnostics;
 }
 
 export interface RecallBundle {
@@ -158,6 +181,12 @@ export interface RecallBundle {
       severity?: 'hard' | 'soft';
       multiplier?: number;
     }>;
+    candidatePool?: {
+      scanned: number;
+      eligibleKnacks: number;
+      truncated: number;
+      limit: number;
+    };
   };
 }
 

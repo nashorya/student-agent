@@ -27,4 +27,15 @@ describe('eval task loader', () => {
     expect(tasks.map((task) => task.id)).toContain('long-context-maintenance');
     expect(tasks.every((task) => task.expectedFiles.length > 0)).toBe(true);
   });
+
+  it('keeps session-scored smoke tasks outside oracle-backed fixture validation', async () => {
+    const tasks = await loadEvalTasks();
+    const tasksWithoutReferenceSolutions = tasks.filter((task) => !task.solutionScriptPath);
+
+    expect(tasksWithoutReferenceSolutions).toHaveLength(1);
+    expect(tasksWithoutReferenceSolutions[0]).toMatchObject({
+      id: 'locobench-agent-c_api_gateway_easy_009_architectural_understanding_expert_01',
+      tags: expect.arrayContaining(['locobench-agent']),
+    });
+  });
 });

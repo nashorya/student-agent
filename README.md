@@ -75,13 +75,10 @@ every run traceable to commit + model + pricing. June 2026 highlights:
 git clone https://github.com/nashorya/student-agent.git
 cd student-agent
 
-# 2. Clone the pi-mono dependency (required)
-git clone https://github.com/badlogic/pi-mono pi-mono
-
-# 3. Install dependencies
+# 2. Install dependencies (the pi SDK is pinned to reproducible npm packages)
 npm install
 
-# 4. Configure environment, or let first-run setup guide you
+# 3. Configure environment, or let first-run setup guide you
 cp .env.example .env
 # Edit .env, or run npm run dev and follow the setup prompts
 ```
@@ -161,7 +158,7 @@ npx playwright install chromium
 | Layer | Choice | Version | Reason |
 |---|---|---|---|
 | Runtime | Node.js / TypeScript | 20+ / 5.x | Consistent with existing toolchain |
-| Base framework | [pi (badlogic/pi-mono)](https://github.com/badlogic/pi-mono) | local | CLI REPL, tool dispatch, MCP client skeleton |
+| Base framework | [pi](https://github.com/badlogic/pi-mono) | 0.73.1 (pinned npm packages) | CLI REPL, tool dispatch, MCP client skeleton |
 | LLM runtime | Pi SDK model registry | configurable | Uses Pi's `Model<Api>` registry; supports Anthropic and OpenAI-compatible providers. |
 | Vector store | sqlite-vec | 0.1.9 | Zero dependencies, precompiled binary, cross-platform |
 | MCP | @modelcontextprotocol/sdk | — | Standard protocol; Context7 and Web Search plug in directly |

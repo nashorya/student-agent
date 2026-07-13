@@ -29,9 +29,9 @@
   },
   "dependencies": {
     "@earendil-works/pi-tui": "^0.78.1",
-    "@mariozechner/pi-agent-core": "file:./pi-mono/packages/agent",
-    "@mariozechner/pi-ai": "file:./pi-mono/packages/ai",
-    "@mariozechner/pi-coding-agent": "file:./pi-mono/packages/coding-agent",
+    "@mariozechner/pi-agent-core": "0.73.1",
+    "@mariozechner/pi-ai": "0.73.1",
+    "@mariozechner/pi-coding-agent": "0.73.1",
     "@mozilla/readability": "^0.6.0",
     "@oh-my-pi/hashline": "^15.9.67",
     "@opentui/core": "^0.3.2",
@@ -60,7 +60,7 @@
     "@types/turndown": "^5.0.6",
     "ts-node": "^10.9.0",
     "typescript": "^5.0.0",
-    "vitest": "^2.0.0",
+    "vitest": "4.1.10",
     "xxhash": "^0.3.0"
   }
 }

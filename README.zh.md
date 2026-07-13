@@ -66,13 +66,10 @@ commit + 模型 + 单价。2026 年 6 月要点：
 git clone https://github.com/nashorya/student-agent.git
 cd student-agent
 
-# 2. 克隆 pi-mono 依赖（必须）
-git clone https://github.com/badlogic/pi-mono pi-mono
-
-# 3. 安装依赖
+# 2. 安装依赖（pi SDK 已锁定为可复现的 npm 版本）
 npm install
 
-# 4. 配置环境变量，或首次启动时按引导完成设置
+# 3. 配置环境变量，或首次启动时按引导完成设置
 cp .env.example .env
 # 编辑 .env，或运行 npm run dev 后按提示选择 provider/model
 ```
@@ -152,7 +149,7 @@ npx playwright install chromium
 | 层 | 选型 | 版本 | 说明 |
 |---|---|---|---|
 | 运行时 | Node.js / TypeScript | 20+ / 5.x | 与现有工具链一致 |
-| 基础框架 | [pi (badlogic/pi-mono)](https://github.com/badlogic/pi-mono) | local | CLI REPL、工具调用、MCP Client 骨架 |
+| 基础框架 | [pi](https://github.com/badlogic/pi-mono) | 0.73.1（npm 锁定） | CLI REPL、工具调用、MCP Client 骨架 |
 | LLM 运行时 | Pi SDK model registry | 可配置 | 使用 Pi 的 `Model<Api>` registry，支持 Anthropic 和 OpenAI 兼容 provider。 |
 | 向量存储 | sqlite-vec | 0.1.9 | 零依赖，预编译二进制，跨平台 |
 | MCP | @modelcontextprotocol/sdk | — | 标准协议；Context7、Web Search 直接接入 |

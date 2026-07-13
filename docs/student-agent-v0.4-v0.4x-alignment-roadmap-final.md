@@ -1673,6 +1673,156 @@ tool error 发生前，是否已经召回相关 knack。
 
 ---
 
+### v0.4x-H: Project Development Archive + Human Dashboard
+
+目标：让 Student-agent 在它工作的**每个目标项目**中发现、初始化并持续维护项目级
+INDEX、ADR、buglog 和人类可读 HTML dashboard，而不是只在 student-agent 自己的
+仓库中维护开发档案。
+
+本仓库现有的 `docs/INDEX.md`、`docs/buglog.md`、`docs/adr/` 和
+`scripts/build-dashboard.ts` 只作为 reference implementation，不是唯一支持的目录结构。
+
+#### Project archive discovery
+
+进入目标仓库时按以下优先级解析档案位置：
+
+1. 项目配置显式声明，例如 `.student-agent.json` 的 `archive` 配置；
+2. 采用项目已有约定，例如 `docs/adr/`、`docs/decisions/`、`docs/buglog.md`；
+3. 若项目没有档案结构，默认初始化：
+
+```text
+docs/agent/
+  INDEX.md
+  buglog.md
+  adr/
+    ADR-001-*.md
+  dashboard.html        # generated，不手工编辑
+```
+
+初始化必须是显式操作或由项目规则允许，不能在普通问答时擅自向目标仓库增加 docs。
+
+#### Archive trigger policy
+
+Student-agent 不应为每个小修改写档案，只在出现稳定项目知识时维护：
+
+| 事件 | 档案动作 |
+|---|---|
+| 存在多个可行方案并作出长期架构选择 | 创建/更新 ADR |
+| 发现可复现缺陷 | 创建 OPEN bug entry |
+| 根因得到证据 | 向 bug entry 追加 root cause |
+| 修复且 targeted verification 通过 | 更新 bug 状态并绑定验证证据 |
+| 版本、里程碑、重要功能或关键回归完成 | 向 INDEX 追加时间轴条目 |
+| 任务只是文案、小配置或无长期价值的一次性操作 | 不写档案 |
+
+ADR 的 `accepted` 必须来自用户明确决策、项目既有决策或已批准计划；Agent 可以自动创建
+`proposed` ADR，但不能把自己的偏好伪装成已采纳决策。
+
+#### Task lifecycle integration
+
+```text
+Project Bootstrap
+→ 发现 archive policy 和已有 INDEX/ADR/buglog
+→ 将相关条目加入 Project Snapshot / task context
+
+Task executing
+→ 发现 bug 或架构决策时记录 pending archive action
+
+Technical verification
+→ 将 test/build/eval/diff evidence 绑定到 pending entry
+
+Task completion
+→ 原子更新 canonical Markdown
+→ 校验 ID、状态、链接和证据
+→ 重新生成 project dashboard.html
+→ final summary 报告新增/更新了哪些档案
+```
+
+档案维护失败不应让已经正确完成的低风险代码任务无限卡住：内容冲突或 parser failure
+记录为 archive warning；只有会造成历史覆盖、错误关闭 bug 或破坏现有档案时才阻塞完成。
+
+#### Student-agent commands and tools
+
+命令必须与目标项目使用的语言和 package manager 无关：
+
+```text
+/archive status
+/archive init
+/archive check
+/archive build
+/archive adr new <title>
+/archive bug open <title>
+/archive bug update <id>
+```
+
+内部工具建议：
+
+```text
+ArchiveDiscover
+ArchiveRead
+ArchiveAppendTimeline
+ArchiveCreateAdr
+ArchiveUpdateBug
+ArchiveValidate
+ArchiveRenderHtml
+```
+
+写操作继续经过 FileGuard、RiskGuard、SnapshotManager 和 WriteQueue；不得使用独立旁路写文件。
+
+#### Canonical data and HTML view
+
+1. **Markdown canonical，HTML derived**：Markdown 可 review、diff、merge；HTML 不接受手工编辑。
+2. **采用而非覆盖**：目标项目已有 ADR/bug 模板时，先解析并遵循现有格式。
+3. **历史不可静默改写**：关闭 bug、supersede ADR 和修订决策以追加记录完成。
+4. **跨链接**：INDEX、ADR、bug、任务、commit、验证证据相互可导航。
+5. **静态 HTML**：无服务端、无数据库、无需目标项目安装前端工具链。
+
+每个项目的 HTML 至少提供：
+
+```text
+- Overview：项目档案统计、当前 OPEN bugs、最近决策和 next action
+- Timeline：版本、里程碑、commit、关联 ADR/BUG/task
+- Bugs：状态/严重度/模块筛选，展开症状、根因、修复、遗留和验证
+- ADRs：proposed/accepted/superseded 状态、替代方案、后果和实现链接
+- Verification：最近 build/test/eval evidence，不把 Agent 声明当事实
+- Search：按 ID、模块、文件和关键词过滤
+```
+
+#### Validation
+
+`ArchiveValidate` 至少验证：
+
+- ADR/BUG ID 唯一，新增 ID 不覆盖历史文件；
+- 必填字段和状态值合法；
+- accepted ADR 有决策来源；
+- CLOSED/FIXED bug 有修复或处置证据；
+- INDEX、ADR、bug 和 evidence 内部链接存在；
+- dashboard 与 canonical sources 的条目数量和状态一致；
+- HTML 正确转义项目内容，不能把日志/issue 文本注入可执行脚本；
+- 同一次 task completion 重试是幂等的，不重复追加时间轴和 bug 状态。
+
+Acceptance：
+
+```text
+- Student-agent 能在非 Node 项目中初始化并维护默认 archive
+- 能采用一个已有自定义 ADR 目录，而不是强制迁移格式
+- 修复任务可自动完成 OPEN → root cause → FIXED/CLOSED 的证据链
+- 架构任务可生成 proposed ADR，并在用户批准后更新为 accepted
+- 任务恢复后不会重复创建同一 ADR/BUG/INDEX entry
+- Markdown 与 HTML 数量、状态和链接一致
+- dashboard 在 500 ADR + 1000 bug + 5000 timeline entries 下仍能离线打开和搜索
+- archive check + HTML build 在普通项目规模下目标 < 2 秒
+```
+
+Non-goal：
+
+- 不把 HTML 变成第二套编辑器或事实存储；
+- 不要求所有目标项目采用相同 Markdown 模板；
+- 不自动批准架构决策；
+- 不为普通档案更新启动 ralplan、Team 或多 Reviewer；
+- 不把一次性调试日志全部写进长期项目档案。
+
+---
+
 ## 5. v0.4x-late / v0.5: Resource Evolution
 
 ### 5.1 Autogenesis Conclusion
@@ -2135,6 +2285,7 @@ Turn Intake temperature ≈ 0.
 11. Project Bootstrap
 12. AgentResource registry
 13. CommitGate MVP
+14. Project Development Archive + Human Dashboard
 ```
 
 ### P3: 暂缓（v0.5+）
@@ -2191,6 +2342,7 @@ Turn Intake temperature ≈ 0.
   Small Eval Sets
   Project Bootstrap
   AgentResource registry + CommitGate
+  Project Development Archive + Human Dashboard
 ```
 
 ### v0.5: Resource Evolution

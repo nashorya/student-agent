@@ -61,6 +61,8 @@ ephemeral note，不归档、不跨任务传播。
 
 ### P2 · 召回排序去 recency 偏置
 
+**状态**：已实现，正式协议见 [ADR-005](ADR-005-recall-ranking-protocol.md)。
+
 **做什么**：当前召回按时间序取最近 N 条；改为按相关性（仓库 + 症状 embedding
 相似度）排序，recency 降权为 tiebreaker。
 

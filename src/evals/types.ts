@@ -104,6 +104,16 @@ export interface EvalRecallTrace {
     summary: string;
     reason: string;
     score: number;
+    ranking?: {
+      repoMatch: boolean;
+      similarity: number;
+      similaritySource: 'embedding' | 'lexical';
+      reuseCount: number;
+      confidence: number;
+      antiRepeat: number;
+      eligible: boolean;
+      rankReason: string;
+    };
   }>;
   diagnostics: {
     queryText: string;
@@ -117,6 +127,12 @@ export interface EvalRecallTrace {
       severity?: 'hard' | 'soft';
       multiplier?: number;
     }>;
+    candidatePool?: {
+      scanned: number;
+      eligibleKnacks: number;
+      truncated: number;
+      limit: number;
+    };
   };
 }
 
