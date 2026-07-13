@@ -15,6 +15,10 @@ export interface AblationRunMetrics {
   repeated_tool_call_count: number;
   run_duration_ms: number;
   trace_event_count: number;
+  recall_injection_rate: number;
+  recall_utilization_rate: number;
+  invalid_recall_citation_rate: number;
+  cited_and_verified_rate: number;
 }
 
 export type AblationMetricName = keyof AblationRunMetrics;
@@ -52,6 +56,8 @@ const SINGLE_COMPONENT_CONFIGS: AblationConfigName[] = [
 
 export function extractAblationRunMetrics(input: AblationRunMetricInput): AblationRunMetrics {
   const verifierPassed = input.verifierPassed ?? (input.outcome.status === 'success');
+  const audit = input.outcome.recallAudit;
+  const citedCount = audit?.cited_recall_ids.length ?? 0;
   return {
     task_success_rate: input.outcome.status === 'success' ? 1 : 0,
     verified_pass_rate: verifierPassed ? 1 : 0,
@@ -66,6 +72,12 @@ export function extractAblationRunMetrics(input: AblationRunMetricInput): Ablati
     repeated_tool_call_count: input.outcome.repeatedToolCallCount,
     run_duration_ms: input.runDurationMs ?? 0,
     trace_event_count: input.events.length,
+    recall_injection_rate: (audit?.injected_recall_ids.length ?? 0) > 0 ? 1 : 0,
+    recall_utilization_rate: audit?.utilization_rate ?? 0,
+    invalid_recall_citation_rate: citedCount === 0
+      ? 0
+      : (audit?.invalid_recall_ids.length ?? 0) / citedCount,
+    cited_and_verified_rate: verifierPassed && (audit?.used_recall_ids.length ?? 0) > 0 ? 1 : 0,
   };
 }
 
@@ -147,6 +159,10 @@ function zeroMetrics(): AblationRunMetrics {
     repeated_tool_call_count: 0,
     run_duration_ms: 0,
     trace_event_count: 0,
+    recall_injection_rate: 0,
+    recall_utilization_rate: 0,
+    invalid_recall_citation_rate: 0,
+    cited_and_verified_rate: 0,
   };
 }
 

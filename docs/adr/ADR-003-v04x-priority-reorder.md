@@ -71,6 +71,8 @@ ephemeral note，不归档、不跨任务传播。
 
 ### P3 · 利用可观测（recall citation）
 
+**状态**：已实现，正式协议见 [ADR-006](ADR-006-recall-citation-and-credit.md)。
+
 **做什么**：agent 在引用 lesson/knack 时，在 trace 里留 citation 标记
 （`used_recall_ids: ["knack-xxx"]`）；harness 统计"召回但未引用"
 vs "召回且引用"，作为下一轮 eval 的二级指标。

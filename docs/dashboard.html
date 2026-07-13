@@ -53,7 +53,7 @@
 <header>
   <h1>student-agent</h1>
   <span>开发仪表盘</span>
-  <span class="sub">生成于 2026-07-13 08:23　·　数据源：docs/ + evals/results/</span>
+  <span class="sub">生成于 2026-07-13 09:42　·　数据源：docs/ + evals/results/</span>
 </header>
 
 <div class="stats">
@@ -61,15 +61,15 @@
   <div class="stat"><div class="val" style="color:var(--green)">—</div><div class="lbl">有效 run 通过率</div></div>
   <div class="stat"><div class="val">$0.00</div><div class="lbl">累计花费</div></div>
   <div class="stat"><div class="val" style="color:var(--red)">1</div><div class="lbl">OPEN bug</div></div>
-  <div class="stat"><div class="val">5</div><div class="lbl">ADR 决策</div></div>
-  <div class="stat"><div class="val">35</div><div class="lbl">时间轴条目</div></div>
+  <div class="stat"><div class="val">6</div><div class="lbl">ADR 决策</div></div>
+  <div class="stat"><div class="val">36</div><div class="lbl">时间轴条目</div></div>
 </div>
 
 <div class="tabs">
   <div class="tab active" onclick="showTab('timeline')">时间轴</div>
   <div class="tab" onclick="showTab('runs')">Eval Runs <span style="color:var(--muted);font-size:11px">(0)</span></div>
   <div class="tab" onclick="showTab('bugs')">Bug 档案 <span style="color:var(--muted);font-size:11px">(10)</span></div>
-  <div class="tab" onclick="showTab('adrs')">决策 ADR <span style="color:var(--muted);font-size:11px">(5)</span></div>
+  <div class="tab" onclick="showTab('adrs')">决策 ADR <span style="color:var(--muted);font-size:11px">(6)</span></div>
 </div>
 
 <div id="timeline" class="panel active">
@@ -77,6 +77,10 @@
   <table>
     <thead><tr><th>日期</th><th>事件</th></tr></thead>
     <tbody>
+    <tr>
+      <td class="date">2026-07-13</td>
+      <td>ADR-003 P3 / ADR-006 实现：eval-mode prompt 暴露稳定 recall ID；assistant marker 按 message/context allowlist 校验并从最终输出清除；trace、events、outcome 记录 `used_recall_ids`；只有 valid citation + verifier/harness passed 才幂等增加 reuseCount。新增 SWE 延迟 reconciliation 命令与 recall utilization 指标，自动 deprecated 继续冻结等待真实数据校准</td>
+    </tr>
     <tr>
       <td class="date">2026-07-13</td>
       <td>ADR-003 P2 / ADR-005 实现：distilled knack 运行时字段完整保留并可 upsert；召回改为 repository/symptom eligibility 后按 reuse、confidence、repo、semantic similarity、anti-repeat 稳定排序；embedding 失败确定性降级 lexical；候选池从旧全局 top-8 分离为 bounded 64，standard top-3/heavy top-5 不扩容；注入按 task/run 幂等计数。6938/12907 shaped fixtures 均进入 standard top-3</td>
@@ -341,6 +345,12 @@
     <tr>
       <td><strong>ADR-005</strong></td>
       <td>Recall Ranking Protocol（P2）</td>
+      <td>2026-07-13</td>
+      <td><span class="badge grey">已采纳</span></td>
+    </tr>
+    <tr>
+      <td><strong>ADR-006</strong></td>
+      <td>Recall Citation 与成功归因</td>
       <td>2026-07-13</td>
       <td><span class="badge grey">已采纳</span></td>
     </tr></tbody>

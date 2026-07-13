@@ -199,6 +199,7 @@ export interface StudentAgentEvalTrace {
   usageEvents?: EvalTokenUsageEvent[];
   piSchemaTrace?: EvalPiSchemaTrace;
   contextAssemblyTraces?: EvalContextAssemblyTrace[];
+  recallAudit?: import('../memory/recall/citation.js').RecallCitationAudit;
   contextTokenEffect?: EvalContextTokenEffect;
   model?: EvalModelTrace;
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
@@ -262,6 +263,7 @@ export interface EvalRunRecord {
   score: TraceScore;
   changedFiles: string[];
   modifiedFiles: Record<string, string>;
+  recallAttribution?: import('./recall-credit-reconciler.js').RecallAttributionResult;
 }
 
 /**

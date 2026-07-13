@@ -17,6 +17,7 @@
     "eval:terminal-bench": "npx tsx scripts/eval-terminal-bench.ts",
     "eval:swebench": "npx tsx scripts/eval-swebench.ts",
     "eval:swebench:produce": "npx tsx scripts/eval-swebench-produce.ts",
+    "eval:recall:reconcile": "npx tsx scripts/reconcile-recall-credit.ts",
     "import:locobench-agent": "npx tsx scripts/import-locobench-agent.ts",
     "eval:locobench-agent:official": "npx tsx scripts/eval-locobench-agent-official.ts",
     "eval:locobench-agent:unified": "npx tsx scripts/eval-locobench-agent-unified.ts",

@@ -11,6 +11,7 @@ import { TasksManager } from '../memory/tasks/manager.js';
 import { BreakerLogManager } from '../reflect/breaker-log-manager.js';
 import { ReflectAgent } from '../reflect/reflect-agent.js';
 import type { ToolTraceEntry } from './types.js';
+import type { RecallCitationAudit } from '../memory/recall/citation.js';
 
 export interface EvalLearningRunRef {
   taskId: string;
@@ -21,6 +22,7 @@ export interface EvalLearningSummary extends EvalLearningRunRef {
   patternsExtracted: number;
   lessonsExtracted: number;
   knacksPromoted: number;
+  usedRecallIds: string[];
 }
 
 export async function beginEvalLearningRun(memoryDir: string): Promise<EvalLearningRunRef> {
@@ -45,6 +47,9 @@ export async function finalizeEvalLearningRun(options: {
   finalSummary: string;
   totalTaskCount: number;
   toolCalls?: ToolTraceEntry[];
+  recallAudit?: RecallCitationAudit;
+  verificationStatus?: 'pending' | 'passed' | 'failed';
+  verificationEvidenceRef?: string;
 }): Promise<EvalLearningSummary> {
   const tasks = TasksManager.getInstance(options.memoryDir);
   const task = await tasks.getTask(options.run.taskId);
@@ -57,11 +62,31 @@ export async function finalizeEvalLearningRun(options: {
     options.run.taskId,
     options.run.runId,
   );
-  await new RunArchiveWriter({ memoryDir: options.memoryDir }).finalizeRun(options.run.runId, {
+  const archive = new RunArchiveWriter({ memoryDir: options.memoryDir });
+  for (const event of options.recallAudit?.citation_events ?? []) {
+    await archive.appendEvent(options.run.runId, {
+      timestamp: new Date().toISOString(),
+      kind: 'recall_citation',
+      summary: `Used ${event.used_ids.length} recalled item(s)`,
+      metadata: {
+        messageIndex: event.message_index,
+        contextTraceIndex: event.context_trace_index,
+        injectedIds: event.injected_ids,
+        citedIds: event.cited_ids,
+        usedIds: event.used_ids,
+        invalidIds: event.invalid_ids,
+        alignmentStatus: event.alignment_status,
+      },
+    });
+  }
+  await archive.finalizeRun(options.run.runId, {
     taskId: options.run.taskId,
     status: options.status,
     finalSummary: options.finalSummary,
     wmSnapshot: snapshot,
+    recallAudit: options.recallAudit,
+    verificationStatus: options.verificationStatus ?? 'pending',
+    verificationEvidenceRef: options.verificationEvidenceRef,
   });
 
   resetReflectManagers();
@@ -88,6 +113,7 @@ export async function finalizeEvalLearningRun(options: {
     patternsExtracted: reflect.patternsExtracted,
     lessonsExtracted: reflect.lessonsExtracted,
     knacksPromoted: reflect.knacksPromoted,
+    usedRecallIds: options.recallAudit?.used_recall_ids ?? [],
   };
 }
 

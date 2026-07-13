@@ -14,6 +14,7 @@ import { FailureEscalationContext } from '../extension/hooks/failure-escalation.
 import { Context7Client } from '../knowledge/context7-client.js';
 import { createSignalPipeline } from '../memory/signals/index.js';
 import { RunArchiveWriter } from '../memory/run-archive/index.js';
+import { buildRecallCitationAudit } from '../memory/recall/citation.js';
 import { ProjectKbManager } from '../memory/project-kb/manager.js';
 import {
   buildPlanningPrompt,
@@ -154,6 +155,12 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     ? withPiSchemaRequestCount(piSchemaTrace, usageEvents.length)
     : undefined;
   const contextAssemblyTraces = getContextAssemblyTraces(options.buildMemoryPrompt);
+  const citationResult = buildRecallCitationAudit({
+    messages: outputCollector.messages(),
+    contexts: (contextAssemblyTraces ?? []).map((trace) => ({
+      items: trace.recall?.items.map((item) => ({ id: item.id, kind: item.kind })) ?? [],
+    })),
+  });
   const workingMemorySnapshot = options.memoryDir
     ? await getActiveWorkingMemorySnapshot(options.memoryDir)
     : undefined;
@@ -165,7 +172,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     endedAt: new Date(endedMs).toISOString(),
     durationMs: endedMs - startedMs,
     status: errorMessage ? 'failed' : 'success',
-    finalOutput: outputCollector.text(),
+    finalOutput: citationResult.cleanedMessages.join(''),
     errorMessage,
     turnCount: usageEvents.length,
     toolCalls,
@@ -173,6 +180,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     usageEvents,
     piSchemaTrace: finalPiSchemaTrace,
     contextAssemblyTraces,
+    recallAudit: citationResult.audit,
     contextTokenEffect: buildContextTokenEffect({
       contextAssemblyTraces,
       usageEvents,
@@ -579,6 +587,13 @@ export class AssistantTextCollector {
 
   text(): string {
     return [...this.completedMessages, this.currentMessage].join('');
+  }
+
+  messages(): string[] {
+    return [
+      ...this.completedMessages,
+      ...(this.currentMessage ? [this.currentMessage] : []),
+    ];
   }
 
   usage(): EvalTokenUsage {

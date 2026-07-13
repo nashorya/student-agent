@@ -39,6 +39,7 @@ describe('AssistantTextCollector', () => {
     collector.handleEvent({ type: 'message_end' } as unknown as AgentEvent);
 
     expect(collector.text()).toBe('hello world');
+    expect(collector.messages()).toEqual(['hello world']);
   });
 
   it('accumulates assistant usage and cost from message_end events', () => {

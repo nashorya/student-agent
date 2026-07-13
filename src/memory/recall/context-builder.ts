@@ -70,6 +70,13 @@ CLAUDE EXECUTION OVERRIDE:
 - Do not treat ordinary implementation uncertainty as a blocker.
 `.trim();
 
+export const RECALL_CITATION_RULE = `
+RECALL CITATION RULE:
+- Recalled knacks below have stable IDs.
+- Only when a recalled knack materially informs a diagnosis, edit, or validation action, emit [[used_recall:<id>]] in that assistant message.
+- Do not cite a knack merely because it was shown.
+`.trim();
+
 export const FULL_PI_SCHEMA = `
 FULL PI SCHEMA:
 The complete Pi provider/tool schema is intentionally excluded from the default L1 working set.
@@ -166,12 +173,12 @@ function buildSections(input: ContextBuilderInput, policy: ContextPolicy): Conte
     )).join('\n')));
   }
 
-  addRecalledSection(sections, 'recentTasks', input.recallBundle.historicalTaskSnapshots ?? []);
-  addRecalledSection(sections, 'knacks', input.recallBundle.knacks);
-  addRecalledSection(sections, 'preferences', input.recallBundle.preferences);
-  addRecalledSection(sections, 'docFindings', input.recallBundle.docFindings);
-  addRecalledSection(sections, 'artifactRefs', input.recallBundle.artifactRefs ?? []);
-  addRecalledSection(sections, 'runArchiveRefs', input.recallBundle.runArchiveRefs ?? []);
+  addRecalledSection(sections, 'recentTasks', input.recallBundle.historicalTaskSnapshots ?? [], policy);
+  addRecalledSection(sections, 'knacks', input.recallBundle.knacks, policy);
+  addRecalledSection(sections, 'preferences', input.recallBundle.preferences, policy);
+  addRecalledSection(sections, 'docFindings', input.recallBundle.docFindings, policy);
+  addRecalledSection(sections, 'artifactRefs', input.recallBundle.artifactRefs ?? [], policy);
+  addRecalledSection(sections, 'runArchiveRefs', input.recallBundle.runArchiveRefs ?? [], policy);
 
   return sections;
 }
@@ -180,9 +187,16 @@ function addRecalledSection(
   sections: ContextSection[],
   name: string,
   items: RecalledItem[],
+  policy: ContextPolicy,
 ): void {
   if (items.length === 0) return;
-  sections.push(section(name, items.map((item) => `- ${item.summary}`).join('\n')));
+  const citationEnabled = name === 'knacks' && policy.runMode === 'eval';
+  const lines = items.map((item) => citationEnabled
+    ? `- [recall:${item.id}] ${item.summary}`
+    : `- ${item.summary}`);
+  sections.push(section(name, citationEnabled
+    ? [RECALL_CITATION_RULE, ...lines].join('\n')
+    : lines.join('\n')));
 }
 
 function renderTaskLedger(ledger?: TaskLedgerInput): string | null {

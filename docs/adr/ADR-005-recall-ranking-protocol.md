@@ -80,6 +80,6 @@ scanned、eligible knack 和 truncation 指示。
 ## 关联
 
 - 前置：[ADR-003](ADR-003-v04x-priority-reorder.md)、[ADR-004](ADR-004-knack-schema-v1.md)
-- 后续：ADR-003 P3 recall citation 与成功归因
+- 后续：[ADR-006](ADR-006-recall-citation-and-credit.md)（P3 recall citation 与成功归因，已采纳）
 - 实现：`src/memory/recall/knack-ranking.ts`、`src/memory/embedding/`、
   `src/memory/recall/jsonl-memory-store.ts`、`src/memory/recall/recall-router.ts`

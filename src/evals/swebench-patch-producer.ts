@@ -386,6 +386,8 @@ async function runSweBenchInstance(options: {
         finalSummary: trace.finalOutput || errorMessage || 'Eval run completed',
         totalTaskCount: options.learningTaskIndex,
         toolCalls: trace.toolCalls,
+        recallAudit: trace.recallAudit,
+        verificationStatus: 'pending',
       });
     } catch (err) {
       learningFinalizationError = err instanceof Error ? err.message : String(err);

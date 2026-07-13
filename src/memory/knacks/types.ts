@@ -30,6 +30,7 @@ export interface Knack {
   injectedCount?: number;
   lastSucceededTask?: string | null;
   lastInjectedTask?: string | null;
+  creditedUseKeys?: string[];
   createdAt: string;
   updatedAt: string;
 }

@@ -87,6 +87,7 @@ function toKnack(source: DistilledKnack, timestamp: string, existing?: ImportedK
     lastInjectedTask: existing && 'lastInjectedTask' in existing
       ? existing.lastInjectedTask ?? null
       : source.last_injected_task ?? null,
+    creditedUseKeys: existing?.creditedUseKeys ?? [],
     createdAt: existing?.createdAt ?? timestamp,
     updatedAt: timestamp,
   };

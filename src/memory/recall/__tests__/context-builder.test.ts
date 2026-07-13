@@ -89,6 +89,29 @@ describe('ContextBuilder', () => {
     expect(context.sections.some((section) => section.name === 'piSchemaFull')).toBe(false);
   });
 
+  it('renders stable knack ids and citation instructions only in eval mode', () => {
+    const bundle = recallBundle({
+      knacks: [recalled('knack_6938', 'knack', 'Assign the replace result back')],
+    });
+    const evalContext = new ContextBuilder().build({
+      workingMemory: workingMemory(),
+      recallBundle: bundle,
+      runMode: 'eval',
+    });
+    const interactiveContext = new ContextBuilder().build({
+      workingMemory: workingMemory(),
+      recallBundle: bundle,
+      runMode: 'interactive',
+    });
+
+    expect(evalContext.sections.find((section) => section.name === 'knacks')?.content)
+      .toContain('[recall:knack_6938] Assign the replace result back');
+    expect(evalContext.sections.find((section) => section.name === 'knacks')?.content)
+      .toContain('[[used_recall:<id>]]');
+    expect(interactiveContext.sections.find((section) => section.name === 'knacks')?.content)
+      .toBe('- Assign the replace result back');
+  });
+
   it('renders full pi schema only when explicitly requested', () => {
     const context = new ContextBuilder().build({
       workingMemory: workingMemory(),
