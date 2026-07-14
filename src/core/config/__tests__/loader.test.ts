@@ -78,6 +78,36 @@ describe('student agent config loader', () => {
     expect(config.fileGuard.readWindow).toBe(40);
   });
 
+  it('loads project archive configuration', async () => {
+    await writeFile(join(tmpDir, '.student-agent.json'), JSON.stringify({
+      features: { projectArchive: true },
+      archive: {
+        indexPath: 'docs/history.md',
+        adrDir: 'docs/decisions',
+      },
+    }));
+
+    const config = await loadStudentAgentConfig({ cwd: tmpDir, env: {} });
+
+    expect(config.features.projectArchive).toBe(true);
+    expect(config.archive).toMatchObject({
+      enabled: true,
+      format: 'auto',
+      indexPath: 'docs/history.md',
+      adrDir: 'docs/decisions',
+      dashboardPath: 'docs/agent/dashboard.html',
+    });
+  });
+
+  it('allows the project archive feature to be disabled from the environment', async () => {
+    const config = await loadStudentAgentConfig({
+      cwd: tmpDir,
+      env: { STUDENT_AGENT_FEATURE_PROJECT_ARCHIVE: 'false' },
+    });
+
+    expect(config.features.projectArchive).toBe(false);
+  });
+
   it('支持 OpenAI Chat provider 配置', async () => {
     await writeFile(join(tmpDir, '.student-agent.json'), JSON.stringify({
       model: {

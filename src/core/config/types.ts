@@ -1,6 +1,15 @@
 export type StudentAgentProvider = string;
 export type StudentAgentExecutionMode = 'safe' | 'yolo';
 
+export interface StudentAgentArchiveConfig {
+  enabled: boolean;
+  format: 'auto' | 'canonical' | 'conventional';
+  indexPath?: string;
+  buglogPath?: string;
+  adrDir?: string;
+  dashboardPath: string;
+}
+
 export interface StudentAgentConfig {
   envFile: string;
   executionMode: StudentAgentExecutionMode;
@@ -23,6 +32,7 @@ export interface StudentAgentConfig {
     qualityWatchdog: boolean;
     subAgents: boolean;
     riskGuard: boolean;
+    projectArchive: boolean;
   };
   context7: {
     apiKey?: string;
@@ -47,6 +57,7 @@ export interface StudentAgentConfig {
   subAgents: {
     maxConcurrency: number;
   };
+  archive: StudentAgentArchiveConfig;
 }
 
 export interface StudentAgentModelInput {
@@ -67,6 +78,7 @@ export type StudentAgentConfigInput = Partial<{
   fileGuard: Partial<StudentAgentConfig['fileGuard']>;
   playwright: Partial<StudentAgentConfig['playwright']>;
   subAgents: Partial<StudentAgentConfig['subAgents']>;
+  archive: Partial<StudentAgentConfig['archive']>;
 }>;
 
 export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
@@ -86,6 +98,7 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
     qualityWatchdog: true,
     subAgents: false,
     riskGuard: true,
+    projectArchive: true,
   },
   context7: {
     timeoutMs: 10_000,
@@ -107,5 +120,10 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
   },
   subAgents: {
     maxConcurrency: 3,
+  },
+  archive: {
+    enabled: true,
+    format: 'auto',
+    dashboardPath: 'docs/agent/dashboard.html',
   },
 };

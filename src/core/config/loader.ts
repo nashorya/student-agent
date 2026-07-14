@@ -82,6 +82,11 @@ export function mergeConfig(
       ...base.subAgents,
       ...override.subAgents,
     },
+    archive: {
+      ...DEFAULT_STUDENT_AGENT_CONFIG.archive,
+      ...base.archive,
+      ...override.archive,
+    },
   };
 }
 
@@ -148,6 +153,7 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       qualityWatchdog: readBoolean(env.STUDENT_AGENT_FEATURE_QUALITY_WATCHDOG),
       subAgents: readBoolean(env.STUDENT_AGENT_FEATURE_SUB_AGENTS),
       riskGuard: readBoolean(env.STUDENT_AGENT_FEATURE_RISK_GUARD),
+      projectArchive: readBoolean(env.STUDENT_AGENT_FEATURE_PROJECT_ARCHIVE),
     }),
     context7: compactObject({
       apiKey: readOptionalString(env.CONTEXT7_API_KEY),
