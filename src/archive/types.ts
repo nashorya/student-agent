@@ -35,6 +35,7 @@ export interface ArchiveAdr {
   sourcePath: string;
   acceptance?: { acceptedAt: string; acceptedBy: 'user'; evidenceRef: string };
   history: ArchiveHistoryEntry[];
+  legacyAcceptance?: boolean;
 }
 
 export interface ArchiveBug {

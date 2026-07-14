@@ -75,6 +75,9 @@ import type { EvalContextAssemblyTrace, ProtectedEvalEvent } from '../evals/type
 import { summarizePiToolSchema } from '../evals/agent-runner.js';
 import { drainProtectedEvents } from '../core/hashline/index.js';
 import { parseCommand, getHelpText, COMMAND_COMPLETIONS, type SlashCommand } from '../cli/command-parser.js';
+import { executeArchiveCommand } from '../archive/commands.js';
+import { ArchiveService } from '../archive/service.js';
+import { ArchiveWorkflowCoordinator } from '../archive/workflow.js';
 import { printBanner } from '../cli/banner.js';
 import { startSelectedTUI, isTTY } from '../tui-runtime.js';
 import { createInputQueue } from '../tui/input-queue.js';
@@ -692,6 +695,11 @@ async function main(): Promise<void> {
             continue;
           }
 
+          case 'archive':
+            try { tui.bridge.addMessage('system', await executeArchiveCommand(CWD, command)); }
+            catch (error) { tui.bridge.addMessage('system', `Archive error: ${error instanceof Error ? error.message : String(error)}`); }
+            continue;
+
           case 'candidates':
             tui.bridge.setStatus('候选查看功能待实现');
             continue;
@@ -1011,6 +1019,7 @@ async function main(): Promise<void> {
                   tui.bridge.setStatus(`Phase ${signal.phaseIndex + 1} 完成 → 回复”继续”执行 Phase ${updatedTask.active_phase_index + 1}`);
                 }
               } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+                await finalizePendingArchiveForReview(updatedTask, tasksMgr);
                 tui.bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
                 tui.bridge.addMessage('system', formatAwaitingReviewMessage(updatedTask));
               } else {
@@ -1143,6 +1152,11 @@ async function main(): Promise<void> {
             }
             continue;
           }
+
+          case 'archive':
+            try { console.log(await executeArchiveCommand(CWD, command)); }
+            catch (error) { console.error(`Archive error: ${error instanceof Error ? error.message : String(error)}`); }
+            continue;
 
           case 'candidates':
             console.log(chalk.dim('  候选查看功能待实现'));
@@ -1374,6 +1388,7 @@ async function main(): Promise<void> {
                 console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
               }
             } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+              await finalizePendingArchiveForReview(updatedTask, tasksMgr);
               console.log(chalk.green('\n  ' + formatAwaitingReviewMessage(updatedTask)));
             } else {
               console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
@@ -1439,6 +1454,7 @@ async function main(): Promise<void> {
                   console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
                 }
               } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+                await finalizePendingArchiveForReview(updatedTask, tasksMgr);
                 console.log(chalk.green('\n  ' + formatAwaitingReviewMessage(updatedTask)));
               } else {
                 console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
@@ -1617,6 +1633,7 @@ async function runTuiActivePhase(
     bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
     bridge.addMessage('system', `[Phase ${activeTask.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`);
   } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+    await finalizePendingArchiveForReview(updatedTask, tasksMgr);
     bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
     bridge.addMessage('system', formatAwaitingReviewMessage(updatedTask));
   } else {
@@ -1676,6 +1693,7 @@ async function runConsoleActivePhase(runtime: RuntimeState, task: Task): Promise
     }
     console.log(chalk.green(`\n  [Phase ${activeTask.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
   } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+    await finalizePendingArchiveForReview(updatedTask, tasksMgr);
     console.log(chalk.green('\n  ' + formatAwaitingReviewMessage(updatedTask)));
   } else {
     console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
@@ -1708,6 +1726,10 @@ function formatAwaitingReviewMessage(task: Task): string {
     '可以直接回复“可以/满意/就这样”完成任务；也可以直接说修改意见，例如“按钮太挤了”。',
     '快捷命令：/review ok 接受，/review down <反馈> 请求修订。',
   ].join('\n');
+}
+
+async function finalizePendingArchiveForReview(task: Task, tasksMgr: TasksManager): Promise<void> {
+  await new ArchiveWorkflowCoordinator(new ArchiveService({ root: CWD }), tasksMgr).applyAfterVerification(task);
 }
 
 function buildTaskStatusUpdate(task: Task, state: 'running' | 'aborting' | 'idle' | 'failed') {
@@ -2062,6 +2084,9 @@ async function handleReviewCommand(
 
   const comment = command.comment.trim();
   if (command.rating === 'down') {
+    if (activeTask.pending_archive_acceptance) {
+      await new ArchiveWorkflowCoordinator(new ArchiveService({ root: CWD }), tasksMgr).handleUserReview(activeTask, comment || '需要修改');
+    }
     await tasksMgr.requestRevision(activeTask.id, comment || '用户未接受当前结果，需要继续修订。');
     return {
       message: `已记录用户未接受当前结果，任务进入 revision_requested：${comment || '请继续补充修改意见。'}`,
@@ -2069,6 +2094,9 @@ async function handleReviewCommand(
     };
   }
 
+  if (activeTask.pending_archive_acceptance) {
+    await new ArchiveWorkflowCoordinator(new ArchiveService({ root: CWD }), tasksMgr).handleUserReview(activeTask, comment || '可以');
+  }
   await tasksMgr.acceptTask(activeTask.id, comment || `用户 /review ${command.rating}`);
   await tasksMgr.completeTask(activeTask.id, comment || 'User accepted task result.');
   return {
@@ -2203,6 +2231,7 @@ async function createRuntime(
     model,
     hooks,
     apiKey: resolvedApiKey,
+    projectArchive: config.features.projectArchive,
     llm: {
       timeoutMs: config.llm.requestTimeoutMs,
       maxTokens: config.llm.maxOutputTokens,

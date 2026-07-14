@@ -15,7 +15,12 @@ describe('canonical Markdown adapter', () => {
   });
 
   it('reads INDEX table rows', () => {
-    const timeline = parseIndexMarkdown('| 日期 | 事件 |\n|---|---|\n| 2026-07-14 | Archive implemented |\n', 'docs/INDEX.md');
+    const timeline = parseIndexMarkdown('| 日期 | 事件 |\n|---|---|\n| 2026-07-14 | Archive implemented |\n\n| 模块 | 源码 |\n|---|---|\n| Archive | src/archive |\n', 'docs/INDEX.md');
     expect(timeline[0]).toMatchObject({ date: '2026-07-14', title: 'Archive implemented' });
+    expect(timeline).toHaveLength(1);
+  });
+
+  it('ignores buglog template placeholders', () => {
+    expect(parseBuglogMarkdown('## BUG-NNN · template\n\n**状态**：OPEN\n\n## BUG-012 · real\n\n**状态**：OPEN\n', 'docs/buglog.md').map((item) => item.id)).toEqual(['BUG-012']);
   });
 });

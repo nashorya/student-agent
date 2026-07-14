@@ -2,12 +2,14 @@ import type { AdrDecisionStatus, ArchiveEvidence, ArchiveProject, ArchiveValidat
 
 export function validateArchive(project: ArchiveProject): ArchiveValidationResult {
   const errors: ArchiveValidationIssue[] = [];
+  const warnings: ArchiveValidationIssue[] = [];
   validateUniqueIds(project.adrs, 'adr', errors);
   validateUniqueIds(project.bugs, 'bug', errors);
 
   for (const adr of project.adrs) {
     if (adr.decisionStatus === 'accepted' && (adr.acceptance?.acceptedBy !== 'user' || !adr.acceptance.evidenceRef)) {
-      errors.push(issue('accepted_adr_without_user_evidence', adr.sourcePath, `${adr.id} is accepted without explicit user evidence`));
+      const target = adr.legacyAcceptance ? warnings : errors;
+      target.push(issue(adr.legacyAcceptance ? 'legacy_accepted_adr_without_user_evidence' : 'accepted_adr_without_user_evidence', adr.sourcePath, `${adr.id} is accepted without explicit user evidence`));
     }
   }
   for (const bug of project.bugs) {
@@ -15,7 +17,7 @@ export function validateArchive(project: ArchiveProject): ArchiveValidationResul
       errors.push(issue('fixed_bug_without_verification', bug.sourcePath, `${bug.id} is FIXED without passed verification`));
     }
   }
-  return { ok: errors.length === 0, errors, warnings: [] };
+  return { ok: errors.length === 0, errors, warnings };
 }
 
 export function validateAdrTransition(from: AdrDecisionStatus, to: AdrDecisionStatus, userEvidenceRef?: string): ArchiveValidationIssue[] {

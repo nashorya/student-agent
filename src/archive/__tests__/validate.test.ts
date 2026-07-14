@@ -20,6 +20,12 @@ describe('archive validation', () => {
     expect(result.errors).toContainEqual(expect.objectContaining({ code: 'accepted_adr_without_user_evidence' }));
   });
 
+  it('reports pre-adoption accepted ADRs as migration warnings', () => {
+    const result = validateArchive(project({ adrs: [adr({ decisionStatus: 'accepted', legacyAcceptance: true })] }));
+    expect(result.ok).toBe(true);
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: 'legacy_accepted_adr_without_user_evidence' }));
+  });
+
   it('rejects FIXED bugs without passed verification evidence', () => {
     const result = validateArchive(project({ bugs: [bug({ status: 'FIXED' })] }));
     expect(result.errors).toContainEqual(expect.objectContaining({ code: 'fixed_bug_without_verification' }));

@@ -436,6 +436,41 @@ Results are written to `evals/results/` (git-ignored). Each result file contains
 
 ---
 
+## Project Development Archive
+
+Student Agent can maintain a project-owned development archive and render it as a static Project Health dashboard. Markdown remains the canonical source; HTML is deterministic derived output for people to browse, search, and filter.
+
+Discovery starts at the project root passed to Student Agent. Explicit `archive` paths in `.student-agent.json` take precedence over conventional locations such as `docs/INDEX.md`, `docs/buglog.md`, and `docs/adr/`. When no archive exists, `/archive init` performs the one-time initialization. Conflicting conventional locations block writes instead of choosing silently.
+
+```text
+/archive status
+/archive init
+/archive check
+/archive build
+/archive adr new <title>
+/archive bug open <title>
+/archive bug update <BUG-ID> [status]
+```
+
+During task work, `archive_record` stages only durable decisions, bugs, and timeline events. Staged changes are applied after technical verification. An implemented ADR remains `proposed` with implementation status `verified`; it becomes `accepted` only after the user explicitly accepts the completed task. A bug cannot become `FIXED` without passed verification evidence.
+
+Configuration defaults:
+
+```json
+{
+  "features": { "projectArchive": true },
+  "archive": {
+    "enabled": true,
+    "format": "auto",
+    "dashboardPath": "docs/agent/dashboard.html"
+  }
+}
+```
+
+Set `STUDENT_AGENT_FEATURE_PROJECT_ARCHIVE=false` to remove the agent archive tool. Existing archives can still be inspected with the standalone commands.
+
+---
+
 ## Contributing
 
 Contributions are welcome. A few things to know before sending a PR:

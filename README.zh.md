@@ -428,6 +428,41 @@ npm run eval:baseline -- --task task-phase-flow --trials 5
 
 ---
 
+## 项目开发档案
+
+Student Agent 可以维护项目自己的开发档案，并把它渲染为静态的 Project Health 页面。Markdown 始终是规范数据源；HTML 是确定性生成的人类阅读视图，可搜索、筛选，不反向承载业务状态。
+
+发现过程从传给 Student Agent 的项目根目录开始。`.student-agent.json` 中显式配置的 `archive` 路径优先于 `docs/INDEX.md`、`docs/buglog.md`、`docs/adr/` 等约定路径。项目尚无档案时，使用 `/archive init` 做一次初始化；如果发现多个冲突的约定路径，系统会阻止写入，不会静默猜测。
+
+```text
+/archive status
+/archive init
+/archive check
+/archive build
+/archive adr new <标题>
+/archive bug open <标题>
+/archive bug update <BUG-ID> [状态]
+```
+
+任务执行期间，`archive_record` 只暂存有长期价值的决策、bug 和时间线事件，并在技术验证通过后应用。ADR 即使已经实现并验证，决策状态仍保持 `proposed`；只有用户明确验收任务后才变为 `accepted`。bug 没有通过的验证证据时不能变为 `FIXED`。
+
+默认配置：
+
+```json
+{
+  "features": { "projectArchive": true },
+  "archive": {
+    "enabled": true,
+    "format": "auto",
+    "dashboardPath": "docs/agent/dashboard.html"
+  }
+}
+```
+
+设置 `STUDENT_AGENT_FEATURE_PROJECT_ARCHIVE=false` 可移除 agent 的归档工具；已有档案仍可通过独立命令查看。
+
+---
+
 ## 贡献指南
 
 欢迎贡献。提交 PR 前需了解以下几点：

@@ -41,7 +41,7 @@ export function parseAdrMarkdown(source: string, sourcePath: string): ArchiveAdr
 }
 
 export function parseBuglogMarkdown(source: string, sourcePath: string): ArchiveBug[] {
-  const matches = [...source.matchAll(/^##\s+(BUG-[\w-]+)(?:\s*[·:-]\s*(.*))?\s*$/gm)];
+  const matches = [...source.matchAll(/^##\s+(BUG-\d+)(?:\s*[·:-]\s*(.*))?\s*$/gm)];
   return matches.map((match, index) => {
     const sectionStart = (match.index ?? 0) + match[0].length;
     const sectionEnd = matches[index + 1]?.index ?? source.length;
@@ -58,7 +58,14 @@ export function parseBuglogMarkdown(source: string, sourcePath: string): Archive
 }
 
 export function parseIndexMarkdown(source: string, sourcePath: string): ArchiveTimelineEntry[] {
-  const rows = source.split(/\r?\n/).filter((line) => /^\s*\|/.test(line));
+  const lines = source.split(/\r?\n/);
+  const headerIndex = lines.findIndex((line) => /^\s*\|/.test(line) && /日期|date/i.test(line) && /事件|event/i.test(line));
+  if (headerIndex < 0) return [];
+  const rows: string[] = [];
+  for (let index = headerIndex + 1; index < lines.length; index++) {
+    if (!/^\s*\|/.test(lines[index])) break;
+    rows.push(lines[index]);
+  }
   const result: ArchiveTimelineEntry[] = [];
   for (const row of rows) {
     const columns = row.split('|').slice(1, -1).map((value) => value.trim());
@@ -74,7 +81,7 @@ function parseBoldAdr(source: string, sourcePath: string): ArchiveAdr {
     id: inferId(sourcePath, 'ADR'), title, date: metadataValues(source, ['日期', 'date'])[0] ?? '',
     decisionStatus: normalizeAdrStatus(metadataValues(source, ['状态', 'status'])[0]),
     implementationStatus: normalizeImplementationStatus(metadataValues(source, ['实施状态', 'implementation status'])[0]),
-    body: source, sourcePath, history: [],
+    body: source, sourcePath, history: [], legacyAcceptance: normalizeAdrStatus(metadataValues(source, ['状态', 'status'])[0]) === 'accepted',
   };
 }
 
@@ -115,7 +122,7 @@ function parseAcceptance(values: Record<string, string>): ArchiveAdr['acceptance
 }
 
 function inferId(path: string, prefix: string): string {
-  return path.match(new RegExp(`${prefix}-[A-Za-z0-9-]+`, 'i'))?.[0].toUpperCase() ?? `${prefix}-UNKNOWN`;
+  return path.match(new RegExp(`${prefix}-\\d+`, 'i'))?.[0].toUpperCase() ?? `${prefix}-UNKNOWN`;
 }
 
 function headingTitle(source: string): string {

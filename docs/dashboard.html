@@ -1,370 +1,979 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>student-agent · 开发仪表盘</title>
-<style>
-  :root {
-    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
-    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
-    --green: #3fb950; --red: #f85149; --yellow: #d29922; --blue: #58a6ff;
-    --purple: #bc8cff;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', sans-serif; font-size: 14px; }
-  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
-  header h1 { font-size: 18px; font-weight: 600; }
-  header .sub { color: var(--muted); font-size: 12px; margin-left: auto; }
-  .stats { display: flex; gap: 12px; padding: 16px 24px; flex-wrap: wrap; }
-  .stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; min-width: 130px; }
-  .stat .val { font-size: 24px; font-weight: 700; }
-  .stat .lbl { color: var(--muted); font-size: 11px; margin-top: 2px; }
-  .tabs { display: flex; gap: 2px; padding: 0 24px; border-bottom: 1px solid var(--border); }
-  .tab { padding: 10px 16px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); font-size: 13px; transition: color .15s; }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
-  .panel { display: none; padding: 24px; }
-  .panel.active { display: block; }
-  table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 1px solid var(--border); }
-  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.4; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: var(--bg2); }
-  tr.dim td { opacity: .45; }
-  .date { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  .small { font-size: 12px; color: var(--muted); max-width: 360px; }
-  .mono { font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-  .badge.green { background: #1f4a23; color: var(--green); }
-  .badge.red { background: #3d1a18; color: var(--red); }
-  .badge.yellow { background: #3d2e00; color: var(--yellow); }
-  .badge.grey { background: var(--bg3); color: var(--muted); }
-  .tier-badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; }
-  .tier-tiera { background: #0d2a4a; color: var(--blue); }
-  .tier-tierb { background: #1e1060; color: var(--purple); }
-  .tier-cacheprobe { background: #1f3a1f; color: var(--green); }
-  .tier-comparison { background: var(--bg3); color: var(--muted); }
-  .tier-other { background: var(--bg3); color: var(--muted); }
-  .scroll-wrap { overflow-x: auto; }
-</style>
-</head>
-<body>
-<header>
-  <h1>student-agent</h1>
-  <span>开发仪表盘</span>
-  <span class="sub">生成于 2026-07-13 09:42　·　数据源：docs/ + evals/results/</span>
-</header>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>student-agent · Project Health</title><style>
+:root{color-scheme:light;--bg:#f6f7f9;--surface:#fff;--surface-2:#edf1f4;--ink:#17212b;--muted:#586675;--line:#cbd3db;--accent:#087f5b;--accent-ink:#fff;--danger:#b42318;--warn:#8a4b08;--focus:#006ce0}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:0}
+a{color:#075e54}.skip-link{position:absolute;left:12px;top:-64px;background:var(--ink);color:#fff;padding:12px;z-index:10}.skip-link:focus{top:12px}
+header{border-bottom:1px solid var(--line);background:var(--surface)}.shell{width:min(100% - 32px,1280px);margin-inline:auto}.topbar{display:flex;justify-content:space-between;gap:24px;align-items:end;padding:24px 0}
+h1,h2,h3{line-height:1.2;letter-spacing:0}h1{font-size:clamp(1.75rem,4vw,2.5rem);margin:4px 0}h2{font-size:1.35rem;margin:0 0 16px}h3{font-size:1rem;margin:0}.eyebrow{font-size:.78rem;font-weight:700;text-transform:uppercase;color:var(--accent)}.muted{color:var(--muted)}
+main{padding:24px 0 48px}.health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.metric,.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px}.metric{padding:16px}.metric strong{display:block;font-size:1.7rem;font-variant-numeric:tabular-nums}.metric span{color:var(--muted)}
+.attention{margin-top:16px;padding:16px;border-left:4px solid var(--warn)}.attention-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}.attention-item{background:var(--surface-2);padding:12px;border-radius:4px}.attention-item strong{margin-right:8px}
+.controls{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,280px);gap:12px;margin:24px 0 16px}.controls label{font-weight:600}.field{display:grid;gap:6px}input,select{width:100%;min-height:44px;border:1px solid #7b8794;border-radius:4px;background:var(--surface);color:var(--ink);padding:8px 12px;font:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}.archive-section{margin-top:16px;padding:20px}.entry-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}.entry{border-top:1px solid var(--line);padding:16px 0;min-width:0}.entry p{margin:8px 0}.entry-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.badge{display:inline-flex;align-items:center;min-height:28px;border:1px solid currentColor;border-radius:999px;padding:2px 9px;font-size:.78rem;font-weight:700}.badge.attention{color:var(--warn);margin:0;border-left-width:1px}.badge.danger{color:var(--danger)}.badge.good{color:var(--accent)}code{overflow-wrap:anywhere}.source-hash-state{font-family:ui-monospace,monospace;font-size:.78rem}.empty{color:var(--muted);font-style:italic}
+@media(max-width:900px){.health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.shell{width:min(100% - 24px,1280px)}.topbar{align-items:start;flex-direction:column}.health-grid,.controls{grid-template-columns:1fr}.archive-section{padding:16px}.entry-list{display:block}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style></head>
+<body><a class="skip-link" href="#main-content">Skip to archive content</a><header><div class="shell topbar"><div><div class="eyebrow">Development archive</div><h1>student-agent</h1><div class="muted">Canonical Markdown, human-readable health view</div></div><div class="muted">Latest archive date: 2026-07-13</div></div></header>
+<main id="main-content"><div class="shell"><section aria-labelledby="health-heading"><h2 id="health-heading">Project Health</h2><div class="health-grid">
+<div class="metric"><strong>36</strong><span>Timeline events</span></div><div class="metric"><strong>1</strong><span>Open attention bugs</span></div><div class="metric"><strong>6</strong><span>Architecture decisions</span></div><div class="metric"><strong>0</strong><span>Passed verifications</span></div>
+</div><div class="panel attention"><h3>Attention</h3><ul class="attention-list"><li class="attention-item"><strong>OPEN bug</strong>BUG-007 · 本地 probe 凭据误入未推送分支历史</li></ul></div></section>
+<div class="controls" role="search"><div class="field"><label for="archive-search">Search archive</label><input id="archive-search" type="search" autocomplete="off" placeholder="Search ID, title, status, or summary"></div><div class="field"><label for="archive-filter">Entry type</label><select id="archive-filter" aria-label="Filter archive entries"><option value="all">All entries</option><option value="timeline">Timeline</option><option value="bug">Bugs</option><option value="adr">ADRs</option><option value="verification">Verification</option></select></div></div>
+<section class="panel archive-section" aria-labelledby="timeline-heading"><h2 id="timeline-heading">Timeline</h2><div class="entry-list"><article class="entry" data-entry-type="timeline" data-search-text="index-1 2026-06-04 ~ 06 v0.33 tui/trace 稳定化；砍掉 design-study [架构更新 v0.33→v0.4](student-agent-architecture-update-v0.33-v0.4.md)"><div class="entry-meta"><span class="badge good">2026-06-04 ~ 06</span><strong>v0.33 TUI/Trace 稳定化；砍掉 design-study</strong></div><p>[架构更新 v0.33→v0.4](student-agent-architecture-update-v0.33-v0.4.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-2 2026-06-07 v0.34 hashline / v0.35 wm+xstate / v0.36 toolguard 同上 + [v034](v034-prompt-round1.md)/[v035](v035-prompt.md)/[v036](v036-prompt.md) prompt 档案"><div class="entry-meta"><span class="badge good">2026-06-07</span><strong>v0.34 Hashline / v0.35 WM+XState / v0.36 ToolGuard</strong></div><p>同上 + [v034](v034-prompt-round1.md)/[v035](v035-prompt.md)/[v036](v036-prompt.md) prompt 档案</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-3 2026-06-08 v0.4 context runtime freeze（batch commit 79ad7f64，教训见 bug-003） [冻结文档](v0.4-context-runtime-freeze.zh.md) · [ablation rfc](ablation-eval-rfc.md)"><div class="entry-meta"><span class="badge good">2026-06-08</span><strong>v0.4 Context Runtime Freeze（batch commit 79ad7f64，教训见 BUG-003）</strong></div><p>[冻结文档](v0.4-context-runtime-freeze.zh.md) · [Ablation RFC](ablation-eval-rfc.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-4 2026-06-10 ~ 11 swe/terminal-bench 对比跑分（gpt-5.5，cc vs student-agent） [外部基准](external-benchmarks.zh.md)"><div class="entry-meta"><span class="badge good">2026-06-10 ~ 11</span><strong>SWE/terminal-bench 对比跑分（gpt-5.5，cc vs student-agent）</strong></div><p>[外部基准](external-benchmarks.zh.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-5 2026-06-11 发现 benchmark 未接入 context runtime（bug-001）；cc usage 采集修复（bug-002）；评测口径敲定（adr-001/002） [接线修复计划](plan-noninteractive-context-runtime-fix.md) · [buglog](buglog.md) · [adr/](adr/)"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>发现 benchmark 未接入 context runtime（BUG-001）；cc usage 采集修复（BUG-002）；评测口径敲定（ADR-001/002）</strong></div><p>[接线修复计划](plan-noninteractive-context-runtime-fix.md) · [buglog](buglog.md) · [adr/](adr/)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-6 2026-06-11 旧版 tui 与遗留物清理立项（待 benchmark 收尾后执行） [清理计划](plan-legacy-cleanup.md)"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>旧版 TUI 与遗留物清理立项（待 benchmark 收尾后执行）</strong></div><p>[清理计划](plan-legacy-cleanup.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-7 2026-06-11 bug-001 接线修复完成（codex，分支 codex/context-runtime-benchmark）；on/off smoke 对比：token ×4~6、轮次 10→16/8→18，归因为注入的验证工作流引发&quot;较真行为&quot;+ 环境摩擦（astropy pytest warning 配置、buildext），非上下文迷路；质量持平（题太简单）。治理方向：验证重试刹车（bounded breaker 用例），不减配 autonomy rule [接线计划](plan-noninteractive-context-runtime-fix.md) · smoke results: `evals/results/swebench/context-runtime-on-smoke-20260611*/`"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>BUG-001 接线修复完成（codex，分支 codex/context-runtime-benchmark）；ON/OFF smoke 对比：token ×4~6、轮次 10→16/8→18，归因为注入的验证工作流引发&quot;较真行为&quot;+ 环境摩擦（astropy pytest warning 配置、buildext），非上下文迷路；质量持平（题太简单）。治理方向：验证重试刹车（Bounded Breaker 用例），不减配 autonomy rule</strong></div><p>[接线计划](plan-noninteractive-context-runtime-fix.md) · smoke results: `evals/results/swebench/context-runtime-on-smoke-20260611*/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-8 2026-06-11 benchmark 矩阵 v1 敲定（tier a 冒烟 / b 学习 / c 跨 agent；locobench parked）；前置改动：autonomy rule 环境豁免补丁 + toolguard verifyretry 刹车 [benchmark-matrix](benchmark-matrix.md)"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>Benchmark 矩阵 v1 敲定（Tier A 冒烟 / B 学习 / C 跨 agent；LoCoBench parked）；前置改动：autonomy rule 环境豁免补丁 + ToolGuard verifyretry 刹车</strong></div><p>[benchmark-matrix](benchmark-matrix.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-9 2026-06-11 tier a 结果（口径：final records 的 inputtokens/turns）：swe 两题官方 resolved，12907 = 189k/11 calls，14182 = 189k/9 turns（政策补丁前 22 calls/493k input，降幅成立）；verifyretry/patchretry 均 0 触发——补丁在上游消灭死磕，刹车仅有单测覆盖。terminal：prove-plus-comm ✓、fix-git ✓（首次 verifier 被 debian mirror 502 绊倒，重跑过）、overfull-hbox ✗（红）：消除 warning 但用了非法 synonym（natures→traits，跨 family）——约束跟踪失败，归因方法：查失败轮 prompt 中约束是否仍在，在=渲染问题/不在=装配问题；此为 v0.4x requirement ledger 的首份实证证据。首跑 401 令牌失效，fallback 渠道完成 `evals/results/swebench/tier-a-verify-retry-fallback-20260611/` · `logs/run_evaluation/tier-a-verify-retry-20260611/`"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>Tier A 结果（口径：final records 的 inputTokens/turns）：SWE 两题官方 resolved，12907 = 189k/11 calls，14182 = 189k/9 turns（政策补丁前 22 calls/493k input，降幅成立）；verifyretry/patchretry 均 0 触发——补丁在上游消灭死磕，刹车仅有单测覆盖。Terminal：prove-plus-comm ✓、fix-git ✓（首次 verifier 被 Debian mirror 502 绊倒，重跑过）、overfull-hbox ✗（红）：消除 warning 但用了非法 synonym（natures→traits，跨 family）——约束跟踪失败，归因方法：查失败轮 prompt 中约束是否仍在，在=渲染问题/不在=装配问题；此为 v0.4x Requirement Ledger 的首份实证证据。首跑 401 令牌失效，fallback 渠道完成</strong></div><p>`evals/results/swebench/tier-a-verify-retry-fallback-20260611/` · `logs/run_evaluation/tier-a-verify-retry-20260611/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-10 2026-06-11 tier a 收尾 + sonnet 锚点轮计划立项（p0 归因 → p1 hard constraints mvp + 政策补丁 + 基础设施固化 → p2 全量回归 → p3 tag 冻结 + sonnet），交 codex 执行 [plan-tier-a-green-and-sonnet](plan-tier-a-green-and-sonnet.md)"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>Tier A 收尾 + Sonnet 锚点轮计划立项（P0 归因 → P1 Hard Constraints MVP + 政策补丁 + 基础设施固化 → P2 全量回归 → P3 tag 冻结 + sonnet），交 codex 执行</strong></div><p>[plan-tier-a-green-and-sonnet](plan-tier-a-green-and-sonnet.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-11 2026-06-11 验收发现 p2 overfull 回归为无效 run（bug-005：provider 漂移 deepseek + 缺 key，agent 未运行）；cc-sonnet smoke ×2 errored。决策：停止自跑 cc，跨 agent 改引公开 leaderboard 数据（per-instance artifact 与子集求交集），matrix tier c 已修订；sonnet 轮改为 student-agent 单边 [benchmark-matrix](benchmark-matrix.md) · [buglog bug-005](buglog.md)"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>验收发现 P2 overfull 回归为无效 run（BUG-005：provider 漂移 deepseek + 缺 key，agent 未运行）；cc-sonnet smoke ×2 errored。决策：停止自跑 cc，跨 agent 改引公开 leaderboard 数据（per-instance artifact 与子集求交集），matrix Tier C 已修订；sonnet 轮改为 student-agent 单边</strong></div><p>[benchmark-matrix](benchmark-matrix.md) · [buglog BUG-005](buglog.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-12 2026-06-11 codex/context-runtime-benchmark 按 11 批小步提交完成入库整理（repo ignore、非交互 context runtime、hardconstraints、verifyretry、外部 benchmark runner、fixtures、docs、cli packaging、core/observability 支撑）；提交后完整 npx vitest run 通过：130 files passed / 1 skipped，909 tests passed / 1 skipped，duration 47s [plan-tier-a-green-and-sonnet](plan-tier-a-green-and-sonnet.md)"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>codex/context-runtime-benchmark 按 11 批小步提交完成入库整理（repo ignore、非交互 context runtime、hardConstraints、verifyretry、外部 benchmark runner、fixtures、docs、CLI packaging、core/observability 支撑）；提交后完整 npx vitest run 通过：130 files passed / 1 skipped，909 tests passed / 1 skipped，duration 47s</strong></div><p>[plan-tier-a-green-and-sonnet](plan-tier-a-green-and-sonnet.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-13 2026-06-11 bug-005 哨兵完成并实战验证：gpt-5.5 中转链路 3 次 agent exit 1（503）均标记 invalidrun=true，不计 reward，bug-005 关案。改用 deepseek 官方 endpoint 做 overfull 功能回归：有效 run 的 verifier 3/4 通过，编译与 overfull 目标达成，但残留非法 to→of；trace 证明 l1 hardconstraints 已渲染且含 synonym family 约束，故 bug-004 定位为装配已修、行为/最终验证闭环仍 open。seed 2 启动后按失败即停规则终止，未计结果 [buglog bug-004/005](buglog.md) · `evals/results/terminal-bench/p2-overfull-official-deepseek-seed1-20260611/`"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>BUG-005 哨兵完成并实战验证：gpt-5.5 中转链路 3 次 agent exit 1（503）均标记 invalidrun=true，不计 reward，BUG-005 关案。改用 DeepSeek 官方 endpoint 做 overfull 功能回归：有效 run 的 verifier 3/4 通过，编译与 overfull 目标达成，但残留非法 to→of；trace 证明 L1 hardConstraints 已渲染且含 synonym family 约束，故 BUG-004 定位为装配已修、行为/最终验证闭环仍 OPEN。seed 2 启动后按失败即停规则终止，未计结果</strong></div><p>[buglog BUG-004/005](buglog.md) · `evals/results/terminal-bench/p2-overfull-official-deepseek-seed1-20260611/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-14 2026-06-11 新 key 的 gpt-5.5 overfull smoke 为有效 run（14 turns / 172,788 input），仍为 verifier 3/4：natures→traits 跨 family，复现最初症状；hardconstraints 已完整进入 l1，失败点收敛到“最终未运行可执行 synonym-family 校验”。按计划未继续另外两轮与 swe，未打 tag [buglog bug-004](buglog.md) · `evals/results/terminal-bench/p2-overfull-gpt55-newkey-seed1-20260611/`"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>新 key 的 gpt-5.5 overfull smoke 为有效 run（14 turns / 172,788 input），仍为 verifier 3/4：natures→traits 跨 family，复现最初症状；hardConstraints 已完整进入 L1，失败点收敛到“最终未运行可执行 synonym-family 校验”。按计划未继续另外两轮与 SWE，未打 tag</strong></div><p>[buglog BUG-004](buglog.md) · `evals/results/terminal-bench/p2-overfull-gpt55-newkey-seed1-20260611/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-15 2026-06-11 completion self-check 已实现（commit c1d2aff9，全量 131 files / 912 tests 通过），gpt-5.5 overfull 3 seed 均有工具取证，但仅 1/3 verifier 4/4：seed 1 an→a、seed 3 natures→moods。自查 trace 显示模型用 examples 抽查后错误声明全部满足，未做完整逐 token 对照。按失败停止规则未跑 swe、未打 tag [buglog bug-004](buglog.md) · `evals/results/terminal-bench/p3-overfull-selfcheck-gpt55-seed1-20260611/`"><div class="entry-meta"><span class="badge good">2026-06-11</span><strong>completion self-check 已实现（commit c1d2aff9，全量 131 files / 912 tests 通过），gpt-5.5 overfull 3 seed 均有工具取证，但仅 1/3 verifier 4/4：seed 1 an→a、seed 3 natures→moods。自查 trace 显示模型用 examples 抽查后错误声明全部满足，未做完整逐 token 对照。按失败停止规则未跑 SWE、未打 tag</strong></div><p>[buglog BUG-004](buglog.md) · `evals/results/terminal-bench/p3-overfull-selfcheck-gpt55-seed1-20260611/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-16 2026-06-12 bug-004 第四层关案：selfcheckprompt 增加 full-diff 穷举与机械约束脚本化原则（commit 5537d326），gpt-5.5 overfull 3 seed 全部 verifier 4/4，三元组为 553k/675k/34、1,059k/1,219k/38、562k/631k/25；三轮自查均生成并运行 node 校验器，实际抓出 article、跨 family 和文件尾结构违规后修复。成本显著高于 140k~177k/16~20 基线，归因为容器缺 git/python、脚本修复及真实违规返工 [buglog bug-004](buglog.md) · `evals/results/terminal-bench/p4-overfull-scripted-selfcheck-gpt55-seed{1,2,3}-20260611/`"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>BUG-004 第四层关案：SELFCHECKPROMPT 增加 full-diff 穷举与机械约束脚本化原则（commit 5537d326），gpt-5.5 overfull 3 seed 全部 verifier 4/4，三元组为 553k/675k/34、1,059k/1,219k/38、562k/631k/25；三轮自查均生成并运行 Node 校验器，实际抓出 article、跨 family 和文件尾结构违规后修复。成本显著高于 140k~177k/16~20 基线，归因为容器缺 git/python、脚本修复及真实违规返工</strong></div><p>[buglog BUG-004](buglog.md) · `evals/results/terminal-bench/p4-overfull-scripted-selfcheck-gpt55-seed{1,2,3}-20260611/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-17 2026-06-12 tier a 全绿：swe 官方 harness 12907/14182 均 resolved。12907=425,030 / 447,385 / 16，input 较 189k 基线上涨 124.7%，trace 归因为验证环境摩擦导致 31 次工具调用（基线 11）；14182 有效重跑=136,215 / 148,775 / 8，低于基线。14182 首次联合运行被外部终止并形成全仓删除式 suspicious patch，作为无效产物排除，未送判分 [buglog bug-004](buglog.md) · `evals/results/swebench/p4-scripted-selfcheck-gpt55-20260611/` · `evals/results/swebench/p4-scripted-selfcheck-gpt55-14182-rerun-20260612/`"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>Tier A 全绿：SWE 官方 harness 12907/14182 均 resolved。12907=425,030 / 447,385 / 16，input 较 189k 基线上涨 124.7%，trace 归因为验证环境摩擦导致 31 次工具调用（基线 11）；14182 有效重跑=136,215 / 148,775 / 8，低于基线。14182 首次联合运行被外部终止并形成全仓删除式 suspicious patch，作为无效产物排除，未送判分</strong></div><p>[buglog BUG-004](buglog.md) · `evals/results/swebench/p4-scripted-selfcheck-gpt55-20260611/` · `evals/results/swebench/p4-scripted-selfcheck-gpt55-14182-rerun-20260612/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-18 2026-06-12 openrouter sonnet cache 探针通过，bug-002 关案：prove-plus-comm reward 1.0，5,205 / 65,733 / 11，cache read/write=48,998 / 7,436，cache read 占 prompt 输入 79.49%，实际成本 $0.1196094。逐轮 usage 显示首轮创建 cache、后续每轮读取，确认 pi 的 anthropic cachecontrol 经 openrouter 透传；run metadata 含 commit 452e46b0、模型与 openrouter 单价 [buglog bug-002](buglog.md) · `evals/results/terminal-bench/openrouter-sonnet-cache-probe-20260612/`"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>OpenRouter Sonnet cache 探针通过，BUG-002 关案：prove-plus-comm reward 1.0，5,205 / 65,733 / 11，cache read/write=48,998 / 7,436，cache read 占 prompt 输入 79.49%，实际成本 $0.1196094。逐轮 usage 显示首轮创建 cache、后续每轮读取，确认 Pi 的 Anthropic cachecontrol 经 OpenRouter 透传；run metadata 含 commit 452e46b0、模型与 OpenRouter 单价</strong></div><p>[buglog BUG-002](buglog.md) · `evals/results/terminal-bench/openrouter-sonnet-cache-probe-20260612/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-19 2026-06-12 渠道切换 openrouter sonnet-4.6（预算 $10）。cache 探针通过：prove-plus-comm reward 1.0、cache read 占比 79.49%、$0.12 → bug-002 关案（openrouter 口径）。tier a 重定基线进行中：fix-git 绿（$0.19）；overfull-hbox 判分无效——verifier 装 uv 失败（astral.sh ssl + uvx not found），记 bug-006（verifier infra 失败应标 invalidrun，依赖需预烘焙；红线修订：infra 失败不耗重跑配额）。累计 $2.30 [buglog bug-006](buglog.md)"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>渠道切换 OpenRouter sonnet-4.6（预算 $10）。cache 探针通过：prove-plus-comm reward 1.0、cache read 占比 79.49%、$0.12 → BUG-002 关案（OpenRouter 口径）。Tier A 重定基线进行中：fix-git 绿（$0.19）；overfull-hbox 判分无效——verifier 装 uv 失败（astral.sh SSL + uvx not found），记 BUG-006（verifier infra 失败应标 invalidrun，依赖需预烘焙；红线修订：infra 失败不耗重跑配额）。累计 $2.30</strong></div><p>[buglog BUG-006](buglog.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-20 2026-06-12 bug-006 代码修复完成、待回归：terminal 汇总新增 invalidreasons，agent timeout 与 verifier setup failure 均标 invalidrun；新增 prepareterminalbenchverifierdeps.py，已生成本地 patched overfull-hbox task 与预装 uv/uvx 的 verifier 镜像，避免判分时访问 astral.sh。当前 shell 缺 openrouterapikey，未继续付费重测 [buglog bug-006](buglog.md)"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>BUG-006 代码修复完成、待回归：terminal 汇总新增 invalidreasons，agent timeout 与 verifier setup failure 均标 invalidrun；新增 prepareterminalbenchverifierdeps.py，已生成本地 patched overfull-hbox task 与预装 uv/uvx 的 verifier 镜像，避免判分时访问 astral.sh。当前 shell 缺 OPENROUTERAPIKEY，未继续付费重测</strong></div><p>[buglog BUG-006](buglog.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-21 2026-06-12 openrouter key 从 ~/.student-agent/.env 注入后重测 patched overfull：bug-006 的 verifier 侧已修好（不再拉 astral.sh，pytest 可运行；secret env file 避免 key 出现在 compose 参数），但 overfull 两次均为 agenttimeouterror，新哨兵均标 invalid（validrewardtrials=0）。第二次 timeout 已按 ×1.5 提到 1125s，仍在 agent 第一轮 bash 后长时间无输出，未形成有效 run；openrouter usage $3.89538615，低于 $5，按红线停止，不跑 swe [buglog bug-006](buglog.md) · `evals/results/terminal-bench/openrouter-sonnet-tier-a-overfull-hbox-patched2-20260612/`"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>OpenRouter key 从 ~/.student-agent/.env 注入后重测 patched overfull：BUG-006 的 verifier 侧已修好（不再拉 astral.sh，pytest 可运行；secret env file 避免 key 出现在 compose 参数），但 overfull 两次均为 AgentTimeoutError，新哨兵均标 invalid（validRewardTrials=0）。第二次 timeout 已按 ×1.5 提到 1125s，仍在 agent 第一轮 bash 后长时间无输出，未形成有效 run；OpenRouter usage $3.89538615，低于 $5，按红线停止，不跑 SWE</strong></div><p>[buglog BUG-006](buglog.md) · `evals/results/terminal-bench/openrouter-sonnet-tier-a-overfull-hbox-patched2-20260612/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-22 2026-06-12 零编辑续航哨兵完成（commit bc036f02）：非交互第一阶段结束后，若 hardconstraints 非空且 working memory writefiles 仍为空，追加固定续航提示，最多 2 轮，每轮重查 writefiles；json summary 记录 continuationrounds。overfull patched task 的 agent timeout 提到 2400s。预算预估：openrouter usage $3.89538615，距 $5 仅 $1.1046，而上一条 overfull 有效 agent 成本 $1.3772，预计单跑即可能越线，按熔断规则暂停等人工批准 [benchmark-matrix](benchmark-matrix.md)"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>零编辑续航哨兵完成（commit bc036f02）：非交互第一阶段结束后，若 hardConstraints 非空且 working memory writeFiles 仍为空，追加固定续航提示，最多 2 轮，每轮重查 writeFiles；JSON summary 记录 continuationRounds。overfull patched task 的 agent timeout 提到 2400s。预算预估：OpenRouter usage $3.89538615，距 $5 仅 $1.1046，而上一条 overfull 有效 agent 成本 $1.3772，预计单跑即可能越线，按熔断规则暂停等人工批准</strong></div><p>[benchmark-matrix](benchmark-matrix.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-23 2026-06-12 预算重排决策：overfull 标 deferred（tier a 最贵、对 tier b go/no-go 价值最低，bug-004 已在 gpt-5.5 关案；续航哨兵实战验证顺延），优先跑 swe 12907/14182 sonnet 基线（tier b 直接前置，off 臂复用）。单 run 成本 &gt;$1.5 中止；预计累计 ~$4.7 守住 $5 线 [benchmark-matrix](benchmark-matrix.md)"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>预算重排决策：overfull 标 deferred（Tier A 最贵、对 Tier B GO/NO-GO 价值最低，BUG-004 已在 gpt-5.5 关案；续航哨兵实战验证顺延），优先跑 SWE 12907/14182 sonnet 基线（Tier B 直接前置，off 臂复用）。单 run 成本 &gt;$1.5 中止；预计累计 ~$4.7 守住 $5 线</strong></div><p>[benchmark-matrix](benchmark-matrix.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-24 2026-06-12 openrouter sonnet tier a 重定基线完成 4/5（overfull deferred）：swe 官方 harness 均 resolved。12907=14,035 / 168,143 / 14，$0.21995895，cache read 79.43%；14182=39,355 / 486,207 / 34，$0.43223445，cache read 86.85%。两题合计 trace 成本 $0.6521934、cache read 84.96%；openrouter 账户增量 $0.5816424，账户累计 $4.54712565，低于 $5 熔断线。直连因地区限制 403，commit bba4011f 增加通用 node proxy bootstrap 后经系统代理完成；metadata 如实记录 route/model/单价/commit。有效 4 题 trace 成本合计 $0.9569841 `evals/results/swebench/openrouter-sonnet-tier-a-12907-proxy-20260612/` · `evals/results/swebench/openrouter-sonnet-tier-a-14182-proxy-20260612/`"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>OpenRouter Sonnet Tier A 重定基线完成 4/5（overfull deferred）：SWE 官方 harness 均 resolved。12907=14,035 / 168,143 / 14，$0.21995895，cache read 79.43%；14182=39,355 / 486,207 / 34，$0.43223445，cache read 86.85%。两题合计 trace 成本 $0.6521934、cache read 84.96%；OpenRouter 账户增量 $0.5816424，账户累计 $4.54712565，低于 $5 熔断线。直连因地区限制 403，commit bba4011f 增加通用 Node proxy bootstrap 后经系统代理完成；metadata 如实记录 route/model/单价/commit。有效 4 题 trace 成本合计 $0.9569841</strong></div><p>`evals/results/swebench/openrouter-sonnet-tier-a-12907-proxy-20260612/` · `evals/results/swebench/openrouter-sonnet-tier-a-14182-proxy-20260612/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-25 2026-06-12 tier b openrouter sonnet astropy pilot 完成（commit fa1cbdf0，1 seed；12907/14182 off 复用 tier a）：两臂官方 resolved 均 4/6。on 聚合为 141,190 / 1,571,658 / 111，off 为 158,142 / 1,951,947 / 140，trace cost $1.8058 vs $1.9091；但效率改善由 14995 单题主导，排除后 on 的 input/total/turns/cost 分别回涨 6.03%/14.04%/2.20%/17.94%。第 2 题起均召回 4 条，证明跨任务链路可运行，但内容主要为临时工具/环境错误，未见明确利用证据；resolved 无提升，按 adr-002 no-go 扩量。10 个新 run 账户最终结算增量 $2.7225，累计 $7.2696，未触发熔断。收尾验证：tsc --noemit 通过，vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped [tier b 结果](tier-b-openrouter-sonnet-20260612.md) · [benchmark-matrix](benchmark-matrix.md) · [adr-002](adr/adr-002-learning-eval-protocol.md)"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>Tier B OpenRouter Sonnet astropy pilot 完成（commit fa1cbdf0，1 seed；12907/14182 off 复用 Tier A）：两臂官方 resolved 均 4/6。on 聚合为 141,190 / 1,571,658 / 111，off 为 158,142 / 1,951,947 / 140，trace cost $1.8058 vs $1.9091；但效率改善由 14995 单题主导，排除后 on 的 input/total/turns/cost 分别回涨 6.03%/14.04%/2.20%/17.94%。第 2 题起均召回 4 条，证明跨任务链路可运行，但内容主要为临时工具/环境错误，未见明确利用证据；resolved 无提升，按 ADR-002 NO-GO 扩量。10 个新 run 账户最终结算增量 $2.7225，累计 $7.2696，未触发熔断。收尾验证：tsc --noEmit 通过，Vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped</strong></div><p>[Tier B 结果](tier-b-openrouter-sonnet-20260612.md) · [benchmark-matrix](benchmark-matrix.md) · [ADR-002](adr/ADR-002-learning-eval-protocol.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-26 2026-06-12 cc/外部参照证据盘点完成，未新增付费 run：本地 claude code 2.1.153 + gpt-5.5 仅覆盖 swe 12907/14182，merged 官方 harness 2/2，但属于 off-label 历史内部参考；未在 swe-bench 官方 experiments 找到命名为 claude code 的逐题提交。epoch 公开 sonnet 4.6 为 bashagent 而非 cc，与 tier b 相交四题 4/4；student-agent on/off 在同四题均 3/4，差题 14365 已定位为只改 case-insensitive regex、漏改小写 no 的后续 masked-value 判断。故当前不能下“vs cc”胜负结论。验证：tsc --noemit 通过，vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped [完整对比](cc-reference-and-tier-b-comparison-20260612.md) · [adr-001](adr/adr-001-eval-claim-separation.md)"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>CC/外部参照证据盘点完成，未新增付费 run：本地 Claude Code 2.1.153 + gpt-5.5 仅覆盖 SWE 12907/14182，merged 官方 harness 2/2，但属于 off-label 历史内部参考；未在 SWE-bench 官方 experiments 找到命名为 Claude Code 的逐题提交。Epoch 公开 Sonnet 4.6 为 bashagent 而非 CC，与 Tier B 相交四题 4/4；student-agent on/off 在同四题均 3/4，差题 14365 已定位为只改 case-insensitive regex、漏改小写 no 的后续 masked-value 判断。故当前不能下“vs CC”胜负结论。验证：tsc --noEmit 通过，Vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped</strong></div><p>[完整对比](cc-reference-and-tier-b-comparison-20260612.md) · [ADR-001](adr/ADR-001-eval-claim-separation.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-27 2026-06-12 发布前门面与安全清理：根目录遗留物取消跟踪并 ignore，package description 正式化，readme 中英文新增评测结果入口与六月完整报告；秘密/个人路径扫描修复 bug-007，37 个未推送提交定向重写且冻结 tag 重建，main 与最终代码树不变。bug-001/003/006/007 状态核对关案 [六月评测报告](benchmark-report-2026-06.md) · [buglog](buglog.md) · [清理计划](plan-legacy-cleanup.md)"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>发布前门面与安全清理：根目录遗留物取消跟踪并 ignore，package description 正式化，README 中英文新增评测结果入口与六月完整报告；秘密/个人路径扫描修复 BUG-007，37 个未推送提交定向重写且冻结 tag 重建，main 与最终代码树不变。BUG-001/003/006/007 状态核对关案</strong></div><p>[六月评测报告](benchmark-report-2026-06.md) · [buglog](buglog.md) · [清理计划](plan-legacy-cleanup.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-28 2026-06-12 发布到远端：codex/context-runtime-benchmark 以 --no-ff 合入 main（merge 2a764bfb），main 与 v0.4.1-bench-frozen 已推送。合并后 tsc --noemit、vitest 135 files / 926 tests 与 python runner 20 tests 全绿；github 首页 readme、三条评测链接及根目录文件列表完成浏览器验收 [六月评测报告](benchmark-report-2026-06.md) · [index](index.md)"><div class="entry-meta"><span class="badge good">2026-06-12</span><strong>发布到远端：codex/context-runtime-benchmark 以 --no-ff 合入 main（merge 2a764bfb），main 与 v0.4.1-bench-frozen 已推送。合并后 tsc --noEmit、Vitest 135 files / 926 tests 与 Python runner 20 tests 全绿；GitHub 首页 README、三条评测链接及根目录文件列表完成浏览器验收</strong></div><p>[六月评测报告](benchmark-report-2026-06.md) · [INDEX](INDEX.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-29 2026-06-13 基于 tier b 数据完成 v0.4x 优先级重排（adr-003）：p0 离线蒸馏化验（零成本验证 skill/knack 前提）→ p1 lesson 准入门控（batch distillation 管道）→ p2 召回排序去 recency 偏置 → p3 利用可观测 → p4 requirement ledger → p5 较真税治理；tombstone 四条废案 [adr-003](adr/adr-003-v04x-priority-reorder.md)"><div class="entry-meta"><span class="badge good">2026-06-13</span><strong>基于 Tier B 数据完成 v0.4x 优先级重排（ADR-003）：P0 离线蒸馏化验（零成本验证 skill/knack 前提）→ P1 lesson 准入门控（batch distillation 管道）→ P2 召回排序去 recency 偏置 → P3 利用可观测 → P4 Requirement Ledger → P5 较真税治理；tombstone 四条废案</strong></div><p>[ADR-003](adr/ADR-003-v04x-priority-reorder.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-30 2026-06-13 p0/p1 实现完成并合并 main（de06fe06）：context7 接入 eval failure escalation（e41a057e）、离线 knack 蒸馏脚本（0934d40b）、lesson 验证准入与 ephemeral 隔离（8a15065b）、symptom 提取修复（de06fe06）。蒸馏产出 6 条 verified knack（覆盖 6938/12907/14182/14995），symptom 改为优先提取根因 marker。p0 通过验收：轨迹里存在可蒸馏的验证解法。937 tests passed。待推远端 [adr-003](adr/adr-003-v04x-priority-reorder.md) · `evals/distillation/candidate-knacks.json`"><div class="entry-meta"><span class="badge good">2026-06-13</span><strong>P0/P1 实现完成并合并 main（de06fe06）：Context7 接入 eval failure escalation（e41a057e）、离线 knack 蒸馏脚本（0934d40b）、lesson 验证准入与 ephemeral 隔离（8a15065b）、symptom 提取修复（de06fe06）。蒸馏产出 6 条 verified knack（覆盖 6938/12907/14182/14995），symptom 改为优先提取根因 marker。P0 通过验收：轨迹里存在可蒸馏的验证解法。937 tests passed。待推远端</strong></div><p>[ADR-003](adr/ADR-003-v04x-priority-reorder.md) · `evals/distillation/candidate-knacks.json`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-31 2026-06-13 adr-004 knack schema v1 定稿并实现（f78ed974）：fixsummary 提取、dedupkey 去重（6→4 条）、生命周期字段（injectedcount / lastsucceededtask / lastinjectedtask）、verifiedfix 标记 audit only。945 tests passed。待推远端 [adr-004](adr/adr-004-knack-schema-v1.md) · `evals/distillation/candidate-knacks.json`"><div class="entry-meta"><span class="badge good">2026-06-13</span><strong>ADR-004 knack schema v1 定稿并实现（f78ed974）：fixsummary 提取、dedupkey 去重（6→4 条）、生命周期字段（injectedcount / lastsucceededtask / lastinjectedtask）、verifiedfix 标记 audit only。945 tests passed。待推远端</strong></div><p>[ADR-004](adr/ADR-004-knack-schema-v1.md) · `evals/distillation/candidate-knacks.json`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-32 2026-06-13 p1 knack 注入验证（tier a）：12907/6938 均 resolved；6938 命中对应 distilled knack，turns 11；12907 turns 14→9、total token -36.87%，knack 因 top-3 截断未命中对应条目，归因留待 p2 排序修复后再验；合计 $0.3389 `evals/results/swebench/tier-a-knack-injection-20260613/`"><div class="entry-meta"><span class="badge good">2026-06-13</span><strong>P1 knack 注入验证（Tier A）：12907/6938 均 resolved；6938 命中对应 distilled knack，turns 11；12907 turns 14→9、total token -36.87%，knack 因 top-3 截断未命中对应条目，归因留待 P2 排序修复后再验；合计 $0.3389</strong></div><p>`evals/results/swebench/tier-a-knack-injection-20260613/`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-33 2026-06-13 context7 python import 提取修复（astropy + from x import y 语法）；distilled knack 导入 recall store（4 条，idempotent）；dashboard html 生成脚本 `scripts/import-distilled-knacks.ts` · `scripts/build-dashboard.ts` · `docs/dashboard.html`"><div class="entry-meta"><span class="badge good">2026-06-13</span><strong>Context7 Python import 提取修复（astropy + from x import y 语法）；distilled knack 导入 recall store（4 条，idempotent）；dashboard HTML 生成脚本</strong></div><p>`scripts/import-distilled-knacks.ts` · `scripts/build-dashboard.ts` · `docs/dashboard.html`</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-34 2026-07-13 安装与确定性验证修复：pi 从未锁定的本地 main 改为 npm 0.73.1 精确版本；oracle fixture validation 跳过无 reference solution 的 locobench session-scored smoke；vitest 升到 4.1.10 消除 audit critical。隔离试迁 earendil 0.80.6 证实存在 api 迁移面，oh-my-pi runtime 仍按路线图排除。roadmap 新增 v0.4x-h：student-agent 为每个目标项目发现/维护 index、adr、buglog，并生成静态 html 人类视图；下一产品项仍为 adr-003 p2 召回排序去 recency 偏置 [buglog bug-008/009/010](buglog.md) · [pi 后继迁移计划](plan-pi-successor-migration.md) · [roadmap v0.4x-h](student-agent-v0.4-v0.4x-alignment-roadmap-final.md#v04x-h-project-development-archive--human-dashboard) · [adr-003](adr/adr-003-v04x-priority-reorder.md)"><div class="entry-meta"><span class="badge good">2026-07-13</span><strong>安装与确定性验证修复：pi 从未锁定的本地 main 改为 npm 0.73.1 精确版本；oracle fixture validation 跳过无 reference solution 的 LocoBench session-scored smoke；Vitest 升到 4.1.10 消除 audit critical。隔离试迁 earendil 0.80.6 证实存在 API 迁移面，oh-my-pi runtime 仍按路线图排除。Roadmap 新增 v0.4x-H：Student-agent 为每个目标项目发现/维护 INDEX、ADR、buglog，并生成静态 HTML 人类视图；下一产品项仍为 ADR-003 P2 召回排序去 recency 偏置</strong></div><p>[buglog BUG-008/009/010](buglog.md) · [pi 后继迁移计划](plan-pi-successor-migration.md) · [roadmap v0.4x-H](student-agent-v0.4-v0.4x-alignment-roadmap-final.md#v04x-h-project-development-archive--human-dashboard) · [ADR-003](adr/ADR-003-v04x-priority-reorder.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-35 2026-07-13 adr-003 p2 / adr-005 实现：distilled knack 运行时字段完整保留并可 upsert；召回改为 repository/symptom eligibility 后按 reuse、confidence、repo、semantic similarity、anti-repeat 稳定排序；embedding 失败确定性降级 lexical；候选池从旧全局 top-8 分离为 bounded 64，standard top-3/heavy top-5 不扩容；注入按 task/run 幂等计数。6938/12907 shaped fixtures 均进入 standard top-3 [adr-005](adr/adr-005-recall-ranking-protocol.md) · [adr-003](adr/adr-003-v04x-priority-reorder.md)"><div class="entry-meta"><span class="badge good">2026-07-13</span><strong>ADR-003 P2 / ADR-005 实现：distilled knack 运行时字段完整保留并可 upsert；召回改为 repository/symptom eligibility 后按 reuse、confidence、repo、semantic similarity、anti-repeat 稳定排序；embedding 失败确定性降级 lexical；候选池从旧全局 top-8 分离为 bounded 64，standard top-3/heavy top-5 不扩容；注入按 task/run 幂等计数。6938/12907 shaped fixtures 均进入 standard top-3</strong></div><p>[ADR-005](adr/ADR-005-recall-ranking-protocol.md) · [ADR-003](adr/ADR-003-v04x-priority-reorder.md)</p></article><article class="entry" data-entry-type="timeline" data-search-text="index-36 2026-07-13 adr-003 p3 / adr-006 实现：eval-mode prompt 暴露稳定 recall id；assistant marker 按 message/context allowlist 校验并从最终输出清除；trace、events、outcome 记录 usedrecallids；只有 valid citation + verifier/harness passed 才幂等增加 reusecount。新增 swe 延迟 reconciliation 命令与 recall utilization 指标，自动 deprecated 继续冻结等待真实数据校准 [adr-006](adr/adr-006-recall-citation-and-credit.md) · `npm run eval:recall:reconcile`"><div class="entry-meta"><span class="badge good">2026-07-13</span><strong>ADR-003 P3 / ADR-006 实现：eval-mode prompt 暴露稳定 recall ID；assistant marker 按 message/context allowlist 校验并从最终输出清除；trace、events、outcome 记录 usedrecallids；只有 valid citation + verifier/harness passed 才幂等增加 reuseCount。新增 SWE 延迟 reconciliation 命令与 recall utilization 指标，自动 deprecated 继续冻结等待真实数据校准</strong></div><p>[ADR-006](adr/ADR-006-recall-citation-and-credit.md) · `npm run eval:recall:reconcile`</p></article></div></section><section class="panel archive-section" aria-labelledby="bugs-heading"><h2 id="bugs-heading">Bugs</h2><div class="entry-list"><article class="entry" data-entry-type="bug" data-search-text="bug-010 vitest 2.x audit critical closed `npm audit` 报 vitest ui server 任意文件读取/执行 critical advisory。"><div class="entry-meta"><strong>BUG-010 · Vitest 2.x audit critical</strong><span class="badge ">CLOSED</span></div><p>`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。</p><p><strong>Fix:</strong> Vitest 从 2.1.9 升级并精确锁定到 4.1.10；全量 137 files / 949 tests</p></article><article class="entry" data-entry-type="bug" data-search-text="bug-009 imported locobench smoke 被当作 oracle fixture 验证 closed `npm run eval:validate` 报"><div class="entry-meta"><strong>BUG-009 · imported LocoBench smoke 被当作 oracle fixture 验证</strong><span class="badge ">CLOSED</span></div><p>`npm run eval:validate` 报</p><p><strong>Root cause:</strong> LocoBench imported task 没有 `solution/solve.sh`，其 smoke verifier 只作为</p><p><strong>Fix:</strong> `eval:validate` 仅对带 reference solution 的 oracle-backed fixture 执行</p></article><article class="entry" data-entry-type="bug" data-search-text="bug-008 pi 本地依赖跟随 main，干净检出不可复现 closed readme 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从"><div class="entry-meta"><strong>BUG-008 · pi 本地依赖跟随 main，干净检出不可复现</strong><span class="badge ">CLOSED</span></div><p>README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从</p><p><strong>Root cause:</strong> `package.json` 使用未锁 commit 的 `file:./pi-mono/...`，安装流程还漏掉</p><p><strong>Fix:</strong> 改用 npm 已发布的 `@mariozechner/pi-*` 0.73.1 精确版本和预构建产物，</p></article><article class="entry" data-entry-type="bug" data-search-text="bug-001 benchmark 路径未接入 context runtime closed swe 对比 run 的 trace 中 `layers.l1/l2/l3.sectioncount = 0`、"><div class="entry-meta"><strong>BUG-001 · benchmark 路径未接入 Context Runtime</strong><span class="badge ">CLOSED</span></div><p>SWE 对比 run 的 trace 中 `layers.L1/L2/L3.sectionCount = 0`、</p><p><strong>Root cause:</strong> `runNonInteractive` 从未在 TasksManager 创建 task；</p></article><article class="entry" data-entry-type="bug" data-search-text="bug-002 cc usage 采集不认 openai 格式，cache 恒为 0 closed cc（经代理跑 gpt-5.5）的 `cachereadtokens` 恒为 0"><div class="entry-meta"><strong>BUG-002 · cc usage 采集不认 OpenAI 格式，cache 恒为 0</strong><span class="badge ">CLOSED</span></div><p>cc（经代理跑 gpt-5.5）的 `cacheReadTokens` 恒为 0</p><p><strong>Root cause:</strong> `usageFromClaudeJson` 只解析 Anthropic 字段</p><p><strong>Fix:</strong> `src/evals/claude-code-runner.ts` 增加 OpenAI 格式回退</p></article><article class="entry" data-entry-type="bug" data-search-text="bug-003 档案纪律失守：v0.37–v0.4 被打包进 batch commit closed git log 最后的版本化提交停在 v0.36，v0.4 成果埋在"><div class="entry-meta"><strong>BUG-003 · 档案纪律失守：v0.37–v0.4 被打包进 batch commit</strong><span class="badge ">CLOSED</span></div><p>git log 最后的版本化提交停在 v0.36，v0.4 成果埋在</p><p><strong>Root cause:</strong> 赶进度时档案流程停摆（本方法论的已知失败模式）。</p></article><article class="entry" data-entry-type="bug" data-search-text="bug-004 overfull-hbox 约束未进入近场，导致非法 synonym 替换 closed terminal tier a 的 `overfull-hbox` run 中 agent 消除了"><div class="entry-meta"><strong>BUG-004 · overfull-hbox 约束未进入近场，导致非法 synonym 替换</strong><span class="badge ">CLOSED</span></div><p>Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了</p><p><strong>Root cause:</strong> 归因已推进三层。第一层是原始失败 run 未把完整约束保留到</p></article><article class="entry" data-entry-type="bug" data-search-text="bug-005 p2 overfull 回归为无效 run：provider 漂移 + 缺 api key closed `p2-overfull-hard-constraints-20260611` reward=0 看似红灯，"><div class="entry-meta"><strong>BUG-005 · P2 overfull 回归为无效 run：provider 漂移 + 缺 API key</strong><span class="badge ">CLOSED</span></div><p>`p2-overfull-hard-constraints-20260611` reward=0 看似红灯，</p><p><strong>Root cause:</strong> run 配置漂移到 `student-agent__deepseek-v4-pro`，违反矩阵</p></article><article class="entry" data-entry-type="bug" data-search-text="bug-006 verifier 环境失败被计为 reward 0，污染判分与重跑配额 closed overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；"><div class="entry-meta"><strong>BUG-006 · verifier 环境失败被计为 reward 0，污染判分与重跑配额</strong><span class="badge ">CLOSED</span></div><p>overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；</p><p><strong>Root cause:</strong> ① verifier 运行时从网络安装 uv，受限网络下必败；</p></article><article class="entry" data-entry-type="bug" data-search-text="bug-007 本地 probe 凭据误入未推送分支历史 open `scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置"><div class="entry-meta"><strong>BUG-007 · 本地 probe 凭据误入未推送分支历史</strong><span class="badge danger">OPEN</span></div><p>`scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置</p><p><strong>Root cause:</strong> 一次性连通性探针被当作通用 eval 脚本提交，缺少</p></article></div></section><section class="panel archive-section" aria-labelledby="adrs-heading"><h2 id="adrs-heading">Architecture decisions</h2><div class="entry-list"><article class="entry" data-entry-type="adr" data-search-text="adr-001 评测口径：跨 agent 对比与自建 eval 严格分离 accepted planned # adr-001 · 评测口径：跨 agent 对比与自建 eval 严格分离
 
-<div class="stats">
-  <div class="stat"><div class="val">0</div><div class="lbl">总 eval run</div></div>
-  <div class="stat"><div class="val" style="color:var(--green)">—</div><div class="lbl">有效 run 通过率</div></div>
-  <div class="stat"><div class="val">$0.00</div><div class="lbl">累计花费</div></div>
-  <div class="stat"><div class="val" style="color:var(--red)">1</div><div class="lbl">OPEN bug</div></div>
-  <div class="stat"><div class="val">6</div><div class="lbl">ADR 决策</div></div>
-  <div class="stat"><div class="val">36</div><div class="lbl">时间轴条目</div></div>
-</div>
+- **日期**：2026-06-11
+- **状态**：已采纳
 
-<div class="tabs">
-  <div class="tab active" onclick="showTab('timeline')">时间轴</div>
-  <div class="tab" onclick="showTab('runs')">Eval Runs <span style="color:var(--muted);font-size:11px">(0)</span></div>
-  <div class="tab" onclick="showTab('bugs')">Bug 档案 <span style="color:var(--muted);font-size:11px">(10)</span></div>
-  <div class="tab" onclick="showTab('adrs')">决策 ADR <span style="color:var(--muted);font-size:11px">(6)</span></div>
-</div>
+## 决策
 
-<div id="timeline" class="panel active">
-  <div class="scroll-wrap">
-  <table>
-    <thead><tr><th>日期</th><th>事件</th></tr></thead>
-    <tbody>
-    <tr>
-      <td class="date">2026-07-13</td>
-      <td>ADR-003 P3 / ADR-006 实现：eval-mode prompt 暴露稳定 recall ID；assistant marker 按 message/context allowlist 校验并从最终输出清除；trace、events、outcome 记录 `used_recall_ids`；只有 valid citation + verifier/harness passed 才幂等增加 reuseCount。新增 SWE 延迟 reconciliation 命令与 recall utilization 指标，自动 deprecated 继续冻结等待真实数据校准</td>
-    </tr>
-    <tr>
-      <td class="date">2026-07-13</td>
-      <td>ADR-003 P2 / ADR-005 实现：distilled knack 运行时字段完整保留并可 upsert；召回改为 repository/symptom eligibility 后按 reuse、confidence、repo、semantic similarity、anti-repeat 稳定排序；embedding 失败确定性降级 lexical；候选池从旧全局 top-8 分离为 bounded 64，standard top-3/heavy top-5 不扩容；注入按 task/run 幂等计数。6938/12907 shaped fixtures 均进入 standard top-3</td>
-    </tr>
-    <tr>
-      <td class="date">2026-07-13</td>
-      <td>安装与确定性验证修复：pi 从未锁定的本地 main 改为 npm 0.73.1 精确版本；oracle fixture validation 跳过无 reference solution 的 LocoBench session-scored smoke；Vitest 升到 4.1.10 消除 audit critical。隔离试迁 earendil 0.80.6 证实存在 API 迁移面，oh-my-pi runtime 仍按路线图排除。Roadmap 新增 v0.4x-H：Student-agent 为每个目标项目发现/维护 INDEX、ADR、buglog，并生成静态 HTML 人类视图；下一产品项仍为 ADR-003 P2 召回排序去 recency 偏置</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-13</td>
-      <td>Context7 Python import 提取修复（astropy + `from x import y` 语法）；distilled knack 导入 recall store（4 条，idempotent）；dashboard HTML 生成脚本</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-13</td>
-      <td>P1 knack 注入验证（Tier A）：12907/6938 均 resolved；6938 命中对应 distilled knack，turns 11；12907 turns 14→9、total token -36.87%，knack 因 top-3 截断未命中对应条目，归因留待 P2 排序修复后再验；合计 $0.3389</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-13</td>
-      <td>ADR-004 knack schema v1 定稿并实现（`f78ed974`）：fix_summary 提取、dedup_key 去重（6→4 条）、生命周期字段（injected_count / last_succeeded_task / last_injected_task）、verified_fix 标记 audit only。945 tests passed。待推远端</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-13</td>
-      <td>P0/P1 实现完成并合并 main（`de06fe06`）：Context7 接入 eval failure escalation（`e41a057e`）、离线 knack 蒸馏脚本（`0934d40b`）、lesson 验证准入与 ephemeral 隔离（`8a15065b`）、symptom 提取修复（`de06fe06`）。蒸馏产出 6 条 verified knack（覆盖 6938/12907/14182/14995），symptom 改为优先提取根因 marker。P0 通过验收：轨迹里存在可蒸馏的验证解法。937 tests passed。待推远端</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-13</td>
-      <td>基于 Tier B 数据完成 v0.4x 优先级重排（ADR-003）：P0 离线蒸馏化验（零成本验证 skill/knack 前提）→ P1 lesson 准入门控（batch distillation 管道）→ P2 召回排序去 recency 偏置 → P3 利用可观测 → P4 Requirement Ledger → P5 较真税治理；tombstone 四条废案</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>发布到远端：`codex/context-runtime-benchmark` 以 `--no-ff` 合入 `main`（merge `2a764bfb`），`main` 与 `v0.4.1-bench-frozen` 已推送。合并后 `tsc --noEmit`、Vitest 135 files / 926 tests 与 Python runner 20 tests 全绿；GitHub 首页 README、三条评测链接及根目录文件列表完成浏览器验收</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>发布前门面与安全清理：根目录遗留物取消跟踪并 ignore，package description 正式化，README 中英文新增评测结果入口与六月完整报告；秘密/个人路径扫描修复 BUG-007，37 个未推送提交定向重写且冻结 tag 重建，`main` 与最终代码树不变。BUG-001/003/006/007 状态核对关案</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>CC/外部参照证据盘点完成，未新增付费 run：本地 Claude Code 2.1.153 + gpt-5.5 仅覆盖 SWE 12907/14182，merged 官方 harness 2/2，但属于 off-label 历史内部参考；未在 SWE-bench 官方 experiments 找到命名为 Claude Code 的逐题提交。Epoch 公开 Sonnet 4.6 为 `bash_agent` 而非 CC，与 Tier B 相交四题 4/4；student-agent on/off 在同四题均 3/4，差题 14365 已定位为只改 case-insensitive regex、漏改小写 `no` 的后续 masked-value 判断。故当前不能下“vs CC”胜负结论。验证：`tsc --noEmit` 通过，Vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>Tier B OpenRouter Sonnet astropy pilot 完成（commit `fa1cbdf0`，1 seed；12907/14182 off 复用 Tier A）：两臂官方 resolved 均 `4/6`。on 聚合为 `141,190 / 1,571,658 / 111`，off 为 `158,142 / 1,951,947 / 140`，trace cost `$1.8058 vs $1.9091`；但效率改善由 14995 单题主导，排除后 on 的 input/total/turns/cost 分别回涨 6.03%/14.04%/2.20%/17.94%。第 2 题起均召回 4 条，证明跨任务链路可运行，但内容主要为临时工具/环境错误，未见明确利用证据；resolved 无提升，按 ADR-002 **NO-GO 扩量**。10 个新 run 账户最终结算增量 `$2.7225`，累计 `$7.2696`，未触发熔断。收尾验证：`tsc --noEmit` 通过，Vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>OpenRouter Sonnet Tier A 重定基线完成 **4/5**（overfull deferred）：SWE 官方 harness 均 resolved。12907=`14,035 / 168,143 / 14`，`$0.21995895`，cache read 79.43%；14182=`39,355 / 486,207 / 34`，`$0.43223445`，cache read 86.85%。两题合计 trace 成本 `$0.6521934`、cache read 84.96%；OpenRouter 账户增量 `$0.5816424`，账户累计 `$4.54712565`，低于 `$5` 熔断线。直连因地区限制 403，commit `bba4011f` 增加通用 Node proxy bootstrap 后经系统代理完成；metadata 如实记录 route/model/单价/commit。有效 4 题 trace 成本合计 `$0.9569841`</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>预算重排决策：overfull 标 **deferred**（Tier A 最贵、对 Tier B GO/NO-GO 价值最低，BUG-004 已在 gpt-5.5 关案；续航哨兵实战验证顺延），优先跑 SWE 12907/14182 sonnet 基线（Tier B 直接前置，off 臂复用）。单 run 成本 &gt;$1.5 中止；预计累计 ~$4.7 守住 $5 线</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>零编辑续航哨兵完成（commit `bc036f02`）：非交互第一阶段结束后，若 `hardConstraints` 非空且 working memory `writeFiles` 仍为空，追加固定续航提示，最多 2 轮，每轮重查 `writeFiles`；JSON summary 记录 `continuationRounds`。overfull patched task 的 agent timeout 提到 2400s。预算预估：OpenRouter usage `$3.89538615`，距 `$5` 仅 `$1.1046`，而上一条 overfull 有效 agent 成本 `$1.3772`，预计单跑即可能越线，按熔断规则暂停等人工批准</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>OpenRouter key 从 `~/.student-agent/.env` 注入后重测 patched overfull：BUG-006 的 verifier 侧已修好（不再拉 astral.sh，pytest 可运行；secret env file 避免 key 出现在 compose 参数），但 overfull 两次均为 `AgentTimeoutError`，新哨兵均标 invalid（`validRewardTrials=0`）。第二次 timeout 已按 ×1.5 提到 1125s，仍在 agent 第一轮 bash 后长时间无输出，未形成有效 run；OpenRouter usage `$3.89538615`，低于 `$5`，按红线停止，不跑 SWE</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>BUG-006 代码修复完成、待回归：terminal 汇总新增 `invalid_reasons`，agent timeout 与 verifier setup failure 均标 invalid_run；新增 `prepare_terminal_bench_verifier_deps.py`，已生成本地 patched `overfull-hbox` task 与预装 `uv/uvx` 的 verifier 镜像，避免判分时访问 astral.sh。当前 shell 缺 `OPENROUTER_API_KEY`，未继续付费重测</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>渠道切换 OpenRouter sonnet-4.6（预算 $10）。cache 探针通过：prove-plus-comm reward 1.0、cache read 占比 79.49%、$0.12 → **BUG-002 关案**（OpenRouter 口径）。Tier A 重定基线进行中：fix-git 绿（$0.19）；overfull-hbox 判分无效——verifier 装 uv 失败（astral.sh SSL + uvx not found），记 **BUG-006**（verifier infra 失败应标 invalid_run，依赖需预烘焙；红线修订：infra 失败不耗重跑配额）。累计 $2.30</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>OpenRouter Sonnet cache 探针通过，BUG-002 关案：`prove-plus-comm` reward 1.0，`5,205 / 65,733 / 11`，cache read/write=`48,998 / 7,436`，cache read 占 prompt 输入 79.49%，实际成本 `$0.1196094`。逐轮 usage 显示首轮创建 cache、后续每轮读取，确认 Pi 的 Anthropic `cache_control` 经 OpenRouter 透传；run metadata 含 commit `452e46b0`、模型与 OpenRouter 单价</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>Tier A 全绿：SWE 官方 harness 12907/14182 均 resolved。12907=`425,030 / 447,385 / 16`，input 较 189k 基线上涨 124.7%，trace 归因为验证环境摩擦导致 31 次工具调用（基线 11）；14182 有效重跑=`136,215 / 148,775 / 8`，低于基线。14182 首次联合运行被外部终止并形成全仓删除式 suspicious patch，作为无效产物排除，未送判分</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-12</td>
-      <td>BUG-004 第四层关案：`SELF_CHECK_PROMPT` 增加 full-diff 穷举与机械约束脚本化原则（commit `5537d326`），gpt-5.5 overfull 3 seed 全部 verifier 4/4，三元组为 553k/675k/34、1,059k/1,219k/38、562k/631k/25；三轮自查均生成并运行 Node 校验器，实际抓出 article、跨 family 和文件尾结构违规后修复。成本显著高于 140k~177k/16~20 基线，归因为容器缺 git/python、脚本修复及真实违规返工</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>completion self-check 已实现（commit `c1d2aff9`，全量 131 files / 912 tests 通过），gpt-5.5 overfull 3 seed 均有工具取证，但仅 1/3 verifier 4/4：seed 1 `an→a`、seed 3 `natures→moods`。自查 trace 显示模型用 examples 抽查后错误声明全部满足，未做完整逐 token 对照。按失败停止规则未跑 SWE、未打 tag</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>新 key 的 gpt-5.5 overfull smoke 为有效 run（14 turns / 172,788 input），仍为 verifier 3/4：`natures→traits` 跨 family，复现最初症状；hardConstraints 已完整进入 L1，失败点收敛到“最终未运行可执行 synonym-family 校验”。按计划未继续另外两轮与 SWE，未打 tag</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>BUG-005 哨兵完成并实战验证：gpt-5.5 中转链路 3 次 agent exit 1（503）均标记 `invalid_run=true`，不计 reward，BUG-005 关案。改用 DeepSeek 官方 endpoint 做 overfull 功能回归：有效 run 的 verifier 3/4 通过，编译与 overfull 目标达成，但残留非法 `to→of`；trace 证明 L1 `hardConstraints` 已渲染且含 synonym family 约束，故 BUG-004 定位为装配已修、行为/最终验证闭环仍 OPEN。seed 2 启动后按失败即停规则终止，未计结果</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>`codex/context-runtime-benchmark` 按 11 批小步提交完成入库整理（repo ignore、非交互 context runtime、hardConstraints、verify_retry、外部 benchmark runner、fixtures、docs、CLI packaging、core/observability 支撑）；提交后完整 `npx vitest run` 通过：130 files passed / 1 skipped，909 tests passed / 1 skipped，duration 47s</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>验收发现 P2 overfull 回归为无效 run（BUG-005：provider 漂移 deepseek + 缺 key，agent 未运行）；cc-sonnet smoke ×2 errored。决策：**停止自跑 cc**，跨 agent 改引公开 leaderboard 数据（per-instance artifact 与子集求交集），matrix Tier C 已修订；sonnet 轮改为 student-agent 单边</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>Tier A 收尾 + Sonnet 锚点轮计划立项（P0 归因 → P1 Hard Constraints MVP + 政策补丁 + 基础设施固化 → P2 全量回归 → P3 tag 冻结 + sonnet），交 codex 执行</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>Tier A 结果（口径：final records 的 inputTokens/turns）：SWE 两题官方 resolved，12907 = 189k/11 calls，14182 = 189k/9 turns（政策补丁前 22 calls/493k input，降幅成立）；`verify_retry`/`patch_retry` 均 0 触发——补丁在上游消灭死磕，刹车仅有单测覆盖。Terminal：prove-plus-comm ✓、fix-git ✓（首次 verifier 被 Debian mirror 502 绊倒，重跑过）、**overfull-hbox ✗（红）**：消除 warning 但用了非法 synonym（natures→traits，跨 family）——约束跟踪失败，归因方法：查失败轮 prompt 中约束是否仍在，在=渲染问题/不在=装配问题；此为 v0.4x Requirement Ledger 的首份实证证据。首跑 401 令牌失效，fallback 渠道完成</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>Benchmark 矩阵 v1 敲定（Tier A 冒烟 / B 学习 / C 跨 agent；LoCoBench parked）；前置改动：autonomy rule 环境豁免补丁 + ToolGuard `verify_retry` 刹车</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>BUG-001 接线修复完成（codex，分支 `codex/context-runtime-benchmark`）；ON/OFF smoke 对比：token ×4~6、轮次 10→16/8→18，归因为注入的验证工作流引发&quot;较真行为&quot;+ 环境摩擦（astropy pytest warning 配置、build_ext），非上下文迷路；质量持平（题太简单）。治理方向：验证重试刹车（Bounded Breaker 用例），不减配 autonomy rule</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>旧版 TUI 与遗留物清理立项（待 benchmark 收尾后执行）</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-11</td>
-      <td>发现 benchmark 未接入 context runtime（BUG-001）；cc usage 采集修复（BUG-002）；评测口径敲定（ADR-001/002）</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-10 ~ 11</td>
-      <td>SWE/terminal-bench 对比跑分（gpt-5.5，cc vs student-agent）</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-08</td>
-      <td>v0.4 Context Runtime Freeze（batch commit `79ad7f64`，教训见 BUG-003）</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-07</td>
-      <td>v0.34 Hashline / v0.35 WM+XState / v0.36 ToolGuard</td>
-    </tr>
-    <tr>
-      <td class="date">2026-06-04 ~ 06</td>
-      <td>v0.33 TUI/Trace 稳定化；砍掉 design-study</td>
-    </tr></tbody>
-  </table>
-  </div>
-</div>
+跨 agent 对比（vs claude-code / opencode 等）只使用公开 benchmark
+（swe-bench、terminal-bench、locobench-agent）；自建 eval 只用于自我 ablation
+（memory on/off、context runtime on/off 等），不用于对外宣称优于他人产品。
+两类主张在报告与 readme 中不混用。
 
-<div id="runs" class="panel">
-  <div class="scroll-wrap">
-  <table>
-    <thead><tr><th>日期</th><th>档</th><th>任务</th><th>模型</th><th>结果</th><th>inputTokens</th><th>totalTokens</th><th>turns</th><th>cost</th></tr></thead>
-    <tbody></tbody>
-  </table>
-  </div>
-</div>
+## 理由
 
-<div id="bugs" class="panel">
-  <div class="scroll-wrap">
-  <table>
-    <thead><tr><th>ID</th><th>标题</th><th>时间</th><th>状态</th><th>症状</th></tr></thead>
-    <tbody>
-    <tr>
-      <td><strong>BUG-010</strong></td>
-      <td>BUG-010</td>
-      <td>2026-07-13</td>
-      <td><span class="badge green">CLOSED</span></td>
-      <td class="small">`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。</td>
-    </tr>
-    <tr>
-      <td><strong>BUG-009</strong></td>
-      <td>BUG-009</td>
-      <td>2026-07-13</td>
-      <td><span class="badge green">CLOSED</span></td>
-      <td class="small">`npm run eval:validate` 报</td>
-    </tr>
-    <tr>
-      <td><strong>BUG-008</strong></td>
-      <td>BUG-008</td>
-      <td>2026-07-13</td>
-      <td><span class="badge green">CLOSED</span></td>
-      <td class="small">README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从</td>
-    </tr>
-    <tr>
-      <td><strong>BUG-001</strong></td>
-      <td>BUG-001</td>
-      <td>2026-06-11</td>
-      <td><span class="badge green">CLOSED</span></td>
-      <td class="small">SWE 对比 run 的 trace 中 `layers.L1/L2/L3.sectionCount = 0`、</td>
-    </tr>
-    <tr>
-      <td><strong>BUG-002</strong></td>
-      <td>BUG-002</td>
-      <td>2026-06-11</td>
-      <td><span class="badge green">CLOSED</span></td>
-      <td class="small">cc（经代理跑 gpt-5.5）的 `cacheReadTokens` 恒为 0</td>
-    </tr>
-    <tr>
-      <td><strong>BUG-003</strong></td>
-      <td>BUG-003</td>
-      <td>2026-06-08 发生</td>
-      <td><span class="badge green">CLOSED</span></td>
-      <td class="small">git log 最后的版本化提交停在 v0.36，v0.4 成果埋在</td>
-    </tr>
-    <tr>
-      <td><strong>BUG-004</strong></td>
-      <td>BUG-004</td>
-      <td>2026-06-11 18:20</td>
-      <td><span class="badge green">CLOSED</span></td>
-      <td class="small">Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了</td>
-    </tr>
-    <tr>
-      <td><strong>BUG-005</strong></td>
-      <td>BUG-005</td>
-      <td>2026-06-11 19:35 run / 验收时发现</td>
-      <td><span class="badge green">CLOSED</span></td>
-      <td class="small">`p2-overfull-hard-constraints-20260611` reward=0 看似红灯，</td>
-    </tr>
-    <tr>
-      <td><strong>BUG-006</strong></td>
-      <td>BUG-006</td>
-      <td>2026-06-12</td>
-      <td><span class="badge green">CLOSED</span></td>
-      <td class="small">overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；</td>
-    </tr>
-    <tr>
-      <td><strong>BUG-007</strong></td>
-      <td>BUG-007</td>
-      <td>2026-06-12</td>
-      <td><span class="badge red">OPEN / FIXED / FIXED-待回归 / WONTFIX</span></td>
-      <td class="small">`scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置</td>
-    </tr></tbody>
-  </table>
-  </div>
-</div>
+自建评测测自己的组件是标准做法（论文 ablation 皆如此），无可指摘；
+但&quot;用自己造的题宣称打败别人的产品&quot;没有说服力。分离后各自立得住。
 
-<div id="adrs" class="panel">
-  <div class="scroll-wrap">
-  <table>
-    <thead><tr><th>ID</th><th>标题</th><th>日期</th><th>状态</th></tr></thead>
-    <tbody>
-    <tr>
-      <td><strong>ADR-001</strong></td>
-      <td>评测口径：跨 agent 对比与自建 eval 严格分离</td>
-      <td>2026-06-11</td>
-      <td><span class="badge grey">已采纳</span></td>
-    </tr>
-    <tr>
-      <td><strong>ADR-002</strong></td>
-      <td>学习 eval：别人的题 + 自己的协议</td>
-      <td>2026-06-11</td>
-      <td><span class="badge grey">已采纳；astropy pilot 完成，扩量暂缓</span></td>
-    </tr>
-    <tr>
-      <td><strong>ADR-003</strong></td>
-      <td>v0.4x 优先级重排（基于 Tier B 数据）</td>
-      <td>2026-06-13</td>
-      <td><span class="badge grey">已采纳</span></td>
-    </tr>
-    <tr>
-      <td><strong>ADR-004</strong></td>
-      <td>Knack Schema v1（定稿）</td>
-      <td>2026-06-13</td>
-      <td><span class="badge grey">已采纳</span></td>
-    </tr>
-    <tr>
-      <td><strong>ADR-005</strong></td>
-      <td>Recall Ranking Protocol（P2）</td>
-      <td>2026-07-13</td>
-      <td><span class="badge grey">已采纳</span></td>
-    </tr>
-    <tr>
-      <td><strong>ADR-006</strong></td>
-      <td>Recall Citation 与成功归因</td>
-      <td>2026-07-13</td>
-      <td><span class="badge grey">已采纳</span></td>
-    </tr></tbody>
-  </table>
-  </div>
-</div>
+## 被否方案（tombstone，勿重提）
 
-<script>
-function showTab(id) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  event.target.classList.add('active');
+- ❌ 自建任务直接对比 cc：说服力不足，已否。
+- ❌ 追求 swe 全量 300 题统计显著性：预算不允许；改为固定小子集 +
+  机制展示（contextbreakdown 曲线）+ 诚实标注 n。
+
+## 关联
+
+- token 效率叙事归因修正见 buglog bug-001：省 token 归基座 harness，
+  不归 context runtime；context runtime 开启后 token 应增加，属预期。
+"><div class="entry-meta"><strong>ADR-001 · 评测口径：跨 agent 对比与自建 eval 严格分离</strong><span class="badge good">accepted</span><span class="badge ">planned</span></div><p># ADR-001 · 评测口径：跨 agent 对比与自建 eval 严格分离
+
+- **日期**：2026-06-11
+- **状态**：已采纳
+
+## 决策
+
+跨 agent 对比（vs claude-code / opencode 等）只使用公开 benchmark
+（SWE-bench、terminal-bench、LoCoBench-Agent）；自建 eval 只用于自我 ablation
+（memory on/off、context runtime on/off 等），不用于对外宣称优于他人产品。
+两类主张在报告与 README 中不混用。
+
+## 理由
+
+自建评测测自己的组件是标准做法（论文 ablation 皆如此），无可指摘；
+但&quot;用自己造的题宣称打败别人的产品&quot;没有说服力。分离后各自立得住。
+
+## 被否方案（tombstone，勿重提）
+
+- ❌ 自建任务直接对比 cc：说服力不足，已否。
+- ❌ 追求 SWE 全量 300 题统计显著性：预算不允许；改为固定小子集 +
+  机制展示（contextBreakdown 曲线）+ 诚实标注 n。
+
+## 关联
+
+- token 效率叙事归因修正见 buglog BUG-001：省 token 归基座 harness，
+  不归 context runtime；context runtime 开启后 token 应增加，属预期。
+</p></article><article class="entry" data-entry-type="adr" data-search-text="adr-002 学习 eval：别人的题 + 自己的协议 proposed planned # adr-002 · 学习 eval：别人的题 + 自己的协议
+
+- **日期**：2026-06-11
+- **状态**：已采纳；astropy pilot 完成，扩量暂缓
+
+## 决策
+
+学习曲线评测采用&quot;外部任务 + 自有协议&quot;：从 swe-bench 选取**同一仓库**
+（候选：django，100+ 实例）按时间顺序排成序列，跑两臂——
+memory 跨任务保留（on）vs 每题清空（off）。题目与打分均来自官方 harness，
+自建部分仅一行协议：&quot;任务间记忆是否保留&quot;。
+
+## 产出要求
+
+不止分数，要失败归因表。每题记录三项审计（数据源 events.jsonl）：
+
+1. **召回审计**：召回了哪些 lesson/knack，trace 中是否被实际使用
+   → 区分写入失败 / 召回失败 / 利用失败
+2. **重复错误对账**：本题错误是否为前序任务已记录的同类
+3. **污染检查**：memory on 反而变差的题，是否召回了误导性旧结论
+   （顺带验证 task ledger rejection 机制）
+
+## 定位
+
+此 eval 是 evo harness（v0.5）的前置门槛与适应度函数：
+被动记忆测不出正收益，则不启动自动进化；结果决定 v0.4x 组件优先级。
+
+## 2026-06-12 pilot 结论
+
+openrouter sonnet astropy 六题、1 seed 完成。on/off resolved 均为 4/6；
+跨任务归档与 recall 链路已跑通，但召回内容主要是临时工具/环境错误，未观察到
+明确利用证据。聚合效率改善由单题离群值主导，排除该题后 on 成本回涨。
+
+因此按本 adr 的门槛暂不启动 django 扩量或 seed 2，先修 lesson/knack 准入、
+排序和利用审计。完整数据见
+[tier b 结果报告](../tier-b-openrouter-sonnet-20260612.md)。
+
+## 被否方案（tombstone，勿重提）
+
+- ⏸ 自建埋坑任务序列（任务 2/4 故意踩任务 1/3 的坑）：设计成本高、
+  自出题说服力弱，降级为后续补充，待外部题版本出结果后再议。
+
+## 关联
+
+- 前置依赖：bug-001 修复（benchmark 接入 context runtime）、
+  `--memory-dir` 隔离 flag（接线计划 p2-7）。
+"><div class="entry-meta"><strong>ADR-002 · 学习 eval：别人的题 + 自己的协议</strong><span class="badge attention">proposed</span><span class="badge ">planned</span></div><p># ADR-002 · 学习 eval：别人的题 + 自己的协议
+
+- **日期**：2026-06-11
+- **状态**：已采纳；astropy pilot 完成，扩量暂缓
+
+## 决策
+
+学习曲线评测采用&quot;外部任务 + 自有协议&quot;：从 SWE-bench 选取**同一仓库**
+（候选：django，100+ 实例）按时间顺序排成序列，跑两臂——
+memory 跨任务保留（on）vs 每题清空（off）。题目与打分均来自官方 harness，
+自建部分仅一行协议：&quot;任务间记忆是否保留&quot;。
+
+## 产出要求
+
+不止分数，要失败归因表。每题记录三项审计（数据源 events.jsonl）：
+
+1. **召回审计**：召回了哪些 lesson/knack，trace 中是否被实际使用
+   → 区分写入失败 / 召回失败 / 利用失败
+2. **重复错误对账**：本题错误是否为前序任务已记录的同类
+3. **污染检查**：memory on 反而变差的题，是否召回了误导性旧结论
+   （顺带验证 Task Ledger rejection 机制）
+
+## 定位
+
+此 eval 是 evo harness（v0.5）的前置门槛与适应度函数：
+被动记忆测不出正收益，则不启动自动进化；结果决定 v0.4x 组件优先级。
+
+## 2026-06-12 pilot 结论
+
+OpenRouter Sonnet astropy 六题、1 seed 完成。on/off resolved 均为 4/6；
+跨任务归档与 recall 链路已跑通，但召回内容主要是临时工具/环境错误，未观察到
+明确利用证据。聚合效率改善由单题离群值主导，排除该题后 on 成本回涨。
+
+因此按本 ADR 的门槛暂不启动 django 扩量或 seed 2，先修 lesson/knack 准入、
+排序和利用审计。完整数据见
+[Tier B 结果报告](../tier-b-openrouter-sonnet-20260612.md)。
+
+## 被否方案（tombstone，勿重提）
+
+- ⏸ 自建埋坑任务序列（任务 2/4 故意踩任务 1/3 的坑）：设计成本高、
+  自出题说服力弱，降级为后续补充，待外部题版本出结果后再议。
+
+## 关联
+
+- 前置依赖：BUG-001 修复（benchmark 接入 context runtime）、
+  `--memory-dir` 隔离 flag（接线计划 P2-7）。
+</p></article><article class="entry" data-entry-type="adr" data-search-text="adr-003 v0.4x 优先级重排（基于 tier b 数据） accepted planned # adr-003 · v0.4x 优先级重排（基于 tier b 数据）
+
+- **日期**：2026-06-13
+- **状态**：已采纳
+
+## 背景
+
+tier b pilot（2026-06-12，openrouter sonnet 4.6，astropy 6 题，1 seed）给出了首条
+受控数据。在此之前，v0.4x 的组件优先级来自直觉；现在用数据重排，并把若干方向
+显式 tombstone。
+
+核心发现（详见 [benchmark-report-2026-06.md](../benchmark-report-2026-06.md) §5）：
+
+1. **归档→召回→注入链路已跑通**（第 2 题起稳定召回 4 条）——管道本身不是瓶颈。
+2. **零条 lesson 是&quot;验证过的解法&quot;**——31 条全是过程错误，无法产生质量收益。
+3. **效率改善由单题离群值主导**——排除后 on 臂成本反升 14~18%。
+4. **no-go 扩量**——病灶在写入层，扩样本前必须先修写入。
+
+## 决策：v0.4x 组件优先级
+
+### p0 · 离线蒸馏化验（零成本验证前提）
+
+**做什么**：写脚本读 tier b on 臂已有的 `events.jsonl`，从轨迹抽
+&quot;错误 → 后来哪步消除了它&quot;的因果对，格式化为候选 knack，人工判质量。
+
+**为什么 p0**：skill/knack 路线的全部投入建立在一个前提上——
+&quot;轨迹里存在可蒸馏的、被验证过的解法&quot;。这是事实问题，不是观点问题。
+化验结果好则前提成立，可放心建蒸馏管道；化验结果差则问题在更上游，
+避免照着论文建一座空工厂。成本约等于零（读硬盘，不启动 agent）。
+
+**验收**：产出 ≥3 条格式合法的候选 knack，人工评定至少 1 条&quot;若注入第 4 题
+能少走弯路&quot;——则继续 p1；否则重新定位病灶。
+
+**接口（tentative knack schema）**：
+```jsonc
+{
+  &quot;id&quot;: &quot;knack-astropy-pytest-filterwarnings&quot;,
+  &quot;repo&quot;: &quot;astropy&quot;,
+  &quot;symptom&quot;: &quot;pytest 因 warning 配置报错（w::deprecationwarning）&quot;,
+  &quot;verified_fix&quot;: &quot;pytest -o &#39;filterwarnings=ignore::deprecationwarning&#39;&quot;,
+  &quot;evidence_task&quot;: &quot;astropy-14182&quot;,          // 哪道题验证过
+  &quot;evidence_turn&quot;: 7,                         // 第几轮工具调用
+  &quot;compression_level&quot;: &quot;knack&quot;,              // lesson / knack / rule
+  &quot;confidence&quot;: &quot;verified&quot;                   // verified / candidate
 }
-</script>
-</body>
-</html>
+```
+
+### p1 · lesson 准入门控（batch distillation 管道）
+
+**做什么**：在 lesson 写入时增加准入条件——lesson 必须包含
+&quot;验证过的解法&quot;（tool call 取证 + exit 0）才能入库；否则降级为
+ephemeral note，不归档、不跨任务传播。
+
+旧行为（已 tombstone，见下）：把过程错误（&quot;import 失败过&quot;）当 lesson 写入。
+
+实现路径：`lessonwriter` 在归档前做 causal pair 检查；
+无法配对的记录标 `quality: low`，写入 `ephemeral/` 而非 `lessons/`。
+
+**验收**：tier b on 臂重跑，lesson 库里&quot;verified&quot; 占比 ≥ 50%；
+质量分（人工盲审 5 条）≥ 3/5 可用。
+
+### p2 · 召回排序去 recency 偏置
+
+**状态**：已实现，正式协议见 [adr-005](adr-005-recall-ranking-protocol.md)。
+
+**做什么**：当前召回按时间序取最近 n 条；改为按相关性（仓库 + 症状 embedding
+相似度）排序，recency 降权为 tiebreaker。
+
+**为什么 p2 不是 p1**：p1 解决&quot;写入的都是垃圾&quot;，p2 解决&quot;好东西被旧垃圾
+压着召不出来&quot;——必须先有质量过关的 lesson 才值得调召回排序。
+
+### p3 · 利用可观测（recall citation）
+
+**状态**：已实现，正式协议见 [adr-006](adr-006-recall-citation-and-credit.md)。
+
+**做什么**：agent 在引用 lesson/knack 时，在 trace 里留 citation 标记
+（`used_recall_ids: [&quot;knack-xxx&quot;]`）；harness 统计&quot;召回但未引用&quot;
+vs &quot;召回且引用&quot;，作为下一轮 eval 的二级指标。
+
+**为什么 p3**：tier b 的核心审计盲点是&quot;无模型实际利用的证据&quot;；
+没有 citation 就永远无法区分&quot;有效利用&quot;和&quot;注入了但忽略了&quot;。
+
+### p4 · requirement ledger 完整版
+
+延续现有 hardconstraints 机制，结构化为 ledger：
+每条约束有 id、来源、验证方式、当前状态（open / satisfied / waived）。
+完工后可替换掉 completion self-check 里的自由文本约束列举。
+
+*优先级低于 p1-p3，因为 hardconstraints 已有应急兜底，不阻塞质量收益路径。*
+
+### p5 · &quot;较真税&quot;治理（thoroughness budget）
+
+overfull-hbox 案例表明穷举自查成本可达 600k-1.2m total。
+需要机制让 agent 感知当前任务的&quot;彻底性预算&quot;，高精度任务开满、
+日常任务收缩。实现方案待 p1-p3 稳定后设计。
+
+---
+
+## tombstone（被否方向，勿重提）
+
+| 方向 | 否决原因 |
+|---|---|
+| ⏸ 直接扩 lesson 量（更多 seed / 更多题）| 病灶在写入质量，扩量只放大噪声 |
+| ⏸ 调优召回 top-k（从 4 → 8）| 同上，垃圾召更多仍是垃圾 |
+| ⏸ 自建埋坑任务序列 | 设计成本高，说服力弱（见 adr-002） |
+| ⏸ self-running claude code 对比 | off-label，成本高，已转引公开数据（见 adr-001）|
+
+---
+
+## 关联
+
+- 数据来源：[adr-002](adr-002-learning-eval-protocol.md)，[benchmark-report-2026-06.md](../benchmark-report-2026-06.md)
+- 触发此 adr 的 bug：bug-001（context runtime 未接入）、bug-004（约束遵循）
+- 下一个 adr：adr-004（knack schema 定稿，待离线化验结果后写）
+"><div class="entry-meta"><strong>ADR-003 · v0.4x 优先级重排（基于 Tier B 数据）</strong><span class="badge good">accepted</span><span class="badge ">planned</span></div><p># ADR-003 · v0.4x 优先级重排（基于 Tier B 数据）
+
+- **日期**：2026-06-13
+- **状态**：已采纳
+
+## 背景
+
+Tier B pilot（2026-06-12，OpenRouter Sonnet 4.6，astropy 6 题，1 seed）给出了首条
+受控数据。在此之前，v0.4x 的组件优先级来自直觉；现在用数据重排，并把若干方向
+显式 tombstone。
+
+核心发现（详见 [benchmark-report-2026-06.md](../benchmark-report-2026-06.md) §5）：
+
+1. **归档→召回→注入链路已跑通**（第 2 题起稳定召回 4 条）——管道本身不是瓶颈。
+2. **零条 lesson 是&quot;验证过的解法&quot;**——31 条全是过程错误，无法产生质量收益。
+3. **效率改善由单题离群值主导**——排除后 on 臂成本反升 14~18%。
+4. **NO-GO 扩量**——病灶在写入层，扩样本前必须先修写入。
+
+## 决策：v0.4x 组件优先级
+
+### P0 · 离线蒸馏化验（零成本验证前提）
+
+**做什么**：写脚本读 Tier B on 臂已有的 `events.jsonl`，从轨迹抽
+&quot;错误 → 后来哪步消除了它&quot;的因果对，格式化为候选 knack，人工判质量。
+
+**为什么 P0**：skill/knack 路线的全部投入建立在一个前提上——
+&quot;轨迹里存在可蒸馏的、被验证过的解法&quot;。这是事实问题，不是观点问题。
+化验结果好则前提成立，可放心建蒸馏管道；化验结果差则问题在更上游，
+避免照着论文建一座空工厂。成本约等于零（读硬盘，不启动 agent）。
+
+**验收**：产出 ≥3 条格式合法的候选 knack，人工评定至少 1 条&quot;若注入第 4 题
+能少走弯路&quot;——则继续 P1；否则重新定位病灶。
+
+**接口（tentative knack schema）**：
+```jsonc
+{
+  &quot;id&quot;: &quot;knack-astropy-pytest-filterwarnings&quot;,
+  &quot;repo&quot;: &quot;astropy&quot;,
+  &quot;symptom&quot;: &quot;pytest 因 warning 配置报错（W::DeprecationWarning）&quot;,
+  &quot;verified_fix&quot;: &quot;pytest -o &#39;filterwarnings=ignore::DeprecationWarning&#39;&quot;,
+  &quot;evidence_task&quot;: &quot;astropy-14182&quot;,          // 哪道题验证过
+  &quot;evidence_turn&quot;: 7,                         // 第几轮工具调用
+  &quot;compression_level&quot;: &quot;knack&quot;,              // lesson / knack / rule
+  &quot;confidence&quot;: &quot;verified&quot;                   // verified / candidate
+}
+```
+
+### P1 · Lesson 准入门控（batch distillation 管道）
+
+**做什么**：在 lesson 写入时增加准入条件——lesson 必须包含
+&quot;验证过的解法&quot;（tool call 取证 + exit 0）才能入库；否则降级为
+ephemeral note，不归档、不跨任务传播。
+
+旧行为（已 tombstone，见下）：把过程错误（&quot;import 失败过&quot;）当 lesson 写入。
+
+实现路径：`LessonWriter` 在归档前做 causal pair 检查；
+无法配对的记录标 `quality: low`，写入 `ephemeral/` 而非 `lessons/`。
+
+**验收**：Tier B on 臂重跑，lesson 库里&quot;verified&quot; 占比 ≥ 50%；
+质量分（人工盲审 5 条）≥ 3/5 可用。
+
+### P2 · 召回排序去 recency 偏置
+
+**状态**：已实现，正式协议见 [ADR-005](ADR-005-recall-ranking-protocol.md)。
+
+**做什么**：当前召回按时间序取最近 N 条；改为按相关性（仓库 + 症状 embedding
+相似度）排序，recency 降权为 tiebreaker。
+
+**为什么 P2 不是 P1**：P1 解决&quot;写入的都是垃圾&quot;，P2 解决&quot;好东西被旧垃圾
+压着召不出来&quot;——必须先有质量过关的 lesson 才值得调召回排序。
+
+### P3 · 利用可观测（recall citation）
+
+**状态**：已实现，正式协议见 [ADR-006](ADR-006-recall-citation-and-credit.md)。
+
+**做什么**：agent 在引用 lesson/knack 时，在 trace 里留 citation 标记
+（`used_recall_ids: [&quot;knack-xxx&quot;]`）；harness 统计&quot;召回但未引用&quot;
+vs &quot;召回且引用&quot;，作为下一轮 eval 的二级指标。
+
+**为什么 P3**：Tier B 的核心审计盲点是&quot;无模型实际利用的证据&quot;；
+没有 citation 就永远无法区分&quot;有效利用&quot;和&quot;注入了但忽略了&quot;。
+
+### P4 · Requirement Ledger 完整版
+
+延续现有 hardConstraints 机制，结构化为 Ledger：
+每条约束有 ID、来源、验证方式、当前状态（open / satisfied / waived）。
+完工后可替换掉 completion self-check 里的自由文本约束列举。
+
+*优先级低于 P1-P3，因为 hardConstraints 已有应急兜底，不阻塞质量收益路径。*
+
+### P5 · &quot;较真税&quot;治理（thoroughness budget）
+
+overfull-hbox 案例表明穷举自查成本可达 600k-1.2M total。
+需要机制让 agent 感知当前任务的&quot;彻底性预算&quot;，高精度任务开满、
+日常任务收缩。实现方案待 P1-P3 稳定后设计。
+
+---
+
+## Tombstone（被否方向，勿重提）
+
+| 方向 | 否决原因 |
+|---|---|
+| ⏸ 直接扩 lesson 量（更多 seed / 更多题）| 病灶在写入质量，扩量只放大噪声 |
+| ⏸ 调优召回 top-k（从 4 → 8）| 同上，垃圾召更多仍是垃圾 |
+| ⏸ 自建埋坑任务序列 | 设计成本高，说服力弱（见 ADR-002） |
+| ⏸ self-running Claude Code 对比 | off-label，成本高，已转引公开数据（见 ADR-001）|
+
+---
+
+## 关联
+
+- 数据来源：[ADR-002](ADR-002-learning-eval-protocol.md)，[benchmark-report-2026-06.md](../benchmark-report-2026-06.md)
+- 触发此 ADR 的 bug：BUG-001（context runtime 未接入）、BUG-004（约束遵循）
+- 下一个 ADR：ADR-004（knack schema 定稿，待离线化验结果后写）
+</p></article><article class="entry" data-entry-type="adr" data-search-text="adr-004 knack schema v1（定稿） accepted planned # adr-004 · knack schema v1（定稿）
+
+- **日期**：2026-06-13
+- **状态**：已采纳
+
+## 背景
+
+p0 离线蒸馏（`evals/distillation/candidate-knacks.json`）产出 6 条 verified knack，
+暴露了 tentative schema（adr-003）的两个真实问题：
+
+1. **重复蒸馏**：6938 和 14995 各出现 2 条，不同 run 对同一 bug 各自产出一条，
+   导致库里有语义重复的知识。
+2. **verified_fix 过长**：字段当前是完整的 trace 叙述段落（200–600 字），
+   注入时消耗大量 token，且难以让模型快速提取&quot;下一步动作&quot;。
+
+本 adr 在 adr-003 的 tentative schema 基础上定稿字段，同时规定去重和召回行为。
+
+## 决策
+
+### schema v1（完整字段）
+
+```jsonc
+{
+  // ── 身份 ───────────────────────────────────────
+  &quot;id&quot;: &quot;knack-&lt;repo_slug&gt;-&lt;hex8&gt;&quot;,        // hex8 = sha256(repo+symptom)[:8]
+  &quot;dedup_key&quot;: &quot;&lt;repo_slug&gt;:&lt;symptom_fp&gt;&quot;, // symptom_fp = sha256(normalized_symptom)[:12]
+                                            // 相同 dedup_key 的条目视为同一知识，合并取最短 span
+  &quot;repo&quot;: &quot;astropy/astropy&quot;,
+
+  // ── 知识本体 ─────────────────────────────────
+  &quot;symptom&quot;: &quot;...&quot;,          // 1-2 句根因描述（优先提取 &quot;the bug is&quot; / &quot;root cause:&quot; marker）
+  &quot;fix_summary&quot;: &quot;...&quot;,      // ≤30 词的一句话动作（提取 &quot;the fix is&quot; / &quot;fix:&quot; 后第一句）
+  &quot;verified_fix&quot;: &quot;...&quot;,     // 完整叙述（仅存档，不注入召回窗口）
+
+  // ── 证据 ──────────────────────────────────────
+  &quot;evidence_task&quot;: &quot;astropy__astropy-6938&quot;,
+  &quot;evidence_turns&quot;: [5, 12],             // [首次出现 turn, 修复完成 turn]
+
+  // ── 分类 ──────────────────────────────────────
+  &quot;compression_level&quot;: &quot;knack&quot;,          // lesson | knack | rule
+  &quot;confidence&quot;: &quot;verified&quot;,              // verified | candidate
+
+  // ── 运行时状态（随使用更新）──────────────────
+  &quot;reuse_count&quot;: 0,                      // 每次 recall + citation + task success +1
+  &quot;injected_count&quot;: 0,                   // 每次被召回注入 +1（不论是否引用）
+  &quot;last_succeeded_task&quot;: null,           // 最近一次成功利用的 task id
+  &quot;last_injected_task&quot;: null,            // 最近一次被注入的 task id（cross-time replay 用）
+
+  // ── 验证 ──────────────────────────────────────
+  &quot;unit_test&quot;: &quot;verified by verifier reward=1 on astropy-6938 turn 12&quot;
+}
+```
+
+### 字段使用规则
+
+**注入召回窗口时只注入**：`symptom` + `fix_summary`（两字段合计 ≤80 词）。
+`verified_fix` 仅在人工审计或蒸馏复审时读取，不进入 agent context。
+
+**去重规则**：蒸馏脚本在写入前按 `dedup_key` 检查：
+- 若库中已有相同 `dedup_key`，比较 `evidence_turns` span（end - start）；
+- 保留 span 更短的（更精确的因果对），另一条丢弃；
+- 若 span 相同，保留较新的 `evidence_task`（时间上更近的验证）。
+
+**fix_summary 提取优先级**（蒸馏脚本执行顺序）：
+1. 正则匹配 `the fix is[:\s]+(.+?)[.\n]`
+2. 正则匹配 `fix[:\s]+(.+?)[.\n]`
+3. 正则匹配 `the solution is[:\s]+(.+?)[.\n]`
+4. fallback：取 verified_fix 第一句，截断至 150 字符
+
+**symptom 提取优先级**（同上）：
+1. `the bug is[:\s]+(.+?)[.\n]`
+2. `root cause[:\s]+(.+?)[.\n]`
+3. `the issue is[:\s]+(.+?)[.\n]`
+4. fallback：第一个工具报错的首行，截断至 150 字符
+
+### 召回行为（p2 去 recency 偏置前置规则）
+
+排序权重（降序）：
+1. `reuse_count`（被验证利用次数）
+2. `confidence = verified` 优于 `candidate`
+3. 语义相似度（symptom + fix_summary 的 embedding 与当前错误的相似度）
+4. **recency 降权**：`last_injected_task` 越近，权重越低（防止同一 knack 连续注入无效占位）
+
+### 生命周期与降级
+
+| 条件 | 动作 |
+|---|---|
+| `injected_count ≥ 3` 且 `reuse_count = 0` | 降级为 `confidence: candidate` |
+| `injected_count ≥ 6` 且 `reuse_count = 0` | 移入 `knacks/deprecated/` 目录，不再召回 |
+| `reuse_count ≥ 2` | 升级为高优先级候选，考虑提炼为 `rule`（compression_level 上移） |
+
+---
+
+## 对蒸馏脚本的修改要求
+
+现有 `scripts/distill-knacks.ts` 需要在此 schema 基础上补充：
+
+1. 新增 `fix_summary` 提取逻辑（按上述优先级）
+2. 新增 `dedup_key` 计算与去重逻辑
+3. 新增 `injected_count` / `last_succeeded_task` / `last_injected_task` 字段（初始为 0 / null）
+4. 重新产出 `candidate-knacks.json`，预期从 6 条去重至 4 条（6938 和 14995 各保留 1 条）
+
+---
+
+## 被否方案（tombstone）
+
+- ⏸ **verified_fix 全文注入**：token 消耗不可控（单条 200-600 词），
+  注入 4 条即超过一般 l2 预算，否决。
+- ⏸ **不去重、保留所有重复条目**：重复 knack 在召回时占位，
+  挤出其他任务的知识，否决。
+- ⏸ **embedding 相似度作为唯一排序**：recency 偏置问题无法解决，
+  须与 reuse_count 联合排序，否决单一维度方案。
+
+---
+
+## 关联
+
+- 前置：[adr-003](adr-003-v04x-priority-reorder.md)（p0 验收）
+- 实现：`scripts/distill-knacks.ts`、`evals/distillation/candidate-knacks.json`
+- 下一个：[adr-005](adr-005-recall-ranking-protocol.md)（p2 召回排序正式协议，已采纳）
+"><div class="entry-meta"><strong>ADR-004 · Knack Schema v1（定稿）</strong><span class="badge good">accepted</span><span class="badge ">planned</span></div><p># ADR-004 · Knack Schema v1（定稿）
+
+- **日期**：2026-06-13
+- **状态**：已采纳
+
+## 背景
+
+P0 离线蒸馏（`evals/distillation/candidate-knacks.json`）产出 6 条 verified knack，
+暴露了 tentative schema（ADR-003）的两个真实问题：
+
+1. **重复蒸馏**：6938 和 14995 各出现 2 条，不同 run 对同一 bug 各自产出一条，
+   导致库里有语义重复的知识。
+2. **verified_fix 过长**：字段当前是完整的 trace 叙述段落（200–600 字），
+   注入时消耗大量 token，且难以让模型快速提取&quot;下一步动作&quot;。
+
+本 ADR 在 ADR-003 的 tentative schema 基础上定稿字段，同时规定去重和召回行为。
+
+## 决策
+
+### Schema v1（完整字段）
+
+```jsonc
+{
+  // ── 身份 ───────────────────────────────────────
+  &quot;id&quot;: &quot;knack-&lt;repo_slug&gt;-&lt;hex8&gt;&quot;,        // hex8 = sha256(repo+symptom)[:8]
+  &quot;dedup_key&quot;: &quot;&lt;repo_slug&gt;:&lt;symptom_fp&gt;&quot;, // symptom_fp = sha256(normalized_symptom)[:12]
+                                            // 相同 dedup_key 的条目视为同一知识，合并取最短 span
+  &quot;repo&quot;: &quot;astropy/astropy&quot;,
+
+  // ── 知识本体 ─────────────────────────────────
+  &quot;symptom&quot;: &quot;...&quot;,          // 1-2 句根因描述（优先提取 &quot;The bug is&quot; / &quot;Root cause:&quot; marker）
+  &quot;fix_summary&quot;: &quot;...&quot;,      // ≤30 词的一句话动作（提取 &quot;The fix is&quot; / &quot;Fix:&quot; 后第一句）
+  &quot;verified_fix&quot;: &quot;...&quot;,     // 完整叙述（仅存档，不注入召回窗口）
+
+  // ── 证据 ──────────────────────────────────────
+  &quot;evidence_task&quot;: &quot;astropy__astropy-6938&quot;,
+  &quot;evidence_turns&quot;: [5, 12],             // [首次出现 turn, 修复完成 turn]
+
+  // ── 分类 ──────────────────────────────────────
+  &quot;compression_level&quot;: &quot;knack&quot;,          // lesson | knack | rule
+  &quot;confidence&quot;: &quot;verified&quot;,              // verified | candidate
+
+  // ── 运行时状态（随使用更新）──────────────────
+  &quot;reuse_count&quot;: 0,                      // 每次 recall + citation + task success +1
+  &quot;injected_count&quot;: 0,                   // 每次被召回注入 +1（不论是否引用）
+  &quot;last_succeeded_task&quot;: null,           // 最近一次成功利用的 task id
+  &quot;last_injected_task&quot;: null,            // 最近一次被注入的 task id（Cross-time Replay 用）
+
+  // ── 验证 ──────────────────────────────────────
+  &quot;unit_test&quot;: &quot;Verified by verifier reward=1 on astropy-6938 turn 12&quot;
+}
+```
+
+### 字段使用规则
+
+**注入召回窗口时只注入**：`symptom` + `fix_summary`（两字段合计 ≤80 词）。
+`verified_fix` 仅在人工审计或蒸馏复审时读取，不进入 agent context。
+
+**去重规则**：蒸馏脚本在写入前按 `dedup_key` 检查：
+- 若库中已有相同 `dedup_key`，比较 `evidence_turns` span（end - start）；
+- 保留 span 更短的（更精确的因果对），另一条丢弃；
+- 若 span 相同，保留较新的 `evidence_task`（时间上更近的验证）。
+
+**fix_summary 提取优先级**（蒸馏脚本执行顺序）：
+1. 正则匹配 `The fix is[:\s]+(.+?)[.\n]`
+2. 正则匹配 `Fix[:\s]+(.+?)[.\n]`
+3. 正则匹配 `The solution is[:\s]+(.+?)[.\n]`
+4. Fallback：取 verified_fix 第一句，截断至 150 字符
+
+**symptom 提取优先级**（同上）：
+1. `The bug is[:\s]+(.+?)[.\n]`
+2. `Root cause[:\s]+(.+?)[.\n]`
+3. `The issue is[:\s]+(.+?)[.\n]`
+4. Fallback：第一个工具报错的首行，截断至 150 字符
+
+### 召回行为（P2 去 recency 偏置前置规则）
+
+排序权重（降序）：
+1. `reuse_count`（被验证利用次数）
+2. `confidence = verified` 优于 `candidate`
+3. 语义相似度（symptom + fix_summary 的 embedding 与当前错误的相似度）
+4. **recency 降权**：`last_injected_task` 越近，权重越低（防止同一 knack 连续注入无效占位）
+
+### 生命周期与降级
+
+| 条件 | 动作 |
+|---|---|
+| `injected_count ≥ 3` 且 `reuse_count = 0` | 降级为 `confidence: candidate` |
+| `injected_count ≥ 6` 且 `reuse_count = 0` | 移入 `knacks/deprecated/` 目录，不再召回 |
+| `reuse_count ≥ 2` | 升级为高优先级候选，考虑提炼为 `rule`（compression_level 上移） |
+
+---
+
+## 对蒸馏脚本的修改要求
+
+现有 `scripts/distill-knacks.ts` 需要在此 schema 基础上补充：
+
+1. 新增 `fix_summary` 提取逻辑（按上述优先级）
+2. 新增 `dedup_key` 计算与去重逻辑
+3. 新增 `injected_count` / `last_succeeded_task` / `last_injected_task` 字段（初始为 0 / null）
+4. 重新产出 `candidate-knacks.json`，预期从 6 条去重至 4 条（6938 和 14995 各保留 1 条）
+
+---
+
+## 被否方案（tombstone）
+
+- ⏸ **verified_fix 全文注入**：token 消耗不可控（单条 200-600 词），
+  注入 4 条即超过一般 L2 预算，否决。
+- ⏸ **不去重、保留所有重复条目**：重复 knack 在召回时占位，
+  挤出其他任务的知识，否决。
+- ⏸ **embedding 相似度作为唯一排序**：recency 偏置问题无法解决，
+  须与 reuse_count 联合排序，否决单一维度方案。
+
+---
+
+## 关联
+
+- 前置：[ADR-003](ADR-003-v04x-priority-reorder.md)（P0 验收）
+- 实现：`scripts/distill-knacks.ts`、`evals/distillation/candidate-knacks.json`
+- 下一个：[ADR-005](ADR-005-recall-ranking-protocol.md)（P2 召回排序正式协议，已采纳）
+</p></article><article class="entry" data-entry-type="adr" data-search-text="adr-005 recall ranking protocol（p2） accepted planned # adr-005 · recall ranking protocol（p2）
+
+- **日期**：2026-07-13
+- **状态**：已采纳
+
+## 背景
+
+adr-003 p2 要求消除 knack 召回的 recency 偏置。p1 的受控验证中，
+astropy 12907 对应的 verified knack 已存在于库中，却在通用 top-8 截断和
+knack top-3 限制之间被新近但无关的条目挤出。adr-004 已定义生命周期字段，
+但运行时导入器此前没有保留这些字段，也没有专用排序协议。
+
+## 决策
+
+### 1. 先资格过滤，再排序
+
+schema v1 knack 至少满足一项才可进入排序：
+
+1. normalized repository identity 精确匹配；
+2. embedding similarity ≥ 0.55；
+3. embedding 不可用时 lexical similarity ≥ 0.12。
+
+旧 schema knack 保持向后兼容，不因缺少新字段被直接丢弃。
+
+### 2. 稳定排序 tuple
+
+eligible knack 按以下 tuple 降序排列：
+
+1. `reusecount`（上限 10）；
+2. verified/validated confidence；
+3. repository match；
+4. semantic similarity；
+5. anti-repeat（`lastinjectedtask === currenttaskid` 时为 0）；
+6. 通用 recall scoring v2 total；
+7. id 字典序。
+
+createdat 不再给 knack 提供正向 freshness bonus。其他 memory kind 继续使用现有
+通用六维评分，避免扩大冻结契约的变更面。
+
+### 3. 相似度与降级
+
+相似度文本为 `repo + symptom + fixsummary + summary`，query 包含 repository、
+goal、current step、recent errors 和 recent signals。配置 embedding key 时优先使用
+openai-compatible provider；未配置或调用失败时使用 deterministic lexical overlap。
+provider 失败只产生诊断，不阻断 context assembly。
+
+### 4. 候选池与 top-k
+
+memorystore 返回最多 64 个 bounded candidates；router 按 kind 分组并完成 knack
+专用排序后，context assembly 才应用既有 tier limits。standard 仍为 3 个 knack，
+heavy 仍为 5 个，不以扩大 top-k 掩盖排序错误。
+
+### 5. 注入状态与 p3 边界
+
+真正进入 limited recall bundle 的 knack 以 `(knackid, taskid, runid)` 幂等记录：
+`injectedcount += 1`、`lastinjectedtask = taskid`。在 p3 的 `used_recall_ids` citation
+上线前，不执行“多次注入但 reuse 为 0”自动降级或 deprecated；当前系统还不能区分
+“未使用”和“使用但未留下引用证据”。
+
+### 6. 可观测性
+
+ranking trace 暴露 `repomatch`、`similarity`、`similaritysource`、`reusecount`、
+`confidence`、`antirepeat`、`eligible` 和 `rankreason`；candidate pool 暴露 limit、
+scanned、eligible knack 和 truncation 指示。
+
+## 被否方案
+
+- **embedding 作为唯一排序信号**：离线和 provider 故障时不可用。
+- **createdat 越新越优先**：正是 p2 要消除的偏置。
+- **扩大 top-k**：增加 token 消耗且不解决相关性错误。
+- **p2 自动 deprecated**：p3 citation 尚未提供真实利用证据。
+
+## 验证
+
+- 6938/12907 形状的 deterministic fixtures 必须进入未扩大的 standard top-3。
+- 高 reuse 但 repo 与症状均不相关的条目必须资格失败。
+- 同 task/run 重建 l1 不得重复增加 injection count。
+- preferences、doc findings 和通用六维 recallscore 行为保持现有测试覆盖。
+
+## 关联
+
+- 前置：[adr-003](adr-003-v04x-priority-reorder.md)、[adr-004](adr-004-knack-schema-v1.md)
+- 后续：[adr-006](adr-006-recall-citation-and-credit.md)（p3 recall citation 与成功归因，已采纳）
+- 实现：`src/memory/recall/knack-ranking.ts`、`src/memory/embedding/`、
+  `src/memory/recall/jsonl-memory-store.ts`、`src/memory/recall/recall-router.ts`
+"><div class="entry-meta"><strong>ADR-005 · Recall Ranking Protocol（P2）</strong><span class="badge good">accepted</span><span class="badge ">planned</span></div><p># ADR-005 · Recall Ranking Protocol（P2）
+
+- **日期**：2026-07-13
+- **状态**：已采纳
+
+## 背景
+
+ADR-003 P2 要求消除 knack 召回的 recency 偏置。P1 的受控验证中，
+Astropy 12907 对应的 verified knack 已存在于库中，却在通用 top-8 截断和
+knack top-3 限制之间被新近但无关的条目挤出。ADR-004 已定义生命周期字段，
+但运行时导入器此前没有保留这些字段，也没有专用排序协议。
+
+## 决策
+
+### 1. 先资格过滤，再排序
+
+schema v1 knack 至少满足一项才可进入排序：
+
+1. normalized repository identity 精确匹配；
+2. embedding similarity ≥ 0.55；
+3. embedding 不可用时 lexical similarity ≥ 0.12。
+
+旧 schema knack 保持向后兼容，不因缺少新字段被直接丢弃。
+
+### 2. 稳定排序 tuple
+
+eligible knack 按以下 tuple 降序排列：
+
+1. `reuseCount`（上限 10）；
+2. verified/validated confidence；
+3. repository match；
+4. semantic similarity；
+5. anti-repeat（`lastInjectedTask === currentTaskId` 时为 0）；
+6. 通用 Recall Scoring v2 total；
+7. id 字典序。
+
+createdAt 不再给 knack 提供正向 freshness bonus。其他 memory kind 继续使用现有
+通用六维评分，避免扩大冻结契约的变更面。
+
+### 3. 相似度与降级
+
+相似度文本为 `repo + symptom + fixSummary + summary`，query 包含 repository、
+goal、current step、recent errors 和 recent signals。配置 embedding key 时优先使用
+OpenAI-compatible provider；未配置或调用失败时使用 deterministic lexical overlap。
+provider 失败只产生诊断，不阻断 Context Assembly。
+
+### 4. 候选池与 top-k
+
+MemoryStore 返回最多 64 个 bounded candidates；Router 按 kind 分组并完成 knack
+专用排序后，Context Assembly 才应用既有 tier limits。standard 仍为 3 个 knack，
+heavy 仍为 5 个，不以扩大 top-k 掩盖排序错误。
+
+### 5. 注入状态与 P3 边界
+
+真正进入 limited recall bundle 的 knack 以 `(knackId, taskId, runId)` 幂等记录：
+`injectedCount += 1`、`lastInjectedTask = taskId`。在 P3 的 `used_recall_ids` citation
+上线前，不执行“多次注入但 reuse 为 0”自动降级或 deprecated；当前系统还不能区分
+“未使用”和“使用但未留下引用证据”。
+
+### 6. 可观测性
+
+ranking trace 暴露 `repoMatch`、`similarity`、`similaritySource`、`reuseCount`、
+`confidence`、`antiRepeat`、`eligible` 和 `rankReason`；candidate pool 暴露 limit、
+scanned、eligible knack 和 truncation 指示。
+
+## 被否方案
+
+- **embedding 作为唯一排序信号**：离线和 provider 故障时不可用。
+- **createdAt 越新越优先**：正是 P2 要消除的偏置。
+- **扩大 top-k**：增加 token 消耗且不解决相关性错误。
+- **P2 自动 deprecated**：P3 citation 尚未提供真实利用证据。
+
+## 验证
+
+- 6938/12907 形状的 deterministic fixtures 必须进入未扩大的 standard top-3。
+- 高 reuse 但 repo 与症状均不相关的条目必须资格失败。
+- 同 task/run 重建 L1 不得重复增加 injection count。
+- preferences、doc findings 和通用六维 RecallScore 行为保持现有测试覆盖。
+
+## 关联
+
+- 前置：[ADR-003](ADR-003-v04x-priority-reorder.md)、[ADR-004](ADR-004-knack-schema-v1.md)
+- 后续：[ADR-006](ADR-006-recall-citation-and-credit.md)（P3 recall citation 与成功归因，已采纳）
+- 实现：`src/memory/recall/knack-ranking.ts`、`src/memory/embedding/`、
+  `src/memory/recall/jsonl-memory-store.ts`、`src/memory/recall/recall-router.ts`
+</p></article><article class="entry" data-entry-type="adr" data-search-text="adr-006 recall citation 与成功归因 accepted planned # adr-006 · recall citation 与成功归因
+
+- **日期**：2026-07-13
+- **状态**：已采纳
+
+## 背景
+
+adr-003 p3 要求区分“召回内容已注入”和“模型实际采用了召回内容”。p2 已能记录
+injection 和 ranking，但注入本身不能证明利用，更不能证明利用导致任务成功。
+
+## 决策
+
+### 四层术语
+
+1. **injected**：knack 进入 limited recall bundle 并出现在 eval prompt。
+2. **cited / used**：assistant 发出 citation，且 id 属于该 message 对应 prompt 的 allowlist。
+3. **verified use**：valid citation 对应的任务通过外部 verifier/harness。
+4. **credited reuse**：verified use 通过幂等 ledger 更新 `reusecount`。
+
+报告不得把 citation 写成不可伪造的因果证明；它是模型自报告的利用证据。
+
+### citation 协议
+
+仅在 eval mode 中，knack 以 `[recall:&lt;id&gt;] &lt;summary&gt;` 渲染。当且仅当该 knack
+materially informs 当前动作时，assistant 发出：
+
+```text
+[[used_recall:&lt;id&gt;]]
+```
+
+collector 按 assistant message 解析 marker，并与同 ordinal context trace 中实际注入的
+knack id 对账。未知 id、非 knack id、无匹配 trace 的 citation 均标 invalid，永不 credit。
+marker 从最终用户输出中清除。
+
+### audit artifact
+
+run-level `recallaudit` 包含：
+
+- `injected_recall_ids`
+- `cited_recall_ids`
+- `used_recall_ids`
+- `invalid_recall_ids`
+- message-level `citation_events`
+- `utilization_rate`
+
+run archive 增加 `recall_citation` event；outcome 独立记录
+`verificationstatus: pending | passed | failed`，不得把 agent process success 当作 correctness。
+
+### 成功归因
+
+只有以下交集可获得 reuse credit：
+
+```text
+valid citation ∩ injected knack ∩ verifier passed
+```
+
+credit key 为 `(knackid, taskid, runid, verificationref)`。重复 reconciliation 不得重复增加
+`reusecount`。普通 eval 在内联 verifier 后 reconciliation；swe-bench 在官方
+`harness-report.json.resolved_ids` 返回后运行 `eval:recall:reconcile`。
+
+### 生命周期边界
+
+p3 首版仍不启用 adr-004 的自动 candidate/deprecated 阈值。citation 是自报告信号，需要
+至少一轮真实校准后再决定“多次注入但未 citation”是否足以降级。
+
+## 被否方案
+
+- **注入即视为使用**：无法区分 ignored recall。
+- **agent 正常结束即视为成功**：swe 官方 harness 尚未运行，存在错误 credit。
+- **对 final output 做语义猜测**：不可复现且容易误判。
+- **首版新增 recall-used tool**：增加 tool schema 和接线面；文本 marker 已足够完成审计化验。
+- **p3 立即自动 deprecated**：缺少真实利用率校准数据。
+
+## 验证
+
+- 6938/12907 shaped fixtures 覆盖 prompt id、marker、allowlist、pending、resolved 和幂等 credit。
+- invalid citation 不进入 `used_recall_ids`。
+- marker 不出现在 final output。
+- standard/heavy top-k 保持 3/5。
+
+## 关联
+
+- 前置：[adr-003](adr-003-v04x-priority-reorder.md)、[adr-005](adr-005-recall-ranking-protocol.md)
+- 实现：`src/memory/recall/citation.ts`、`src/memory/knacks/recall-credit-manager.ts`、
+  `src/evals/recall-credit-reconciler.ts`
+- 后续：基于真实 citation 数据校准 adr-004 生命周期阈值
+"><div class="entry-meta"><strong>ADR-006 · Recall Citation 与成功归因</strong><span class="badge good">accepted</span><span class="badge ">planned</span></div><p># ADR-006 · Recall Citation 与成功归因
+
+- **日期**：2026-07-13
+- **状态**：已采纳
+
+## 背景
+
+ADR-003 P3 要求区分“召回内容已注入”和“模型实际采用了召回内容”。P2 已能记录
+injection 和 ranking，但注入本身不能证明利用，更不能证明利用导致任务成功。
+
+## 决策
+
+### 四层术语
+
+1. **injected**：knack 进入 limited recall bundle 并出现在 eval prompt。
+2. **cited / used**：assistant 发出 citation，且 ID 属于该 message 对应 prompt 的 allowlist。
+3. **verified use**：valid citation 对应的任务通过外部 verifier/harness。
+4. **credited reuse**：verified use 通过幂等 ledger 更新 `reuseCount`。
+
+报告不得把 citation 写成不可伪造的因果证明；它是模型自报告的利用证据。
+
+### Citation 协议
+
+仅在 eval mode 中，knack 以 `[recall:&lt;id&gt;] &lt;summary&gt;` 渲染。当且仅当该 knack
+materially informs 当前动作时，assistant 发出：
+
+```text
+[[used_recall:&lt;id&gt;]]
+```
+
+collector 按 assistant message 解析 marker，并与同 ordinal context trace 中实际注入的
+knack ID 对账。未知 ID、非 knack ID、无匹配 trace 的 citation 均标 invalid，永不 credit。
+marker 从最终用户输出中清除。
+
+### Audit artifact
+
+run-level `recallAudit` 包含：
+
+- `injected_recall_ids`
+- `cited_recall_ids`
+- `used_recall_ids`
+- `invalid_recall_ids`
+- message-level `citation_events`
+- `utilization_rate`
+
+Run Archive 增加 `recall_citation` event；outcome 独立记录
+`verificationStatus: pending | passed | failed`，不得把 agent process success 当作 correctness。
+
+### 成功归因
+
+只有以下交集可获得 reuse credit：
+
+```text
+valid citation ∩ injected knack ∩ verifier passed
+```
+
+credit key 为 `(knackId, taskId, runId, verificationRef)`。重复 reconciliation 不得重复增加
+`reuseCount`。普通 eval 在内联 verifier 后 reconciliation；SWE-bench 在官方
+`harness-report.json.resolved_ids` 返回后运行 `eval:recall:reconcile`。
+
+### 生命周期边界
+
+P3 首版仍不启用 ADR-004 的自动 candidate/deprecated 阈值。citation 是自报告信号，需要
+至少一轮真实校准后再决定“多次注入但未 citation”是否足以降级。
+
+## 被否方案
+
+- **注入即视为使用**：无法区分 ignored recall。
+- **agent 正常结束即视为成功**：SWE 官方 harness 尚未运行，存在错误 credit。
+- **对 final output 做语义猜测**：不可复现且容易误判。
+- **首版新增 recall-used tool**：增加 tool schema 和接线面；文本 marker 已足够完成审计化验。
+- **P3 立即自动 deprecated**：缺少真实利用率校准数据。
+
+## 验证
+
+- 6938/12907 shaped fixtures 覆盖 prompt ID、marker、allowlist、pending、resolved 和幂等 credit。
+- invalid citation 不进入 `used_recall_ids`。
+- marker 不出现在 final output。
+- standard/heavy top-k 保持 3/5。
+
+## 关联
+
+- 前置：[ADR-003](ADR-003-v04x-priority-reorder.md)、[ADR-005](ADR-005-recall-ranking-protocol.md)
+- 实现：`src/memory/recall/citation.ts`、`src/memory/knacks/recall-credit-manager.ts`、
+  `src/evals/recall-credit-reconciler.ts`
+- 后续：基于真实 citation 数据校准 ADR-004 生命周期阈值
+</p></article></div></section><section class="panel archive-section" aria-labelledby="verification-heading"><h2 id="verification-heading">Verification</h2><div class="entry-list"><p class="empty">No entries recorded.</p></div></section>
+<section class="panel archive-section source-hash-state" aria-labelledby="integrity-heading"><h2 id="integrity-heading">Source integrity</h2><div>docs/INDEX.md · e16039cf18ce2ae817a9159113f28ba6153c02f09f39aae767af0255f332941b</div><div>docs/buglog.md · 6da954dc64c43ec6815adfd1aef3c4285dd31babc0fbf546d62642273565d661</div><div>docs/adr/ADR-001-eval-claim-separation.md · c1f614fd741a5416c0818de5e8429c5edf96011138a81d01140e7f52e891f2f2</div><div>docs/adr/ADR-002-learning-eval-protocol.md · 10ef1da42b790ae7c278aab9ef2548a8fe1e0f2513e4d867f83f362a35e7bc33</div><div>docs/adr/ADR-003-v04x-priority-reorder.md · e67dbf84a41d3885fbb620a497b18cdc41b2410e69434bc2cd01fd4003519f95</div><div>docs/adr/ADR-004-knack-schema-v1.md · 0cb50ca95b11e282b564bc8e819ab5098a0f90bce5f74416e10477a5736c7636</div><div>docs/adr/ADR-005-recall-ranking-protocol.md · bc3febf1eaf4a85da21b4339753be68071eb67e9853dc41d206679e1560b8205</div><div>docs/adr/ADR-006-recall-citation-and-credit.md · ef15739b61b8b8787754274b2e5b1027387da9f8a1dff726b53b0bc7ae0a4cba</div></section>
+</div></main><script>(()=>{const q=document.querySelector('#archive-search');const f=document.querySelector('#archive-filter');const entries=[...document.querySelectorAll('[data-entry-type]')];const apply=()=>{const term=q.value.trim().toLowerCase();const type=f.value;for(const entry of entries){entry.hidden=!((type==='all'||entry.dataset.entryType===type)&&(!term||entry.dataset.searchText.includes(term)));}};q.addEventListener('input',apply);f.addEventListener('change',apply);})();</script></body></html>

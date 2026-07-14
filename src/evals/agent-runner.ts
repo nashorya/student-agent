@@ -118,6 +118,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       model,
       hooks,
       apiKey,
+      projectArchive: config.features.projectArchive,
       llm: {
         timeoutMs: config.llm.requestTimeoutMs,
         maxTokens: config.llm.maxOutputTokens,
