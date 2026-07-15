@@ -1364,8 +1364,9 @@ Scope:
 ```
 - Requirement Ledger
 - Current Task Spec
+- Minimal Active Projection（External J-space 实验；派生视图，不是新事实源）
 - Lostness Monitor (score-based, calibrated from Run Archive)
-- Recovery Mode / Restart Context
+- Recovery Mode / Restart Context / Compaction Recovery Eval
 ```
 
 #### Requirement Ledger
@@ -1431,6 +1432,45 @@ L1 =
 + turn-specific constraints
 ```
 
+#### Minimal Active Projection（External J-space 实验）
+
+定位：从 Requirement Ledger、Current Task Spec、Working Memory 与最新 Observation
+确定性编译出的临时活跃投影。它不建立新的持久层，不替代上述事实来源，也不使用
+`v0.5` 版本号；v0.5 继续专指 Resource Evolution。
+
+第一阶段只投影：
+
+```text
+goal
+successConditions
+constraints
+rejectedPaths
+nextAction
+```
+
+`currentStage` 继续由 Current Task Spec 提供，避免用 `nextAction` 猜测任务阶段。
+
+实施与评测顺序：
+
+```text
+P4.1  Requirement Ledger + Current Task Spec
+      先修复状态来源、任务边界和 currentStep/phase 一致性。
+
+P4.2  Minimal Active Projection
+      只做确定性派生与容量限制；不做逐轮模型 Patch，不增加第二套事实库。
+
+P4.3  Compaction Recovery Eval
+      基线必须是 Pi built-in compaction；实验臂增加 pinned projection 恢复。
+      比较目标/约束/拒绝路径恢复率、重复失败路径、任务成功率与总成本。
+
+GO gate
+      只有 P4.3 证明相对 Pi built-in compaction 有明确增益，才评估按需增量 Patch。
+```
+
+请求尾部注入、`cache_control` breakpoint 和最终 provider payload 断言属于 Pi 适配层；
+应在 [pi 后继包迁移计划](plan-pi-successor-migration.md) 的 compatibility adapter 完成后接入，避免绑定已弃用
+的 `@mariozechner/pi-*` 0.73.1 内部结构。
+
 #### Lostness Monitor (v0.4x score-based)
 
 在 v0.4 hard/soft trigger 基础上，增加浮点 score：
@@ -1445,7 +1485,7 @@ score 由 Run Archive 数据标定，不是先验设置
 
 初始阈值（待标定后调整）：
 0.0 - 0.3：正常
-0.3 - 0.6：轻度迷路，强制刷新 Current Task Spec
+0.3 - 0.6：轻度迷路，强制刷新 Current Task Spec / Minimal Active Projection
 0.6 - 0.8：明显迷路，生成 Restart Context
 0.8 - 1.0：严重迷路，丢弃当前计划，从 Restart Context 重新开始
 ```
@@ -1482,6 +1522,8 @@ Acceptance:
 - lost_score >= 0.6 时生成 restart-context.md
 - Recovery 后下一步和 Current Task Spec 对齐
 - score 阈值有 Run Archive 数据支撑
+- Compaction 恢复实验以 Pi built-in compaction 为基线，不使用“无 checkpoint”伪基线
+- Incremental Patch 未通过 P4.3 GO gate 前不得进入默认运行时
 ```
 
 ---
@@ -2274,18 +2316,19 @@ Turn Intake temperature ≈ 0.
 ```
 1. Requirement Ledger
 2. Current Task Spec
-3. Lostness Monitor (score-based)
-4. Restart Context / Recovery Mode
-5. Run Archive Full (harness-snapshot, prompt-snapshots)
-6. Skill Usage Logging (with baseline/variation)
-7. Outcome Credit (渐进 EMA)
-8. Semble MCP backend
-9. find_related 流程
-10. Small eval sets
-11. Project Bootstrap
-12. AgentResource registry
-13. CommitGate MVP
-14. Project Development Archive + Human Dashboard
+3. Minimal Active Projection（deterministic External J-space experiment）
+4. Lostness Monitor (score-based)
+5. Compaction Recovery Eval / Restart Context / Recovery Mode
+6. Run Archive Full (harness-snapshot, prompt-snapshots)
+7. Skill Usage Logging (with baseline/variation)
+8. Outcome Credit (渐进 EMA)
+9. Semble MCP backend
+10. find_related 流程
+11. Small eval sets
+12. Project Bootstrap
+13. AgentResource registry
+14. CommitGate MVP
+15. Project Development Archive + Human Dashboard
 ```
 
 ### P3: 暂缓（v0.5+）
@@ -2335,7 +2378,8 @@ Turn Intake temperature ≈ 0.
   在 v0.4 稳定闭环上，增强多轮防迷路、代码定位效率、运行归档、策略归因和小型 eval。
 
 关键词：
-  Anti-Lost Context (Requirement Ledger + Current Task Spec + Recovery Mode)
+  Anti-Lost Context (Requirement Ledger + Current Task Spec + Minimal Active Projection + Recovery Mode)
+  Compaction Recovery Eval (Pi built-in baseline vs pinned projection)
   Run Archive Full (harness-snapshot, prompt-snapshots)
   Outcome-Credited Skills (baseline variation, 渐进 EMA)
   Semble code_search (MCP, search + find_related)
