@@ -1,7 +1,7 @@
 # Archive Chronicle Atlas UI Design
 
 - Date: 2026-07-15
-- Status: approved visual direction; pending written-spec review
+- Status: approved for implementation
 - Scope: redesign the generated project archive dashboard
 - Parent design: `2026-07-14-project-development-archive-design.md`
 
