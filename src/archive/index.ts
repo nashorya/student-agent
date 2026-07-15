@@ -1,4 +1,5 @@
 export * from './types.js';
+export * from './chronicle-model.js';
 export * from './discovery.js';
 export * from './html-renderer.js';
 export * from './pending-actions.js';
