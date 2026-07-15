@@ -40,6 +40,7 @@ describe('archive HTML renderer', () => {
     expect(html).toContain('min-height:44px');
     expect(html).toContain('@media(max-width:720px)');
     expect(html).toContain('@media(prefers-reduced-motion:reduce)');
+    expect(html).toContain('.entry,.source-hash-state{overflow-wrap:anywhere}');
     expect(html).not.toContain('width:1440px');
   });
 
