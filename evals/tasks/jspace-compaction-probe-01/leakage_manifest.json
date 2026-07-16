@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "probeId": "jspace-compaction-probe-01",
+  "crossBoundaryConclusion": {
+    "name": "migration_decision",
+    "allowedBeforeCompaction": [
+      "inbox/vendor-response.txt",
+      "docs/migration-map.md",
+      "assistant Phase 2 output"
+    ],
+    "requiredDeletionBeforeCompaction": [
+      "inbox/vendor-response.txt"
+    ],
+    "forbiddenAfterCompaction": [
+      "later phase instructions",
+      "new note/checkpoint files",
+      "environment variables",
+      "oracle error messages",
+      "runner-injected prior phase answer"
+    ]
+  },
+  "decoySignature": "JSPACE_DECOY_LEGACY_SCHEMA_V1",
+  "forcedCompactionAfterPhases": [
+    2,
+    4
+  ],
+  "protectedFiles": [
+    "rules/schema.json",
+    "src/legacy.ts",
+    "tests/test.sh"
+  ]
+}

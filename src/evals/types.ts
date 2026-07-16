@@ -162,6 +162,12 @@ export interface EvalModelTrace {
     cacheRead: number;
     cacheWrite: number;
   };
+  thinking?: {
+    initialLevel: string;
+    supportsThinking: boolean;
+    availableLevels: string[];
+    changes: Array<{ at: string; level: string }>;
+  };
 }
 
 type L1TierString = 'minimal' | 'standard' | 'heavy';
@@ -179,6 +185,21 @@ export interface EvalTaskStateTrace {
     status: string;
     retryCount: number;
   }>;
+}
+
+export interface EvalFeatureManifest {
+  arm: string;
+  piBuiltInCompaction: boolean;
+  contextRuntime: boolean;
+  memorySystemPrefix: boolean;
+  taskLedgerModelInjection: boolean;
+  recallModelInjection: boolean;
+  checkpointInjection: boolean;
+  jspaceInjection: boolean;
+  observed?: {
+    contextAssemblyTraceCount: number;
+    modelMemoryPromptInjected: boolean;
+  };
 }
 
 export interface StudentAgentEvalTrace {
@@ -204,6 +225,8 @@ export interface StudentAgentEvalTrace {
   model?: EvalModelTrace;
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
   taskState?: EvalTaskStateTrace;
+  featureManifest?: EvalFeatureManifest;
+  compactionEvents?: import('./forced-compaction-controller.js').ForcedCompactionEvent[];
   /** Protected eval events collected during the run (hashline, signal, toolguard). */
   protectedEvents?: ProtectedEvalEvent[];
   /** Protected ToolGuard events grouped by rule name. */

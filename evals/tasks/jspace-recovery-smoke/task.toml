@@ -1,0 +1,6 @@
+id = "jspace-recovery-smoke"
+title = "J-space forced-compaction recovery smoke"
+mode = "task"
+tags = ["smoke", "compaction", "constraint", "rejected-path", "cross-boundary"]
+timeout_seconds = 120
+expected_files = ["src/recovery-config.json", "src/runner.ts", "docs/ops-checklist.md", "inbox/recovery-ticket.txt", "audit/legacy-route-attempts.log"]
