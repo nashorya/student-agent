@@ -30,13 +30,7 @@ export interface DocsIndexStats {
   totalChunks: number;
 }
 
-/** 嵌入提供者接口（便于后续切换本地/API 嵌入） */
-export interface EmbeddingProvider {
-  /** 生成文本向量 */
-  embed(text: string): Promise<number[]>;
-  /** 向量维度 */
-  readonly dimensions: number;
-}
+export type { EmbeddingProvider } from '../embedding/types.js';
 
 // ── 配置常量 ──────────────────────────────────────
 

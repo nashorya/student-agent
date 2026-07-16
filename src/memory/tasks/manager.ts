@@ -242,6 +242,20 @@ export class TasksManager {
     });
   }
 
+  async setPendingArchiveAcceptance(taskId: string, acceptance: NonNullable<Task['pending_archive_acceptance']>): Promise<void> {
+    await this._write(async (file) => {
+      const task = file.tasks.find((item) => item.id === taskId);
+      if (task) task.pending_archive_acceptance = acceptance;
+    });
+  }
+
+  async clearPendingArchiveAcceptance(taskId: string): Promise<void> {
+    await this._write(async (file) => {
+      const task = file.tasks.find((item) => item.id === taskId);
+      if (task) delete task.pending_archive_acceptance;
+    });
+  }
+
   async requestRevision(taskId: string, feedback: string): Promise<void> {
     await this._write(async (file) => {
       const task = file.tasks.find((t) => t.id === taskId);
@@ -460,10 +474,17 @@ function normalizeTask(value: unknown): Task {
     verification_results: Array.isArray(record.verification_results)
       ? record.verification_results.map(normalizeVerificationResult)
       : [],
+    pending_archive_acceptance: normalizePendingArchiveAcceptance(record.pending_archive_acceptance),
     created_at: typeof record.created_at === 'string' ? record.created_at : new Date().toISOString(),
     completed_at: typeof record.completed_at === 'string' ? record.completed_at : undefined,
     accepted_at: typeof record.accepted_at === 'string' ? record.accepted_at : undefined,
   };
+}
+
+function normalizePendingArchiveAcceptance(value: unknown): Task['pending_archive_acceptance'] {
+  if (!isRecord(value)) return undefined;
+  if (typeof value.adrId !== 'string' || typeof value.requestedAt !== 'string' || typeof value.evidenceRef !== 'string') return undefined;
+  return { adrId: value.adrId, requestedAt: value.requestedAt, evidenceRef: value.evidenceRef };
 }
 
 function normalizePhase(value: unknown, index: number): TaskPhase {

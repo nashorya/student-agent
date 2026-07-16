@@ -161,6 +161,13 @@ describe('parseCommand', () => {
     });
   });
 
+  it('parses archive commands', () => {
+    expect(parseCommand('/archive status')).toEqual({ type: 'archive', subcommand: 'status' });
+    expect(parseCommand('/archive adr new Adapter architecture')).toEqual({ type: 'archive', subcommand: 'adr-new', title: 'Adapter architecture' });
+    expect(parseCommand('/archive bug open Binary Markdown')).toEqual({ type: 'archive', subcommand: 'bug-open', title: 'Binary Markdown' });
+    expect(parseCommand('/archive bug update BUG-012 FIXED')).toEqual({ type: 'archive', subcommand: 'bug-update', id: 'BUG-012', status: 'FIXED' });
+  });
+
 
   it('未知命令返回 unknown', () => {
     expect(parseCommand('/foo')).toEqual({ type: 'unknown', raw: '/foo' });
@@ -191,6 +198,7 @@ describe('getHelpText', () => {
     expect(help).toContain('/plan');
     expect(help).toContain('/task');
     expect(help).toContain('/task cancel');
+    expect(help).toContain('/archive');
   });
 });
 
@@ -199,5 +207,6 @@ describe('COMMAND_COMPLETIONS', () => {
     expect(COMMAND_COMPLETIONS).toContain('/plan revision ');
     expect(COMMAND_COMPLETIONS).toContain('/feedback down ');
     expect(COMMAND_COMPLETIONS).toContain('/context');
+    expect(COMMAND_COMPLETIONS).toContain('/archive build');
   });
 });

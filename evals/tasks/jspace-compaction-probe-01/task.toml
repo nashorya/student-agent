@@ -1,0 +1,6 @@
+id = "jspace-compaction-probe-01"
+title = "J-space compaction recovery probe"
+mode = "task"
+tags = ["compaction", "constraint", "rejected-path", "cross-boundary"]
+timeout_seconds = 420
+expected_files = ["src/migration-config.json", "src/runner.ts", "docs/ops-checklist.md", "inbox/vendor-response.txt"]

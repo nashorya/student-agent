@@ -1364,8 +1364,9 @@ Scope:
 ```
 - Requirement Ledger
 - Current Task Spec
+- Minimal Active Projection（External J-space 实验；派生视图，不是新事实源）
 - Lostness Monitor (score-based, calibrated from Run Archive)
-- Recovery Mode / Restart Context
+- Recovery Mode / Restart Context / Compaction Recovery Eval
 ```
 
 #### Requirement Ledger
@@ -1431,6 +1432,45 @@ L1 =
 + turn-specific constraints
 ```
 
+#### Minimal Active Projection（External J-space 实验）
+
+定位：从 Requirement Ledger、Current Task Spec、Working Memory 与最新 Observation
+确定性编译出的临时活跃投影。它不建立新的持久层，不替代上述事实来源，也不使用
+`v0.5` 版本号；v0.5 继续专指 Resource Evolution。
+
+第一阶段只投影：
+
+```text
+goal
+successConditions
+constraints
+rejectedPaths
+nextAction
+```
+
+`currentStage` 继续由 Current Task Spec 提供，避免用 `nextAction` 猜测任务阶段。
+
+实施与评测顺序：
+
+```text
+P4.1  Requirement Ledger + Current Task Spec
+      先修复状态来源、任务边界和 currentStep/phase 一致性。
+
+P4.2  Minimal Active Projection
+      只做确定性派生与容量限制；不做逐轮模型 Patch，不增加第二套事实库。
+
+P4.3  Compaction Recovery Eval
+      基线必须是 Pi built-in compaction；实验臂增加 pinned projection 恢复。
+      比较目标/约束/拒绝路径恢复率、重复失败路径、任务成功率与总成本。
+
+GO gate
+      只有 P4.3 证明相对 Pi built-in compaction 有明确增益，才评估按需增量 Patch。
+```
+
+请求尾部注入、`cache_control` breakpoint 和最终 provider payload 断言属于 Pi 适配层；
+应在 [pi 后继包迁移计划](plan-pi-successor-migration.md) 的 compatibility adapter 完成后接入，避免绑定已弃用
+的 `@mariozechner/pi-*` 0.73.1 内部结构。
+
 #### Lostness Monitor (v0.4x score-based)
 
 在 v0.4 hard/soft trigger 基础上，增加浮点 score：
@@ -1445,7 +1485,7 @@ score 由 Run Archive 数据标定，不是先验设置
 
 初始阈值（待标定后调整）：
 0.0 - 0.3：正常
-0.3 - 0.6：轻度迷路，强制刷新 Current Task Spec
+0.3 - 0.6：轻度迷路，强制刷新 Current Task Spec / Minimal Active Projection
 0.6 - 0.8：明显迷路，生成 Restart Context
 0.8 - 1.0：严重迷路，丢弃当前计划，从 Restart Context 重新开始
 ```
@@ -1482,6 +1522,8 @@ Acceptance:
 - lost_score >= 0.6 时生成 restart-context.md
 - Recovery 后下一步和 Current Task Spec 对齐
 - score 阈值有 Run Archive 数据支撑
+- Compaction 恢复实验以 Pi built-in compaction 为基线，不使用“无 checkpoint”伪基线
+- Incremental Patch 未通过 P4.3 GO gate 前不得进入默认运行时
 ```
 
 ---
@@ -1670,6 +1712,156 @@ tool error 发生前，是否已经召回相关 knack。
 - hashline stale rejection 后是否召回 hashline recovery knack
 - user correction 后是否 drop 与 Task Ledger 冲突的 old knack
 ```
+
+---
+
+### v0.4x-H: Project Development Archive + Human Dashboard
+
+目标：让 Student-agent 在它工作的**每个目标项目**中发现、初始化并持续维护项目级
+INDEX、ADR、buglog 和人类可读 HTML dashboard，而不是只在 student-agent 自己的
+仓库中维护开发档案。
+
+本仓库现有的 `docs/INDEX.md`、`docs/buglog.md`、`docs/adr/` 和
+`scripts/build-dashboard.ts` 只作为 reference implementation，不是唯一支持的目录结构。
+
+#### Project archive discovery
+
+进入目标仓库时按以下优先级解析档案位置：
+
+1. 项目配置显式声明，例如 `.student-agent.json` 的 `archive` 配置；
+2. 采用项目已有约定，例如 `docs/adr/`、`docs/decisions/`、`docs/buglog.md`；
+3. 若项目没有档案结构，默认初始化：
+
+```text
+docs/agent/
+  INDEX.md
+  buglog.md
+  adr/
+    ADR-001-*.md
+  dashboard.html        # generated，不手工编辑
+```
+
+初始化必须是显式操作或由项目规则允许，不能在普通问答时擅自向目标仓库增加 docs。
+
+#### Archive trigger policy
+
+Student-agent 不应为每个小修改写档案，只在出现稳定项目知识时维护：
+
+| 事件 | 档案动作 |
+|---|---|
+| 存在多个可行方案并作出长期架构选择 | 创建/更新 ADR |
+| 发现可复现缺陷 | 创建 OPEN bug entry |
+| 根因得到证据 | 向 bug entry 追加 root cause |
+| 修复且 targeted verification 通过 | 更新 bug 状态并绑定验证证据 |
+| 版本、里程碑、重要功能或关键回归完成 | 向 INDEX 追加时间轴条目 |
+| 任务只是文案、小配置或无长期价值的一次性操作 | 不写档案 |
+
+ADR 的 `accepted` 必须来自用户明确决策、项目既有决策或已批准计划；Agent 可以自动创建
+`proposed` ADR，但不能把自己的偏好伪装成已采纳决策。
+
+#### Task lifecycle integration
+
+```text
+Project Bootstrap
+→ 发现 archive policy 和已有 INDEX/ADR/buglog
+→ 将相关条目加入 Project Snapshot / task context
+
+Task executing
+→ 发现 bug 或架构决策时记录 pending archive action
+
+Technical verification
+→ 将 test/build/eval/diff evidence 绑定到 pending entry
+
+Task completion
+→ 原子更新 canonical Markdown
+→ 校验 ID、状态、链接和证据
+→ 重新生成 project dashboard.html
+→ final summary 报告新增/更新了哪些档案
+```
+
+档案维护失败不应让已经正确完成的低风险代码任务无限卡住：内容冲突或 parser failure
+记录为 archive warning；只有会造成历史覆盖、错误关闭 bug 或破坏现有档案时才阻塞完成。
+
+#### Student-agent commands and tools
+
+命令必须与目标项目使用的语言和 package manager 无关：
+
+```text
+/archive status
+/archive init
+/archive check
+/archive build
+/archive adr new <title>
+/archive bug open <title>
+/archive bug update <id>
+```
+
+内部工具建议：
+
+```text
+ArchiveDiscover
+ArchiveRead
+ArchiveAppendTimeline
+ArchiveCreateAdr
+ArchiveUpdateBug
+ArchiveValidate
+ArchiveRenderHtml
+```
+
+写操作继续经过 FileGuard、RiskGuard、SnapshotManager 和 WriteQueue；不得使用独立旁路写文件。
+
+#### Canonical data and HTML view
+
+1. **Markdown canonical，HTML derived**：Markdown 可 review、diff、merge；HTML 不接受手工编辑。
+2. **采用而非覆盖**：目标项目已有 ADR/bug 模板时，先解析并遵循现有格式。
+3. **历史不可静默改写**：关闭 bug、supersede ADR 和修订决策以追加记录完成。
+4. **跨链接**：INDEX、ADR、bug、任务、commit、验证证据相互可导航。
+5. **静态 HTML**：无服务端、无数据库、无需目标项目安装前端工具链。
+
+每个项目的 HTML 至少提供：
+
+```text
+- Overview：项目档案统计、当前 OPEN bugs、最近决策和 next action
+- Timeline：版本、里程碑、commit、关联 ADR/BUG/task
+- Bugs：状态/严重度/模块筛选，展开症状、根因、修复、遗留和验证
+- ADRs：proposed/accepted/superseded 状态、替代方案、后果和实现链接
+- Verification：最近 build/test/eval evidence，不把 Agent 声明当事实
+- Search：按 ID、模块、文件和关键词过滤
+```
+
+#### Validation
+
+`ArchiveValidate` 至少验证：
+
+- ADR/BUG ID 唯一，新增 ID 不覆盖历史文件；
+- 必填字段和状态值合法；
+- accepted ADR 有决策来源；
+- CLOSED/FIXED bug 有修复或处置证据；
+- INDEX、ADR、bug 和 evidence 内部链接存在；
+- dashboard 与 canonical sources 的条目数量和状态一致；
+- HTML 正确转义项目内容，不能把日志/issue 文本注入可执行脚本；
+- 同一次 task completion 重试是幂等的，不重复追加时间轴和 bug 状态。
+
+Acceptance：
+
+```text
+- Student-agent 能在非 Node 项目中初始化并维护默认 archive
+- 能采用一个已有自定义 ADR 目录，而不是强制迁移格式
+- 修复任务可自动完成 OPEN → root cause → FIXED/CLOSED 的证据链
+- 架构任务可生成 proposed ADR，并在用户批准后更新为 accepted
+- 任务恢复后不会重复创建同一 ADR/BUG/INDEX entry
+- Markdown 与 HTML 数量、状态和链接一致
+- dashboard 在 500 ADR + 1000 bug + 5000 timeline entries 下仍能离线打开和搜索
+- archive check + HTML build 在普通项目规模下目标 < 2 秒
+```
+
+Non-goal：
+
+- 不把 HTML 变成第二套编辑器或事实存储；
+- 不要求所有目标项目采用相同 Markdown 模板；
+- 不自动批准架构决策；
+- 不为普通档案更新启动 ralplan、Team 或多 Reviewer；
+- 不把一次性调试日志全部写进长期项目档案。
 
 ---
 
@@ -2124,17 +2316,19 @@ Turn Intake temperature ≈ 0.
 ```
 1. Requirement Ledger
 2. Current Task Spec
-3. Lostness Monitor (score-based)
-4. Restart Context / Recovery Mode
-5. Run Archive Full (harness-snapshot, prompt-snapshots)
-6. Skill Usage Logging (with baseline/variation)
-7. Outcome Credit (渐进 EMA)
-8. Semble MCP backend
-9. find_related 流程
-10. Small eval sets
-11. Project Bootstrap
-12. AgentResource registry
-13. CommitGate MVP
+3. Minimal Active Projection（deterministic External J-space experiment）
+4. Lostness Monitor (score-based)
+5. Compaction Recovery Eval / Restart Context / Recovery Mode
+6. Run Archive Full (harness-snapshot, prompt-snapshots)
+7. Skill Usage Logging (with baseline/variation)
+8. Outcome Credit (渐进 EMA)
+9. Semble MCP backend
+10. find_related 流程
+11. Small eval sets
+12. Project Bootstrap
+13. AgentResource registry
+14. CommitGate MVP
+15. Project Development Archive + Human Dashboard
 ```
 
 ### P3: 暂缓（v0.5+）
@@ -2184,13 +2378,15 @@ Turn Intake temperature ≈ 0.
   在 v0.4 稳定闭环上，增强多轮防迷路、代码定位效率、运行归档、策略归因和小型 eval。
 
 关键词：
-  Anti-Lost Context (Requirement Ledger + Current Task Spec + Recovery Mode)
+  Anti-Lost Context (Requirement Ledger + Current Task Spec + Minimal Active Projection + Recovery Mode)
+  Compaction Recovery Eval (Pi built-in baseline vs pinned projection)
   Run Archive Full (harness-snapshot, prompt-snapshots)
   Outcome-Credited Skills (baseline variation, 渐进 EMA)
   Semble code_search (MCP, search + find_related)
   Small Eval Sets
   Project Bootstrap
   AgentResource registry + CommitGate
+  Project Development Archive + Human Dashboard
 ```
 
 ### v0.5: Resource Evolution

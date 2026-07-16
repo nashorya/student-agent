@@ -104,6 +104,16 @@ export interface EvalRecallTrace {
     summary: string;
     reason: string;
     score: number;
+    ranking?: {
+      repoMatch: boolean;
+      similarity: number;
+      similaritySource: 'embedding' | 'lexical';
+      reuseCount: number;
+      confidence: number;
+      antiRepeat: number;
+      eligible: boolean;
+      rankReason: string;
+    };
   }>;
   diagnostics: {
     queryText: string;
@@ -117,6 +127,12 @@ export interface EvalRecallTrace {
       severity?: 'hard' | 'soft';
       multiplier?: number;
     }>;
+    candidatePool?: {
+      scanned: number;
+      eligibleKnacks: number;
+      truncated: number;
+      limit: number;
+    };
   };
 }
 
@@ -146,6 +162,12 @@ export interface EvalModelTrace {
     cacheRead: number;
     cacheWrite: number;
   };
+  thinking?: {
+    initialLevel: string;
+    supportsThinking: boolean;
+    availableLevels: string[];
+    changes: Array<{ at: string; level: string }>;
+  };
 }
 
 type L1TierString = 'minimal' | 'standard' | 'heavy';
@@ -163,6 +185,21 @@ export interface EvalTaskStateTrace {
     status: string;
     retryCount: number;
   }>;
+}
+
+export interface EvalFeatureManifest {
+  arm: string;
+  piBuiltInCompaction: boolean;
+  contextRuntime: boolean;
+  memorySystemPrefix: boolean;
+  taskLedgerModelInjection: boolean;
+  recallModelInjection: boolean;
+  checkpointInjection: boolean;
+  jspaceInjection: boolean;
+  observed?: {
+    contextAssemblyTraceCount: number;
+    modelMemoryPromptInjected: boolean;
+  };
 }
 
 export interface StudentAgentEvalTrace {
@@ -183,10 +220,13 @@ export interface StudentAgentEvalTrace {
   usageEvents?: EvalTokenUsageEvent[];
   piSchemaTrace?: EvalPiSchemaTrace;
   contextAssemblyTraces?: EvalContextAssemblyTrace[];
+  recallAudit?: import('../memory/recall/citation.js').RecallCitationAudit;
   contextTokenEffect?: EvalContextTokenEffect;
   model?: EvalModelTrace;
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
   taskState?: EvalTaskStateTrace;
+  featureManifest?: EvalFeatureManifest;
+  compactionEvents?: import('./forced-compaction-controller.js').ForcedCompactionEvent[];
   /** Protected eval events collected during the run (hashline, signal, toolguard). */
   protectedEvents?: ProtectedEvalEvent[];
   /** Protected ToolGuard events grouped by rule name. */
@@ -246,6 +286,7 @@ export interface EvalRunRecord {
   score: TraceScore;
   changedFiles: string[];
   modifiedFiles: Record<string, string>;
+  recallAttribution?: import('./recall-credit-reconciler.js').RecallAttributionResult;
 }
 
 /**

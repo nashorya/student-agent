@@ -1,0 +1,9 @@
+{
+  "name": "jspace-recovery-smoke-fixture",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "tsx": "^4.22.4",
+    "typescript": "^5.0.0"
+  }
+}

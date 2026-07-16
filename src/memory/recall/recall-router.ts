@@ -1,4 +1,8 @@
 import type { JsonlMemoryStore } from './jsonl-memory-store.js';
+import { DEFAULT_CANDIDATE_POOL_LIMIT } from './jsonl-memory-store.js';
+import type { RecallSimilarityProvider } from '../embedding/types.js';
+import { rankKnackResults } from './knack-ranking.js';
+import { resolveRepositoryIdentity } from './repository-identity.js';
 import type {
   MemoryRecallResult,
   RecallBundle,
@@ -21,7 +25,10 @@ const HISTORICAL_TASK_LIMITS: Record<L1Tier, number> = {
 };
 
 export class RecallRouter {
-  constructor(private readonly store: SearchableMemoryStore) {}
+  constructor(
+    private readonly store: SearchableMemoryStore,
+    private readonly options: { similarityProvider?: RecallSimilarityProvider } = {},
+  ) {}
 
   async recall(input: RecallRouterInput): Promise<RecallBundle> {
     const query = buildRecallQuery(input);
@@ -49,6 +56,7 @@ export class RecallRouter {
       },
     };
 
+    const accepted: MemoryRecallResult[] = [];
     for (const result of results) {
       const { result: adjustedResult, penalty } = applyTaskLedgerPenalty(result, input);
       if (penalty) penalties.push(penalty);
@@ -59,8 +67,35 @@ export class RecallRouter {
         continue;
       }
 
-      const recalled = toRecalledItem(adjustedResult);
-      switch (adjustedResult.item.kind) {
+      accepted.push(adjustedResult);
+    }
+
+    const knackResults = await rankKnackResults(
+      accepted.filter((result) => result.item.kind === 'knack'),
+      {
+        repository: resolveRepositoryIdentity({
+          repository: input.repository,
+          taskId: input.currentTaskId ?? input.taskId,
+        }),
+        queryText: buildKnackQueryText(input, query.text ?? ''),
+        currentTaskId: input.currentTaskId ?? input.taskId,
+        similarityProvider: this.options.similarityProvider,
+      },
+    );
+    const rankedKnackIds = new Set(knackResults.map((result) => result.item.id));
+    const rejectedByEligibility = accepted.filter((result) =>
+      result.item.kind === 'knack' && !rankedKnackIds.has(result.item.id),
+    );
+    for (const result of rejectedByEligibility) {
+      dropped.push({ id: result.item.id, reason: 'knack_eligibility_failed' });
+    }
+
+    for (const result of [
+      ...knackResults,
+      ...accepted.filter((entry) => entry.item.kind !== 'knack'),
+    ]) {
+      const recalled = toRecalledItem(result);
+      switch (result.item.kind) {
         case 'knack':
           bundle.knacks.push(recalled);
           break;
@@ -78,6 +113,13 @@ export class RecallRouter {
           break;
       }
     }
+
+    bundle.diagnostics.candidatePool = {
+      scanned: results.length,
+      eligibleKnacks: knackResults.length,
+      truncated: results.length >= DEFAULT_CANDIDATE_POOL_LIMIT ? 1 : 0,
+      limit: DEFAULT_CANDIDATE_POOL_LIMIT,
+    };
 
     const historicalSnapshots = await this.loadHistoricalTaskSnapshots(input, dropped, penalties);
     for (const recalled of historicalSnapshots) {
@@ -244,16 +286,30 @@ function toRecalledItem(result: MemoryRecallResult): RecalledItem {
     summary: result.item.summary,
     reason: makeReason(result),
     score: result.score,
+    ranking: result.ranking,
   };
 }
 
 function makeReason(result: MemoryRecallResult): string {
+  const payload = result.item.payload as { repo?: unknown; symptom?: unknown; fixSummary?: unknown };
+  if (result.ranking && (payload.repo || payload.symptom || payload.fixSummary)) {
+    return `knack_rank:${result.ranking.rankReason}`;
+  }
   const reasons: string[] = [];
   if (result.score.trigger > 0) reasons.push('trigger_match');
   if (result.score.metadata > 0) reasons.push('metadata_match');
   if (result.score.keyword > 0) reasons.push('keyword_match');
   if (result.score.vector > 0) reasons.push('vector_match');
   return reasons.length > 0 ? reasons.join('+') : 'store_result';
+}
+
+function buildKnackQueryText(input: RecallRouterInput, queryText: string): string {
+  return [
+    input.repository,
+    queryText,
+    ...input.recentErrors.map((error) => `${error.source} ${error.pattern ?? ''}`),
+    ...input.recentSignals.map((signal) => signal.summary),
+  ].filter(Boolean).join('\n');
 }
 
 function normalizeText(text: string): string {

@@ -16,6 +16,7 @@ import {
 import type { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
 import type { Api, Model } from '@mariozechner/pi-ai';
 import { createApplyPatchToolDefinition } from './apply-patch-tool.js';
+import { createArchiveRecordToolDefinition } from './archive-tool.js';
 import { createHashlineStore, StudentAgentFilesystem } from '../hashline/index.js';
 import { createStudentBashToolDefinition } from './bash-timeout-tool.js';
 import {
@@ -77,6 +78,8 @@ export interface CreateStudentSessionOptions {
    * Pi 的 hasConfiguredAuth 不认识自定义 provider，需通过 registerProvider 注入。
    */
   apiKey?: string;
+  /** Whether agents may stage durable project archive records. */
+  projectArchive?: boolean;
   /** 额外传递给 Pi 的选项 */
   piOptions?: Partial<CreateAgentSessionOptions>;
 }
@@ -98,7 +101,7 @@ export interface CreateStudentSessionResult {
 export async function createStudentSession(
   options: CreateStudentSessionOptions,
 ): Promise<CreateStudentSessionResult> {
-  const { cwd = process.cwd(), model, hooks, llm, apiKey, piOptions = {} } = options;
+  const { cwd = process.cwd(), model, hooks, llm, apiKey, projectArchive = true, piOptions = {} } = options;
 
   const hashlineStore = createHashlineStore();
   const hashlineFs = new StudentAgentFilesystem(cwd);
@@ -115,6 +118,7 @@ export async function createStudentSession(
     createStudentEditToolDefinition(cwd, { store: hashlineStore, fs: hashlineFs, tasksManager }),
     createStudentWriteToolDefinition(cwd),
     createApplyPatchToolDefinition(cwd, { tasksManager }),
+    ...(projectArchive ? [createArchiveRecordToolDefinition(cwd)] : []),
   ] as CreateAgentSessionOptions['customTools'];
 
   const agentOptions: CreateAgentSessionOptions = {

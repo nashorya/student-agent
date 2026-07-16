@@ -14,6 +14,7 @@ import { FailureEscalationContext } from '../extension/hooks/failure-escalation.
 import { Context7Client } from '../knowledge/context7-client.js';
 import { createSignalPipeline } from '../memory/signals/index.js';
 import { RunArchiveWriter } from '../memory/run-archive/index.js';
+import { buildRecallCitationAudit } from '../memory/recall/citation.js';
 import { ProjectKbManager } from '../memory/project-kb/manager.js';
 import {
   buildPlanningPrompt,
@@ -26,6 +27,7 @@ import { TasksManager } from '../memory/tasks/manager.js';
 import type { Task } from '../memory/tasks/types.js';
 import type {
   EvalContextAssemblyTrace,
+  EvalFeatureManifest,
   EvalModelTrace,
   EvalTaskDefinition,
   EvalPiSchemaTrace,
@@ -35,6 +37,7 @@ import type {
   StudentAgentEvalTrace,
   ToolTraceEntry,
 } from './types.js';
+import { ForcedCompactionController } from './forced-compaction-controller.js';
 import { buildContextTokenEffect } from './context-breakdown.js';
 import {
   beginEvalLearningRun,
@@ -53,6 +56,11 @@ export interface RunStudentAgentEvalOptions {
   memoryDir?: string;
   buildMemoryPrompt?: () => Promise<string>;
   learningLifecycle?: boolean;
+  forceCompactionAfterPhases?: number[];
+  featureManifest?: EvalFeatureManifest;
+  predeclaredTask?: { name: string; phases: string[] };
+  maxModelCallsPerPhase?: number;
+  maxWallClockMsPerPhase?: number;
 }
 
 export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): Promise<StudentAgentEvalTrace> {
@@ -67,6 +75,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   let errorMessage: string | undefined;
   let modelTrace: EvalModelTrace | undefined;
   let learningRun: EvalLearningRunRef | undefined;
+  let compaction: ForcedCompactionController | undefined;
   const protectedEventsDuringRun: import('./types.js').ProtectedEvalEvent[] = [];
 
   try {
@@ -118,6 +127,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       model,
       hooks,
       apiKey,
+      projectArchive: config.features.projectArchive,
       llm: {
         timeoutMs: config.llm.requestTimeoutMs,
         maxTokens: config.llm.maxOutputTokens,
@@ -130,11 +140,31 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       },
     });
     piSchemaTrace = summarizePiToolSchema(agent.state.tools);
+    modelTrace = {
+      ...modelTrace,
+      thinking: summarizeEvalThinking(session),
+    };
+    const unsubscribeThinking = session.subscribe((event) => {
+      if (event.type !== 'thinking_level_changed') return;
+      modelTrace!.thinking!.changes.push({
+        at: new Date().toISOString(),
+        level: event.level,
+      });
+    });
+    compaction = new ForcedCompactionController(
+      session,
+      new Set(options.forceCompactionAfterPhases ?? []),
+    );
 
     const unsubscribe = agent.subscribe((event) => outputCollector.handleEvent(event));
     try {
       if (options.task.mode === 'task') {
-        taskState = await runTaskMode(session, agent, instruction, toolCalls);
+        taskState = await runTaskMode(session, agent, instruction, toolCalls, compaction, {
+          predeclaredTask: options.predeclaredTask,
+          maxModelCallsPerPhase: options.maxModelCallsPerPhase,
+          maxWallClockMsPerPhase: options.maxWallClockMsPerPhase,
+          getModelCallCount: () => outputCollector.usageEvents().length,
+        });
       } else {
         await runDirectMode(session, agent, instruction, options.task.expectedFiles, toolCalls);
       }
@@ -143,6 +173,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       }
     } finally {
       unsubscribe();
+      unsubscribeThinking();
     }
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : String(err);
@@ -155,6 +186,12 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     ? withPiSchemaRequestCount(piSchemaTrace, usageEvents.length)
     : undefined;
   const contextAssemblyTraces = getContextAssemblyTraces(options.buildMemoryPrompt);
+  const citationResult = buildRecallCitationAudit({
+    messages: outputCollector.messages(),
+    contexts: (contextAssemblyTraces ?? []).map((trace) => ({
+      items: trace.recall?.items.map((item) => ({ id: item.id, kind: item.kind })) ?? [],
+    })),
+  });
   const workingMemorySnapshot = options.memoryDir
     ? await getActiveWorkingMemorySnapshot(options.memoryDir)
     : undefined;
@@ -166,7 +203,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     endedAt: new Date(endedMs).toISOString(),
     durationMs: endedMs - startedMs,
     status: errorMessage ? 'failed' : 'success',
-    finalOutput: outputCollector.text(),
+    finalOutput: citationResult.cleanedMessages.join(''),
     errorMessage,
     turnCount: usageEvents.length,
     toolCalls,
@@ -174,6 +211,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     usageEvents,
     piSchemaTrace: finalPiSchemaTrace,
     contextAssemblyTraces,
+    recallAudit: citationResult.audit,
     contextTokenEffect: buildContextTokenEffect({
       contextAssemblyTraces,
       usageEvents,
@@ -183,6 +221,8 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     model: modelTrace,
     workingMemorySnapshot,
     taskState,
+    featureManifest: options.featureManifest,
+    compactionEvents: compaction?.events,
     protectedEvents,
     guardRuleCounts: countGuardRules(protectedEvents),
     learningRun,
@@ -201,6 +241,19 @@ export function summarizeEvalModel(model: Model<Api>): EvalModelTrace {
       cacheRead: model.cost?.cacheRead ?? 0,
       cacheWrite: model.cost?.cacheWrite ?? 0,
     },
+  };
+}
+
+export function summarizeEvalThinking(session: {
+  thinkingLevel: string;
+  supportsThinking: () => boolean;
+  getAvailableThinkingLevels: () => readonly string[];
+}): NonNullable<EvalModelTrace['thinking']> {
+  return {
+    initialLevel: session.thinkingLevel,
+    supportsThinking: session.supportsThinking(),
+    availableLevels: [...session.getAvailableThinkingLevels()],
+    changes: [],
   };
 }
 
@@ -307,20 +360,31 @@ async function runTaskMode(
   agent: Awaited<ReturnType<typeof createStudentSession>>['agent'],
   instruction: string,
   toolCalls: ToolTraceEntry[],
+  compaction: ForcedCompactionController,
+  limits: {
+    predeclaredTask?: { name: string; phases: string[] };
+    maxModelCallsPerPhase?: number;
+    maxWallClockMsPerPhase?: number;
+    getModelCallCount: () => number;
+  },
 ): Promise<EvalTaskStateTrace> {
   TasksManager.resetInstance();
   const tasks = TasksManager.getInstance(':memory:');
-  const planningOutput = new AssistantTextCollector();
-  const planningUnsub = agent.subscribe((event) => planningOutput.handleEvent(event));
-  try {
-    await session.prompt(buildPlanningPrompt(instruction));
-    await agent.waitForIdle();
-  } finally {
-    planningUnsub();
-  }
+  let task: Task;
+  if (limits.predeclaredTask) {
+    task = await tasks.createTask(limits.predeclaredTask.name, limits.predeclaredTask.phases);
+  } else {
+    const planningOutput = new AssistantTextCollector();
+    const planningUnsub = agent.subscribe((event) => planningOutput.handleEvent(event));
+    try {
+      await session.prompt(buildPlanningPrompt(instruction));
+      await agent.waitForIdle();
+    } finally {
+      planningUnsub();
+    }
 
-  let planSignal = parsePhaseSignal(planningOutput.text());
-  if (!isValidTaskStartSignal(planSignal)) {
+    let planSignal = parsePhaseSignal(planningOutput.text());
+    if (!isValidTaskStartSignal(planSignal)) {
     const repairOutput = new AssistantTextCollector();
     const repairUnsub = agent.subscribe((event) => repairOutput.handleEvent(event));
     try {
@@ -329,36 +393,56 @@ async function runTaskMode(
     } finally {
       repairUnsub();
     }
-    planSignal = parsePhaseSignal(repairOutput.text());
+      planSignal = parsePhaseSignal(repairOutput.text());
+    }
+    if (!planSignal || planSignal.type !== 'task_start' || planSignal.phases.length === 0) {
+      return { status: 'planning_failed', phaseCount: 0, phases: [] };
+    }
+    task = await tasks.createTask(planSignal.name, planSignal.phases);
   }
-
-  if (!planSignal || planSignal.type !== 'task_start' || planSignal.phases.length === 0) {
-    return { status: 'planning_failed', phaseCount: 0, phases: [] };
-  }
-
-  const task = await tasks.createTask(planSignal.name, planSignal.phases);
   let active: Task | null = task;
   let guard = 0;
   while (active && guard < 6) {
     guard++;
     const phase = active.phases[active.active_phase_index];
     if (!phase) break;
+    compaction.noteNextPhaseStarted(active.active_phase_index + 1);
     const phaseOutput = new AssistantTextCollector();
+    const phaseStartedMs = Date.now();
+    const callsBeforePhase = limits.getModelCallCount();
     let signal: ReturnType<typeof parsePhaseSignal> = null;
     let continuationCount = 0;
     while (true) {
       const phaseUnsub = agent.subscribe((event) => phaseOutput.handleEvent(event));
+      let budgetResult: { completed: boolean; modelCallBudgetExceeded: boolean };
       try {
-        const prompt = continuationCount === 0
+        const phasePrompt = continuationCount === 0
           ? buildPhaseExecutionPrompt(active.name, phase.description, active.active_phase_index, active.phases.length)
           : buildPhaseContinuationPrompt(active.active_phase_index + 1, phase.description);
-        await session.prompt(prompt);
-        await agent.waitForIdle();
+        const prompt = limits.predeclaredTask && continuationCount === 0
+          ? buildPredeclaredPhasePrompt({ instruction, phasePrompt, phaseIndex: active.active_phase_index })
+          : phasePrompt;
+        budgetResult = await promptWithinPhaseBudget({
+          session,
+          agent,
+          prompt,
+          phaseStartedMs,
+          maxWallClockMs: limits.maxWallClockMsPerPhase,
+          maxModelCalls: limits.maxModelCallsPerPhase,
+        });
+        if (!budgetResult.completed) return { ...serializeTaskState(task), status: 'phase_wall_clock_exceeded' };
       } finally {
         phaseUnsub();
       }
       signal = parsePhaseSignal(phaseOutput.text());
       if (signal?.type === 'phase_done') break;
+      if (budgetResult.modelCallBudgetExceeded) {
+        return { ...serializeTaskState(task), status: 'phase_model_call_budget_exceeded' };
+      }
+      if (limits.maxModelCallsPerPhase !== undefined &&
+        limits.getModelCallCount() - callsBeforePhase >= limits.maxModelCallsPerPhase) {
+        return { ...serializeTaskState(task), status: 'phase_model_call_budget_exceeded' };
+      }
       if (!shouldContinuePhaseRun({
         phaseText: phaseOutput.text(),
         continuationCount,
@@ -369,10 +453,85 @@ async function runTaskMode(
       continuationCount++;
     }
     if (signal?.type !== 'phase_done') break;
+    const completedPhaseNumber = active.active_phase_index + 1;
     await tasks.completePhase(active.id);
+    if (compaction.shouldCompactAfterPhase(completedPhaseNumber)) {
+      await compaction.compactAfterPhase(completedPhaseNumber);
+    }
     active = await tasks.getActive();
   }
   return serializeTaskState(task);
+}
+
+async function promptWithinPhaseBudget(options: {
+  session: Awaited<ReturnType<typeof createStudentSession>>['session'];
+  agent: Awaited<ReturnType<typeof createStudentSession>>['agent'];
+  prompt: string;
+  phaseStartedMs: number;
+  maxWallClockMs?: number;
+  maxModelCalls?: number;
+}): Promise<{ completed: boolean; modelCallBudgetExceeded: boolean }> {
+  let modelCalls = 0;
+  let exceededModelCallBudget = false;
+  const unsubscribe = options.agent.subscribe((event) => {
+    if (!isAssistantMessageEnd(event)) return;
+    modelCalls++;
+    if (options.maxModelCalls !== undefined && shouldAbortForModelCallBudget(modelCalls, options.maxModelCalls)) {
+      exceededModelCallBudget = true;
+      options.session.abort();
+    }
+  });
+  const run = async () => {
+    await options.session.prompt(options.prompt);
+    await options.agent.waitForIdle();
+  };
+  if (options.maxWallClockMs === undefined) {
+    try {
+      try {
+        await run();
+      } catch (error) {
+        if (!exceededModelCallBudget) throw error;
+      }
+      return { completed: true, modelCallBudgetExceeded: exceededModelCallBudget };
+    } finally {
+      unsubscribe();
+    }
+  }
+  const remainingMs = options.maxWallClockMs - (Date.now() - options.phaseStartedMs);
+  if (remainingMs <= 0) return { completed: false, modelCallBudgetExceeded: false };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const completed = await Promise.race([
+      run().then(() => true).catch((error) => {
+        if (exceededModelCallBudget) return true;
+        throw error;
+      }),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => {
+          options.session.abort();
+          resolve(false);
+        }, remainingMs);
+      }),
+    ]);
+    return { completed, modelCallBudgetExceeded: exceededModelCallBudget };
+  } finally {
+    if (timer) clearTimeout(timer);
+    unsubscribe();
+  }
+}
+
+export function buildPredeclaredPhasePrompt(options: {
+  instruction: string;
+  phasePrompt: string;
+  phaseIndex: number;
+}): string {
+  return options.phaseIndex === 0
+    ? `${options.instruction}\n\n---\n\n${options.phasePrompt}`
+    : options.phasePrompt;
+}
+
+export function shouldAbortForModelCallBudget(callCount: number, maxModelCalls: number): boolean {
+  return callCount >= maxModelCalls;
 }
 
 export function shouldContinueDirectRun(options: {
@@ -582,6 +741,13 @@ export class AssistantTextCollector {
     return [...this.completedMessages, this.currentMessage].join('');
   }
 
+  messages(): string[] {
+    return [
+      ...this.completedMessages,
+      ...(this.currentMessage ? [this.currentMessage] : []),
+    ];
+  }
+
   usage(): EvalTokenUsage {
     return cloneTokenUsage(this.tokenUsage);
   }
@@ -650,6 +816,11 @@ function isAssistantMessageStart(event: AgentEvent): boolean {
     isRecord(record.message)
     && record.message.role === 'assistant'
   );
+}
+
+function isAssistantMessageEnd(event: AgentEvent): boolean {
+  const record = event as unknown as Record<string, unknown>;
+  return event.type === 'message_end' && isRecord(record.message) && record.message.role === 'assistant';
 }
 
 function emptyTokenUsage(): EvalTokenUsage {

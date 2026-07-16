@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 3,
+  "requiredCompatibility": "legacy-id-stable",
+  "allowedModes": [
+    "bridge",
+    "strict",
+    "compat"
+  ]
+}

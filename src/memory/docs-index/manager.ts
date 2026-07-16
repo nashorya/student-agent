@@ -3,89 +3,20 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { WriteQueue } from '../../core/write-queue.js';
-import { logger } from '../../tui/logger.js';
 import { getProjectMemoryDir } from '../../core/paths.js';
+import { OpenAICompatibleEmbeddingProvider } from '../embedding/provider.js';
+import type { EmbeddingProvider } from '../embedding/types.js';
 import type {
   DocEntry,
   SearchResult,
   DocsIndexStats,
-  EmbeddingProvider,
 } from './types.js';
 import {
   MAX_CHUNK_CHARS,
   CHUNK_OVERLAP_CHARS,
   DEFAULT_TOP_K,
   EMBEDDING_DIMENSIONS,
-  EMBEDDING_API_BASE_URL,
-  EMBEDDING_MODEL,
 } from './types.js';
-
-// ── 默认嵌入提供者（OpenAI 兼容 API） ──────────────
-
-/**
- * OpenAI 兼容的嵌入提供者。
- * 调用 text-embedding-3-small via poloapi。
- */
-class OpenAICompatibleEmbeddingProvider implements EmbeddingProvider {
-  readonly dimensions = EMBEDDING_DIMENSIONS;
-  private readonly baseUrl: string;
-  private readonly model: string;
-  private readonly apiKey: string;
-
-  constructor(options?: { baseUrl?: string; model?: string; apiKey?: string }) {
-    this.baseUrl = options?.baseUrl
-      ?? process.env.STUDENT_AGENT_EMBEDDING_BASE_URL
-      ?? process.env.OPENAI_BASE_URL
-      ?? EMBEDDING_API_BASE_URL;
-    this.model = options?.model
-      ?? process.env.STUDENT_AGENT_EMBEDDING_MODEL
-      ?? process.env.OPENAI_EMBEDDING_MODEL
-      ?? EMBEDDING_MODEL;
-    const key = options?.apiKey
-      ?? process.env.STUDENT_AGENT_EMBEDDING_API_KEY
-      ?? process.env.OPENAI_API_KEY
-      ?? '';
-    if (!key) {
-      logger.warn('[DocsIndex] STUDENT_AGENT_EMBEDDING_API_KEY / OPENAI_API_KEY 未设置，嵌入功能将不可用');
-    }
-    this.apiKey = key;
-  }
-
-  async embed(text: string): Promise<number[]> {
-    if (!this.apiKey) {
-      throw new Error('STUDENT_AGENT_EMBEDDING_API_KEY / OPENAI_API_KEY 未设置，无法生成嵌入向量');
-    }
-
-    const response = await fetch(`${this.baseUrl}/embeddings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        input: text,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'unknown error');
-      throw new Error(
-        `嵌入 API 调用失败：${response.status} ${response.statusText} — ${errorText}`,
-      );
-    }
-
-    const json = (await response.json()) as {
-      data: Array<{ embedding: number[] }>;
-    };
-
-    if (!json.data?.[0]?.embedding) {
-      throw new Error('嵌入 API 返回格式异常：缺少 data[0].embedding');
-    }
-
-    return json.data[0].embedding;
-  }
-}
 
 // ── DocsIndexManager ────────────────────────────────
 

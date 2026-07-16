@@ -61,6 +61,8 @@ ephemeral note，不归档、不跨任务传播。
 
 ### P2 · 召回排序去 recency 偏置
 
+**状态**：已实现，正式协议见 [ADR-005](ADR-005-recall-ranking-protocol.md)。
+
 **做什么**：当前召回按时间序取最近 N 条；改为按相关性（仓库 + 症状 embedding
 相似度）排序，recency 降权为 tiebreaker。
 
@@ -68,6 +70,8 @@ ephemeral note，不归档、不跨任务传播。
 压着召不出来"——必须先有质量过关的 lesson 才值得调召回排序。
 
 ### P3 · 利用可观测（recall citation）
+
+**状态**：已实现，正式协议见 [ADR-006](ADR-006-recall-citation-and-credit.md)。
 
 **做什么**：agent 在引用 lesson/knack 时，在 trace 里留 citation 标记
 （`used_recall_ids: ["knack-xxx"]`）；harness 统计"召回但未引用"

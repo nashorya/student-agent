@@ -13,10 +13,12 @@
     "eval:baseline": "npx tsx scripts/eval-baseline.ts",
     "eval:claude-code": "npx tsx scripts/eval-claude-code.ts",
     "eval:context-runtime": "npx tsx scripts/eval-context-runtime.ts",
+    "eval:jspace-recovery": "npx tsx scripts/eval-jspace-recovery-runner.ts",
     "eval:webui:report": "npx tsx scripts/eval-webui-report.ts",
     "eval:terminal-bench": "npx tsx scripts/eval-terminal-bench.ts",
     "eval:swebench": "npx tsx scripts/eval-swebench.ts",
     "eval:swebench:produce": "npx tsx scripts/eval-swebench-produce.ts",
+    "eval:recall:reconcile": "npx tsx scripts/reconcile-recall-credit.ts",
     "import:locobench-agent": "npx tsx scripts/import-locobench-agent.ts",
     "eval:locobench-agent:official": "npx tsx scripts/eval-locobench-agent-official.ts",
     "eval:locobench-agent:unified": "npx tsx scripts/eval-locobench-agent-unified.ts",
@@ -29,9 +31,9 @@
   },
   "dependencies": {
     "@earendil-works/pi-tui": "^0.78.1",
-    "@mariozechner/pi-agent-core": "file:./pi-mono/packages/agent",
-    "@mariozechner/pi-ai": "file:./pi-mono/packages/ai",
-    "@mariozechner/pi-coding-agent": "file:./pi-mono/packages/coding-agent",
+    "@mariozechner/pi-agent-core": "0.73.1",
+    "@mariozechner/pi-ai": "0.73.1",
+    "@mariozechner/pi-coding-agent": "0.73.1",
     "@mozilla/readability": "^0.6.0",
     "@oh-my-pi/hashline": "^15.9.67",
     "@opentui/core": "^0.3.2",
@@ -60,7 +62,7 @@
     "@types/turndown": "^5.0.6",
     "ts-node": "^10.9.0",
     "typescript": "^5.0.0",
-    "vitest": "^2.0.0",
+    "vitest": "4.1.10",
     "xxhash": "^0.3.0"
   }
 }

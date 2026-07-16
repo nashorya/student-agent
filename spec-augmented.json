@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "id": "jspace-compaction-recovery-001",
+  "version": "v0.4x-A/P4.3",
+  "component": "minimal-active-projection",
+  "category": "ablation",
+  "evalKind": "agentic",
+  "target": "harness",
+  "construct": "marginal contribution of external J-space (v0.5 checkpoint-only, v1 incremental projection) to post-compaction state survival, versus Pi built-in compaction baseline",
+  "arms": {
+    "plain": "Pi built-in compaction only (runnable today, no J-space code required)",
+    "v05_checkpoint": "five-field checkpoint written at forced compaction boundary, injected after compaction",
+    "v1_incremental": "v0.5 plus per-turn deterministic projection refresh and file-level stale marking; per-turn model patch stays behind GO gate",
+    "current": "Current student-agent product baseline: Pi built-in compaction plus the existing Context Runtime / memory system prefix; used for migration value, not as the causal plain baseline"
+  },
+  "input": {
+    "description": "Run probe-instrumented long tasks with harness-forced compaction at fixed boundaries.",
+    "setup": [
+      "Tasks: extend long-context-maintenance plus 2 new probe tasks (see review-notes)",
+      "Force compaction deterministically after phase 2 and phase 4 via harness control, never rely on natural overflow",
+      "Plant three probe types per task: turn-1-only constraint (git-diff verifiable), decoy path with signature error (countable in events.jsonl), cross-boundary next-step dependency",
+      "seeds >= 3 per arm per task; identical model, temperature, tier config across arms",
+      "Preflight Step -1: verify the pinned Pi version's real compaction path, hooks, session lifecycle, provider payload order, and protected-trace observability",
+      "Add a current product-baseline arm; plain must explicitly disable the existing Context Runtime/model-side memory injection",
+      "Generate and validate a per-task leakage_manifest.json so cross-boundary conclusions are absent from files, later phase instructions, automatic recall, and oracle errors",
+      "Run a 3-5-call API usage probe before the main baseline; preserve raw provider usage and compare it with Pi-exposed usage"
+    ]
+  },
+  "expectedBehavior": "v0.5 improves constraint survival and goal continuation over plain; v1 additionally reduces repeated decoy-path attempts. Expected split: constraint/goal metrics move at v0.5, rejected-path metrics only move if projection carries them.",
+  "metrics": [
+    "post_compaction_constraint_violation_rate",
+    "repeated_failed_path_count_post_compaction",
+    "task_success_rate",
+    "phase_completion_after_forced_compaction",
+    "total_cost_cached_tokens",
+    "total_cost_uncached_tokens",
+    "checkpoint_written",
+    "checkpoint_contains_planted_constraint",
+    "checkpoint_injected_post_compaction",
+    "behavior_consistent_with_checkpoint",
+    "total_cached_input_tokens",
+    "total_uncached_input_tokens",
+    "total_output_tokens",
+    "invalid_probe_leakage_count",
+    "invalid_prompt_layout_count",
+    "arm_feature_manifest_valid"
+  ],
+  "passCondition": "Descriptive only; per-metric GO gate, no composite score. GO for v0.5 requires constraint_violation and phase_completion improve vs plain across >=2 tasks and >=2 seeds without cost regression beyond budget. v1 GO judged only on repeated_failed_path and stale-related metrics, per ADR-style metric separation.",
+  "grader": {
+    "type": "script",
+    "path": "scripts/eval-jspace-recovery-runner.ts (to be written; reads events.jsonl + git diff + protected trace, no LLM grader at runtime)"
+  },
+  "oracle": {
+    "path": "per-task solution/solve.sh; adversarial/known-bad = post-compaction constraint violation replay; adversarial/alternative-valid = different valid route completing all phases"
+  },
+  "trialPolicy": {
+    "trials": 3,
+    "aggregation": "report_per_seed_no_averaging_across_tasks"
+  },
+  "failureImplication": "If plain arm shows no constraint loss or repetition at forced compaction boundaries, the J-space premise is unsupported for this harness; close GO gate before writing implementation code.",
+  "relatedPaper": "LLMs Get Lost In Multi-Turn Conversation (unreliability +112%, recap recovers 15-20%); Meta-Harness (trace-based attribution over scores-only)",
+  "relatedAdr": [
+    "ADR-001 (ablation-only claims)",
+    "ADR-002 (attribution table protocol; tombstone scope clarified in review-notes)",
+    "ADR-003 (P0-style zero-cost premise check via plain arm)"
+  ],
+  "regressionRisk": [
+    "Forced compaction hook may itself alter baseline behavior; validate hook neutrality with a no-op arm on one task first",
+    "Probe constraints must be natural task requirements, not tripwires undiscoverable from instruction (Gate 1 rule)",
+    "A run may be mislabeled plain while still carrying the existing memory system prefix; require a protected feature manifest",
+    "Cross-boundary conclusions may leak through files, later prompts, automatic recall, or oracle errors",
+    "Framework/provider adapters may append content after the dynamic checkpoint and invalidate cache comparisons"
+  ],
+  "ablationGroup": "jspace_recovery",
+  "preflight": {
+    "stepMinusOne": [
+      "Inspect the pinned Pi dependency, not upstream main, for compaction hooks and per-call context APIs",
+      "Prove forced compaction uses the same path as production compaction",
+      "Capture final provider payload ordering and protected trace fields",
+      "Stop before Step 0 if the product path cannot be demonstrated"
+    ],
+    "usageProbe": {
+      "calls": "3-5 real LLM calls with at least one tool call",
+      "requiredFields": [
+        "prompt_tokens",
+        "cached_input_tokens",
+        "uncached_input_tokens",
+        "output_tokens",
+        "request_id",
+        "latency_ms",
+        "arm",
+        "task",
+        "seed",
+        "call_index"
+      ],
+      "policy": "BigModel may validate instrumentation only; final behavioral conclusions use the selected experiment provider/model"
+    }
+  },
+  "armIsolation": {
+    "plain": [
+      "Pi built-in compaction only",
+      "Existing Context Runtime/model-side memory prefix disabled",
+      "No Task Ledger, Recall, checkpoint, or J-space content injected into the model"
+    ],
+    "current": [
+      "Current repository defaults enabled",
+      "Used to measure migration value versus today's product behavior"
+    ],
+    "manifest": "Write the actual enabled feature set for every run to protected trace"
+  },
+  "leakageAudit": {
+    "artifact": "per-task leakage_manifest.json",
+    "invalidStatus": "invalid_probe_leakage",
+    "forbiddenChannels": [
+      "later phase instructions",
+      "filesystem fixtures and environment variables",
+      "automatically recalled Task Ledger or Working Memory entries",
+      "runner-provided prior phase answers",
+      "oracle or test errors that reveal the conclusion"
+    ]
+  },
+  "promptLayoutAssertions": {
+    "appliesTo": [
+      "v05_checkpoint",
+      "v1_incremental"
+    ],
+    "requirements": [
+      "Checkpoint/J-space is the final serialized content block",
+      "No framework or retry injection follows it",
+      "It is not persisted in ordinary conversation history",
+      "The prior call's dynamic block is removed",
+      "Cache breakpoint precedes the dynamic block",
+      "Dynamic block itself is not cache-controlled"
+    ],
+    "invalidStatus": "invalid_prompt_layout"
+  },
+  "executionOrder": [
+    "Step -1: pinned Pi/product-path and provider-payload audit",
+    "Step 0: forced-compaction harness plus no-op neutrality check",
+    "Step 0.5: API usage probe",
+    "Step 1: plain x3 seeds plus a small current product-baseline sample",
+    "Step 2: implement and compare v0.5 against plain/current",
+    "Step 3: implement v1 deterministic projection only after v0.5 GO",
+    "Step 4: consider per-turn model patch only if repeated-path metrics remain unchanged"
+  ]
+}

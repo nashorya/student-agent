@@ -6,6 +6,7 @@ import { TasksManager } from '../memory/tasks/manager.js';
 import { createEvalSandbox, diffSnapshots, readChangedFileContents, runVerifier, snapshotFiles } from './sandbox.js';
 import { runStudentAgentEval } from './agent-runner.js';
 import { scoreEvalRun } from './scorer.js';
+import { reconcileRecallCredit } from './recall-credit-reconciler.js';
 import { loadEvalTasks } from './task-loader.js';
 import type { EvalRunRecord, EvalTaskDefinition } from './types.js';
 
@@ -95,6 +96,19 @@ export async function runContextRuntimeEval(
           const modifiedFiles = await readChangedFileContents(sandbox.path, changedFiles);
           const verifier = await runVerifier(task, sandbox);
           const scored = scoreEvalRun({ task, trace, verifier, before, after: afterAgent, modifiedFiles });
+          const active = variant === 'context_runtime'
+            ? await TasksManager.getInstance(memoryDir).getActive()
+            : null;
+          const recallAttribution = active && trace.recallAudit
+            ? await reconcileRecallCredit({
+              memoryDir,
+              taskId: task.id,
+              runId: active.working_memory.runId,
+              audit: trace.recallAudit,
+              verificationStatus: scored.score.correctnessScore >= 1 ? 'passed' : 'failed',
+              verificationRef: `context-runtime:${task.id}:trial-${trial}`,
+            })
+            : undefined;
           records.push({
             variant,
             taskId: task.id,
@@ -102,6 +116,7 @@ export async function runContextRuntimeEval(
             mode: task.mode,
             trial,
             ...scored,
+            ...(recallAttribution ? { recallAttribution } : {}),
           });
         } finally {
           TasksManager.resetInstance();

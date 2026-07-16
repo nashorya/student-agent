@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { getProjectMemoryDir } from '../../core/paths.js';
 import { WriteQueue } from '../../core/write-queue.js';
 import type { RunEvent, TaskOutcome, WorkingMemorySnapshot } from './types.js';
+import type { RecallCitationAudit } from '../recall/citation.js';
 
 export interface RunArchiveWriterOptions {
   memoryDir?: string;
@@ -36,6 +37,9 @@ export class RunArchiveWriter {
       userAccepted?: boolean;
       finalSummary: string;
       wmSnapshot?: WorkingMemorySnapshot;
+      recallAudit?: RecallCitationAudit;
+      verificationStatus?: TaskOutcome['verificationStatus'];
+      verificationEvidenceRef?: string;
     },
   ): Promise<TaskOutcome> {
     return WriteQueue.getInstance().enqueue(async () => {
@@ -44,6 +48,26 @@ export class RunArchiveWriter {
       const outcome = makeOutcome(runId, options, events);
       await writeFile(this.outcomePath(runId), JSON.stringify(outcome, null, 2), 'utf-8');
       return outcome;
+    });
+  }
+
+  async updateVerification(runId: string, options: {
+    status: NonNullable<TaskOutcome['verificationStatus']>;
+    evidenceRef: string;
+  }): Promise<TaskOutcome | null> {
+    return WriteQueue.getInstance().enqueue(async () => {
+      const outcome = await readOutcome(this.outcomePath(runId));
+      if (!outcome) return null;
+      if (outcome.verificationStatus === 'passed' && options.status !== 'passed') {
+        return outcome;
+      }
+      const updated: TaskOutcome = {
+        ...outcome,
+        verificationStatus: options.status,
+        verificationEvidenceRef: options.evidenceRef,
+      };
+      await writeFile(this.outcomePath(runId), JSON.stringify(updated, null, 2), 'utf8');
+      return updated;
     });
   }
 
@@ -84,6 +108,9 @@ function makeOutcome(
     userAccepted?: boolean;
     finalSummary: string;
     wmSnapshot?: WorkingMemorySnapshot;
+    recallAudit?: RecallCitationAudit;
+    verificationStatus?: TaskOutcome['verificationStatus'];
+    verificationEvidenceRef?: string;
   },
   events: RunEvent[],
 ): TaskOutcome {
@@ -100,9 +127,23 @@ function makeOutcome(
     lostnessTriggerCount: countKind(events, 'lostness_hard') + countKind(events, 'lostness_soft'),
     finalSummary: options.finalSummary,
     evidenceRefs: collectEvidenceRefs(events),
+    ...(options.recallAudit ? { recallAudit: options.recallAudit } : {}),
+    ...(options.verificationStatus ? { verificationStatus: options.verificationStatus } : {}),
+    ...(options.verificationEvidenceRef
+      ? { verificationEvidenceRef: options.verificationEvidenceRef }
+      : {}),
     wmSnapshot: options.wmSnapshot,
     createdAt: new Date().toISOString(),
   };
+}
+
+async function readOutcome(path: string): Promise<TaskOutcome | null> {
+  try {
+    return JSON.parse(await readFile(path, 'utf8')) as TaskOutcome;
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') return null;
+    throw error;
+  }
 }
 
 function countKind(events: RunEvent[], kind: RunEvent['kind']): number {

@@ -58,6 +58,7 @@ export interface ContextInspectorResult {
       metadata: number;
       evidence: number;
     };
+    ranking?: NonNullable<RecalledItem['ranking']>;
   } | null;
 
   diagnostics: {
@@ -317,6 +318,7 @@ function findTopItem(bundle: RecallBundle): ContextInspectorResult['topItem'] {
       metadata: top.score.dimensions.metadata,
       evidence: top.score.dimensions.evidence,
     },
+    ...(top.reason.startsWith('knack_rank:') && top.ranking ? { ranking: top.ranking } : {}),
   };
 }
 
@@ -346,7 +348,9 @@ function normalizeSignalKind(kind: string): SignalKind | null {
 
 function formatTopItem(topItem: ContextInspectorResult['topItem']): string {
   if (!topItem) return 'Top item: none';
-  return `Top item: ${topItem.id} (total: ${formatScore(topItem.total)}, trigger: ${formatScore(topItem.dimensions.trigger)}, keyword: ${formatScore(topItem.dimensions.keyword)}, recency: ${formatScore(topItem.dimensions.recency)}, relevance: ${formatScore(topItem.dimensions.relevance)}, metadata: ${formatScore(topItem.dimensions.metadata)}, evidence: ${formatScore(topItem.dimensions.evidence)})`;
+  const base = `Top item: ${topItem.id} (total: ${formatScore(topItem.total)}, trigger: ${formatScore(topItem.dimensions.trigger)}, keyword: ${formatScore(topItem.dimensions.keyword)}, recency: ${formatScore(topItem.dimensions.recency)}, relevance: ${formatScore(topItem.dimensions.relevance)}, metadata: ${formatScore(topItem.dimensions.metadata)}, evidence: ${formatScore(topItem.dimensions.evidence)})`;
+  if (!topItem.ranking) return base;
+  return `${base}\n  Knack ranking: repoMatch=${topItem.ranking.repoMatch}, similarity=${formatScore(topItem.ranking.similarity)} (${topItem.ranking.similaritySource}), reuse=${topItem.ranking.reuseCount}, confidence=${topItem.ranking.confidence}, antiRepeat=${topItem.ranking.antiRepeat}`;
 }
 
 function formatScore(value: number): string {

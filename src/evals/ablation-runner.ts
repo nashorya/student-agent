@@ -155,5 +155,9 @@ function zeroMetrics(): AblationRunMetrics {
     repeated_tool_call_count: 0,
     run_duration_ms: 0,
     trace_event_count: 0,
+    recall_injection_rate: 0,
+    recall_utilization_rate: 0,
+    invalid_recall_citation_rate: 0,
+    cited_and_verified_rate: 0,
   };
 }

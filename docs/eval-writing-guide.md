@@ -99,6 +99,11 @@ alternative-valid solution→ PASS
 exploit attempts          → FAIL
 ```
 
+`npm run eval:validate` 只执行带 `solution/solve.sh` 的 oracle-backed fixture。
+没有 reference solution、由外部 session/metric scorer 判分的 imported smoke task
+只接受 schema/文件完整性检查，不得伪装成满足 initial FAIL → oracle PASS 的
+deterministic correctness fixture。
+
 常见 exploit 包括：只创建标志文件、伪造 reward、读取 tests/solution、利用上轮残留
 状态、输出固定 success 字符串，以及用等价格式绕过脆弱字符串匹配。
 
@@ -985,3 +990,23 @@ P3（v0.4x）:
 - [ ] 不要写只能手动判断的 case（如 "TUI 看起来正常"）
 - [ ] 不要写依赖特定模型输出内容的 case（模型输出不确定）
 - [ ] case 之间尽量独立，不依赖执行顺序
+## Recall citation 与成功归因
+
+启用 Context Runtime 的 eval trace 会记录 `recallAudit`：注入 ID、模型 citation、有效
+`used_recall_ids`、invalid citation 和 utilization rate。citation 只是模型自报告；只有
+外部 verifier correctness 为 1 时才可更新 knack reuseCount。
+
+SWE-bench patch producer 的 agent 完成时间早于官方 harness，因此先保持
+`verificationStatus=pending`。harness 完成后运行：
+
+```bash
+npm run eval:recall:reconcile -- \
+  --records <records.json> \
+  --harness <harness-report.json> \
+  --memory-dir <shared-memory-dir> \
+  --output <recall-audit-report.json>
+```
+
+先用 `--dry-run` 检查 attribution 分类；重复正式运行是幂等的。报告中应使用
+`not_injected`、`injected_not_cited`、`cited_verifier_failed`、
+`cited_and_verified`，不得把“被注入”写成“被使用”。

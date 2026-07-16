@@ -75,13 +75,10 @@ every run traceable to commit + model + pricing. June 2026 highlights:
 git clone https://github.com/nashorya/student-agent.git
 cd student-agent
 
-# 2. Clone the pi-mono dependency (required)
-git clone https://github.com/badlogic/pi-mono pi-mono
-
-# 3. Install dependencies
+# 2. Install dependencies (the pi SDK is pinned to reproducible npm packages)
 npm install
 
-# 4. Configure environment, or let first-run setup guide you
+# 3. Configure environment, or let first-run setup guide you
 cp .env.example .env
 # Edit .env, or run npm run dev and follow the setup prompts
 ```
@@ -162,7 +159,7 @@ npx playwright install chromium
 | Layer | Choice | Version | Reason |
 |---|---|---|---|
 | Runtime | Node.js / TypeScript | 20+ / 5.x | Consistent with existing toolchain |
-| Base framework | [pi (badlogic/pi-mono)](https://github.com/badlogic/pi-mono) | local | CLI REPL, tool dispatch, MCP client skeleton |
+| Base framework | [pi](https://github.com/badlogic/pi-mono) | 0.73.1 (pinned npm packages) | CLI REPL, tool dispatch, MCP client skeleton |
 | LLM runtime | Pi SDK model registry | configurable | Uses Pi's `Model<Api>` registry; supports Anthropic and OpenAI-compatible providers. |
 | Vector store | sqlite-vec | 0.1.9 | Zero dependencies, precompiled binary, cross-platform |
 | MCP | @modelcontextprotocol/sdk | — | Standard protocol; Context7 and Web Search plug in directly |
@@ -477,6 +474,41 @@ Results are written to `evals/results/` (git-ignored). Each result file contains
 **Run `eval:validate` before `eval:baseline`.** Validation runs verifier scripts against reference solutions without any model call. If validation fails, the task is broken. Fix it before spending API budget.
 
 **Watch for saturation.** As baseline scores approach 100%, the suite shifts from a *capability eval* (what can the agent do?) to a *regression suite* (does it still do what it used to?). Add harder tasks when the suite saturates to preserve a signal for improvement.
+
+---
+
+## Project Development Archive
+
+Student Agent can maintain a project-owned development archive and render it as a static Project Health dashboard. Markdown remains the canonical source; HTML is deterministic derived output for people to browse, search, and filter.
+
+Discovery starts at the project root passed to Student Agent. Explicit `archive` paths in `.student-agent.json` take precedence over conventional locations such as `docs/INDEX.md`, `docs/buglog.md`, and `docs/adr/`. When no archive exists, `/archive init` performs the one-time initialization. Conflicting conventional locations block writes instead of choosing silently.
+
+```text
+/archive status
+/archive init
+/archive check
+/archive build
+/archive adr new <title>
+/archive bug open <title>
+/archive bug update <BUG-ID> [status]
+```
+
+During task work, `archive_record` stages only durable decisions, bugs, and timeline events. Staged changes are applied after technical verification. An implemented ADR remains `proposed` with implementation status `verified`; it becomes `accepted` only after the user explicitly accepts the completed task. A bug cannot become `FIXED` without passed verification evidence.
+
+Configuration defaults:
+
+```json
+{
+  "features": { "projectArchive": true },
+  "archive": {
+    "enabled": true,
+    "format": "auto",
+    "dashboardPath": "docs/agent/dashboard.html"
+  }
+}
+```
+
+Set `STUDENT_AGENT_FEATURE_PROJECT_ARCHIVE=false` to remove the agent archive tool. Existing archives can still be inspected with the standalone commands.
 
 ---
 
