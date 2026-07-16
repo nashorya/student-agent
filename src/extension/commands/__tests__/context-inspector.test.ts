@@ -142,7 +142,7 @@ describe('Context Inspector', () => {
       softRejectionCount: 1,
       openQuestionCount: 1,
     });
-    expect(result.recall.strategyGenes).toEqual({ count: 1, limit: 4 });
+    expect(result.recall.strategyGenes).toEqual({ count: 1, limit: 3 });
     expect(result.recall.preferences).toEqual({ count: 0, limit: 2 });
     expect(result.recall.docFindings).toEqual({ count: 0, limit: 2 });
     expect(result.recall.historicalSnapshots).toEqual({ count: 0, limit: 1 });

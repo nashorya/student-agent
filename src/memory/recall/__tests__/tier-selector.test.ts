@@ -68,7 +68,7 @@ describe('selectL1Tier', () => {
       preferences: 1,
       docFindings: 0,
     });
-    expect(RECALL_LIMITS.standard.knacks).toBe(4);
+    expect(RECALL_LIMITS.standard.knacks).toBe(3);
   });
 });
 
