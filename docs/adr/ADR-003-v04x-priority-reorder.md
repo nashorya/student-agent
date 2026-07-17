@@ -76,7 +76,7 @@ Tier B pilot（2026-06-12，OpenRouter Sonnet 4.6，astropy 6 题，1 seed）给
 >   无 marker → candidate 用例；import 脚本消费新 JSON 无报错。
 > - **重跑**：同 scope 4 候选；12907/14182 流水账 → 人话 fix（verified 保持）；
 >   6938/14995 marker 路径不变。diff 见判卷表 §3.1。
-> - **萃取器 commit**：`2965ad89`（保真度补丁；与本注同提交）。
+> - **萃取器 commit**：`9105cd53`（`fix(evals): degrade knack fix_summary without markers`）。
 > - **边界**：模型调用 0；未做 P1 准入门控。
 
 ### P1 · Lesson 准入门控（batch distillation 管道）
