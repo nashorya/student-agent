@@ -127,7 +127,8 @@ export async function newPipelineHook(
   const tierDecision = selectL1Tier(tierInput);
   const taskLedger = await new TaskLedgerManager(memoryDir, task.id).toLedgerInput();
 
-  const recallBundle = await new RecallRouter(new JsonlMemoryStore({ memoryDir })).recall({
+  const recallStore = new JsonlMemoryStore({ memoryDir });
+  const recallBundle = await new RecallRouter(recallStore).recall({
     taskId: task.id,
     currentTaskId: task.id,
     currentRunId: task.working_memory.runId,
@@ -150,6 +151,11 @@ export async function newPipelineHook(
   } satisfies RecallRouterInput);
 
   const limitedRecallBundle = applyRecallLimits(recallBundle, tierDecision.tier);
+  await recallStore.recordKnackInjections({
+    knackIds: limitedRecallBundle.knacks.map((knack) => knack.id),
+    taskId: task.id,
+    runId: task.working_memory.runId,
+  });
   const built = new ContextBuilder().build({
     workingMemory: task.working_memory,
     recallBundle: limitedRecallBundle,
@@ -286,12 +292,16 @@ function buildRecallTrace(bundle: RecallBundle): NonNullable<EvalContextAssembly
       summary: item.summary,
       reason: item.reason,
       score: item.score.total,
+      ...(item.ranking ? { ranking: item.ranking } : {}),
     })),
     diagnostics: {
       queryText: bundle.diagnostics.queryText,
       totalCandidates: bundle.diagnostics.totalCandidates,
       dropped: bundle.diagnostics.dropped,
       penalties: bundle.diagnostics.penalties,
+      ...(bundle.diagnostics.candidatePool
+        ? { candidatePool: bundle.diagnostics.candidatePool }
+        : {}),
     },
   };
 }

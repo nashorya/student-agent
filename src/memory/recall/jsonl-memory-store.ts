@@ -23,7 +23,7 @@ export interface JsonlMemoryStoreOptions {
   readOnly?: boolean;
 }
 
-const DEFAULT_LIMIT = 8;
+export const DEFAULT_CANDIDATE_POOL_LIMIT = 64;
 
 export class JsonlMemoryStore implements MemoryStore {
   private readonly memoryDir: string;
@@ -69,7 +69,7 @@ export class JsonlMemoryStore implements MemoryStore {
       }))
       .filter((result) => result.score.total > 0 || hasActiveFilter(query))
       .sort((a, b) => b.score.total - a.score.total)
-      .slice(0, query.limit ?? DEFAULT_LIMIT);
+      .slice(0, query.limit ?? DEFAULT_CANDIDATE_POOL_LIMIT);
   }
 
   async loadTaskSnapshots(options: {
@@ -89,6 +89,42 @@ export class JsonlMemoryStore implements MemoryStore {
       .sort((a, b) => timestampOf(b.wmSnapshot?.createdAt ?? b.createdAt) - timestampOf(a.wmSnapshot?.createdAt ?? a.createdAt))
       .slice(0, options.limit ?? 100)
       .map((outcome) => snapshotToMemoryItem(outcome.wmSnapshot as WorkingMemorySnapshot));
+  }
+
+  async recordKnackInjections(options: {
+    knackIds: string[];
+    taskId: string;
+    runId?: string;
+  }): Promise<void> {
+    if (this.readOnly || options.knackIds.length === 0) return;
+    const knackPath = join(this.memoryDir, 'knacks.jsonl');
+    const ledgerPath = join(this.memoryDir, 'recall-injections.json');
+    await WriteQueue.getInstance().enqueue(async () => {
+      const [knacks, ledger] = await Promise.all([
+        readJsonl<Knack>(knackPath),
+        readJson<{ keys: string[] }>(ledgerPath),
+      ]);
+      const recorded = new Set(ledger?.keys ?? []);
+      const targetIds = new Set(options.knackIds);
+      let changed = false;
+      const updated = knacks.map((knack) => {
+        if (!targetIds.has(knack.id)) return knack;
+        const key = [knack.id, options.taskId, options.runId ?? options.taskId].join(':');
+        if (recorded.has(key)) return knack;
+        recorded.add(key);
+        changed = true;
+        return {
+          ...knack,
+          injectedCount: (knack.injectedCount ?? 0) + 1,
+          lastInjectedTask: options.taskId,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      if (!changed) return;
+      await mkdir(this.memoryDir, { recursive: true });
+      await writeFile(knackPath, updated.map((knack) => JSON.stringify(knack)).join('\n') + '\n', 'utf8');
+      await writeFile(ledgerPath, JSON.stringify({ keys: [...recorded].sort() }, null, 2), 'utf8');
+    });
   }
 
   private async loadItems(): Promise<RecallableMemoryItem[]> {
@@ -113,6 +149,13 @@ export class JsonlMemoryStore implements MemoryStore {
         createdAt: knack.createdAt,
         updatedAt: knack.updatedAt,
         evidenceRefs: knack.evidenceRefs,
+        repo: knack.repo,
+        symptom: knack.symptom,
+        fixSummary: knack.fixSummary,
+        reuseCount: knack.reuseCount,
+        injectedCount: knack.injectedCount,
+        lastSucceededTask: knack.lastSucceededTask,
+        lastInjectedTask: knack.lastInjectedTask,
       },
       payload: knack,
     }));

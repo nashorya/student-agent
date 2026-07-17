@@ -157,6 +157,14 @@ describe('TasksManager', () => {
     }));
   });
 
+  it('stores and clears a pending archive acceptance reference', async () => {
+    const task = await mgr.createTask('ADR task', ['work']);
+    await mgr.setPendingArchiveAcceptance(task.id, { adrId: 'ADR-001', requestedAt: '2026-07-14T00:00:00.000Z', evidenceRef: 'verification:test' });
+    expect((await mgr.getActive())?.pending_archive_acceptance?.adrId).toBe('ADR-001');
+    await mgr.clearPendingArchiveAcceptance(task.id);
+    expect((await mgr.getActive())?.pending_archive_acceptance).toBeUndefined();
+  });
+
   it('tracks read files as structured entries with deduplication', async () => {
     const task = await mgr.createTask('测试任务', ['Phase 1']);
 

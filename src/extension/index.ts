@@ -42,6 +42,7 @@ import { createReflectHook, markReflectBaseline } from './hooks/reflect.js';
 import { createQualityWatchdogHook } from './hooks/quality-watchdog.js';
 import { formatContextInspection, inspectContext } from './commands/context-inspector.js';
 import { buildSettingTargetPrompt, parseSettingTargetAnswer, type SettingTarget } from './setting-target.js';
+import { runProviderProfileCommand } from './provider-command.js';
 import { shouldShowAgentErrorMessage } from './tui-message-policy.js';
 import {
   buildPlanningRecoveryPromptQuestion,
@@ -75,6 +76,9 @@ import type { EvalContextAssemblyTrace, ProtectedEvalEvent } from '../evals/type
 import { summarizePiToolSchema } from '../evals/agent-runner.js';
 import { drainProtectedEvents } from '../core/hashline/index.js';
 import { parseCommand, getHelpText, COMMAND_COMPLETIONS, type SlashCommand } from '../cli/command-parser.js';
+import { executeArchiveCommand } from '../archive/commands.js';
+import { ArchiveService } from '../archive/service.js';
+import { ArchiveWorkflowCoordinator } from '../archive/workflow.js';
 import { printBanner } from '../cli/banner.js';
 import { startSelectedTUI, isTTY } from '../tui-runtime.js';
 import { createInputQueue } from '../tui/input-queue.js';
@@ -360,7 +364,7 @@ async function runNonInteractive(args: Exclude<NonInteractiveArgs, { mode: 'inte
     const config = await reloadConfig();
     provider = config.model.provider;
     model = config.model.name;
-    const apiKeyName = getApiKeyEnvName(config.model.provider);
+    const apiKeyName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
     if (!process.env[apiKeyName]) {
       const message = `Missing ${apiKeyName} for provider ${config.model.provider}`;
       console.error(`[student-agent] ${message}`);
@@ -604,6 +608,40 @@ async function main(): Promise<void> {
             abortCurrentRun();
             continue;
 
+          case 'provider': {
+            if (runtime.agent.state.isStreaming) {
+              tui.bridge.setStatus('当前任务仍在运行，不能切换 Provider');
+              continue;
+            }
+            const promptLog = createBufferedPromptLog({
+              writeLog: (message) => tui.bridge.addMessage('system', message),
+              prompt: tui.bridge.promptSettings,
+            });
+            try {
+              const result = await runProviderProfileCommand({
+                cwd: CWD,
+                config: runtime.config,
+                prompt: promptLog.prompt,
+                log: promptLog.log,
+                activate: async () => createRuntime(await reloadConfig()),
+              });
+              if (!result.switched) {
+                tui.bridge.setStatus('已取消');
+                continue;
+              }
+              runtime.renderer.cleanup();
+              runtime.unsubscribe();
+              runtime = result.value;
+              bindRuntimeToTui(runtime, tui.bridge);
+              tui.bridge.setStatus(
+                `OK: 已切换至 ${result.profileName}：${runtime.config.model.provider}/${runtime.config.model.name}`,
+              );
+            } catch (err) {
+              tui.bridge.setStatus(err instanceof Error ? err.message : String(err));
+            }
+            continue;
+          }
+
           case 'model': {
             if (runtime.agent.state.isStreaming) {
               tui.bridge.setStatus('当前任务仍在运行，不能切换模型');
@@ -691,6 +729,11 @@ async function main(): Promise<void> {
             }
             continue;
           }
+
+          case 'archive':
+            try { tui.bridge.addMessage('system', await executeArchiveCommand(CWD, command)); }
+            catch (error) { tui.bridge.addMessage('system', `Archive error: ${error instanceof Error ? error.message : String(error)}`); }
+            continue;
 
           case 'candidates':
             tui.bridge.setStatus('候选查看功能待实现');
@@ -1011,6 +1054,7 @@ async function main(): Promise<void> {
                   tui.bridge.setStatus(`Phase ${signal.phaseIndex + 1} 完成 → 回复”继续”执行 Phase ${updatedTask.active_phase_index + 1}`);
                 }
               } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+                await finalizePendingArchiveForReview(updatedTask, tasksMgr);
                 tui.bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
                 tui.bridge.addMessage('system', formatAwaitingReviewMessage(updatedTask));
               } else {
@@ -1091,6 +1135,36 @@ async function main(): Promise<void> {
             }
             continue;
 
+          case 'provider': {
+            if (runtime.agent.state.isStreaming) {
+              console.log(chalk.yellow('  当前任务仍在运行，不能切换 Provider。'));
+              continue;
+            }
+            try {
+              const result = await runProviderProfileCommand({
+                cwd: CWD,
+                config: runtime.config,
+                prompt: createReadlinePrompt(rl),
+                log: console.log,
+                activate: async () => createRuntime(await reloadConfig()),
+              });
+              if (!result.switched) {
+                console.log(chalk.dim('  已取消。'));
+                continue;
+              }
+              runtime.renderer.cleanup();
+              runtime.unsubscribe();
+              runtime = result.value;
+              bindConsoleRiskConfirmation(runtime, rl);
+              console.log(chalk.green(
+                `  OK: 已切换至 ${result.profileName}：${runtime.config.model.provider}/${runtime.config.model.name}`,
+              ));
+            } catch (err) {
+              console.log(chalk.red(`  ${err instanceof Error ? err.message : String(err)}`));
+            }
+            continue;
+          }
+
           case 'model': {
             if (runtime.agent.state.isStreaming) {
               console.log(chalk.yellow('  当前任务仍在运行，不能切换模型。'));
@@ -1143,6 +1217,11 @@ async function main(): Promise<void> {
             }
             continue;
           }
+
+          case 'archive':
+            try { console.log(await executeArchiveCommand(CWD, command)); }
+            catch (error) { console.error(`Archive error: ${error instanceof Error ? error.message : String(error)}`); }
+            continue;
 
           case 'candidates':
             console.log(chalk.dim('  候选查看功能待实现'));
@@ -1374,6 +1453,7 @@ async function main(): Promise<void> {
                 console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
               }
             } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+              await finalizePendingArchiveForReview(updatedTask, tasksMgr);
               console.log(chalk.green('\n  ' + formatAwaitingReviewMessage(updatedTask)));
             } else {
               console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
@@ -1439,6 +1519,7 @@ async function main(): Promise<void> {
                   console.log(chalk.green(`\n  [Phase ${signal.phaseIndex + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
                 }
               } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+                await finalizePendingArchiveForReview(updatedTask, tasksMgr);
                 console.log(chalk.green('\n  ' + formatAwaitingReviewMessage(updatedTask)));
               } else {
                 console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
@@ -1617,6 +1698,7 @@ async function runTuiActivePhase(
     bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
     bridge.addMessage('system', `[Phase ${activeTask.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`);
   } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+    await finalizePendingArchiveForReview(updatedTask, tasksMgr);
     bridge.updateTaskStatus(buildTaskStatusUpdate(updatedTask, 'idle'));
     bridge.addMessage('system', formatAwaitingReviewMessage(updatedTask));
   } else {
@@ -1676,6 +1758,7 @@ async function runConsoleActivePhase(runtime: RuntimeState, task: Task): Promise
     }
     console.log(chalk.green(`\n  [Phase ${activeTask.active_phase_index + 1} 完成] 进入 Phase ${updatedTask.active_phase_index + 1}。回复“继续”执行下一 Phase。`));
   } else if (updatedTask && isAwaitingUserReview(updatedTask)) {
+    await finalizePendingArchiveForReview(updatedTask, tasksMgr);
     console.log(chalk.green('\n  ' + formatAwaitingReviewMessage(updatedTask)));
   } else {
     console.log(chalk.green(`\n  [任务完成] ${activeTask.name}`));
@@ -1708,6 +1791,10 @@ function formatAwaitingReviewMessage(task: Task): string {
     '可以直接回复“可以/满意/就这样”完成任务；也可以直接说修改意见，例如“按钮太挤了”。',
     '快捷命令：/review ok 接受，/review down <反馈> 请求修订。',
   ].join('\n');
+}
+
+async function finalizePendingArchiveForReview(task: Task, tasksMgr: TasksManager): Promise<void> {
+  await new ArchiveWorkflowCoordinator(new ArchiveService({ root: CWD }), tasksMgr).applyAfterVerification(task);
 }
 
 function buildTaskStatusUpdate(task: Task, state: 'running' | 'aborting' | 'idle' | 'failed') {
@@ -2062,6 +2149,9 @@ async function handleReviewCommand(
 
   const comment = command.comment.trim();
   if (command.rating === 'down') {
+    if (activeTask.pending_archive_acceptance) {
+      await new ArchiveWorkflowCoordinator(new ArchiveService({ root: CWD }), tasksMgr).handleUserReview(activeTask, comment || '需要修改');
+    }
     await tasksMgr.requestRevision(activeTask.id, comment || '用户未接受当前结果，需要继续修订。');
     return {
       message: `已记录用户未接受当前结果，任务进入 revision_requested：${comment || '请继续补充修改意见。'}`,
@@ -2069,6 +2159,9 @@ async function handleReviewCommand(
     };
   }
 
+  if (activeTask.pending_archive_acceptance) {
+    await new ArchiveWorkflowCoordinator(new ArchiveService({ root: CWD }), tasksMgr).handleUserReview(activeTask, comment || '可以');
+  }
   await tasksMgr.acceptTask(activeTask.id, comment || `用户 /review ${command.rating}`);
   await tasksMgr.completeTask(activeTask.id, comment || 'User accepted task result.');
   return {
@@ -2196,13 +2289,15 @@ async function createRuntime(
 
   // Pi SDK 只认识内置 provider 的 env var（OPENAI_API_KEY 等）。
   // 对自定义 provider，用 API_KEY_MAP 规则找到对应 env var，显式注入 apiKey。
-  const resolvedApiKey = process.env[getApiKeyEnvName(config.model.provider)];
+  const apiKeyEnvName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
+  const resolvedApiKey = process.env[apiKeyEnvName];
 
   const { session, agent } = await createStudentSession({
     cwd: CWD,
     model,
     hooks,
     apiKey: resolvedApiKey,
+    projectArchive: config.features.projectArchive,
     llm: {
       timeoutMs: config.llm.requestTimeoutMs,
       maxTokens: config.llm.maxOutputTokens,

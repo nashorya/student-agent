@@ -5,6 +5,7 @@ import { loadEvalTasks } from '../task-loader.js';
 import {
   createEvalSandbox,
   diffSnapshots,
+  parseVerifierChecks,
   readChangedFileContents,
   runSolution,
   runVerifier,
@@ -12,6 +13,17 @@ import {
 } from '../sandbox.js';
 
 describe('eval sandbox', () => {
+  it('parses named verifier checks for structure comparisons', () => {
+    expect(parseVerifierChecks([
+      'CHECK config=pass',
+      'ordinary output',
+      'CHECK protected-files=fail',
+    ].join('\n'))).toEqual({
+      config: true,
+      'protected-files': false,
+    });
+  });
+
   it('copies a task environment, verifies initial failure, and verifies solution success', async () => {
     const task = (await loadEvalTasks()).find((item) => item.id === 'precise-edit');
     expect(task).toBeTruthy();

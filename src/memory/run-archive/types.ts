@@ -7,7 +7,10 @@ export type RunEventKind =
   | 'user_correction'
   | 'lostness_hard'
   | 'lostness_soft'
-  | 'state_transition';
+  | 'state_transition'
+  | 'recall_citation';
+
+import type { RecallCitationAudit } from '../recall/citation.js';
 
 export interface RunEvent {
   timestamp: string;
@@ -55,6 +58,9 @@ export interface TaskOutcome {
   lostnessTriggerCount: number;
   finalSummary: string;
   evidenceRefs: string[];
+  recallAudit?: RecallCitationAudit;
+  verificationStatus?: 'pending' | 'passed' | 'failed';
+  verificationEvidenceRef?: string;
   wmSnapshot?: WorkingMemorySnapshot;
   createdAt: string;
 }

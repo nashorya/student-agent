@@ -1,0 +1,4 @@
+ticket_id=jr_smoke_2026_0716_001
+compatibility_code=R7
+region=apac
+handling=delete_after_processing

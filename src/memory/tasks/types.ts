@@ -133,6 +133,11 @@ export interface Task {
   requires_user_acceptance: boolean;
   requires_visual_review: boolean;
   verification_results: TaskVerificationResult[];
+  pending_archive_acceptance?: {
+    adrId: string;
+    requestedAt: string;
+    evidenceRef: string;
+  };
   created_at: string;
   completed_at?: string;
   accepted_at?: string;

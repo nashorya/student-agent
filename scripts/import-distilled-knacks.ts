@@ -1,4 +1,5 @@
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import type { Knack } from '../src/memory/knacks/types.js';
@@ -11,6 +12,10 @@ interface DistilledKnack {
   fix_summary: string;
   evidence_task: string;
   confidence: string;
+  reuse_count?: number;
+  injected_count?: number;
+  last_succeeded_task?: string | null;
+  last_injected_task?: string | null;
   verified_fix?: string; // Audit-only source data; never injected into recall.
 }
 
@@ -18,11 +23,11 @@ type ImportedKnack = Knack & {
   trigger: Knack['trigger'] & { keywords: string[] };
 };
 
-const sourcePath = resolve(
+const defaultSourcePath = resolve(
   process.cwd(),
   'evals/distillation/candidate-knacks.json',
 );
-const targetPath = resolve(process.cwd(), 'memory/knacks.jsonl');
+const defaultTargetPath = resolve(process.cwd(), 'memory/knacks.jsonl');
 
 function truncate(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : value.slice(0, maxLength);
@@ -41,7 +46,7 @@ function repoKeyword(repo: string): string {
   return segments.at(-1) ?? repo;
 }
 
-function toKnack(source: DistilledKnack, timestamp: string): ImportedKnack {
+function toKnack(source: DistilledKnack, timestamp: string, existing?: ImportedKnack): ImportedKnack {
   const keyword = repoKeyword(source.repo);
   const trigger = {
     signalKinds: [],
@@ -71,15 +76,24 @@ function toKnack(source: DistilledKnack, timestamp: string): ImportedKnack {
     allowPromptInjection: true,
     writesHardToolRule: false,
     breakerReport: null,
-    createdAt: timestamp,
+    repo: source.repo,
+    symptom: source.symptom,
+    fixSummary: source.fix_summary,
+    reuseCount: existing && 'reuseCount' in existing ? existing.reuseCount ?? 0 : source.reuse_count ?? 0,
+    injectedCount: existing && 'injectedCount' in existing ? existing.injectedCount ?? 0 : source.injected_count ?? 0,
+    lastSucceededTask: existing && 'lastSucceededTask' in existing
+      ? existing.lastSucceededTask ?? null
+      : source.last_succeeded_task ?? null,
+    lastInjectedTask: existing && 'lastInjectedTask' in existing
+      ? existing.lastInjectedTask ?? null
+      : source.last_injected_task ?? null,
+    creditedUseKeys: existing?.creditedUseKeys ?? [],
+    createdAt: existing?.createdAt ?? timestamp,
     updatedAt: timestamp,
   };
 }
 
-async function readExistingStore(): Promise<{
-  contents: string;
-  ids: Set<string>;
-}> {
+async function readExistingStore(targetPath: string): Promise<ImportedKnack[]> {
   let contents = '';
   try {
     contents = await readFile(targetPath, 'utf8');
@@ -89,25 +103,31 @@ async function readExistingStore(): Promise<{
     }
   }
 
-  const ids = new Set<string>();
+  const entries: ImportedKnack[] = [];
   for (const [index, line] of contents.split(/\r?\n/).entries()) {
     if (!line.trim()) {
       continue;
     }
 
-    const entry = JSON.parse(line) as { id?: unknown };
+    const entry = JSON.parse(line) as ImportedKnack;
     if (typeof entry.id !== 'string') {
       throw new Error(
         `Invalid knack at ${targetPath}:${index + 1}: missing string id`,
       );
     }
-    ids.add(entry.id);
+    entries.push(entry);
   }
 
-  return { contents, ids };
+  return entries;
 }
 
-async function main(): Promise<void> {
+export async function importDistilledKnacks(options: {
+  sourcePath?: string;
+  targetPath?: string;
+  now?: Date;
+} = {}): Promise<{ imported: number; updated: number; unchanged: number }> {
+  const sourcePath = options.sourcePath ?? defaultSourcePath;
+  const targetPath = options.targetPath ?? defaultTargetPath;
   const sources = JSON.parse(
     await readFile(sourcePath, 'utf8'),
   ) as DistilledKnack[];
@@ -115,32 +135,43 @@ async function main(): Promise<void> {
     throw new Error(`Expected an array in ${sourcePath}`);
   }
 
-  const { contents, ids } = await readExistingStore();
-  const timestamp = new Date().toISOString();
-  const imported: ImportedKnack[] = [];
-  let skipped = 0;
+  const existing = await readExistingStore(targetPath);
+  const byId = new Map(existing.map((entry) => [entry.id, entry]));
+  const hadDuplicateIds = byId.size !== existing.length;
+  const timestamp = (options.now ?? new Date()).toISOString();
+  let imported = 0;
+  let updated = 0;
+  let unchanged = 0;
 
   for (const source of sources) {
-    if (ids.has(source.id)) {
-      skipped += 1;
+    const current = byId.get(source.id);
+    const next = toKnack(source, timestamp, current);
+    const comparableNext = { ...next, updatedAt: current?.updatedAt ?? next.updatedAt };
+    if (current && JSON.stringify(current) === JSON.stringify(comparableNext)) {
+      unchanged += 1;
       continue;
     }
-
-    imported.push(toKnack(source, timestamp));
-    ids.add(source.id);
+    byId.set(source.id, next);
+    if (current) updated += 1;
+    else imported += 1;
   }
 
-  if (imported.length > 0) {
+  if (imported > 0 || updated > 0 || hadDuplicateIds) {
     await mkdir(dirname(targetPath), { recursive: true });
-    const separator = contents.length > 0 && !contents.endsWith('\n') ? '\n' : '';
-    const payload = imported.map((knack) => JSON.stringify(knack)).join('\n');
-    await appendFile(targetPath, `${separator}${payload}\n`, 'utf8');
+    const payload = [...byId.values()].map((knack) => JSON.stringify(knack)).join('\n') + '\n';
+    const temporaryPath = `${targetPath}.tmp-${process.pid}`;
+    await writeFile(temporaryPath, payload, 'utf8');
+    await rename(temporaryPath, targetPath);
   }
 
-  for (const knack of imported) {
-    console.log(`imported ${knack.id}`);
-  }
-  console.log(`imported ${imported.length} / skipped ${skipped}`);
+  return { imported, updated, unchanged };
 }
 
-await main();
+async function main(): Promise<void> {
+  const outcome = await importDistilledKnacks();
+  console.log(`imported ${outcome.imported} / updated ${outcome.updated} / unchanged ${outcome.unchanged}`);
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  await main();
+}

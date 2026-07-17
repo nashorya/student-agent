@@ -63,6 +63,12 @@ describe('RecallRouter', () => {
       totalCandidates: 3,
       dropped: [],
       penalties: [],
+      candidatePool: {
+        scanned: 3,
+        eligibleKnacks: 1,
+        truncated: 0,
+        limit: 64,
+      },
     });
   });
 

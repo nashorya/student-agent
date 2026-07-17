@@ -309,6 +309,64 @@ describe('JsonlMemoryStore', () => {
     expect(results[0].score.total).toBeGreaterThan(results[1].score.total);
     expect(results[0].score.trigger).toBeLessThan(results[1].score.trigger);
   });
+
+  it('returns a bounded candidate pool larger than the historical top eight', async () => {
+    for (let index = 0; index < 12; index += 1) {
+      await writeKnack(tmpDir, {
+        id: `knack_${index}`,
+        lessonCandidateId: `lesson_${index}`,
+        status: 'candidate',
+        summary: `candidate ${index} shared recall text`,
+        trigger: { signalKinds: [], paths: [] },
+        recall: {
+          trigger: { keywords: ['shared', 'recall'] },
+          applicableWhen: ['shared recall text'],
+          doNotApplyWhen: [],
+        },
+        evidenceRefs: [],
+        counterexamples: [],
+        allowPromptInjection: true,
+        writesHardToolRule: false,
+        breakerReport: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+    }
+
+    const results = await new JsonlMemoryStore({ memoryDir: tmpDir }).search({
+      text: 'shared recall text',
+      metadata: { kinds: ['knack'] },
+    });
+
+    expect(results).toHaveLength(12);
+  });
+
+  it('records knack injection once per task and run', async () => {
+    await writeKnack(tmpDir, {
+      id: 'knack_injected',
+      lessonCandidateId: 'lesson_injected',
+      status: 'validated',
+      summary: 'Inject this knack',
+      trigger: { signalKinds: [], paths: [] },
+      recall: { trigger: {}, applicableWhen: [], doNotApplyWhen: [] },
+      evidenceRefs: [],
+      counterexamples: [],
+      allowPromptInjection: true,
+      writesHardToolRule: false,
+      breakerReport: null,
+      injectedCount: 2,
+      lastInjectedTask: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const store = new JsonlMemoryStore({ memoryDir: tmpDir });
+
+    await store.recordKnackInjections({ knackIds: ['knack_injected'], taskId: 'task_1', runId: 'run_1' });
+    await store.recordKnackInjections({ knackIds: ['knack_injected'], taskId: 'task_1', runId: 'run_1' });
+
+    const [knack] = (await readFile(join(tmpDir, 'knacks.jsonl'), 'utf8')).trim().split('\n').map((line) => JSON.parse(line));
+    expect(knack).toMatchObject({ injectedCount: 3, lastInjectedTask: 'task_1' });
+  });
 });
 
 async function writeKnack(memoryDir: string, knack: Knack): Promise<void> {

@@ -66,13 +66,10 @@ commit + 模型 + 单价。2026 年 6 月要点：
 git clone https://github.com/nashorya/student-agent.git
 cd student-agent
 
-# 2. 克隆 pi-mono 依赖（必须）
-git clone https://github.com/badlogic/pi-mono pi-mono
-
-# 3. 安装依赖
+# 2. 安装依赖（pi SDK 已锁定为可复现的 npm 版本）
 npm install
 
-# 4. 配置环境变量，或首次启动时按引导完成设置
+# 3. 配置环境变量，或首次启动时按引导完成设置
 cp .env.example .env
 # 编辑 .env，或运行 npm run dev 后按提示选择 provider/model
 ```
@@ -114,8 +111,9 @@ Benchmark 或脚本里可以用非交互模式：`student-agent --prompt "修复
 |---|---|
 | `/help` | 查看可用命令。 |
 | `/status` | 查看当前任务/运行时状态。 |
+| `/provider` | 切换已保存的 provider profile，包括 endpoint、API 格式、密钥引用和模型。 |
 | `/model` | 在保持当前 provider/API 设置不变的情况下快速切换模型。 |
-| `/setting` 或 `/settings` | 重新进入模型或 embedding 设置流程。 |
+| `/setting` 或 `/settings` | 新增或覆盖具名 provider profile，或配置 embedding。 |
 | `/task status` | 查看活跃任务详情。 |
 | `/review up|ok|down` | 记录质量反馈。 |
 | `/design study <url>` | 在启用 Design Study 时从参考页面学习视觉风格。 |
@@ -152,7 +150,7 @@ npx playwright install chromium
 | 层 | 选型 | 版本 | 说明 |
 |---|---|---|---|
 | 运行时 | Node.js / TypeScript | 20+ / 5.x | 与现有工具链一致 |
-| 基础框架 | [pi (badlogic/pi-mono)](https://github.com/badlogic/pi-mono) | local | CLI REPL、工具调用、MCP Client 骨架 |
+| 基础框架 | [pi](https://github.com/badlogic/pi-mono) | 0.73.1（npm 锁定） | CLI REPL、工具调用、MCP Client 骨架 |
 | LLM 运行时 | Pi SDK model registry | 可配置 | 使用 Pi 的 `Model<Api>` registry，支持 Anthropic 和 OpenAI 兼容 provider。 |
 | 向量存储 | sqlite-vec | 0.1.9 | 零依赖，预编译二进制，跨平台 |
 | MCP | @modelcontextprotocol/sdk | — | 标准协议；Context7、Web Search 直接接入 |
@@ -241,11 +239,51 @@ student-agent/
 
 所有配置可通过 `.env` 或 `.student-agent.json` 设置。
 
+### Provider profiles
+
+交互式设置会把具名 provider profile 保存在全局
+`~/.student-agent/.student-agent.json`。API Key 的值仍存放在
+`~/.student-agent/.env`，JSON 只记录对应的环境变量名。
+
+```json
+{
+  "activeProviderProfile": "openrouter-sonnet",
+  "providerProfiles": {
+    "openrouter-sonnet": {
+      "provider": "openrouter",
+      "name": "anthropic/claude-sonnet-4.6",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "api": "openai-completions",
+      "apiKeyEnv": "OPENROUTER_API_KEY"
+    },
+    "muskapi-sonnet": {
+      "provider": "muskapi",
+      "name": "claude-sonnet-4-6",
+      "baseUrl": "https://api.muskapi.cc/v1",
+      "api": "openai-completions",
+      "apiKeyEnv": "MUSKAPI_API_KEY"
+    }
+  }
+}
+```
+
+使用 `/setting` 新增 profile，使用 `/provider` 切换整套路由。
+`/model` 只修改当前 profile 的模型。项目可以在本地
+`.student-agent.json` 中写入
+`"activeProviderProfile": "profile-name"`，选择一个全局 profile。
+
+旧的顶层 `model` 配置继续兼容。环境变量仍拥有最高优先级，适合 CI 和
+eval 临时覆盖。非交互选择 profile 可使用
+`STUDENT_AGENT_PROVIDER_PROFILE`；也可以继续用
+`STUDENT_AGENT_PROVIDER`、`STUDENT_AGENT_MODEL`、
+`STUDENT_AGENT_BASE_URL` 和 `STUDENT_AGENT_API` 指定一次性路由。
+
 ### 核心配置
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | 必填。Anthropic API 密钥。 |
+| `STUDENT_AGENT_PROVIDER_PROFILE` | — | 选择一个全局具名 provider profile。 |
 | `STUDENT_AGENT_PROVIDER` | `anthropic` | LLM 提供商（`anthropic` 或 OpenAI 兼容接口）。 |
 | `STUDENT_AGENT_MODEL` | `claude-sonnet-4-6` | 模型标识符。 |
 | `ANTHROPIC_BASE_URL` | — | 可选 Anthropic 兼容 relay/proxy URL。 |
@@ -428,6 +466,41 @@ npm run eval:baseline -- --task task-phase-flow --trials 5
 **先运行 `eval:validate`，再运行 `eval:baseline`。** 验证步骤无需调用模型，直接用参考解答运行验证器。如果验证失败，说明任务本身有问题，先修复再消耗 API 额度。
 
 **关注饱和现象。** 随着基准分数趋近 100%，任务集从"能力评测"（代理能做什么？）转变为"回归测试"（代理还能做原来的事吗？）。分数饱和时应添加更难的任务，以保留改进信号。
+
+---
+
+## 项目开发档案
+
+Student Agent 可以维护项目自己的开发档案，并把它渲染为静态的 Project Health 页面。Markdown 始终是规范数据源；HTML 是确定性生成的人类阅读视图，可搜索、筛选，不反向承载业务状态。
+
+发现过程从传给 Student Agent 的项目根目录开始。`.student-agent.json` 中显式配置的 `archive` 路径优先于 `docs/INDEX.md`、`docs/buglog.md`、`docs/adr/` 等约定路径。项目尚无档案时，使用 `/archive init` 做一次初始化；如果发现多个冲突的约定路径，系统会阻止写入，不会静默猜测。
+
+```text
+/archive status
+/archive init
+/archive check
+/archive build
+/archive adr new <标题>
+/archive bug open <标题>
+/archive bug update <BUG-ID> [状态]
+```
+
+任务执行期间，`archive_record` 只暂存有长期价值的决策、bug 和时间线事件，并在技术验证通过后应用。ADR 即使已经实现并验证，决策状态仍保持 `proposed`；只有用户明确验收任务后才变为 `accepted`。bug 没有通过的验证证据时不能变为 `FIXED`。
+
+默认配置：
+
+```json
+{
+  "features": { "projectArchive": true },
+  "archive": {
+    "enabled": true,
+    "format": "auto",
+    "dashboardPath": "docs/agent/dashboard.html"
+  }
+}
+```
+
+设置 `STUDENT_AGENT_FEATURE_PROJECT_ARCHIVE=false` 可移除 agent 的归档工具；已有档案仍可通过独立命令查看。
 
 ---
 

@@ -5,6 +5,43 @@
 
 ---
 
+## BUG-010 · Vitest 2.x audit critical
+
+- **时间**：2026-07-13，发现者：codex
+- **症状**：`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。
+- **修复**：Vitest 从 2.1.9 升级并精确锁定到 4.1.10；全量 137 files / 949 tests
+  通过（136 files / 948 tests passed，1 file / 1 test skipped）。
+- **状态**：CLOSED
+
+## BUG-009 · imported LocoBench smoke 被当作 oracle fixture 验证
+
+- **时间**：2026-07-13，发现者：codex
+- **症状**：`npm run eval:validate` 报
+  `initial environment unexpectedly passes with score 1`。
+- **根因**：LocoBench imported task 没有 `solution/solve.sh`，其 smoke verifier 只作为
+  run-completion signal；通用验证脚本却对所有任务强制执行 initial FAIL 契约。
+- **修复**：`eval:validate` 仅对带 reference solution 的 oracle-backed fixture 执行
+  initial FAIL → solution PASS；无 solution 的 session-scored smoke 明确列入 `skipped`。
+- **状态**：CLOSED
+
+## BUG-008 · pi 本地依赖跟随 main，干净检出不可复现
+
+- **时间**：2026-07-13，发现者：codex
+- **症状**：README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从
+  `@mariozechner/*` 迁移到 `@earendil-works/*`；TypeScript 无法解析项目依赖。
+- **根因**：`package.json` 使用未锁 commit 的 `file:./pi-mono/...`，安装流程还漏掉
+  pi monorepo 自身 install/build 步骤；pi build 又会在线刷新模型元数据。
+- **修复**：改用 npm 已发布的 `@mariozechner/pi-*` 0.73.1 精确版本和预构建产物，
+  删除 README 的手动 clone/build 前置步骤；模型测试改为验证输出上限能力下限，
+  不再把会随注册表更新的历史精确值当作永久契约。
+- **遗留**：0.73.1 已弃用且存在 high advisory。隔离试迁
+  `@earendil-works/pi` 0.80.6 时，`getModel/getModels/getProviders/completeSimple`
+  API 已不存在，不能只换包名；按 [pi 后继迁移计划](plan-pi-successor-migration.md)
+  独立处理。`oh-my-pi` runtime 需要 Bun，继续按既有路线图排除。
+- **状态**：CLOSED
+
+---
+
 ## BUG-001 · benchmark 路径未接入 Context Runtime
 
 - **时间**：2026-06-11，发现者：codex（用户转述），Claude 确认根因

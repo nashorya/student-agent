@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "probeId": "jspace-recovery-smoke",
+  "resultScope": "pipeline_only",
+  "crossBoundaryConclusion": {
+    "name": "recovery_decision",
+    "allowedBeforeCompaction": [
+      "inbox/recovery-ticket.txt",
+      "docs/recovery-map.md",
+      "assistant Phase 1 output"
+    ],
+    "requiredDeletionBeforeCompaction": [
+      "inbox/recovery-ticket.txt"
+    ],
+    "forbiddenAfterCompaction": [
+      "later phase instructions",
+      "new note/checkpoint files",
+      "environment variables",
+      "oracle error messages",
+      "runner-injected prior phase answer"
+    ]
+  },
+  "decoySignature": "JSPACE_SMOKE_DECOY_LEGACY_SCHEMA_V1",
+  "forcedCompactionAfterPhases": [1],
+  "protectedFiles": [
+    "rules/schema.json",
+    "src/legacy.ts",
+    "tests/test.sh"
+  ]
+}

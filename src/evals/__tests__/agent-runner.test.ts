@@ -11,13 +11,17 @@ import {
   shouldContinueDirectRun,
   shouldContinuePhaseRun,
   summarizeEvalModel,
+  summarizeEvalThinking,
   summarizePiToolSchema,
   getActiveWorkingMemorySnapshot,
+  buildPredeclaredPhasePrompt,
+  shouldAbortForModelCallBudget,
 } from '../agent-runner.js';
 import { beginEvalLearningRun } from '../eval-learning-lifecycle.js';
 import type { ToolTraceEntry } from '../types.js';
 import { TasksManager } from '../../memory/tasks/manager.js';
 import { drainProtectedEvents } from '../../core/hashline/index.js';
+import { ForcedCompactionController } from '../forced-compaction-controller.js';
 
 describe('AssistantTextCollector', () => {
   it('keeps only the latest cumulative assistant text snapshot', () => {
@@ -39,6 +43,7 @@ describe('AssistantTextCollector', () => {
     collector.handleEvent({ type: 'message_end' } as unknown as AgentEvent);
 
     expect(collector.text()).toBe('hello world');
+    expect(collector.messages()).toEqual(['hello world']);
   });
 
   it('accumulates assistant usage and cost from message_end events', () => {
@@ -126,6 +131,111 @@ describe('AssistantTextCollector', () => {
   });
 });
 
+describe('smoke phase controls', () => {
+  it('includes the full task instruction before the first predeclared phase prompt', () => {
+    const prompt = buildPredeclaredPhasePrompt({
+      instruction: 'Delete the one-time ticket after deriving the decision.',
+      phasePrompt: 'Execute phase one.',
+      phaseIndex: 0,
+    });
+
+    expect(prompt).toContain('Delete the one-time ticket');
+    expect(prompt).toContain('Execute phase one.');
+  });
+
+  it('appends a deterministic context payload to the selected phase prompt', () => {
+    const prompt = buildPredeclaredPhasePrompt({
+      instruction: 'Full task instruction.',
+      phasePrompt: 'Execute phase four.',
+      phaseIndex: 3,
+      contextPayload: 'CONTROL_MARKER: GAMMA-RECOVERY-VERIFIED',
+    });
+
+    expect(prompt).toContain('CONTROLLED_CONTEXT_PAYLOAD phase=4');
+    expect(prompt).toContain('GAMMA-RECOVERY-VERIFIED');
+    expect(prompt).not.toContain('Full task instruction.');
+  });
+
+  it('aborts immediately when an in-flight phase reaches its model-call budget', () => {
+    expect(shouldAbortForModelCallBudget(0, 1)).toBe(false);
+    expect(shouldAbortForModelCallBudget(1, 1)).toBe(true);
+  });
+});
+
+describe('ForcedCompactionController', () => {
+  it('records boundary observations without requesting compaction', () => {
+    const session = {
+      agent: { state: { messages: [{}, {}, {}] } },
+      sessionManager: { getEntries: () => [{}, {}] },
+    };
+    const controller = new ForcedCompactionController(session, new Set(), new Set([2]));
+
+    controller.observeBoundary(1);
+    controller.observeBoundary(2);
+    controller.observeBoundary(2);
+
+    expect(controller.events).toEqual([
+      expect.objectContaining({
+        kind: 'boundary_observed',
+        boundary: 'phase:2',
+        state: { messages: 3, entries: 2 },
+      }),
+    ]);
+  });
+
+  it('records Pi manual compaction lifecycle events from the session it invokes', async () => {
+    let listener: ((event: unknown) => void) | undefined;
+    const messages: unknown[] = [{ role: 'user' }, { role: 'assistant' }];
+    const entries: unknown[] = [{ type: 'message' }, { type: 'message' }];
+    const session = {
+      agent: { state: { messages } },
+      sessionManager: { getEntries: () => entries },
+      subscribe: (next: (event: unknown) => void) => {
+        listener = next;
+        return () => undefined;
+      },
+      compact: async () => {
+        listener?.({ type: 'compaction_start', reason: 'manual' });
+        listener?.({
+          type: 'compaction_end',
+          reason: 'manual',
+          aborted: false,
+          willRetry: false,
+          result: { summary: 'Pi summary' },
+        });
+        messages.splice(0, 1);
+        entries.push({ type: 'compaction' });
+      },
+    };
+    const controller = new ForcedCompactionController(session, new Set([2]));
+
+    await controller.compactAfterPhase(2);
+    controller.noteNextPhaseStarted(3);
+
+    expect(controller.events).toEqual([
+      expect.objectContaining({
+        boundary: 'phase:2',
+        status: 'completed',
+        lifecycle: {
+          startObserved: true,
+          endObserved: true,
+          reason: 'manual',
+          aborted: false,
+          willRetry: false,
+        },
+        state: {
+          messagesBefore: 2,
+          messagesAfter: 1,
+          entriesBefore: 2,
+          entriesAfter: 3,
+          changed: true,
+        },
+        nextPhaseStartedAt: expect.any(String),
+      }),
+    ]);
+  });
+});
+
 describe('Pi schema trace helpers', () => {
   it('estimates active tool schema size without serializing executable handlers', () => {
     const trace = summarizePiToolSchema([
@@ -168,6 +278,19 @@ describe('Pi schema trace helpers', () => {
 });
 
 describe('eval model metadata', () => {
+  it('records the session thinking capability and level changes', () => {
+    expect(summarizeEvalThinking({
+      thinkingLevel: 'medium',
+      supportsThinking: () => true,
+      getAvailableThinkingLevels: () => ['low', 'medium', 'high'],
+    })).toEqual({
+      initialLevel: 'medium',
+      supportsThinking: true,
+      availableLevels: ['low', 'medium', 'high'],
+      changes: [],
+    });
+  });
+
   it('records the resolved provider route and per-million token pricing', () => {
     expect(summarizeEvalModel({
       id: 'anthropic/claude-sonnet-4.6',

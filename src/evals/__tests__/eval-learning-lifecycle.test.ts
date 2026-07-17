@@ -63,6 +63,22 @@ describe('eval learning lifecycle', () => {
         isError: false,
         resultText: '1 passed',
       }],
+      recallAudit: {
+        injected_recall_ids: ['knack_6938'],
+        cited_recall_ids: ['knack_6938'],
+        used_recall_ids: ['knack_6938'],
+        invalid_recall_ids: [],
+        citation_events: [{
+          message_index: 0,
+          context_trace_index: 0,
+          injected_ids: ['knack_6938'],
+          cited_ids: ['knack_6938'],
+          used_ids: ['knack_6938'],
+          invalid_ids: [],
+          alignment_status: 'matched',
+        }],
+        utilization_rate: 1,
+      },
     });
 
     const outcome = JSON.parse(await readFile(
@@ -80,6 +96,10 @@ describe('eval learning lifecycle', () => {
       taskId: task.id,
       runId: task.working_memory.runId,
       status: 'success',
+      verificationStatus: 'pending',
+      recallAudit: {
+        used_recall_ids: ['knack_6938'],
+      },
       wmSnapshot: {
         goal: 'Fix pytest warning handling',
         readFiles: ['astropy/tests/helper.py'],
@@ -89,6 +109,11 @@ describe('eval learning lifecycle', () => {
     expect(lessons).toContain('warnings were treated as errors');
     expect(lessons).toContain('"quality":"high"');
     expect(lessons).toContain('"successfulToolCallId":"call_2"');
+    const events = await readFile(
+      join(memoryDir, 'runs', task.working_memory.runId, 'events.jsonl'),
+      'utf8',
+    );
+    expect(events).toContain('"kind":"recall_citation"');
     await expect(manager.getActive()).resolves.toBeNull();
   });
 });

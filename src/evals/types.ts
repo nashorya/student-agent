@@ -104,6 +104,16 @@ export interface EvalRecallTrace {
     summary: string;
     reason: string;
     score: number;
+    ranking?: {
+      repoMatch: boolean;
+      similarity: number;
+      similaritySource: 'embedding' | 'lexical';
+      reuseCount: number;
+      confidence: number;
+      antiRepeat: number;
+      eligible: boolean;
+      rankReason: string;
+    };
   }>;
   diagnostics: {
     queryText: string;
@@ -117,6 +127,12 @@ export interface EvalRecallTrace {
       severity?: 'hard' | 'soft';
       multiplier?: number;
     }>;
+    candidatePool?: {
+      scanned: number;
+      eligibleKnacks: number;
+      truncated: number;
+      limit: number;
+    };
   };
 }
 
@@ -146,6 +162,36 @@ export interface EvalModelTrace {
     cacheRead: number;
     cacheWrite: number;
   };
+  thinking?: {
+    initialLevel: string;
+    supportsThinking: boolean;
+    availableLevels: string[];
+    changes: Array<{ at: string; level: string }>;
+  };
+}
+
+export interface EvalProviderRequestAuditEntry {
+  index: number;
+  at: string;
+  url: string;
+  model: string;
+  thinking: unknown;
+  temperature: unknown;
+  doSample: unknown;
+  compliant: boolean;
+  error?: string;
+  response?: {
+    httpStatus: number;
+    inspected: boolean;
+    hasReasoningContent: boolean;
+    reasoningChars: number;
+    promptTokens?: number;
+    cachedPromptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    reasoningTokens?: number;
+    error?: string;
+  };
 }
 
 type L1TierString = 'minimal' | 'standard' | 'heavy';
@@ -163,6 +209,21 @@ export interface EvalTaskStateTrace {
     status: string;
     retryCount: number;
   }>;
+}
+
+export interface EvalFeatureManifest {
+  arm: string;
+  piBuiltInCompaction: boolean;
+  contextRuntime: boolean;
+  memorySystemPrefix: boolean;
+  taskLedgerModelInjection: boolean;
+  recallModelInjection: boolean;
+  checkpointInjection: boolean;
+  jspaceInjection: boolean;
+  observed?: {
+    contextAssemblyTraceCount: number;
+    modelMemoryPromptInjected: boolean;
+  };
 }
 
 export interface StudentAgentEvalTrace {
@@ -183,10 +244,15 @@ export interface StudentAgentEvalTrace {
   usageEvents?: EvalTokenUsageEvent[];
   piSchemaTrace?: EvalPiSchemaTrace;
   contextAssemblyTraces?: EvalContextAssemblyTrace[];
+  recallAudit?: import('../memory/recall/citation.js').RecallCitationAudit;
   contextTokenEffect?: EvalContextTokenEffect;
   model?: EvalModelTrace;
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
   taskState?: EvalTaskStateTrace;
+  featureManifest?: EvalFeatureManifest;
+  compactionEvents?: import('./forced-compaction-controller.js').CompactionProbeEvent[];
+  /** Sanitized final provider request fields captured by the eval-only fetch policy. */
+  providerRequestAudit?: EvalProviderRequestAuditEntry[];
   /** Protected eval events collected during the run (hashline, signal, toolguard). */
   protectedEvents?: ProtectedEvalEvent[];
   /** Protected ToolGuard events grouped by rule name. */
@@ -215,6 +281,8 @@ export interface VerifierResult {
   durationMs: number;
   correctnessScore: number;
   rewardSource: 'exit_code' | 'reward.txt' | 'reward.json';
+  /** Optional named verifier checks for structure-level paired comparisons. */
+  perCheck?: Record<string, boolean>;
 }
 
 export interface TraceScore {
@@ -246,6 +314,7 @@ export interface EvalRunRecord {
   score: TraceScore;
   changedFiles: string[];
   modifiedFiles: Record<string, string>;
+  recallAttribution?: import('./recall-credit-reconciler.js').RecallAttributionResult;
 }
 
 /**

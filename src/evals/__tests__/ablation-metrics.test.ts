@@ -38,6 +38,30 @@ describe('ablation metrics', () => {
     });
   });
 
+  it('extracts recall utilization and verified citation metrics', () => {
+    const metrics = extractAblationRunMetrics({
+      outcome: outcome({
+        recallAudit: {
+          injected_recall_ids: ['k1', 'k2'],
+          cited_recall_ids: ['k1', 'unknown'],
+          used_recall_ids: ['k1'],
+          invalid_recall_ids: ['unknown'],
+          citation_events: [],
+          utilization_rate: 0.5,
+        },
+      }),
+      events: [],
+      verifierPassed: true,
+    });
+
+    expect(metrics).toMatchObject({
+      recall_injection_rate: 1,
+      recall_utilization_rate: 0.5,
+      invalid_recall_citation_rate: 0.5,
+      cited_and_verified_rate: 1,
+    });
+  });
+
   it('aggregates configs and computes interaction loss', () => {
     const configs = [
       aggregateAblationMetrics('baseline', [metric(0.4)]),
@@ -98,5 +122,9 @@ function metric(taskSuccessRate: number) {
     repeated_tool_call_count: 0,
     run_duration_ms: 0,
     trace_event_count: 0,
+    recall_injection_rate: 0,
+    recall_utilization_rate: 0,
+    invalid_recall_citation_rate: 0,
+    cited_and_verified_rate: 0,
   };
 }

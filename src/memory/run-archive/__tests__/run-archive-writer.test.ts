@@ -122,6 +122,36 @@ describe('RunArchiveWriter', () => {
     ) as TaskOutcome;
     expect(persisted.wmSnapshot).toEqual(wmSnapshot);
   });
+
+  it('persists recall audit and updates verification independently from agent status', async () => {
+    const recallAudit = {
+      injected_recall_ids: ['knack_6938'],
+      cited_recall_ids: ['knack_6938'],
+      used_recall_ids: ['knack_6938'],
+      invalid_recall_ids: [],
+      citation_events: [],
+      utilization_rate: 1,
+    };
+    await writer.finalizeRun('run_1', {
+      taskId: 'task_1',
+      status: 'success',
+      finalSummary: 'Agent completed',
+      recallAudit,
+      verificationStatus: 'pending',
+    });
+
+    const updated = await writer.updateVerification('run_1', {
+      status: 'passed',
+      evidenceRef: 'harness:task_1',
+    });
+
+    expect(updated).toMatchObject({
+      status: 'success',
+      verificationStatus: 'passed',
+      verificationEvidenceRef: 'harness:task_1',
+      recallAudit,
+    });
+  });
 });
 
 function event(

@@ -59,12 +59,25 @@ describe('createStudentSession', () => {
         'search_files',
         'read_many',
         'apply_patch',
+        'archive_record',
       ]));
       expect(session.getToolDefinition('bash')?.description).toContain('default timeout of 120 seconds');
       expect(session.getToolDefinition('bash')?.promptGuidelines?.join('\n')).toContain('Do not use bash for ls/find/grep/rg/cat/head/tail');
       expect(session.systemPrompt).toContain('apply_patch');
       expect(session.systemPrompt).toContain('search_files');
       expect(session.systemPrompt).toContain('Bash commands time out after 120 seconds');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it('does not register archive_record when the feature is disabled', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'student-session-no-archive-'));
+    const faux = registerFauxProvider();
+    registrations.push(faux);
+    try {
+      const { session } = await createStudentSession({ cwd, model: faux.getModel(), hooks: {}, projectArchive: false, piOptions: { agentDir: join(cwd, '.pi') } });
+      expect(session.getActiveToolNames()).not.toContain('archive_record');
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
