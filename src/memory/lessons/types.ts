@@ -2,6 +2,8 @@ import type { SignalKind, SignalSeverity } from '../signals/types.js';
 
 export type LessonCandidateStatus = 'observed' | 'promoted' | 'archived';
 export type LessonQuality = 'high' | 'low';
+/** Same enum as knack distillation confidence after causal-pair admission. */
+export type LessonConfidence = 'verified' | 'candidate';
 
 export interface LessonVerification {
   sourceToolCallId: string;
@@ -36,6 +38,8 @@ export interface LessonCandidate {
   evidenceRefs: string[];
   severity: SignalSeverity;
   quality: LessonQuality;
+  /** Set when causal-pair admission succeeds; absent on quality:low ephemeral notes. */
+  confidence?: LessonConfidence;
   verification?: LessonVerification;
   status: LessonCandidateStatus;
   counterexamples?: LessonCounterexample[];

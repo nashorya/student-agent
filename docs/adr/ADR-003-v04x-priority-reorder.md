@@ -93,6 +93,24 @@ ephemeral note，不归档、不跨任务传播。
 **验收**：Tier B on 臂重跑，lesson 库里"verified" 占比 ≥ 50%；
 质量分（人工盲审 5 条）≥ 3/5 可用。
 
+> **状态注 · P1 阶段 1 门控实现（2026-07-17，不改上文原文）**
+>
+> - **判据单一来源**：`src/evals/causal-pair.ts` 的 `findCausalPair`
+>   （首 error → 其后 verification，中间 ≥1 tool_call）。
+>   `knack-distillation.distillRunEvents` 与 `LessonsManager` 准入共用，
+>   禁止第二套配对逻辑。
+> - **路由**：配对成功 → `lessons.jsonl`，`quality: high`，
+>   `confidence` 走共享 `extractFixSummary`（verified/candidate）；
+>   配对失败 → `ephemeral/lessons.jsonl`，`quality: low`，不进主库、
+>   不参与 promote/recall（`getAll()` 仅读主库）。
+> - **阶段 1 测试**：配对入库 / 配对失败降级 / 空轨迹不写；
+>   lessons + knack-distillation + reflect + memory/recall 相关 **242** 测绿。
+> - **阶段 1 commit**：见 git log（本状态注随后补 hash）。
+> - **阶段 2（未跑）**：验收重跑 Tier B on 臂 6 run **需作者批预算**。
+>   预估价（同批口径，2026-06-12 pilot）：on 臂 trace 合计约 **$1.81**；
+>   建议上限 **$3.0**（含重试/波动）。过门前不启动。
+> - **边界**：未改 ADR-004 / ADR-005；无模型调用；无注入效果评估。
+
 ### P2 · 召回排序去 recency 偏置
 
 **状态**：已实现，正式协议见 [ADR-005](ADR-005-recall-ranking-protocol.md)。

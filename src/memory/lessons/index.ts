@@ -6,6 +6,7 @@ export {
 export type {
   LessonCandidate,
   LessonCandidateStatus,
+  LessonConfidence,
   LessonCounterexample,
   LessonQuality,
   LessonTrigger,

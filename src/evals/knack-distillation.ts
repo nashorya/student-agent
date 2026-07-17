@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import {
+  findCausalPair,
+  type VerificationKind,
+} from './causal-pair.js';
 
 export interface DistillationEvent {
   line: number;
@@ -30,14 +34,14 @@ export interface DistillRunInput {
   events: DistillationEvent[];
   evidenceTask: string;
   repo: string;
-  verification?: 'exit 0' | 'verifier reward=1';
+  verification?: VerificationKind;
   finalSummary?: string;
 }
 
 interface VerificationEvidence {
   memoryDirName: string;
   instanceId: string;
-  verification: 'exit 0' | 'verifier reward=1';
+  verification: VerificationKind;
 }
 
 export function parseJsonLines(content: string): DistillationEvent[] {
@@ -57,29 +61,13 @@ export function parseJsonLines(content: string): DistillationEvent[] {
 }
 
 export function distillRunEvents(input: DistillRunInput): CandidateKnack | null {
-  const errorIndex = input.events.findIndex(({ data }) => isErrorEvent(data));
-  if (errorIndex < 0) return null;
+  const pair = findCausalPair(input.events, { verification: input.verification });
+  if (!pair) return null;
 
-  const eventVerificationIndex = input.events.findIndex(
-    ({ data }, index) => index > errorIndex && detectVerification(data) !== undefined,
-  );
-  const eventVerification = eventVerificationIndex >= 0
-    ? detectVerification(input.events[eventVerificationIndex].data)
-    : undefined;
-  const verification = eventVerification ?? input.verification;
-  if (!verification) return null;
-
-  const sequenceEnd = eventVerificationIndex >= 0
-    ? eventVerificationIndex
-    : input.events.length;
-  const operations = input.events
-    .slice(errorIndex + 1, sequenceEnd)
-    .filter(({ data }) => isToolCall(data));
-  if (operations.length === 0) return null;
-
-  const error = input.events[errorIndex];
+  const error = input.events[pair.errorIndex];
+  const operations = pair.operationIndices.map((index) => input.events[index]);
   const lastOperation = operations.at(-1);
-  if (!lastOperation) return null;
+  if (!error || !lastOperation) return null;
 
   const actionSequence = operations
     .map(({ data }) => stringValue(data.toolName) ?? stringValue(data.name) ?? 'tool')
@@ -101,7 +89,7 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     .update(`${input.repo}\n${input.evidenceTask}\n${symptom}\n${verifiedFix}`)
     .digest('hex')
     .slice(0, 12);
-  const verificationNote = verification === 'exit 0'
+  const verificationNote = pair.verification === 'exit 0'
     ? 'Verified by exit 0.'
     : 'Verified by verifier reward=1.';
 
@@ -128,7 +116,7 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
 }
 
 /** Marker hit → verified; else last code-bearing finalSummary sentence; else empty + candidate. */
-function extractFixSummary(
+export function extractFixSummary(
   verifiedFix: string,
   finalSummary?: string,
 ): { fix_summary: string; confidence: 'verified' | 'candidate' } {
@@ -389,33 +377,6 @@ function inferRepo(evidenceTask: string): string {
     return `${owner}/${repositoryWithIssue.replace(/-\d+$/, '')}`;
   }
   return evidenceTask.split(/[-/]/)[0] || 'unknown';
-}
-
-function detectVerification(event: Record<string, unknown>): VerificationEvidence['verification'] | undefined {
-  if (numberValue(event.exitCode) === 0 || numberValue(event.exit_code) === 0) {
-    return 'exit 0';
-  }
-  if (numberValue(event.reward) === 1 || numberValue(event.correctnessScore) === 1) {
-    return 'verifier reward=1';
-  }
-  const verifier = isRecord(event.verifier) ? event.verifier : undefined;
-  if (verifier && (numberValue(verifier.reward) === 1 || numberValue(verifier.correctnessScore) === 1)) {
-    return 'verifier reward=1';
-  }
-  if (verifier && (numberValue(verifier.exitCode) === 0 || numberValue(verifier.exit_code) === 0)) {
-    return 'exit 0';
-  }
-  return undefined;
-}
-
-function isErrorEvent(event: Record<string, unknown>): boolean {
-  const kind = stringValue(event.kind) ?? stringValue(event.type) ?? '';
-  return kind.includes('error') || event.isError === true;
-}
-
-function isToolCall(event: Record<string, unknown>): boolean {
-  const kind = stringValue(event.kind) ?? stringValue(event.type) ?? '';
-  return kind === 'tool_call' || kind === 'tool-call';
 }
 
 function summarizeText(value: string, maxChars: number): string {
