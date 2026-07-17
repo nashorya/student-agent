@@ -45,6 +45,26 @@ describe('context runtime eval runner helpers', () => {
     expect(prompt).toContain('Current step: Execute eval task multi-phase-feature');
   });
 
+  it('stores the full instruction in hard constraints without copying it into the todo', async () => {
+    const instruction = `${'Required clause. '.repeat(40)}TAIL_CONSTRAINT_MUST_SURVIVE`;
+    await seedContextRuntimeEvalMemory({
+      memoryDir,
+      task: taskDefinition('constraint-tail', 'Constraint Tail', 'task'),
+      instruction,
+    });
+
+    const task = await TasksManager.getInstance(memoryDir).getActive();
+    const buildPrompt = createContextRuntimeBuildMemoryPrompt('context_runtime', memoryDir);
+    const prompt = await buildPrompt!();
+
+    expect(task?.working_memory.hardConstraints).toBe(instruction);
+    expect(task?.working_memory.todos).toEqual([
+      expect.objectContaining({ content: 'Execute eval task constraint-tail' }),
+    ]);
+    expect(task?.working_memory.todos[0]?.content).not.toContain('Required clause.');
+    expect(prompt).toContain(instruction);
+  });
+
   it('injects only eval autonomy rule for the plain variant', async () => {
     const buildPrompt = createContextRuntimeBuildMemoryPrompt('plain', memoryDir);
     const prompt = await buildPrompt!();

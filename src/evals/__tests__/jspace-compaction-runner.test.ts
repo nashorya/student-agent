@@ -1,8 +1,9 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  annotateCompactionPromptTokens,
   assessJspaceRunValidity,
   buildJspaceFeatureManifest,
   compareRunStructures,
@@ -29,6 +30,48 @@ describe('J-space compaction probe arm isolation', () => {
     boundaryMsgCounts: [8],
     perCheck: { config: true, protectedFiles: true },
     ...overrides,
+  });
+
+  it('keeps the fixture instruction free of eval language and seals earlier audit materials', async () => {
+    const taskRoot = resolve('evals/tasks/jspace-compaction-probe-01');
+    const instruction = await readFile(join(taskRoot, 'instruction.md'), 'utf8');
+    for (const forbidden of ['压缩', 'compaction', '摘要', '恢复', '探针', '评测', '测试', '上下文体量']) {
+      expect(instruction.toLowerCase()).not.toContain(forbidden.toLowerCase());
+    }
+    expect(instruction).toContain('从本阶段起，Phase 1-2 的审计材料已经封存');
+
+    const decisionLedger = await readFile(join(
+      taskRoot,
+      'environment/docs/ledgers/phase-2/vendor-compatibility-004.md',
+    ), 'utf8');
+    expect(decisionLedger).not.toContain('mode=bridge');
+    expect(decisionLedger).not.toContain('preserveLegacyIds=true');
+    expect(decisionLedger).not.toContain('reportTag=APAC-R7');
+  });
+
+  it('locks the generated ledger distribution and token-volume budget', async () => {
+    const ledgerRoot = resolve('evals/tasks/jspace-compaction-probe-01/environment/docs/ledgers');
+    let laterPhaseChars = 0;
+    let markerCount = 0;
+    let decisionEvidenceCount = 0;
+    for (const phase of [1, 2, 3, 4]) {
+      const directory = join(ledgerRoot, `phase-${phase}`);
+      const names = (await readdir(directory)).filter((name) => name.endsWith('.md'));
+      expect(names.length).toBeGreaterThanOrEqual(2);
+      expect(names.length).toBeLessThanOrEqual(4);
+      for (const name of names) {
+        const content = await readFile(join(directory, name), 'utf8');
+        const estimatedTokens = Buffer.byteLength(content, 'utf8') / 3.5;
+        expect(estimatedTokens).toBeGreaterThanOrEqual(3_000);
+        expect(estimatedTokens).toBeLessThanOrEqual(6_000);
+        if (phase >= 3) laterPhaseChars += Buffer.byteLength(content, 'utf8');
+        markerCount += content.includes('CONTROL_MARKER:') ? 1 : 0;
+        decisionEvidenceCount += content.includes('AUDIT_FINDING:') ? 1 : 0;
+      }
+    }
+    expect(laterPhaseChars / 3.5).toBeGreaterThanOrEqual(25_000);
+    expect(markerCount).toBe(3);
+    expect(decisionEvidenceCount).toBe(1);
   });
 
   it('keeps every model-facing context runtime feature disabled in the plain arm', () => {
@@ -237,6 +280,165 @@ describe('J-space compaction probe arm isolation', () => {
     });
   });
 
+  it('derives prompt tokens before and after each forced event from adjacent usage records', () => {
+    const events = [{
+      kind: 'forced_compaction' as const,
+      boundary: 'phase:2',
+      requestedAt: '2026-07-16T10:00:00.000Z',
+      completedAt: '2026-07-16T10:00:10.000Z',
+      nextPhaseStartedAt: '2026-07-16T10:00:20.000Z',
+      status: 'completed' as const,
+      productApi: 'AgentSession.compact' as const,
+      lifecycle: { startObserved: true, endObserved: true, reason: 'manual' as const },
+      state: {
+        messagesBefore: 28,
+        messagesAfter: 12,
+        entriesBefore: 30,
+        entriesAfter: 14,
+        changed: true,
+        promptTokensBefore: null,
+        promptTokensAfter: null,
+      },
+    }];
+
+    annotateCompactionPromptTokens(events, [
+      { seq: 6, ts: '2026-07-16T09:59:55.000Z', promptTokens: 60000, cachedPromptTokens: 0, completionTokens: 600 },
+      { seq: 7, ts: '2026-07-16T10:00:05.000Z', promptTokens: 61000, cachedPromptTokens: 0, completionTokens: 500 },
+      { seq: 8, ts: '2026-07-16T10:00:25.000Z', promptTokens: 30000, cachedPromptTokens: 0, completionTokens: 400 },
+    ]);
+
+    expect(events[0].state).toMatchObject({
+      promptTokensBefore: 60000,
+      promptTokensAfter: 30000,
+    });
+  });
+
+  it('invalidates a forced run when messages do not shrink or prompt tokens drop less than 40 percent', () => {
+    expect(assessJspaceRunValidity({
+      status: 'success',
+      mode: 'task',
+      taskState: {
+        status: 'completed',
+        phases: [{ description: 'phase 1', status: 'completed', retryCount: 0 }],
+      },
+      compactionEvents: [{
+        kind: 'boundary_observed',
+        boundary: 'phase:2',
+        observedAt: '2026-07-16T10:00:00.000Z',
+        state: { messages: 28, entries: 30 },
+      }, {
+        kind: 'forced_compaction',
+        boundary: 'phase:2',
+        requestedAt: '2026-07-16T10:00:01.000Z',
+        completedAt: '2026-07-16T10:00:10.000Z',
+        status: 'completed',
+        productApi: 'AgentSession.compact',
+        lifecycle: { startObserved: true, endObserved: true, reason: 'manual' },
+        state: {
+          messagesBefore: 28,
+          messagesAfter: 28,
+          entriesBefore: 30,
+          entriesAfter: 31,
+          changed: true,
+          promptTokensBefore: 60000,
+          promptTokensAfter: 40000,
+        },
+      }],
+    }, [2], undefined, { requireEffectiveCompaction: true })).toMatchObject({
+      valid: false,
+      status: 'compaction_ineffective',
+      reasons: expect.arrayContaining([
+        expect.stringContaining('phase:2'),
+      ]),
+    });
+  });
+
+  it('accepts a forced run when messages shrink and prompt tokens drop at least 40 percent', () => {
+    expect(assessJspaceRunValidity({
+      status: 'success',
+      mode: 'task',
+      taskState: {
+        status: 'completed',
+        phases: [{ description: 'phase 1', status: 'completed', retryCount: 0 }],
+      },
+      compactionEvents: [{
+        kind: 'boundary_observed',
+        boundary: 'phase:2',
+        observedAt: '2026-07-16T10:00:00.000Z',
+        state: { messages: 28, entries: 30 },
+      }, {
+        kind: 'forced_compaction',
+        boundary: 'phase:2',
+        requestedAt: '2026-07-16T10:00:01.000Z',
+        completedAt: '2026-07-16T10:00:10.000Z',
+        status: 'completed',
+        productApi: 'AgentSession.compact',
+        lifecycle: { startObserved: true, endObserved: true, reason: 'manual' },
+        state: {
+          messagesBefore: 28,
+          messagesAfter: 12,
+          entriesBefore: 30,
+          entriesAfter: 14,
+          changed: true,
+          promptTokensBefore: 60000,
+          promptTokensAfter: 36000,
+        },
+      }],
+    }, [2], undefined, { requireEffectiveCompaction: true })).toMatchObject({
+      valid: true,
+      status: 'complete',
+    });
+  });
+
+  it('invalidates a forced run that rereads sealed decision material after phase 2', () => {
+    expect(assessJspaceRunValidity({
+      status: 'success',
+      mode: 'task',
+      taskState: {
+        status: 'completed',
+        phases: [{ description: 'phase 1', status: 'completed', retryCount: 0 }],
+      },
+      toolCalls: [{
+        id: 'late-search',
+        name: 'search_files',
+        args: { query: 'APAC-R7' },
+        startedAt: '2026-07-16T10:01:00.000Z',
+        resultText: 'docs/migration-map.md:8: | R7 | apac | bridge | true | APAC-R7 |',
+      }],
+      compactionEvents: [{
+        kind: 'boundary_observed',
+        boundary: 'phase:2',
+        observedAt: '2026-07-16T10:00:00.000Z',
+        state: { messages: 28, entries: 30 },
+      }, {
+        kind: 'forced_compaction',
+        boundary: 'phase:2',
+        requestedAt: '2026-07-16T10:00:01.000Z',
+        completedAt: '2026-07-16T10:00:10.000Z',
+        nextPhaseStartedAt: '2026-07-16T10:00:10.000Z',
+        status: 'completed',
+        productApi: 'AgentSession.compact',
+        lifecycle: { startObserved: true, endObserved: true, reason: 'manual' },
+        state: {
+          messagesBefore: 28,
+          messagesAfter: 12,
+          entriesBefore: 30,
+          entriesAfter: 14,
+          changed: true,
+          promptTokensBefore: 60000,
+          promptTokensAfter: 30000,
+        },
+      }],
+    }, [2], undefined, {
+      requireEffectiveCompaction: true,
+      rejectSealedMaterialReads: true,
+    })).toMatchObject({
+      valid: false,
+      status: 'invalid_probe_leakage',
+      reasons: [expect.stringContaining('docs/migration-map.md')],
+    });
+  });
+
   it('accepts a deadline-overrun run when all checks pass and boundaries were observed', () => {
     expect(assessJspaceRunValidity({
       status: 'success',
@@ -349,6 +551,8 @@ describe('J-space compaction probe arm isolation', () => {
       runValidity: { valid: true, status: 'complete' },
       tokenUsage: { promptTokens: 100, completionTokens: 20 },
       contextVolume: { allWithinTarget: true },
+      compactionSummaries: { 'phase:2': 'Pi summary text' },
+      postCompactionPrompts: { 'phase:2': '[{"role":"user","content":"Phase 3"}]' },
       sandboxPath: '/tmp/probe-sandbox',
     });
 
@@ -378,5 +582,9 @@ describe('J-space compaction probe arm isolation', () => {
       .resolves.toContain('promptTokens');
     await expect(readFile(join(outputDir, 'context-volume.json'), 'utf8'))
       .resolves.toContain('allWithinTarget');
+    await expect(readFile(join(outputDir, 'compaction-summary-phase-2.txt'), 'utf8'))
+      .resolves.toBe('Pi summary text\n');
+    await expect(readFile(join(outputDir, 'post-compaction-prompt-phase-2.txt'), 'utf8'))
+      .resolves.toContain('Phase 3');
   });
 });

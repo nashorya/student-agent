@@ -72,13 +72,27 @@ echo "protected project test placeholder"'
   && check protected-project-test pass \
   || check protected-project-test fail "protected tests/test.sh changed"
 
-expected_ledger_hashes='ffb897863a8762c7a671a6df9e88b223b8899314457c5a0a5c4e6c9655fcc782  docs/context-ledgers/alpha.md
-0c05a773b54395ae5d1ab9a5fbad98d30cea474ebc31ce1b5f81bed15fd822ea  docs/context-ledgers/beta.md
-699fadb1126a0730c3f7cc6ff69ca326adbf63c45fdb2fa109077e9bd23482ed  docs/context-ledgers/gamma.md'
-actual_ledger_hashes="$(shasum -a 256 docs/context-ledgers/*.md 2>/dev/null)"
+expected_ledger_hashes='605724cacefc76f936e3946dbcbb88eb6aa1c37fcf18125a2c3a832fddce9afd  docs/ledgers/phase-1/archive-retention-003.md
+e43c5531c6bc2e1fbca0d1a598af1b021d65b8c5cba34ccbcdb21d76ac78dc90  docs/ledgers/phase-1/billing-continuity-002.md
+6549c8f8256bb5cbaebf3438bed830816dd9cb4aa7b689d9120eb69c3e71eecc  docs/ledgers/phase-1/gateway-availability-004.md
+42f689b51558a21af3f1908ef4f259e5793c5ea4e1ee4bf22a02f2f7c36cbdec  docs/ledgers/phase-1/identity-history-001.md
+99e9aa0124705b8d097f5d29526c276b4c2104019c2352abe66f1dd324ed89a4  docs/ledgers/phase-2/legacy-id-sampling-006.md
+629632b20e679a4c746a1cf71cbed9a2734e667d85bed3a0a480337bdece9b74  docs/ledgers/phase-2/regional-routing-005.md
+10134ec8d826d2efedb711a6155df706f472a8566855c53794f3633c06830105  docs/ledgers/phase-2/retention-policy-007.md
+311eb128c40292089cd22f88ec553d1bea11bc1b1f9dc9ec376ffedb571495f6  docs/ledgers/phase-2/vendor-compatibility-004.md
+3cbdb476ef7c0e1ea0121b6235b2d6cbcf4588514ab743fd28ce96627d903aa5  docs/ledgers/phase-3/account-reconciliation-008.md
+f9802aae1bd6981427dfcd92f69eeffd7319172008fdd9a10e9fe05e153f46a7  docs/ledgers/phase-3/deployment-cohort-007.md
+f6689dcbea8772df05bb0c9e52a84e118587db4862bf070b45d2bef204ee61fc  docs/ledgers/phase-3/report-tag-validation-009.md
+a2d25b744360dd47d01fb7cfea13a5b5e8cfcf32fd30440682da2d255585e26e  docs/ledgers/phase-4/change-window-012.md
+b0525424ed084bbc50a8b08ef4981aa661088d423b0b712e928b48a15b5d779e  docs/ledgers/phase-4/operator-training-011.md
+75376eec7bcc00c79af549d2619e694bab088bda86367cf161879afe71ff163b  docs/ledgers/phase-4/runtime-readiness-010.md'
+actual_ledger_hashes="$(shasum -a 256 docs/ledgers/phase-*/*.md 2>/dev/null)"
 [[ "$actual_ledger_hashes" == "$expected_ledger_hashes" ]] \
-  && check protected-context-ledgers pass \
-  || check protected-context-ledgers fail "long-context ledgers changed"
+  && check protected-audit-ledgers pass \
+  || check protected-audit-ledgers fail "audit ledgers changed"
+[[ ! -e docs/context-ledgers ]] \
+  && check obsolete-ledger-layout-removed pass \
+  || check obsolete-ledger-layout-removed fail "obsolete ledger layout is still present"
 
 grep -Eq '^- Run (`)?npx tsx src/runner\.ts(`)?$' docs/ops-checklist.md 2>/dev/null \
   && check checklist-runner pass \

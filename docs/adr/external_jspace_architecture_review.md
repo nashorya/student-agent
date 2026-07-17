@@ -1,5 +1,7 @@
 # External J-Space / Context Runtime 架构评审报告
 
+状态:已由 ADR-007 关闭,保留供追溯
+
 > 用途：交给工作目录中的代码 Agent，结合现有实现检查可行性、差距、改造成本与评测方案。
 > 讨论背景：围绕 L0–L3 Context Runtime、Skill/Recall 路由、外部 J-space、模型增量 Patch、Prompt Cache、Compaction 恢复与长任务稳定性展开。
 

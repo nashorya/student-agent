@@ -1357,6 +1357,8 @@ v0.4x 不是开启 0.5，也不是推翻 0.4，而是在 v0.4 稳定闭环上补
 
 ### v0.4x-A: Anti-Lost Multi-Turn Context
 
+状态:已由 ADR-007 关闭,保留供追溯
+
 目标：在 v0.4 的 hard/soft trigger 基础上，建立完整的 anti-lost 系统。
 
 Scope:

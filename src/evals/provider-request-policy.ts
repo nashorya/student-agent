@@ -1,17 +1,28 @@
 import type { Api, Model } from '@mariozechner/pi-ai';
-import type { EvalProviderRequestAuditEntry } from './types.js';
+import { appendFile } from 'node:fs/promises';
+import type {
+  EvalProviderRequestAuditEntry,
+  EvalProviderUsageTimelineEntry,
+} from './types.js';
 
 const GLM_THINKING_MODEL_PREFIX = 'glm-5';
 
 export interface EvalProviderRequestPolicyHandle {
   audit: EvalProviderRequestAuditEntry[];
+  usageTimeline: EvalProviderUsageTimelineEntry[];
+  postCompactionPrompts: Record<string, string>;
   active: boolean;
+  captureNextPrompt: (boundary: string) => void;
   flush: () => Promise<void>;
   restore: () => void;
 }
 
 interface FetchTarget {
   fetch: typeof globalThis.fetch;
+}
+
+interface EvalProviderRequestPolicyOptions {
+  usageTimelinePath?: string;
 }
 
 /**
@@ -24,12 +35,18 @@ interface FetchTarget {
 export function installEvalProviderRequestPolicy(
   model: Model<Api>,
   target: FetchTarget = globalThis,
+  options: EvalProviderRequestPolicyOptions = {},
 ): EvalProviderRequestPolicyHandle {
   const audit: EvalProviderRequestAuditEntry[] = [];
+  const usageTimeline: EvalProviderUsageTimelineEntry[] = [];
+  const postCompactionPrompts: Record<string, string> = {};
   if (!model.id.startsWith(GLM_THINKING_MODEL_PREFIX)) {
     return {
       audit,
+      usageTimeline,
+      postCompactionPrompts,
       active: false,
+      captureNextPrompt: () => undefined,
       flush: async () => undefined,
       restore: () => undefined,
     };
@@ -38,6 +55,7 @@ export function installEvalProviderRequestPolicy(
   const expectedUrl = new URL(model.baseUrl);
   const realFetch = target.fetch;
   const pendingInspections = new Set<Promise<void>>();
+  let pendingPromptBoundary: string | undefined;
   let restored = false;
 
   target.fetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -51,6 +69,10 @@ export function installEvalProviderRequestPolicy(
     body.thinking = { type: 'enabled' };
     body.temperature = 0;
     body.do_sample = false;
+    if (pendingPromptBoundary !== undefined) {
+      postCompactionPrompts[pendingPromptBoundary] = renderProviderPrompt(body);
+      pendingPromptBoundary = undefined;
+    }
     const error = requestPolicyError(body, model.id);
 
     const auditEntry: EvalProviderRequestAuditEntry = {
@@ -83,26 +105,50 @@ export function installEvalProviderRequestPolicy(
       };
       throw fetchError;
     }
+    const responseReceivedAt = new Date().toISOString();
 
     const inspection = inspectProviderResponse(response.clone())
-      .then((evidence) => { auditEntry.response = evidence; })
-      .catch((inspectionError) => {
-        auditEntry.response = {
+      .then(async (evidence) => {
+        auditEntry.response = evidence;
+        await appendUsageTimeline(
+          options.usageTimelinePath,
+          usageTimeline,
+          auditEntry.index,
+          responseReceivedAt,
+          evidence,
+        );
+      })
+      .catch(async (inspectionError) => {
+        const evidence = {
           httpStatus: response.status,
           inspected: false,
           hasReasoningContent: false,
           reasoningChars: 0,
           error: inspectionError instanceof Error ? inspectionError.message : String(inspectionError),
         };
+        auditEntry.response = evidence;
+        await appendUsageTimeline(
+          options.usageTimelinePath,
+          usageTimeline,
+          auditEntry.index,
+          responseReceivedAt,
+          evidence,
+        );
       });
     pendingInspections.add(inspection);
-    void inspection.finally(() => pendingInspections.delete(inspection));
+    void inspection.then(
+      () => pendingInspections.delete(inspection),
+      () => pendingInspections.delete(inspection),
+    );
     return response;
   };
 
   return {
     audit,
+    usageTimeline,
+    postCompactionPrompts,
     active: true,
+    captureNextPrompt: (boundary) => { pendingPromptBoundary = boundary; },
     flush: async () => {
       await Promise.all([...pendingInspections]);
     },
@@ -112,6 +158,28 @@ export function installEvalProviderRequestPolicy(
       target.fetch = realFetch;
     },
   };
+}
+
+function renderProviderPrompt(body: Record<string, unknown>): string {
+  return JSON.stringify(body, null, 2);
+}
+
+async function appendUsageTimeline(
+  path: string | undefined,
+  timeline: EvalProviderUsageTimelineEntry[],
+  seq: number,
+  ts: string,
+  response: NonNullable<EvalProviderRequestAuditEntry['response']>,
+): Promise<void> {
+  const entry: EvalProviderUsageTimelineEntry = {
+    seq,
+    ts,
+    promptTokens: response.promptTokens ?? null,
+    cachedPromptTokens: response.cachedPromptTokens ?? null,
+    completionTokens: response.completionTokens ?? null,
+  };
+  timeline.push(entry);
+  if (path) await appendFile(path, `${JSON.stringify(entry)}\n`, 'utf8');
 }
 
 async function inspectProviderResponse(

@@ -18,6 +18,8 @@ export interface ForcedCompactionEvent {
     messagesAfter: number | null;
     entriesBefore: number | null;
     entriesAfter: number | null;
+    promptTokensBefore: number | null;
+    promptTokensAfter: number | null;
     changed: boolean;
   };
   nextPhaseStartedAt?: string;
@@ -46,11 +48,13 @@ export class ForcedCompactionController {
   private readonly completedBoundaries = new Set<string>();
   private readonly observedBoundaries = new Set<string>();
   readonly events: CompactionProbeEvent[] = [];
+  readonly summaries: Record<string, string> = {};
 
   constructor(
     private readonly session: unknown,
     private readonly phaseBoundaries: ReadonlySet<number>,
     private readonly observedPhaseBoundaries: ReadonlySet<number> = phaseBoundaries,
+    private readonly onNextPhaseStarted?: (boundary: string) => void,
   ) {}
 
   shouldCompactAfterPhase(phaseNumber: number): boolean {
@@ -77,7 +81,10 @@ export class ForcedCompactionController {
     const event = [...this.events].reverse().find((candidate): candidate is ForcedCompactionEvent =>
       candidate.kind === 'forced_compaction' &&
       candidate.status === 'completed' && candidate.boundary === `phase:${phaseNumber - 1}`);
-    if (event) event.nextPhaseStartedAt = new Date().toISOString();
+    if (event) {
+      event.nextPhaseStartedAt = new Date().toISOString();
+      this.onNextPhaseStarted?.(event.boundary);
+    }
   }
 
   async compactAfterPhase(phaseNumber: number): Promise<void> {
@@ -96,6 +103,8 @@ export class ForcedCompactionController {
         messagesAfter: null,
         entriesBefore: sessionEntryCount(this.session),
         entriesAfter: null,
+        promptTokensBefore: null,
+        promptTokensAfter: null,
         changed: false,
       },
     };
@@ -126,7 +135,9 @@ export class ForcedCompactionController {
     try {
       // No custom summary instruction: the no-op probe must exercise Pi's normal
       // built-in compaction behavior without adding a J-space intervention.
-      await compact.call(this.session);
+      const result = await compact.call(this.session);
+      const summary = compactionSummary(result);
+      if (summary !== undefined) this.summaries[boundary] = summary;
       event.state.messagesAfter = sessionMessageCount(this.session);
       event.state.entriesAfter = sessionEntryCount(this.session);
       event.state.changed = event.state.messagesBefore !== event.state.messagesAfter ||
@@ -142,6 +153,12 @@ export class ForcedCompactionController {
       unsubscribe?.();
     }
   }
+}
+
+function compactionSummary(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object' || !('summary' in result)) return undefined;
+  const summary = (result as { summary?: unknown }).summary;
+  return typeof summary === 'string' ? summary : undefined;
 }
 
 function sessionMessageCount(session: unknown): number | null {

@@ -5,6 +5,38 @@
 
 ---
 
+## BUG-011 · J-space eval 工作记忆只保留 instruction 前 500 字符
+
+- **决策点编号**：BUG-006。仓库已有历史 BUG-006，本条使用下一个唯一编号消歧。
+- **时间**：2026-07-17，发现者：codex
+- **症状**：正式运行
+  `evals/results/jspace-compaction/2026-07-17T03-45-10-714Z/current-seed-2-forced/`
+  在 Phase 2 压缩后读取 `.jspace-current-memory/tasks.json`，随后搜索已封存的
+  `docs/migration-map.md`、遗漏 Phase 4 三条逐字 checklist，并再次运行失败 helper。
+- **根因**：`src/evals/context-runtime-runner.ts` 的 `compactInstruction()` 将用户
+  instruction 归一化后截断至 500 字符写入工作记忆 todo；该任务的
+  `hardConstraints` 实际为空。seed 2 时间线证据见同目录 `tool-trace.json`，有效性
+  判定见 `run-validity.json`。
+- **修复/处置**：注入层改为把用户 instruction 完整、逐字写入
+  `working_memory.hardConstraints`；todo 只保存短执行动作，不再复制或截断 instruction。
+  不修改 memory schema。forced compaction 另外保存 Pi 摘要和压缩后第一次完整 provider
+  messages，文件名为 `compaction-summary-<boundary>.txt` 与
+  `post-compaction-prompt-<boundary>.txt`，用于区分摘要缺失与行为未遵守。
+- **2026-07-17 C 组回归**：仅运行修复后的 current 臂 ×3，结果目录为
+  `evals/results/jspace-compaction/2026-07-17T06-39-20-453Z/`：
+  - seed 1：`verifierScore=0`，`runValidity=compaction_ineffective`，Phase 4
+    wall-clock 超时；失败项为 `checklist-cleanup`、`checklist-no-retry`；
+  - seed 2：`verifierScore=1`，`runValidity=complete`，无失败项；
+  - seed 3：`verifierScore=1`，但 Phase 1 wall-clock 超时且两处边界均未发生，
+    `runValidity=compaction_ineffective`。
+- **新归因字段对照**：seed 1 的 `compaction-summary-phase-2.txt` 保留了 runner 输出
+  格式，但没有三条 checklist 原文；`post-compaction-prompt-phase-2.txt` 显示
+  `hardConstraints` 按 standard tier 截在 800 token，停在
+  `Confirm the on...`，未包含后两条 checklist 原文。seed 2 的 Phase 2/4 summary 与
+  post-compaction prompt 均包含三条 checklist 原文，并通过全部 per-check。seed 3
+  未到压缩边界，因此没有对应文本 artifact。
+- **状态**：OPEN（C 组仅 1/3 同时满足 verifier 满分与有效 run，未追平 plain 3/3）
+
 ## BUG-010 · Vitest 2.x audit critical
 
 - **时间**：2026-07-13，发现者：codex

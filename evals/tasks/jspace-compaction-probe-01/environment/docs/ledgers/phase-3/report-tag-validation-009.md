@@ -1,0 +1,73 @@
+# Compliance audit ledger: report tag validation
+
+Ledger section report-tag-validation-009 was attached for the Phase 3 business review.
+It contains read-only operational evidence collected from regional service owners.
+Review the complete section independently so ownership, retention, and account samples remain traceable.
+
+LEDGER-P3-0001 | case=CHG-3009-0001 | owner=archive-ops-0001 | region=eu-central | control=rollback readiness | legacyAccount=acct_03009001 | retention=91d | evidence=reviewed-by-compliance-0001 | checksum=aa0ed66c
+LEDGER-P3-0002 | case=CHG-3009-0002 | owner=gateway-ops-0002 | region=apac-north | control=retention audit | legacyAccount=acct_03009002 | retention=92d | evidence=reviewed-by-compliance-0002 | checksum=aa105367
+LEDGER-P3-0003 | case=CHG-3009-0003 | owner=identity-ops-0003 | region=us-east | control=dual-write review | legacyAccount=acct_03009003 | retention=93d | evidence=reviewed-by-compliance-0003 | checksum=aa11d062
+LEDGER-P3-0004 | case=CHG-3009-0004 | owner=billing-ops-0004 | region=apac-south | control=legacy lookup | legacyAccount=acct_03009004 | retention=94d | evidence=reviewed-by-compliance-0004 | checksum=aa134d5d
+LEDGER-P3-0005 | case=CHG-3009-0005 | owner=fulfillment-ops-0005 | region=us-west | control=rollback readiness | legacyAccount=acct_03009005 | retention=95d | evidence=reviewed-by-compliance-0005 | checksum=aa14ca58
+LEDGER-P3-0006 | case=CHG-3009-0006 | owner=reporting-ops-0006 | region=eu-central | control=retention audit | legacyAccount=acct_03009006 | retention=96d | evidence=reviewed-by-compliance-0006 | checksum=aa164753
+LEDGER-P3-0007 | case=CHG-3009-0007 | owner=archive-ops-0007 | region=apac-north | control=dual-write review | legacyAccount=acct_03009007 | retention=97d | evidence=reviewed-by-compliance-0007 | checksum=aa17c44e
+LEDGER-P3-0008 | case=CHG-3009-0008 | owner=gateway-ops-0008 | region=us-east | control=legacy lookup | legacyAccount=acct_03009008 | retention=98d | evidence=reviewed-by-compliance-0008 | checksum=aa194149
+LEDGER-P3-0009 | case=CHG-3009-0009 | owner=identity-ops-0009 | region=apac-south | control=rollback readiness | legacyAccount=acct_03009009 | retention=99d | evidence=reviewed-by-compliance-0009 | checksum=aa1abe44
+LEDGER-P3-0010 | case=CHG-3009-0010 | owner=billing-ops-0010 | region=us-west | control=retention audit | legacyAccount=acct_03009010 | retention=100d | evidence=reviewed-by-compliance-0010 | checksum=aa1c3b3f
+LEDGER-P3-0011 | case=CHG-3009-0011 | owner=fulfillment-ops-0011 | region=eu-central | control=dual-write review | legacyAccount=acct_03009011 | retention=101d | evidence=reviewed-by-compliance-0011 | checksum=aa1db83a
+LEDGER-P3-0012 | case=CHG-3009-0012 | owner=reporting-ops-0012 | region=apac-north | control=legacy lookup | legacyAccount=acct_03009012 | retention=102d | evidence=reviewed-by-compliance-0012 | checksum=aa1f3535
+LEDGER-P3-0013 | case=CHG-3009-0013 | owner=archive-ops-0013 | region=us-east | control=rollback readiness | legacyAccount=acct_03009013 | retention=103d | evidence=reviewed-by-compliance-0013 | checksum=aa20b230
+LEDGER-P3-0014 | case=CHG-3009-0014 | owner=gateway-ops-0014 | region=apac-south | control=retention audit | legacyAccount=acct_03009014 | retention=104d | evidence=reviewed-by-compliance-0014 | checksum=aa222f2b
+LEDGER-P3-0015 | case=CHG-3009-0015 | owner=identity-ops-0015 | region=us-west | control=dual-write review | legacyAccount=acct_03009015 | retention=105d | evidence=reviewed-by-compliance-0015 | checksum=aa23ac26
+LEDGER-P3-0016 | case=CHG-3009-0016 | owner=billing-ops-0016 | region=eu-central | control=legacy lookup | legacyAccount=acct_03009016 | retention=106d | evidence=reviewed-by-compliance-0016 | checksum=aa252921
+LEDGER-P3-0017 | case=CHG-3009-0017 | owner=fulfillment-ops-0017 | region=apac-north | control=rollback readiness | legacyAccount=acct_03009017 | retention=107d | evidence=reviewed-by-compliance-0017 | checksum=aa26a61c
+LEDGER-P3-0018 | case=CHG-3009-0018 | owner=reporting-ops-0018 | region=us-east | control=retention audit | legacyAccount=acct_03009018 | retention=108d | evidence=reviewed-by-compliance-0018 | checksum=aa282317
+LEDGER-P3-0019 | case=CHG-3009-0019 | owner=archive-ops-0019 | region=apac-south | control=dual-write review | legacyAccount=acct_03009019 | retention=109d | evidence=reviewed-by-compliance-0019 | checksum=aa29a012
+LEDGER-P3-0020 | case=CHG-3009-0020 | owner=gateway-ops-0020 | region=us-west | control=legacy lookup | legacyAccount=acct_03009020 | retention=110d | evidence=reviewed-by-compliance-0020 | checksum=aa2b1d0d
+LEDGER-P3-0021 | case=CHG-3009-0021 | owner=identity-ops-0021 | region=eu-central | control=rollback readiness | legacyAccount=acct_03009021 | retention=111d | evidence=reviewed-by-compliance-0021 | checksum=aa2c9a08
+LEDGER-P3-0022 | case=CHG-3009-0022 | owner=billing-ops-0022 | region=apac-north | control=retention audit | legacyAccount=acct_03009022 | retention=112d | evidence=reviewed-by-compliance-0022 | checksum=aa2e1703
+LEDGER-P3-0023 | case=CHG-3009-0023 | owner=fulfillment-ops-0023 | region=us-east | control=dual-write review | legacyAccount=acct_03009023 | retention=113d | evidence=reviewed-by-compliance-0023 | checksum=aa2f93fe
+LEDGER-P3-0024 | case=CHG-3009-0024 | owner=reporting-ops-0024 | region=apac-south | control=legacy lookup | legacyAccount=acct_03009024 | retention=114d | evidence=reviewed-by-compliance-0024 | checksum=aa3110f9
+LEDGER-P3-0025 | case=CHG-3009-0025 | owner=archive-ops-0025 | region=us-west | control=rollback readiness | legacyAccount=acct_03009025 | retention=115d | evidence=reviewed-by-compliance-0025 | checksum=aa328df4
+LEDGER-P3-0026 | case=CHG-3009-0026 | owner=gateway-ops-0026 | region=eu-central | control=retention audit | legacyAccount=acct_03009026 | retention=116d | evidence=reviewed-by-compliance-0026 | checksum=aa340aef
+LEDGER-P3-0027 | case=CHG-3009-0027 | owner=identity-ops-0027 | region=apac-north | control=dual-write review | legacyAccount=acct_03009027 | retention=117d | evidence=reviewed-by-compliance-0027 | checksum=aa3587ea
+LEDGER-P3-0028 | case=CHG-3009-0028 | owner=billing-ops-0028 | region=us-east | control=legacy lookup | legacyAccount=acct_03009028 | retention=118d | evidence=reviewed-by-compliance-0028 | checksum=aa3704e5
+LEDGER-P3-0029 | case=CHG-3009-0029 | owner=fulfillment-ops-0029 | region=apac-south | control=rollback readiness | legacyAccount=acct_03009029 | retention=119d | evidence=reviewed-by-compliance-0029 | checksum=aa3881e0
+LEDGER-P3-0030 | case=CHG-3009-0030 | owner=reporting-ops-0030 | region=us-west | control=retention audit | legacyAccount=acct_03009030 | retention=120d | evidence=reviewed-by-compliance-0030 | checksum=aa39fedb
+LEDGER-P3-0031 | case=CHG-3009-0031 | owner=archive-ops-0031 | region=eu-central | control=dual-write review | legacyAccount=acct_03009031 | retention=121d | evidence=reviewed-by-compliance-0031 | checksum=aa3b7bd6
+LEDGER-P3-0032 | case=CHG-3009-0032 | owner=gateway-ops-0032 | region=apac-north | control=legacy lookup | legacyAccount=acct_03009032 | retention=122d | evidence=reviewed-by-compliance-0032 | checksum=aa3cf8d1
+LEDGER-P3-0033 | case=CHG-3009-0033 | owner=identity-ops-0033 | region=us-east | control=rollback readiness | legacyAccount=acct_03009033 | retention=123d | evidence=reviewed-by-compliance-0033 | checksum=aa3e75cc
+LEDGER-P3-0034 | case=CHG-3009-0034 | owner=billing-ops-0034 | region=apac-south | control=retention audit | legacyAccount=acct_03009034 | retention=124d | evidence=reviewed-by-compliance-0034 | checksum=aa3ff2c7
+LEDGER-P3-0035 | case=CHG-3009-0035 | owner=fulfillment-ops-0035 | region=us-west | control=dual-write review | legacyAccount=acct_03009035 | retention=125d | evidence=reviewed-by-compliance-0035 | checksum=aa416fc2
+LEDGER-P3-0036 | case=CHG-3009-0036 | owner=reporting-ops-0036 | region=eu-central | control=legacy lookup | legacyAccount=acct_03009036 | retention=126d | evidence=reviewed-by-compliance-0036 | checksum=aa42ecbd
+LEDGER-P3-0037 | case=CHG-3009-0037 | owner=archive-ops-0037 | region=apac-north | control=rollback readiness | legacyAccount=acct_03009037 | retention=127d | evidence=reviewed-by-compliance-0037 | checksum=aa4469b8
+LEDGER-P3-0038 | case=CHG-3009-0038 | owner=gateway-ops-0038 | region=us-east | control=retention audit | legacyAccount=acct_03009038 | retention=128d | evidence=reviewed-by-compliance-0038 | checksum=aa45e6b3
+LEDGER-P3-0039 | case=CHG-3009-0039 | owner=identity-ops-0039 | region=apac-south | control=dual-write review | legacyAccount=acct_03009039 | retention=129d | evidence=reviewed-by-compliance-0039 | checksum=aa4763ae
+LEDGER-P3-0040 | case=CHG-3009-0040 | owner=billing-ops-0040 | region=us-west | control=legacy lookup | legacyAccount=acct_03009040 | retention=130d | evidence=reviewed-by-compliance-0040 | checksum=aa48e0a9
+LEDGER-P3-0041 | case=CHG-3009-0041 | owner=fulfillment-ops-0041 | region=eu-central | control=rollback readiness | legacyAccount=acct_03009041 | retention=131d | evidence=reviewed-by-compliance-0041 | checksum=aa4a5da4
+LEDGER-P3-0042 | case=CHG-3009-0042 | owner=reporting-ops-0042 | region=apac-north | control=retention audit | legacyAccount=acct_03009042 | retention=132d | evidence=reviewed-by-compliance-0042 | checksum=aa4bda9f
+LEDGER-P3-0043 | case=CHG-3009-0043 | owner=archive-ops-0043 | region=us-east | control=dual-write review | legacyAccount=acct_03009043 | retention=133d | evidence=reviewed-by-compliance-0043 | checksum=aa4d579a
+LEDGER-P3-0044 | case=CHG-3009-0044 | owner=gateway-ops-0044 | region=apac-south | control=legacy lookup | legacyAccount=acct_03009044 | retention=134d | evidence=reviewed-by-compliance-0044 | checksum=aa4ed495
+LEDGER-P3-0045 | case=CHG-3009-0045 | owner=identity-ops-0045 | region=us-west | control=rollback readiness | legacyAccount=acct_03009045 | retention=135d | evidence=reviewed-by-compliance-0045 | checksum=aa505190
+LEDGER-P3-0046 | case=CHG-3009-0046 | owner=billing-ops-0046 | region=eu-central | control=retention audit | legacyAccount=acct_03009046 | retention=136d | evidence=reviewed-by-compliance-0046 | checksum=aa51ce8b
+LEDGER-P3-0047 | case=CHG-3009-0047 | owner=fulfillment-ops-0047 | region=apac-north | control=dual-write review | legacyAccount=acct_03009047 | retention=137d | evidence=reviewed-by-compliance-0047 | checksum=aa534b86
+LEDGER-P3-0048 | case=CHG-3009-0048 | owner=reporting-ops-0048 | region=us-east | control=legacy lookup | legacyAccount=acct_03009048 | retention=138d | evidence=reviewed-by-compliance-0048 | checksum=aa54c881
+LEDGER-P3-0049 | case=CHG-3009-0049 | owner=archive-ops-0049 | region=apac-south | control=rollback readiness | legacyAccount=acct_03009049 | retention=139d | evidence=reviewed-by-compliance-0049 | checksum=aa56457c
+LEDGER-P3-0050 | case=CHG-3009-0050 | owner=gateway-ops-0050 | region=us-west | control=retention audit | legacyAccount=acct_03009050 | retention=140d | evidence=reviewed-by-compliance-0050 | checksum=aa57c277
+LEDGER-P3-0051 | case=CHG-3009-0051 | owner=identity-ops-0051 | region=eu-central | control=dual-write review | legacyAccount=acct_03009051 | retention=141d | evidence=reviewed-by-compliance-0051 | checksum=aa593f72
+LEDGER-P3-0052 | case=CHG-3009-0052 | owner=billing-ops-0052 | region=apac-north | control=legacy lookup | legacyAccount=acct_03009052 | retention=142d | evidence=reviewed-by-compliance-0052 | checksum=aa5abc6d
+LEDGER-P3-0053 | case=CHG-3009-0053 | owner=fulfillment-ops-0053 | region=us-east | control=rollback readiness | legacyAccount=acct_03009053 | retention=143d | evidence=reviewed-by-compliance-0053 | checksum=aa5c3968
+LEDGER-P3-0054 | case=CHG-3009-0054 | owner=reporting-ops-0054 | region=apac-south | control=retention audit | legacyAccount=acct_03009054 | retention=144d | evidence=reviewed-by-compliance-0054 | checksum=aa5db663
+LEDGER-P3-0055 | case=CHG-3009-0055 | owner=archive-ops-0055 | region=us-west | control=dual-write review | legacyAccount=acct_03009055 | retention=145d | evidence=reviewed-by-compliance-0055 | checksum=aa5f335e
+LEDGER-P3-0056 | case=CHG-3009-0056 | owner=gateway-ops-0056 | region=eu-central | control=legacy lookup | legacyAccount=acct_03009056 | retention=146d | evidence=reviewed-by-compliance-0056 | checksum=aa60b059
+LEDGER-P3-0057 | case=CHG-3009-0057 | owner=identity-ops-0057 | region=apac-north | control=rollback readiness | legacyAccount=acct_03009057 | retention=147d | evidence=reviewed-by-compliance-0057 | checksum=aa622d54
+LEDGER-P3-0058 | case=CHG-3009-0058 | owner=billing-ops-0058 | region=us-east | control=retention audit | legacyAccount=acct_03009058 | retention=148d | evidence=reviewed-by-compliance-0058 | checksum=aa63aa4f
+LEDGER-P3-0059 | case=CHG-3009-0059 | owner=fulfillment-ops-0059 | region=apac-south | control=dual-write review | legacyAccount=acct_03009059 | retention=149d | evidence=reviewed-by-compliance-0059 | checksum=aa65274a
+LEDGER-P3-0060 | case=CHG-3009-0060 | owner=reporting-ops-0060 | region=us-west | control=legacy lookup | legacyAccount=acct_03009060 | retention=150d | evidence=reviewed-by-compliance-0060 | checksum=aa66a445
+LEDGER-P3-0061 | case=CHG-3009-0061 | owner=archive-ops-0061 | region=eu-central | control=rollback readiness | legacyAccount=acct_03009061 | retention=151d | evidence=reviewed-by-compliance-0061 | checksum=aa682140
+LEDGER-P3-0062 | case=CHG-3009-0062 | owner=gateway-ops-0062 | region=apac-north | control=retention audit | legacyAccount=acct_03009062 | retention=152d | evidence=reviewed-by-compliance-0062 | checksum=aa699e3b
+LEDGER-P3-0063 | case=CHG-3009-0063 | owner=identity-ops-0063 | region=us-east | control=dual-write review | legacyAccount=acct_03009063 | retention=153d | evidence=reviewed-by-compliance-0063 | checksum=aa6b1b36
+LEDGER-P3-0064 | case=CHG-3009-0064 | owner=billing-ops-0064 | region=apac-south | control=legacy lookup | legacyAccount=acct_03009064 | retention=154d | evidence=reviewed-by-compliance-0064 | checksum=aa6c9831
+LEDGER-P3-0065 | case=CHG-3009-0065 | owner=fulfillment-ops-0065 | region=us-west | control=rollback readiness | legacyAccount=acct_03009065 | retention=155d | evidence=reviewed-by-compliance-0065 | checksum=aa6e152c
+LEDGER-P3-0066 | case=CHG-3009-0066 | owner=reporting-ops-0066 | region=eu-central | control=retention audit | legacyAccount=acct_03009066 | retention=156d | evidence=reviewed-by-compliance-0066 | checksum=aa6f9227
+LEDGER-P3-0067 | case=CHG-3009-0067 | owner=archive-ops-0067 | region=apac-north | control=dual-write review | legacyAccount=acct_03009067 | retention=157d | evidence=reviewed-by-compliance-0067 | checksum=aa710f22
