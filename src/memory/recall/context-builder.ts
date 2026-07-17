@@ -247,6 +247,10 @@ function applySectionBudgets(
 
   for (const current of sections) {
     const budget = getSectionBudget(current.name, budgets);
+    if (isEvalProtectedSection(current.name, policy)) {
+      kept.push(current);
+      continue;
+    }
     if (budget <= 0) {
       truncated.push(current.name);
       continue;
@@ -289,6 +293,12 @@ function applyLegacyBudget(
       continue;
     }
 
+    if (isEvalProtectedSection(current.name, policy)) {
+      kept.push(current);
+      total += current.estimatedTokens;
+      continue;
+    }
+
     const remaining = budget - total;
     truncated.push(current.name);
     if (remaining <= 0) continue;
@@ -312,7 +322,13 @@ function applyLegacyBudget(
 
 function truncateToTokenBudget(content: string, tokenBudget: number): string {
   const maxChars = Math.max(0, Math.floor(tokenBudget * TOKEN_CHAR_RATIO));
-  return content.slice(0, maxChars).trimEnd();
+  const marker = `\n[TRUNCATED at ${tokenBudget} tokens]`;
+  if (maxChars <= marker.length) return '';
+  return `${content.slice(0, maxChars - marker.length).trimEnd()}${marker}`;
+}
+
+function isEvalProtectedSection(name: string, policy: ContextPolicy): boolean {
+  return policy.runMode === 'eval' && (name === 'hardConstraints' || name === 'taskSpec');
 }
 
 function section(name: string, content: string): ContextSection {

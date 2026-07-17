@@ -280,6 +280,49 @@ describe('J-space compaction probe arm isolation', () => {
     });
   });
 
+  it('invalidates a run when eval context truncates protected sections', () => {
+    expect(assessJspaceRunValidity({
+      status: 'success',
+      mode: 'task',
+      taskState: {
+        status: 'completed',
+        phases: [{ description: 'phase 1', status: 'completed', retryCount: 0 }],
+      },
+      compactionEvents: [{
+        kind: 'boundary_observed',
+        boundary: 'phase:2',
+        observedAt: '2026-07-17T00:00:00.000Z',
+        state: { messages: 20, entries: 22 },
+      }],
+      contextAssemblyTraces: [{ truncated: ['hardConstraints', 'taskSpec', 'knacks'] }],
+    }, [2])).toMatchObject({
+      valid: false,
+      status: 'incomplete',
+      reasons: expect.arrayContaining([
+        expect.stringContaining('hardConstraints'),
+        expect.stringContaining('taskSpec'),
+      ]),
+    });
+  });
+
+  it('does not invalidate a run when only non-protected context is truncated', () => {
+    expect(assessJspaceRunValidity({
+      status: 'success',
+      mode: 'task',
+      taskState: {
+        status: 'completed',
+        phases: [{ description: 'phase 1', status: 'completed', retryCount: 0 }],
+      },
+      compactionEvents: [{
+        kind: 'boundary_observed',
+        boundary: 'phase:2',
+        observedAt: '2026-07-17T00:00:00.000Z',
+        state: { messages: 20, entries: 22 },
+      }],
+      contextAssemblyTraces: [{ truncated: ['knacks'] }],
+    }, [2])).toMatchObject({ valid: true, status: 'complete', reasons: [] });
+  });
+
   it('derives prompt tokens before and after each forced event from adjacent usage records', () => {
     const events = [{
       kind: 'forced_compaction' as const,

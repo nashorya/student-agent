@@ -92,7 +92,7 @@ async function main(): Promise<void> {
           predeclaredTask,
           providerUsageTimelinePath: usageTimelinePath,
           maxModelCallsPerPhase: 20,
-          maxWallClockMsPerPhase: 360_000,
+          maxWallClockMsPerPhase: 600_000,
         });
         const verifier = await runVerifier(task, sandbox);
         const compactionEvents = trace.compactionEvents ?? [];
@@ -318,7 +318,7 @@ async function main(): Promise<void> {
     forcedCompactionAfterPhases: records.some((record) => record.mode === 'forced') ? boundaries : [],
     limits: {
       maxModelCallsPerPhase: 20,
-      maxWallClockMsPerPhase: 360_000,
+      maxWallClockMsPerPhase: 600_000,
     },
     records,
     calibrations,

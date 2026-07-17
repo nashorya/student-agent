@@ -229,7 +229,7 @@ export interface JspaceRunValidity {
 
 export function assessJspaceRunValidity(
   trace: Pick<StudentAgentEvalTrace, 'status' | 'mode' | 'taskState' | 'compactionEvents'> &
-    Partial<Pick<StudentAgentEvalTrace, 'toolCalls'>>,
+    Partial<Pick<StudentAgentEvalTrace, 'toolCalls' | 'contextAssemblyTraces'>>,
   expectedPhaseBoundaries: number[],
   verifier?: Pick<VerifierResult, 'perCheck'>,
   options: {
@@ -276,11 +276,18 @@ export function assessJspaceRunValidity(
   const leakageReasons = options.rejectSealedMaterialReads
     ? sealedMaterialReadReasons(trace.toolCalls ?? [], trace.compactionEvents ?? [])
     : [];
-  const valid = compactionReasons.length === 0 && leakageReasons.length === 0 && boundariesComplete &&
+  const contextTruncationReasons = [...new Set((trace.contextAssemblyTraces ?? []).flatMap(
+    (assembly, index) => ['hardConstraints', 'taskSpec']
+      .filter((section) => assembly.truncated.includes(section))
+      .map((section) => `context assembly ${index + 1} truncated protected section: ${section}`),
+  ))];
+  const valid = compactionReasons.length === 0 && leakageReasons.length === 0 &&
+    contextTruncationReasons.length === 0 && boundariesComplete &&
     ((trace.status === 'success' && taskLifecycleComplete) || completedByOutcomeEvidence);
   if (!valid) {
     reasons.push(...compactionReasons);
     reasons.push(...leakageReasons);
+    reasons.push(...contextTruncationReasons);
     if (trace.status === 'failed') reasons.push('agent trace failed');
     if (!taskLifecycleComplete) reasons.push(...annotations);
     if (!boundariesComplete) {
