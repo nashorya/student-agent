@@ -105,7 +105,7 @@ ephemeral note，不归档、不跨任务传播。
 >   不参与 promote/recall（`getAll()` 仅读主库）。
 > - **阶段 1 测试**：配对入库 / 配对失败降级 / 空轨迹不写；
 >   lessons + knack-distillation + reflect + memory/recall 相关 **242** 测绿。
-> - **阶段 1 commit**：见 git log（本状态注随后补 hash）。
+> - **阶段 1 commit**：`00ad6422`。
 > - **阶段 2（未跑）**：验收重跑 Tier B on 臂 6 run **需作者批预算**。
 >   预估价（同批口径，2026-06-12 pilot）：on 臂 trace 合计约 **$1.81**；
 >   建议上限 **$3.0**（含重试/波动）。过门前不启动。

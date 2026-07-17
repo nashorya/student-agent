@@ -11,7 +11,7 @@
 - **事项**：堵住过程错误 lesson 入库；准入 = 共享 `findCausalPair`
   （与 knack 萃取同一判据）。配对失败 → `ephemeral/` + `quality: low`。
 - **阶段 1**：实现 + 三类用例 + 相关测绿；**阶段 2 重跑未授权**。
-- **关联**：ADR-003 P1；commit 见 ADR-003 状态注。
+- **关联**：ADR-003 P1；commit `00ad6422`。
 - **状态**：阶段 1 DONE / 阶段 2 BLOCKED-预算门
 
 ## BUG-010 · Vitest 2.x audit critical
