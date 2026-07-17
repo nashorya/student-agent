@@ -18,7 +18,7 @@ export interface CandidateKnack {
   evidence_task: string;
   evidence_turns: [number, number];
   compression_level: 'knack';
-  confidence: 'verified';
+  confidence: 'verified' | 'candidate';
   reuse_count: 0;
   injected_count: 0;
   last_succeeded_task: null;
@@ -92,12 +92,18 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     verifiedFix,
     stringValue(error.data.summary) ?? 'Unknown tool error',
   );
-  const fixSummary = extractFixSummary(verifiedFix);
+  const { fix_summary: fixSummary, confidence } = extractFixSummary(
+    verifiedFix,
+    input.finalSummary,
+  );
   const dedupKey = buildDedupKey(input.repo, symptom);
   const hash = createHash('sha256')
     .update(`${input.repo}\n${input.evidenceTask}\n${symptom}\n${verifiedFix}`)
     .digest('hex')
     .slice(0, 12);
+  const verificationNote = verification === 'exit 0'
+    ? 'Verified by exit 0.'
+    : 'Verified by verifier reward=1.';
 
   return {
     id: `knack-${slug(input.repo)}-${hash}`,
@@ -110,27 +116,64 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     evidence_task: input.evidenceTask,
     evidence_turns: [error.line, lastOperation.line],
     compression_level: 'knack',
-    confidence: 'verified',
+    confidence,
     reuse_count: 0,
     injected_count: 0,
     last_succeeded_task: null,
     last_injected_task: null,
-    unit_test: verification === 'exit 0'
-      ? 'Verified by exit 0.'
-      : 'Verified by verifier reward=1.',
+    unit_test: fixSummary
+      ? verificationNote
+      : `${verificationNote} Fix not extracted.`,
   };
 }
 
-function extractFixSummary(verifiedFix: string): string {
+/** Marker hit → verified; else last code-bearing finalSummary sentence; else empty + candidate. */
+function extractFixSummary(
+  verifiedFix: string,
+  finalSummary?: string,
+): { fix_summary: string; confidence: 'verified' | 'candidate' } {
   for (const marker of [
     /(?:^|[.!?\n])(?:\s|\*)*The fix is\s*[:\s]\s*(.+)$/i,
     /(?:^|[\s\n])\*{0,2}Fix\*{0,2}\s*:\s*(.+)$/i,
     /(?:^|[.!?\n])(?:\s|\*)*The solution is\s*[:\s]\s*(.+)$/i,
   ]) {
     const markedText = verifiedFix.match(marker)?.[1]?.trim();
-    if (markedText) return summarizeText(firstSentence(markedText), 150);
+    if (markedText) {
+      return {
+        fix_summary: summarizeText(firstSentence(markedText), 150),
+        confidence: 'verified',
+      };
+    }
   }
-  return summarizeText(firstSentence(verifiedFix), 150);
+  const codeSentence = lastCodeBearingSentence(finalSummary);
+  if (codeSentence) {
+    return {
+      fix_summary: summarizeText(codeSentence, 150),
+      confidence: 'verified',
+    };
+  }
+  // Never fall back to "Tool sequence: …" audit prose.
+  return { fix_summary: '', confidence: 'candidate' };
+}
+
+function lastCodeBearingSentence(text: string | undefined): string | undefined {
+  if (!text?.trim()) return undefined;
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (let index = sentences.length - 1; index >= 0; index -= 1) {
+    const sentence = sentences[index];
+    if (hasCodeSymbols(sentence)) return sentence;
+  }
+  return undefined;
+}
+
+function hasCodeSymbols(sentence: string): boolean {
+  if (/`[^`]+`/.test(sentence)) return true;
+  if (/\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b/.test(sentence)) return true;
+  if (/\b[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(sentence)) return true;
+  return false;
 }
 
 function extractSymptom(verifiedFix: string, fallback: string): string {

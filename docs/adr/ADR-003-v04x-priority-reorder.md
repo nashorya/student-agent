@@ -45,6 +45,40 @@ Tier B pilot（2026-06-12，OpenRouter Sonnet 4.6，astropy 6 题，1 seed）给
 }
 ```
 
+> **状态注 · P0 离线蒸馏化验（2026-07-17，不改上文原文）**
+>
+> - **Scope**：Tier B on 臂 pilot（2026-06-12 OpenRouter Sonnet）；轨迹
+>   `evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/runs/*`
+>   （6 run / events 行数 17·29·13·32·12·22）；逐题 harness
+>   `openrouter-sonnet-tier-b-on-{6938,7746,12907,14182,14365,14995}-20260612`。
+> - **萃取器版本（初检）**：`src/evals/knack-distillation.ts` @ `f78ed974`；入口
+>   `scripts/distill-knacks.ts` @ `0934d40b`；化验时工作树 HEAD `46713111`。
+> - **产出**：raw candidateCount **4** → 去重后 **4**（
+>   `evals/distillation/p0-assay-candidates.json`）；判卷表
+>   `evals/distillation/p0-assay-grading.md`。
+> - **仪器/被试**（seed `20260717` 抽 3 run：12907 / 14995 / 7746）：
+>   resolved 轨迹肉眼有任务级 verified 对且萃取器有 → **正常**；
+>   未 resolved（7746）肉眼无 verified 料且萃取器无 → **确实无料**。
+>   **无系统性漏检**。已知局限：首 error 常为过程噪声、
+>   events 无流内 verification（靠 harness `reward=1`）。
+> - **作者合页（同日）**：格式门通过；**有料**（否 tombstone）；仪器部分失真
+>   （2/4 `fix_summary` 流水账）；**迁移未观察**（仅 2 条有「产自第 4 题前」
+>   资格且与 RST 题无行为层迁移）。前提部分成立；knack 价值假设修正为
+>   「同类症状复发时召回」（对齐 ADR-005/006）；预注入叙事降级；
+>   **P1 准入本身不受影响，但须先修萃取器保真度**。scope n=6/4/1 仓不外推。
+>
+> **状态注 · 萃取器保真度修复（P0 后续 / P1 前置，2026-07-17）**
+>
+> - **改动**：`extractFixSummary` 无 marker 时**禁止**回退 `Tool sequence` 首句；
+>   改为 (a) `finalSummary` 末个含代码符号句 (b) 否则 `fix_summary=""` +
+>   `confidence=candidate` + unit_test `Fix not extracted.`。不动 ADR-004 字段。
+> - **测试**：`knack-distillation.test.ts` 全绿；新增有 marker 不回归 /
+>   无 marker → candidate 用例；import 脚本消费新 JSON 无报错。
+> - **重跑**：同 scope 4 候选；12907/14182 流水账 → 人话 fix（verified 保持）；
+>   6938/14995 marker 路径不变。diff 见判卷表 §3.1。
+> - **萃取器 commit**：`2965ad89`（保真度补丁；与本注同提交）。
+> - **边界**：模型调用 0；未做 P1 准入门控。
+
 ### P1 · Lesson 准入门控（batch distillation 管道）
 
 **做什么**：在 lesson 写入时增加准入条件——lesson 必须包含

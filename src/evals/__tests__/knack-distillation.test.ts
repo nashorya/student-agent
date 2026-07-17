@@ -29,17 +29,18 @@ describe('knack distillation', () => {
     })).toMatchObject({
       repo: 'owner/repo',
       symptom: 'AssertionError: expected 2, got 1',
-      fix_summary: 'Tool sequence: read -> edit -> bash.',
+      // No fix marker and no code-bearing sentence → never invent tool-sequence prose.
+      fix_summary: '',
       verified_fix: expect.stringContaining('read -> edit -> bash'),
       evidence_task: 'owner__repo-123',
       evidence_turns: [2, 5],
       compression_level: 'knack',
-      confidence: 'verified',
+      confidence: 'candidate',
       reuse_count: 0,
       injected_count: 0,
       last_succeeded_task: null,
       last_injected_task: null,
-      unit_test: 'Verified by exit 0.',
+      unit_test: 'Verified by exit 0. Fix not extracted.',
     });
   });
 
@@ -68,7 +69,7 @@ describe('knack distillation', () => {
     ['The fix is assign the replacement back. Ignore this. Fix: lower priority.', 'assign the replacement back.'],
     ['Fix: validate every changed line. The solution is inspect manually.', 'validate every changed line.'],
     ['The solution is preserve the existing matrix values. Done.', 'preserve the existing matrix values.'],
-    ['No explicit marker appears here. The rest is audit detail.', 'Tool sequence: edit.'],
+    ['No explicit marker appears here. The rest is audit detail.', ''],
   ])('extracts fix_summary by marker priority', (finalSummary, expectedFixSummary) => {
     const events = parseJsonLines([
       '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
@@ -82,6 +83,66 @@ describe('knack distillation', () => {
       repo: 'owner/repo',
       finalSummary,
     })?.fix_summary).toBe(expectedFixSummary);
+  });
+
+  it('keeps marker-based fix_summary and verified confidence (no regression)', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary: 'The fix is to assign `output_field[:] = output_field.replace(...)`.',
+    })).toMatchObject({
+      fix_summary: 'to assign `output_field[:] = output_field.replace(...)`.',
+      confidence: 'verified',
+      unit_test: 'Verified by verifier reward=1.',
+    });
+  });
+
+  it('degrades to empty fix_summary and candidate when no marker and no code sentence', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    const candidate = distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary: 'Everything looks fine after a careful review of the change.',
+    });
+
+    expect(candidate).toMatchObject({
+      fix_summary: '',
+      confidence: 'candidate',
+      unit_test: 'Verified by verifier reward=1. Fix not extracted.',
+    });
+    expect(candidate?.fix_summary.startsWith('Tool sequence')).toBe(false);
+  });
+
+  it('uses the last code-bearing finalSummary sentence when markers are absent', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary:
+        'Investigation complete. Accept `header_rows` in `RST.__init__` and reindex separators. Ready to ship.',
+    })).toMatchObject({
+      fix_summary: 'Accept `header_rows` in `RST.__init__` and reindex separators.',
+      confidence: 'verified',
+    });
   });
 
   it('deduplicates normalized symptoms and keeps the shorter evidence span', () => {
@@ -146,7 +207,8 @@ describe('knack distillation', () => {
       finalSummary: 'Let me verify the fix is logically correct. No explicit fix marker follows.',
     });
 
-    expect(candidate?.fix_summary).toBe('Tool sequence: edit.');
+    expect(candidate?.fix_summary).toBe('');
+    expect(candidate?.confidence).toBe('candidate');
   });
 
   it('does not emit a candidate without exit 0 or verifier reward 1', () => {
@@ -173,6 +235,7 @@ describe('knack distillation', () => {
       events,
       evidenceTask: 'owner__repo-789',
       repo: 'owner/repo',
+      finalSummary: 'The fix is restore the prior boundary.',
     })?.unit_test).toBe('Verified by verifier reward=1.');
   });
 
