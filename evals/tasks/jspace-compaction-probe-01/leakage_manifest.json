@@ -27,6 +27,9 @@
   "protectedFiles": [
     "rules/schema.json",
     "src/legacy.ts",
-    "tests/test.sh"
+    "tests/test.sh",
+    "docs/context-ledgers/alpha.md",
+    "docs/context-ledgers/beta.md",
+    "docs/context-ledgers/gamma.md"
   ]
 }

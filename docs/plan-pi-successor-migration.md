@@ -11,6 +11,12 @@
 - `getModel`、`getModels`、`getProviders`、`completeSimple` 已不再导出；
 - 当前模型解析、首次配置、意图分类和 Context7 retry 路径均需适配新 API。
 
+另一个迁移动机来自 provider capability 映射：pi 0.73.1 不会为通用 OpenAI-compatible
+端点稳定地产生 Z.AI GLM-5 所需的 `thinking: { type: "enabled" }` 请求字段。当前 eval
+runner 因此在最终 fetch 出口执行临时注入、`temperature: 0` / `do_sample: false`
+确定性锁定和落地字节审计；迁移到 0.80.6
+时应重新验证模型解析与 provider 参数映射，能由新版本原生保证后再删除该补丁。
+
 `@oh-my-pi/pi-*` 需要 Bun，且既有路线图明确只采用它的独立 `hashline` 包，
 不引入其 agent runtime、TUI 或 provider routing。Codex fork 会替换整个代理基座，
 不属于依赖升级。

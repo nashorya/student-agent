@@ -170,6 +170,30 @@ export interface EvalModelTrace {
   };
 }
 
+export interface EvalProviderRequestAuditEntry {
+  index: number;
+  at: string;
+  url: string;
+  model: string;
+  thinking: unknown;
+  temperature: unknown;
+  doSample: unknown;
+  compliant: boolean;
+  error?: string;
+  response?: {
+    httpStatus: number;
+    inspected: boolean;
+    hasReasoningContent: boolean;
+    reasoningChars: number;
+    promptTokens?: number;
+    cachedPromptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    reasoningTokens?: number;
+    error?: string;
+  };
+}
+
 type L1TierString = 'minimal' | 'standard' | 'heavy';
 
 export interface EvalTaskStateTrace {
@@ -226,7 +250,9 @@ export interface StudentAgentEvalTrace {
   workingMemorySnapshot?: import('../memory/tasks/types.js').TaskWorkingMemory;
   taskState?: EvalTaskStateTrace;
   featureManifest?: EvalFeatureManifest;
-  compactionEvents?: import('./forced-compaction-controller.js').ForcedCompactionEvent[];
+  compactionEvents?: import('./forced-compaction-controller.js').CompactionProbeEvent[];
+  /** Sanitized final provider request fields captured by the eval-only fetch policy. */
+  providerRequestAudit?: EvalProviderRequestAuditEntry[];
   /** Protected eval events collected during the run (hashline, signal, toolguard). */
   protectedEvents?: ProtectedEvalEvent[];
   /** Protected ToolGuard events grouped by rule name. */
@@ -255,6 +281,8 @@ export interface VerifierResult {
   durationMs: number;
   correctnessScore: number;
   rewardSource: 'exit_code' | 'reward.txt' | 'reward.json';
+  /** Optional named verifier checks for structure-level paired comparisons. */
+  perCheck?: Record<string, boolean>;
 }
 
 export interface TraceScore {

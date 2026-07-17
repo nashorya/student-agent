@@ -30,6 +30,7 @@ export async function runVerifier(task: EvalTaskDefinition, sandbox: EvalSandbox
   const started = Date.now();
   const result = await runShellScript(task.testScriptPath, sandbox.path, sandbox.logsDir, task.timeoutSeconds);
   const reward = await readReward(sandbox.logsDir);
+  const perCheck = parseVerifierChecks(`${result.stdout}\n${result.stderr}`);
   return {
     exitCode: result.exitCode,
     stdout: result.stdout,
@@ -37,7 +38,17 @@ export async function runVerifier(task: EvalTaskDefinition, sandbox: EvalSandbox
     durationMs: Date.now() - started,
     correctnessScore: reward?.score ?? (result.exitCode === 0 ? 1 : 0),
     rewardSource: reward?.source ?? 'exit_code',
+    ...(Object.keys(perCheck).length > 0 ? { perCheck } : {}),
   };
+}
+
+export function parseVerifierChecks(output: string): Record<string, boolean> {
+  const checks: Record<string, boolean> = {};
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^CHECK ([A-Za-z0-9_.-]+)=(pass|fail)$/.exec(line.trim());
+    if (match) checks[match[1]] = match[2] === 'pass';
+  }
+  return checks;
 }
 
 export async function runSolution(task: EvalTaskDefinition, sandbox: EvalSandbox): Promise<{ exitCode: number; stdout: string; stderr: string }> {

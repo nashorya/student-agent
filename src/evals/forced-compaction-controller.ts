@@ -1,4 +1,5 @@
 export interface ForcedCompactionEvent {
+  kind: 'forced_compaction';
   boundary: string;
   requestedAt: string;
   completedAt?: string;
@@ -22,6 +23,18 @@ export interface ForcedCompactionEvent {
   nextPhaseStartedAt?: string;
 }
 
+export interface BoundaryObservedEvent {
+  kind: 'boundary_observed';
+  boundary: string;
+  observedAt: string;
+  state: {
+    messages: number | null;
+    entries: number | null;
+  };
+}
+
+export type CompactionProbeEvent = BoundaryObservedEvent | ForcedCompactionEvent;
+
 interface CompactableSession {
   compact?: (...args: unknown[]) => Promise<unknown>;
   subscribe?: (listener: (event: unknown) => void) => () => void;
@@ -31,19 +44,38 @@ interface CompactableSession {
 
 export class ForcedCompactionController {
   private readonly completedBoundaries = new Set<string>();
-  readonly events: ForcedCompactionEvent[] = [];
+  private readonly observedBoundaries = new Set<string>();
+  readonly events: CompactionProbeEvent[] = [];
 
   constructor(
     private readonly session: unknown,
     private readonly phaseBoundaries: ReadonlySet<number>,
+    private readonly observedPhaseBoundaries: ReadonlySet<number> = phaseBoundaries,
   ) {}
 
   shouldCompactAfterPhase(phaseNumber: number): boolean {
     return this.phaseBoundaries.has(phaseNumber);
   }
 
+  observeBoundary(phaseNumber: number): void {
+    if (!this.observedPhaseBoundaries.has(phaseNumber)) return;
+    const boundary = `phase:${phaseNumber}`;
+    if (this.observedBoundaries.has(boundary)) return;
+    this.observedBoundaries.add(boundary);
+    this.events.push({
+      kind: 'boundary_observed',
+      boundary,
+      observedAt: new Date().toISOString(),
+      state: {
+        messages: sessionMessageCount(this.session),
+        entries: sessionEntryCount(this.session),
+      },
+    });
+  }
+
   noteNextPhaseStarted(phaseNumber: number): void {
-    const event = [...this.events].reverse().find((candidate) =>
+    const event = [...this.events].reverse().find((candidate): candidate is ForcedCompactionEvent =>
+      candidate.kind === 'forced_compaction' &&
       candidate.status === 'completed' && candidate.boundary === `phase:${phaseNumber - 1}`);
     if (event) event.nextPhaseStartedAt = new Date().toISOString();
   }
@@ -53,6 +85,7 @@ export class ForcedCompactionController {
     if (this.completedBoundaries.has(boundary)) return;
 
     const event: ForcedCompactionEvent = {
+      kind: 'forced_compaction',
       boundary,
       requestedAt: new Date().toISOString(),
       status: 'requested',

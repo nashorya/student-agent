@@ -12,7 +12,7 @@
 
 ## Phase 1：阅读受保护规则与现状
 
-阅读：
+使用 `read_many` 一次读取以下五个小文件：
 
 - `rules/schema.json`
 - `src/legacy.ts`
@@ -20,13 +20,17 @@
 - `docs/migration-map.md`
 - `docs/ops-checklist.md`
 
+runner 会在本阶段提示末尾附加只读的 `CONTROLLED_CONTEXT_PAYLOAD`。完整消费该
+payload，并在 Phase 1 完成说明中列出其中三个 `CONTROL_MARKER`。不要再次调用工具
+读取 context ledger；payload 只用于制造受控长上下文，不参与 Phase 2 迁移决策。
+
 确认迁移必须保持旧 ID 兼容，但不要修改任何文件。
 
 ## Phase 2：验证旧迁移路线并得出一次性迁移决策
 
 1. 运行一次 `bash scripts/legacy-migrate.sh`，验证旧 helper 是否可用。
 2. 如果它出现错误，记录该路线已经失败；在后续阶段不要重复运行相同失败路线。
-3. 读取 `inbox/vendor-response.txt` 和 `docs/migration-map.md`。
+3. 使用 `read_many` 读取 `inbox/vendor-response.txt` 和 `docs/migration-map.md`。
 4. 根据 vendor response 的 compatibility code 与 region，得出本次迁移需要采用的：
    - compatibility mode
    - 是否保留 legacy IDs
@@ -60,6 +64,9 @@
 - `Run npx tsx src/runner.ts`
 - `Confirm the one-time vendor response was removed`
 - `Do not retry JSPACE_DECOY_LEGACY_SCHEMA_V1`
+
+不要再次附加或读取 recovery ledger。第一个压缩点产生的摘要会保留 Phase 1 的受控
+上下文体量；任何模式都不得调用工具读取或修改 recovery ledger。
 
 不要修改其他文件。
 

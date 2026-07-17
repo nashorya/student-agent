@@ -40,6 +40,10 @@ import type {
 import { ForcedCompactionController } from './forced-compaction-controller.js';
 import { buildContextTokenEffect } from './context-breakdown.js';
 import {
+  installEvalProviderRequestPolicy,
+  type EvalProviderRequestPolicyHandle,
+} from './provider-request-policy.js';
+import {
   beginEvalLearningRun,
   type EvalLearningRunRef,
 } from './eval-learning-lifecycle.js';
@@ -57,8 +61,11 @@ export interface RunStudentAgentEvalOptions {
   buildMemoryPrompt?: () => Promise<string>;
   learningLifecycle?: boolean;
   forceCompactionAfterPhases?: number[];
+  observeCompactionAfterPhases?: number[];
   featureManifest?: EvalFeatureManifest;
   predeclaredTask?: { name: string; phases: string[] };
+  /** Deterministic benchmark payload appended to selected 1-based task phases. */
+  phaseContextPayloads?: Record<number, string>;
   maxModelCallsPerPhase?: number;
   maxWallClockMsPerPhase?: number;
 }
@@ -76,6 +83,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   let modelTrace: EvalModelTrace | undefined;
   let learningRun: EvalLearningRunRef | undefined;
   let compaction: ForcedCompactionController | undefined;
+  let providerPolicy: EvalProviderRequestPolicyHandle | undefined;
   const protectedEventsDuringRun: import('./types.js').ProtectedEvalEvent[] = [];
 
   try {
@@ -86,6 +94,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     const config = await loadEvalConfig(options.sandboxDir);
     const model = buildModel(config);
     modelTrace = summarizeEvalModel(model);
+    providerPolicy = installEvalProviderRequestPolicy(model);
     normalizeProviderApiKeyEnv(config.model.provider);
     const apiKeyEnvName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
     const apiKey = process.env[apiKeyEnvName];
@@ -154,6 +163,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     compaction = new ForcedCompactionController(
       session,
       new Set(options.forceCompactionAfterPhases ?? []),
+      new Set(options.observeCompactionAfterPhases ?? options.forceCompactionAfterPhases ?? []),
     );
 
     const unsubscribe = agent.subscribe((event) => outputCollector.handleEvent(event));
@@ -161,6 +171,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       if (options.task.mode === 'task') {
         taskState = await runTaskMode(session, agent, instruction, toolCalls, compaction, {
           predeclaredTask: options.predeclaredTask,
+          phaseContextPayloads: options.phaseContextPayloads,
           maxModelCallsPerPhase: options.maxModelCallsPerPhase,
           maxWallClockMsPerPhase: options.maxWallClockMsPerPhase,
           getModelCallCount: () => outputCollector.usageEvents().length,
@@ -171,12 +182,23 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       if (agent.state.errorMessage) {
         errorMessage = agent.state.errorMessage;
       }
+      if (providerPolicy.active && providerPolicy.audit.length === 0) {
+        throw new Error(
+          'Eval provider policy did not observe any GLM provider request; refusing an unverified thinking run',
+        );
+      }
     } finally {
       unsubscribe();
       unsubscribeThinking();
     }
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : String(err);
+  } finally {
+    try {
+      await providerPolicy?.flush();
+    } finally {
+      providerPolicy?.restore();
+    }
   }
 
   const endedMs = Date.now();
@@ -223,6 +245,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     taskState,
     featureManifest: options.featureManifest,
     compactionEvents: compaction?.events,
+    providerRequestAudit: providerPolicy?.audit,
     protectedEvents,
     guardRuleCounts: countGuardRules(protectedEvents),
     learningRun,
@@ -363,6 +386,7 @@ async function runTaskMode(
   compaction: ForcedCompactionController,
   limits: {
     predeclaredTask?: { name: string; phases: string[] };
+    phaseContextPayloads?: Record<number, string>;
     maxModelCallsPerPhase?: number;
     maxWallClockMsPerPhase?: number;
     getModelCallCount: () => number;
@@ -420,7 +444,12 @@ async function runTaskMode(
           ? buildPhaseExecutionPrompt(active.name, phase.description, active.active_phase_index, active.phases.length)
           : buildPhaseContinuationPrompt(active.active_phase_index + 1, phase.description);
         const prompt = limits.predeclaredTask && continuationCount === 0
-          ? buildPredeclaredPhasePrompt({ instruction, phasePrompt, phaseIndex: active.active_phase_index })
+          ? buildPredeclaredPhasePrompt({
+            instruction,
+            phasePrompt,
+            phaseIndex: active.active_phase_index,
+            contextPayload: limits.phaseContextPayloads?.[active.active_phase_index + 1],
+          })
           : phasePrompt;
         budgetResult = await promptWithinPhaseBudget({
           session,
@@ -455,6 +484,7 @@ async function runTaskMode(
     if (signal?.type !== 'phase_done') break;
     const completedPhaseNumber = active.active_phase_index + 1;
     await tasks.completePhase(active.id);
+    compaction.observeBoundary(completedPhaseNumber);
     if (compaction.shouldCompactAfterPhase(completedPhaseNumber)) {
       await compaction.compactAfterPhase(completedPhaseNumber);
     }
@@ -524,10 +554,15 @@ export function buildPredeclaredPhasePrompt(options: {
   instruction: string;
   phasePrompt: string;
   phaseIndex: number;
+  contextPayload?: string;
 }): string {
-  return options.phaseIndex === 0
+  const base = options.phaseIndex === 0
     ? `${options.instruction}\n\n---\n\n${options.phasePrompt}`
     : options.phasePrompt;
+  return options.contextPayload
+    ? `${base}\n\n--- CONTROLLED_CONTEXT_PAYLOAD phase=${options.phaseIndex + 1} ---\n` +
+      `${options.contextPayload}\n--- END_CONTROLLED_CONTEXT_PAYLOAD ---`
+    : base;
 }
 
 export function shouldAbortForModelCallBudget(callCount: number, maxModelCalls: number): boolean {

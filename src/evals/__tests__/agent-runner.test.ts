@@ -143,6 +143,19 @@ describe('smoke phase controls', () => {
     expect(prompt).toContain('Execute phase one.');
   });
 
+  it('appends a deterministic context payload to the selected phase prompt', () => {
+    const prompt = buildPredeclaredPhasePrompt({
+      instruction: 'Full task instruction.',
+      phasePrompt: 'Execute phase four.',
+      phaseIndex: 3,
+      contextPayload: 'CONTROL_MARKER: GAMMA-RECOVERY-VERIFIED',
+    });
+
+    expect(prompt).toContain('CONTROLLED_CONTEXT_PAYLOAD phase=4');
+    expect(prompt).toContain('GAMMA-RECOVERY-VERIFIED');
+    expect(prompt).not.toContain('Full task instruction.');
+  });
+
   it('aborts immediately when an in-flight phase reaches its model-call budget', () => {
     expect(shouldAbortForModelCallBudget(0, 1)).toBe(false);
     expect(shouldAbortForModelCallBudget(1, 1)).toBe(true);
@@ -150,6 +163,26 @@ describe('smoke phase controls', () => {
 });
 
 describe('ForcedCompactionController', () => {
+  it('records boundary observations without requesting compaction', () => {
+    const session = {
+      agent: { state: { messages: [{}, {}, {}] } },
+      sessionManager: { getEntries: () => [{}, {}] },
+    };
+    const controller = new ForcedCompactionController(session, new Set(), new Set([2]));
+
+    controller.observeBoundary(1);
+    controller.observeBoundary(2);
+    controller.observeBoundary(2);
+
+    expect(controller.events).toEqual([
+      expect.objectContaining({
+        kind: 'boundary_observed',
+        boundary: 'phase:2',
+        state: { messages: 3, entries: 2 },
+      }),
+    ]);
+  });
+
   it('records Pi manual compaction lifecycle events from the session it invokes', async () => {
     let listener: ((event: unknown) => void) | undefined;
     const messages: unknown[] = [{ role: 'user' }, { role: 'assistant' }];
