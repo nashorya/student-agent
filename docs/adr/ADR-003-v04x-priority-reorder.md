@@ -147,6 +147,25 @@ ephemeral note，不归档、不跨任务传播。
 > - **commit**：`b3759244`。
 > - **阶段 2b（花钱，先报批）**：补丁合入后重跑 on 6 题；预估 ≈ **$1.5**
 >   （~$0.2/run）；OpenRouter 需充值。验收仍 ADR-003 原文。
+>
+> **状态注 · P1 阶段 2b ZenMux 重跑（2026-07-18，不改上文原文）**
+>
+> - **渠道**：ZenMux `https://zenmux.ai/api/v1` + `anthropic/claude-sonnet-4.6`
+>   （**非** OpenRouter 同批口径；功能验收可用）。  
+>   运行时坑：`pi-ai` 在 provider=`openrouter` 时只读 `OPENROUTER_API_KEY`，
+>   须 `OPENROUTER_API_KEY=$ZENMUX_API_KEY`（进程内映射）。
+> - **Scope**：shared memory  
+>   `evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1prom-20260718-zenmux`；  
+>   题序 6938→7746→12907→14182→14365→14995；门控+延迟晋升 `b3759244`。
+> - **Produce**：**6/6 success**；trace cost 合计 **≈ $0.74**。
+> - **准入（harness 前）**：主库 **13**（verified **7** / candidate **6**）→  
+>   verified 占比 **53.8% ≥ 50%**（流内证路径）；ephemeral **13**（噪声隔离仍在）。  
+>   harness 判分与 candidate→verified 晋升 **尚未跑**（待 Docker SWE harness）。
+> - **召回**：本批 `usedRecallIds` 均为空。
+> - **盲审表**：`evals/distillation/p1-phase2b-zenmux-blind-review.md`（5 条主库样本）。
+> - **报告**：`evals/distillation/p1-phase2b-zenmux-admission-report.json`。
+> - **验收（produce 侧）**：格式/隔离/主库 verified 门槛 **暂过**；完整 ADR-003
+>   仍差 harness 晋升 + 作者盲审 ≥3/5。
 
 ### P2 · 召回排序去 recency 偏置
 

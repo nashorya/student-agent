@@ -1,0 +1,264 @@
+{
+  "channel": "zenmux",
+  "model": "anthropic/claude-sonnet-4.6",
+  "baseUrl": "https://zenmux.ai/api/v1",
+  "memoryDir": "evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1prom-20260718-zenmux",
+  "patch": "b3759244",
+  "mainLessons": 13,
+  "ephemeralLessons": 13,
+  "mainConfidence": {
+    "candidate": 6,
+    "verified": 7
+  },
+  "verifiedRatioInMainLibrary": 0.5384615384615384,
+  "acceptance": {
+    "verifiedBar": 0.5,
+    "verifiedPass": true,
+    "note": "pre-harness stream-verified ratio; harness promotion may raise further"
+  },
+  "totalCostUsd": 0.7406459999999999,
+  "successRuns": 6,
+  "runs": [
+    {
+      "instanceId": "astropy__astropy-6938",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-6938-p1prom-20260718-zenmux",
+      "status": "success",
+      "learning": {
+        "taskId": "task_1784388318631",
+        "runId": "run_1784388318631",
+        "patternsExtracted": 1,
+        "lessonsExtracted": 5,
+        "knacksPromoted": 2,
+        "usedRecallIds": []
+      },
+      "patch_bytes": 519,
+      "error": null,
+      "costUsd": 0.0399456,
+      "runtimeModel": {
+        "id": "anthropic/claude-sonnet-4.6",
+        "provider": "openrouter",
+        "api": "openai-completions",
+        "baseUrl": "https://zenmux.ai/api/v1",
+        "pricingUsdPerMillionTokens": {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3.75
+        },
+        "thinking": {
+          "initialLevel": "medium",
+          "supportsThinking": true,
+          "availableLevels": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "changes": []
+        }
+      }
+    },
+    {
+      "instanceId": "astropy__astropy-7746",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-7746-p1prom-20260718-zenmux",
+      "status": "success",
+      "learning": {
+        "taskId": "task_1784388388137",
+        "runId": "run_1784388388137",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 6,
+        "knacksPromoted": 4,
+        "usedRecallIds": []
+      },
+      "patch_bytes": 1147,
+      "error": null,
+      "costUsd": 0.1130112,
+      "runtimeModel": {
+        "id": "anthropic/claude-sonnet-4.6",
+        "provider": "openrouter",
+        "api": "openai-completions",
+        "baseUrl": "https://zenmux.ai/api/v1",
+        "pricingUsdPerMillionTokens": {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3.75
+        },
+        "thinking": {
+          "initialLevel": "medium",
+          "supportsThinking": true,
+          "availableLevels": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "changes": []
+        }
+      }
+    },
+    {
+      "instanceId": "astropy__astropy-12907",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-12907-p1prom-20260718-zenmux",
+      "status": "success",
+      "learning": {
+        "taskId": "task_1784388508942",
+        "runId": "run_1784388508942",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 1,
+        "knacksPromoted": 1,
+        "usedRecallIds": []
+      },
+      "patch_bytes": 506,
+      "error": null,
+      "costUsd": 0.0536025,
+      "runtimeModel": {
+        "id": "anthropic/claude-sonnet-4.6",
+        "provider": "openrouter",
+        "api": "openai-completions",
+        "baseUrl": "https://zenmux.ai/api/v1",
+        "pricingUsdPerMillionTokens": {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3.75
+        },
+        "thinking": {
+          "initialLevel": "medium",
+          "supportsThinking": true,
+          "availableLevels": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "changes": []
+        }
+      }
+    },
+    {
+      "instanceId": "astropy__astropy-14182",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-14182-p1prom-20260718-zenmux",
+      "status": "success",
+      "learning": {
+        "taskId": "task_1784388582863",
+        "runId": "run_1784388582863",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 6,
+        "knacksPromoted": 1,
+        "usedRecallIds": []
+      },
+      "patch_bytes": 851,
+      "error": null,
+      "costUsd": 0.1959198,
+      "runtimeModel": {
+        "id": "anthropic/claude-sonnet-4.6",
+        "provider": "openrouter",
+        "api": "openai-completions",
+        "baseUrl": "https://zenmux.ai/api/v1",
+        "pricingUsdPerMillionTokens": {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3.75
+        },
+        "thinking": {
+          "initialLevel": "medium",
+          "supportsThinking": true,
+          "availableLevels": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "changes": []
+        }
+      }
+    },
+    {
+      "instanceId": "astropy__astropy-14365",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-14365-p1prom-20260718-zenmux",
+      "status": "success",
+      "learning": {
+        "taskId": "task_1784388748888",
+        "runId": "run_1784388748888",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 2,
+        "knacksPromoted": 1,
+        "usedRecallIds": []
+      },
+      "patch_bytes": 619,
+      "error": null,
+      "costUsd": 0.1644732,
+      "runtimeModel": {
+        "id": "anthropic/claude-sonnet-4.6",
+        "provider": "openrouter",
+        "api": "openai-completions",
+        "baseUrl": "https://zenmux.ai/api/v1",
+        "pricingUsdPerMillionTokens": {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3.75
+        },
+        "thinking": {
+          "initialLevel": "medium",
+          "supportsThinking": true,
+          "availableLevels": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "changes": []
+        }
+      }
+    },
+    {
+      "instanceId": "astropy__astropy-14995",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-14995-p1prom-20260718-zenmux",
+      "status": "success",
+      "learning": {
+        "taskId": "task_1784388855001",
+        "runId": "run_1784388855001",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 6,
+        "knacksPromoted": 4,
+        "usedRecallIds": []
+      },
+      "patch_bytes": 609,
+      "error": null,
+      "costUsd": 0.1736937,
+      "runtimeModel": {
+        "id": "anthropic/claude-sonnet-4.6",
+        "provider": "openrouter",
+        "api": "openai-completions",
+        "baseUrl": "https://zenmux.ai/api/v1",
+        "pricingUsdPerMillionTokens": {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3.75
+        },
+        "thinking": {
+          "initialLevel": "medium",
+          "supportsThinking": true,
+          "availableLevels": [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "changes": []
+        }
+      }
+    }
+  ],
+  "recallHits": []
+}

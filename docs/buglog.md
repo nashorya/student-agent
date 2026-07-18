@@ -32,6 +32,16 @@
   causal-pair 补全 harness 回退，单一来源。
 - **状态**：实现 + 五类测试绿；阶段 2b 重跑待预算。
 
+## NOTE · P1 阶段 2b ZenMux 重跑（produce 完成）
+
+- **时间**：2026-07-18
+- **渠道**：ZenMux Sonnet 4.6（非 OpenRouter 同批）
+- **结果**：6/6 success，cost ≈ $0.74；主库 13（verified 7 / candidate 6）=
+  **53.8%**；ephemeral 13。
+- **坑**：`OPENROUTER_API_KEY` 须映射为 ZenMux key（pi-ai 硬编码 env 名）。
+- **未做**：官方 harness + candidate 晋升；盲审待作者。
+- **状态**：produce 侧门槛暂过；完整验收 pending harness/盲审。
+
 ## BUG-010 · Vitest 2.x audit critical
 
 - **时间**：2026-07-13，发现者：codex
