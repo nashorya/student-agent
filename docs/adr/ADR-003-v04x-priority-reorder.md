@@ -110,6 +110,31 @@ ephemeral note，不归档、不跨任务传播。
 >   预估价（同批口径，2026-06-12 pilot）：on 臂 trace 合计约 **$1.81**；
 >   建议上限 **$3.0**（含重试/波动）。过门前不启动。
 > - **边界**：未改 ADR-004 / ADR-005；无模型调用；无注入效果评估。
+>
+> **状态注 · P1 阶段 2 验收重跑（2026-07-18，不改上文原文）**
+>
+> - **Scope（不完整）**：on 臂 OpenRouter `anthropic/claude-sonnet-4.6`，
+>   共享 memory `evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1gate-20260718`；
+>   题序 6938→7746→12907→14182→14365→14995；门控 commit `00ad6422`；
+>   需 `NODE_USE_ENV_PROXY=1` + 本地 HTTP 代理（直连 OpenRouter 会 403 区域限制）。
+> - **跑通**：6938 / 7746 **success**（trace cost **$0.369**）；
+>   12907 / 14182 / 14365 **failed** OpenRouter **402**（key 额度不足支撑
+>   `max_tokens=32000`）；14995 未完成。成功 run **2/6**，**未达完整验收样本**。
+> - **准入结果**：主库 `lessons.jsonl` **0** 条；`ephemeral/lessons.jsonl` **12**
+>   条（全 `quality: low`：tool_error / hashline / toolguard）。  
+>   **verified 占比 = N/A（主库空）→ 未过 ≥50% 线**（不粉饰）。
+> - **病灶**：门控本身在拦过程噪声（符合设计）；主库空的上游原因是
+>   `buildLessonVerificationEvidence` 只接纳「bash + test/pytest/verify 类命令
+>   且 isError===false」——SWE produce 轨迹几乎不产生该证据，且 harness
+>   reward 在 finalize 时尚为 pending，无法作为准入 terminator。
+> - **盲审**：`evals/distillation/p1-phase2-blind-review.md`（5 条打乱，
+>   来源隐藏）；作者填 ≥3/5。因主库空，样本来自 ephemeral（质量预期低）。
+> - **召回附记**：成功 run 的 `usedRecallIds` 均为 `[]`；无 symptom 命中实例。
+> - **验收结论**：**未达标**（样本不全 + 主库 verified 空）。不重跑刷分。
+>   续跑前置：OpenRouter 额度补足或下调 max_tokens；可选修 verification
+>   evidence 口径（仍须与 causal-pair 单一来源一致）后再开阶段 2b。
+> - **产物**：`evals/distillation/p1-phase2-admission-report.json`；
+>   runner `evals/results/swebench/logs/run-p1gate-tier-b-on.sh`。
 
 ### P2 · 召回排序去 recency 偏置
 
