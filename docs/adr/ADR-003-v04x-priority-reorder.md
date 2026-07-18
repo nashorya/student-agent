@@ -144,7 +144,7 @@ ephemeral note，不归档、不跨任务传播。
 >   ≠1 保留 candidate）。接入 `reconcileSweBenchRecallCredits`。
 > - **测试**：流内 verified / provisional candidate / 晋升 / 不晋升 / 噪声 ephemeral
 >   五类 + 相关回归绿。
-> - **commit**：见随后 git log。
+> - **commit**：`b3759244`。
 > - **阶段 2b（花钱，先报批）**：补丁合入后重跑 on 6 题；预估 ≈ **$1.5**
 >   （~$0.2/run）；OpenRouter 需充值。验收仍 ADR-003 原文。
 
