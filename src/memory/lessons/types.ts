@@ -40,6 +40,8 @@ export interface LessonCandidate {
   quality: LessonQuality;
   /** Set when causal-pair admission succeeds; absent on quality:low ephemeral notes. */
   confidence?: LessonConfidence;
+  /** Set when harness reward=1 promotes a candidate → verified. */
+  promotedAt?: string;
   verification?: LessonVerification;
   status: LessonCandidateStatus;
   counterexamples?: LessonCounterexample[];

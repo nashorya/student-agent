@@ -7,7 +7,6 @@ import {
   findCausalPair,
   type VerificationKind,
 } from '../../evals/causal-pair.js';
-import { extractFixSummary } from '../../evals/knack-distillation.js';
 import { readRecentSignals } from '../signals/index.js';
 import type { Signal } from '../signals/types.js';
 import type { LessonCandidate, LessonCandidateStatus, LessonConfidence } from './types.js';
@@ -16,10 +15,12 @@ export interface ObserveRecentSignalsOptions {
   taskId: string;
   sessionRef: string;
   limit?: number;
+  /** In-stream exit-0 verification tools (pytest etc.). */
   verificationEvidence?: LessonVerificationEvidence[];
-  /** Optional external terminator (e.g. harness reward=1), same as distill. */
+  /** Intermediate tool ops after the error (recovery path) for provisional pairs. */
+  operationEvidence?: LessonOperationEvidence[];
+  /** Optional external terminator (harness reward=1), same distill fallback. */
   verification?: VerificationKind;
-  /** Used for fix-summary confidence when paired (shared extractFixSummary). */
   finalSummary?: string;
 }
 
@@ -27,6 +28,11 @@ export interface LessonVerificationEvidence {
   toolCallId: string;
   toolName: string;
   exitCode: number;
+  completedAt: string;
+}
+
+export interface LessonOperationEvidence {
+  toolName: string;
   completedAt: string;
 }
 
@@ -71,7 +77,12 @@ export class LessonsManager {
     signals: Signal[],
     options: Pick<
       ObserveRecentSignalsOptions,
-      'taskId' | 'sessionRef' | 'verificationEvidence' | 'verification' | 'finalSummary'
+      | 'taskId'
+      | 'sessionRef'
+      | 'verificationEvidence'
+      | 'operationEvidence'
+      | 'verification'
+      | 'finalSummary'
     >,
   ): Promise<LessonCandidate[]> {
     if (signals.length === 0) return [];
@@ -90,6 +101,42 @@ export class LessonsManager {
     }
 
     return candidates;
+  }
+
+  /**
+   * After harness reward: promote this run's candidate lessons → verified.
+   * reward≠1 keeps candidates in place (no delete).
+   */
+  async promoteCandidatesForRun(options: {
+    sessionRef: string;
+    reward: number;
+  }): Promise<{ promoted: number }> {
+    return WriteQueue.getInstance().enqueue(async () => {
+      const lessons = await this.getAll();
+      const now = new Date().toISOString();
+      let promoted = 0;
+      const updated = lessons.map((lesson) => {
+        if (lesson.confidence !== 'candidate') return lesson;
+        if (lesson.provenance.sessionRef !== options.sessionRef) return lesson;
+        if (options.reward !== 1) return lesson;
+        promoted += 1;
+        return {
+          ...lesson,
+          confidence: 'verified' as const,
+          promotedAt: now,
+          updatedAt: now,
+        };
+      });
+      if (promoted > 0) {
+        await mkdir(dirname(this.filePath), { recursive: true });
+        await writeFile(
+          this.filePath,
+          `${updated.map((lesson) => JSON.stringify(lesson)).join('\n')}\n`,
+          'utf-8',
+        );
+      }
+      return { promoted };
+    });
   }
 
   async updateStatus(lessonId: string, status: LessonCandidateStatus): Promise<void> {
@@ -123,7 +170,12 @@ function signalToLessonCandidate(
   signal: Signal,
   options: Pick<
     ObserveRecentSignalsOptions,
-    'taskId' | 'sessionRef' | 'verificationEvidence' | 'verification' | 'finalSummary'
+    | 'taskId'
+    | 'sessionRef'
+    | 'verificationEvidence'
+    | 'operationEvidence'
+    | 'verification'
+    | 'finalSummary'
   >,
 ): LessonCandidate {
   const now = new Date().toISOString();
@@ -145,7 +197,7 @@ function signalToLessonCandidate(
     doNotApplyWhen: doNotApplyWhen(signal),
     evidenceRefs,
     severity: signal.severity,
-    // ADR-003: unpaired → quality low → ephemeral/; paired → lessons/
+    // unpaired → ephemeral; paired → lessons/ (verified if stream, else candidate)
     quality: admission.paired ? 'high' : 'low',
     confidence: admission.confidence,
     verification: admission.verification,
@@ -160,12 +212,12 @@ function signalToLessonCandidate(
   };
 }
 
-/** Signal + later evidence → shared findCausalPair (same predicate as knack distill). */
+/** Shared findCausalPair (+ harness fallback + provisional). */
 function admitSignalCausalPair(
   signal: Signal,
   options: Pick<
     ObserveRecentSignalsOptions,
-    'verificationEvidence' | 'verification' | 'finalSummary'
+    'verificationEvidence' | 'operationEvidence' | 'verification'
   >,
 ): {
   paired: boolean;
@@ -173,22 +225,19 @@ function admitSignalCausalPair(
   verification?: LessonCandidate['verification'];
 } {
   const evidence = options.verificationEvidence ?? [];
-  const events = buildCausalEventsFromSignal(signal, evidence);
-  const pair = findCausalPair(events, { verification: options.verification });
+  const events = buildCausalEventsFromSignal(
+    signal,
+    evidence,
+    options.operationEvidence ?? [],
+  );
+  const pair = findCausalPair(events, {
+    verification: options.verification,
+    allowProvisional: true,
+  });
   if (!pair) return { paired: false };
 
-  const actionSequence = pair.operationIndices
-    .map((i) => {
-      const e = events[i];
-      return (typeof e.toolName === 'string' && e.toolName)
-        || (typeof e.name === 'string' && e.name)
-        || 'tool';
-    })
-    .join(' -> ');
-  const verifiedFix = `Tool sequence: ${actionSequence}.${
-    options.finalSummary ? ` ${options.finalSummary}` : ''
-  }`.trim();
-  const { confidence } = extractFixSummary(verifiedFix, options.finalSummary);
+  // 流内有证 → verified; 无流内证但 pair 成立（含 harness/provisional）→ candidate
+  const confidence: LessonConfidence = pair.streamVerified ? 'verified' : 'candidate';
   const successful = evidence
     .filter((item) => item.exitCode === 0)
     .sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt))
@@ -212,12 +261,11 @@ function admitSignalCausalPair(
 function buildCausalEventsFromSignal(
   signal: Signal,
   evidence: LessonVerificationEvidence[],
+  operations: LessonOperationEvidence[],
 ): Record<string, unknown>[] {
   const t0 = Date.parse(signal.createdAt);
-  const later = evidence
-    .filter((item) => Number.isFinite(t0) && Number.isFinite(Date.parse(item.completedAt))
-      && Date.parse(item.completedAt) >= t0)
-    .sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt));
+  const after = (iso: string) => Number.isFinite(t0) && Number.isFinite(Date.parse(iso))
+    && Date.parse(iso) >= t0;
   const isErr = signal.kind === 'tool_error' || signal.kind.includes('error');
   const events: Record<string, unknown>[] = [{
     kind: isErr ? 'tool_error' : signal.kind,
@@ -225,18 +273,15 @@ function buildCausalEventsFromSignal(
     summary: signal.summary,
     isError: isErr,
   }];
-  for (const item of later) {
-    if (item.exitCode === 0) {
-      events.push({ kind: 'tool_call', toolName: item.toolName, name: item.toolName });
-      events.push({ kind: 'verification', exitCode: 0 });
-      break;
-    }
-    events.push({
-      kind: 'tool_call',
-      toolName: item.toolName,
-      name: item.toolName,
-      exitCode: item.exitCode,
-    });
+  for (const op of operations.filter((item) => after(item.completedAt))
+    .sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt))) {
+    events.push({ kind: 'tool_call', toolName: op.toolName, name: op.toolName });
+  }
+  for (const item of evidence.filter((item) => after(item.completedAt) && item.exitCode === 0)
+    .sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt))) {
+    events.push({ kind: 'tool_call', toolName: item.toolName, name: item.toolName });
+    events.push({ kind: 'verification', exitCode: 0 });
+    break;
   }
   return events;
 }

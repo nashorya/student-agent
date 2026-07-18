@@ -123,18 +123,30 @@ ephemeral note，不归档、不跨任务传播。
 > - **准入结果**：主库 `lessons.jsonl` **0** 条；`ephemeral/lessons.jsonl` **12**
 >   条（全 `quality: low`：tool_error / hashline / toolguard）。  
 >   **verified 占比 = N/A（主库空）→ 未过 ≥50% 线**（不粉饰）。
-> - **病灶**：门控本身在拦过程噪声（符合设计）；主库空的上游原因是
->   `buildLessonVerificationEvidence` 只接纳「bash + test/pytest/verify 类命令
->   且 isError===false」——SWE produce 轨迹几乎不产生该证据，且 harness
->   reward 在 finalize 时尚为 pending，无法作为准入 terminator。
-> - **盲审**：`evals/distillation/p1-phase2-blind-review.md`（5 条打乱，
->   来源隐藏）；作者填 ≥3/5。因主库空，样本来自 ephemeral（质量预期低）。
-> - **召回附记**：成功 run 的 `usedRecallIds` 均为 `[]`；无 symptom 命中实例。
-> - **验收结论**：**未达标**（样本不全 + 主库 verified 空）。不重跑刷分。
->   续跑前置：OpenRouter 额度补足或下调 max_tokens；可选修 verification
->   evidence 口径（仍须与 causal-pair 单一来源一致）后再开阶段 2b。
+> - **隔离侧**：门控隔离验收 **通过**——**12/12 噪声无一入库**。
+> - **verified 侧诊断**：**时序错位、结构性零分**——**非**门控失败、**非**无料。
+>   finalize 早于 harness；流内几乎无 pytest exit-0，reward 在写入时尚未到达。
+> - **402 run**：12907 / 14182 / 14365 标 **invalid(funding)**；14995 missing 同因；
+>   `rerunRequired` 见 `evals/distillation/p1-phase2-admission-report.json`。
+> - **盲审**：`p1-phase2-blind-review.md` 5 条均为 ephemeral 噪声，**不正式判卷**；
+>   两分钟扫一眼确认“确实是垃圾”即可（门控抽检）。
+> - **召回附记**：成功 run 的 `usedRecallIds` 均为 `[]`。
+> - **验收结论**：**未达标**（样本不全 + 主库 verified 结构性零）。不重跑刷分。
 > - **产物**：`evals/distillation/p1-phase2-admission-report.json`；
 >   runner `evals/results/swebench/logs/run-p1gate-tier-b-on.sh`。
+>
+> **状态注 · P1 补丁 · 延迟晋升（2026-07-18）**
+>
+> - **改动**：`findCausalPair` 明确 stream→harness verification 回退 +
+>   `allowProvisional`（error+ops 无证 → provisional）；lesson 两级写入——
+>   流内证 → `verified`，无流内证但 pair 成立 → `candidate`，不成对 → ephemeral；
+>   harness 后 `promoteCandidatesForRun`（reward=1 升 verified + `promotedAt`，
+>   ≠1 保留 candidate）。接入 `reconcileSweBenchRecallCredits`。
+> - **测试**：流内 verified / provisional candidate / 晋升 / 不晋升 / 噪声 ephemeral
+>   五类 + 相关回归绿。
+> - **commit**：见随后 git log。
+> - **阶段 2b（花钱，先报批）**：补丁合入后重跑 on 6 题；预估 ≈ **$1.5**
+>   （~$0.2/run）；OpenRouter 需充值。验收仍 ADR-003 原文。
 
 ### P2 · 召回排序去 recency 偏置
 

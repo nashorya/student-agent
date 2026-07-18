@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { RecallCreditManager, type RecallCreditResult } from '../memory/knacks/index.js';
+import { LessonsManager } from '../memory/lessons/index.js';
 import type { RecallCitationAudit } from '../memory/recall/citation.js';
 import { RunArchiveWriter } from '../memory/run-archive/index.js';
 import type { SweBenchPatchProducerRecord } from './swebench-patch-producer.js';
@@ -87,12 +88,20 @@ export async function reconcileSweBenchRecallCredits(input: {
   const resolved = new Set(input.resolvedIds);
   const failed = new Set(input.failedIds ?? []);
   const records: Array<{ instanceId: string; attribution: RecallAttributionResult }> = [];
+  const lessons = LessonsManager.getInstance(input.memoryDir);
   for (const record of input.records) {
     const run = record.trace?.learningRun;
     if (!run) continue;
     const verificationStatus = resolved.has(record.instanceId)
       ? 'passed'
       : failed.has(record.instanceId) ? 'failed' : 'pending';
+    // Delayed promotion: harness reward → candidate lessons of this run become verified.
+    if (!input.dryRun && verificationStatus !== 'pending') {
+      await lessons.promoteCandidatesForRun({
+        sessionRef: run.runId,
+        reward: verificationStatus === 'passed' ? 1 : 0,
+      });
+    }
     records.push({
       instanceId: record.instanceId,
       attribution: await reconcileRecallCredit({

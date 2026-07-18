@@ -90,6 +90,7 @@ export async function finalizeEvalLearningRun(options: {
   });
 
   resetReflectManagers();
+  const toolCalls = options.toolCalls ?? [];
   const reflect = await new ReflectAgent(
     PreferenceCandidatesManager.getInstance(options.memoryDir),
     PreferencesManager.getInstance(options.memoryDir),
@@ -103,7 +104,8 @@ export async function finalizeEvalLearningRun(options: {
     taskDescription: options.taskDescription,
     gitDiff: options.gitDiff,
     totalTaskCount: options.totalTaskCount,
-    lessonVerificationEvidence: buildLessonVerificationEvidence(options.toolCalls ?? []),
+    lessonVerificationEvidence: buildLessonVerificationEvidence(toolCalls),
+    lessonOperationEvidence: buildLessonOperationEvidence(toolCalls),
   });
 
   await tasks.completePhase(options.run.taskId);
@@ -134,6 +136,16 @@ export function buildLessonVerificationEvidence(
       exitCode: 0,
       completedAt: call.endedAt,
     }];
+  });
+}
+
+/** Non-error tool ops for provisional causal pairs (error → recovery tools). */
+export function buildLessonOperationEvidence(
+  toolCalls: ToolTraceEntry[],
+): Array<{ toolName: string; completedAt: string }> {
+  return toolCalls.flatMap((call) => {
+    if (call.isError === true || !call.endedAt) return [];
+    return [{ toolName: call.name, completedAt: call.endedAt }];
   });
 }
 

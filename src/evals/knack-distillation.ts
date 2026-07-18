@@ -62,7 +62,7 @@ export function parseJsonLines(content: string): DistillationEvent[] {
 
 export function distillRunEvents(input: DistillRunInput): CandidateKnack | null {
   const pair = findCausalPair(input.events, { verification: input.verification });
-  if (!pair) return null;
+  if (!pair || !pair.verification) return null;
 
   const error = input.events[pair.errorIndex];
   const operations = pair.operationIndices.map((index) => input.events[index]);

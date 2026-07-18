@@ -1,5 +1,6 @@
 export {
   LessonsManager,
+  type LessonOperationEvidence,
   type LessonVerificationEvidence,
   type ObserveRecentSignalsOptions,
 } from './manager.js';

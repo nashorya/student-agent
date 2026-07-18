@@ -11,9 +11,15 @@ export interface CausalPairEvent {
 
 export interface CausalPair {
   errorIndex: number;
+  /** Set only when verification was observed in the event stream. */
   verificationIndex: number | undefined;
-  verification: VerificationKind;
+  /** Stream or external (harness) terminator; undefined when provisional. */
+  verification: VerificationKind | undefined;
   operationIndices: number[];
+  /** True when error+ops exist but no stream/external verification yet. */
+  provisional: boolean;
+  /** True when verification came from in-stream detectVerification. */
+  streamVerified: boolean;
 }
 
 export function asCausalEvents(
@@ -26,10 +32,14 @@ export function asCausalEvents(
   ));
 }
 
-/** First error → first verification after it; requires ≥1 tool_call in between. */
+/**
+ * First error → verification after it (stream, else options.verification harness fallback).
+ * Requires ≥1 tool_call in between. With allowProvisional, error+ops without
+ * verification still forms a provisional pair (lesson candidate path).
+ */
 export function findCausalPair(
   rawEvents: Array<CausalPairEvent | Record<string, unknown>>,
-  options?: { verification?: VerificationKind },
+  options?: { verification?: VerificationKind; allowProvisional?: boolean },
 ): CausalPair | null {
   const events = asCausalEvents(rawEvents);
   const errorIndex = events.findIndex(({ data }) => isErrorEvent(data));
@@ -41,9 +51,9 @@ export function findCausalPair(
   const streamVerification = verificationIndexRaw >= 0
     ? detectVerification(events[verificationIndexRaw].data)
     : undefined;
+  // Same fallback chain as distillRunEvents: stream first, then external harness.
   const verification = streamVerification ?? options?.verification;
-  if (!verification) return null;
-
+  const streamVerified = streamVerification !== undefined;
   const sequenceEnd = verificationIndexRaw >= 0 ? verificationIndexRaw : events.length;
   const operationIndices = events
     .map((event, index) => ({ event, index }))
@@ -51,11 +61,24 @@ export function findCausalPair(
     .map(({ index }) => index);
   if (operationIndices.length === 0) return null;
 
+  if (verification) {
+    return {
+      errorIndex,
+      verificationIndex: verificationIndexRaw >= 0 ? verificationIndexRaw : undefined,
+      verification,
+      operationIndices,
+      provisional: false,
+      streamVerified,
+    };
+  }
+  if (!options?.allowProvisional) return null;
   return {
     errorIndex,
-    verificationIndex: verificationIndexRaw >= 0 ? verificationIndexRaw : undefined,
-    verification,
+    verificationIndex: undefined,
+    verification: undefined,
     operationIndices,
+    provisional: true,
+    streamVerified: false,
   };
 }
 

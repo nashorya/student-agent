@@ -20,8 +20,17 @@
 - **跑通**：6938/7746 success（$0.369）；其后 OpenRouter **402 credit**，
   仅 **2/6** 题完成。
 - **准入**：主库 0 / ephemeral 12；verified 占比 N/A，**未过 ≥50%**。
-- **病灶**：过程噪声被正确隔离；缺「bash 测试类 exit0」证据 → 无料进主库。
-- **状态**：FAILED-样本不全+主库空；详见 ADR-003 P1 阶段 2 状态注。
+- **隔离侧**：12/12 噪声无一入库 → **通过**。
+- **verified 侧**：**时序错位、结构性零分**（非门控失败、非无料）。
+- **402**：12907/14182/14365(+14995) → invalid(funding)，须 rerun。
+- **状态**：FAILED-样本不全+主库空；补丁见「延迟晋升」。
+
+## NOTE · P1 补丁 · 延迟晋升（验证时序修复）
+
+- **时间**：2026-07-18
+- **事项**：provisional pair → candidate；harness reward=1 后晋升 verified；
+  causal-pair 补全 harness 回退，单一来源。
+- **状态**：实现 + 五类测试绿；阶段 2b 重跑待预算。
 
 ## BUG-010 · Vitest 2.x audit critical
 

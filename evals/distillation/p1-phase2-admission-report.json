@@ -1,0 +1,156 @@
+{
+  "memoryDir": "evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1gate-20260718",
+  "mainLessons": 0,
+  "ephemeralLessons": 12,
+  "mainConfidence": {},
+  "verifiedRatioInMainLibrary": null,
+  "signals": 12,
+  "signalKinds": {
+    "toolguard_block": 2,
+    "tool_error": 6,
+    "hashline_rejection": 4
+  },
+  "knacks": 0,
+  "runs": [
+    {
+      "instanceId": "astropy__astropy-6938",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-6938-p1gate-20260718",
+      "status": "success",
+      "error": null,
+      "learning": {
+        "taskId": "task_1784334798938",
+        "runId": "run_1784334798938",
+        "patternsExtracted": 1,
+        "lessonsExtracted": 6,
+        "knacksPromoted": 0,
+        "usedRecallIds": []
+      },
+      "costUsd": 0.13541175,
+      "validity": "valid"
+    },
+    {
+      "instanceId": "astropy__astropy-7746",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-7746-p1gate-20260718",
+      "status": "success",
+      "error": null,
+      "learning": {
+        "taskId": "task_1784334955984",
+        "runId": "run_1784334955984",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 6,
+        "knacksPromoted": 0,
+        "usedRecallIds": []
+      },
+      "costUsd": 0.2331921,
+      "validity": "valid"
+    },
+    {
+      "instanceId": "astropy__astropy-12907",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-12907-p1gate-20260718",
+      "status": "failed",
+      "error": "402 This request requires more credits, or fewer max_tokens. You requested up to 32000 tokens, but can only afford 30889. To increase, visit https://openrouter.ai/workspaces/default/keys/e0ce6ab99f81cc09c3c9e1449fefbfd3c13b2b71e8fae6186d5fa0eb5e922433 and adjust the key's total limit",
+      "learning": {
+        "taskId": "task_1784335088049",
+        "runId": "run_1784335088049",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 0,
+        "knacksPromoted": 0,
+        "usedRecallIds": []
+      },
+      "costUsd": 0,
+      "validity": "invalid",
+      "invalidReason": "funding"
+    },
+    {
+      "instanceId": "astropy__astropy-14182",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-14182-p1gate-20260718",
+      "status": "failed",
+      "error": "402 This request requires more credits, or fewer max_tokens. You requested up to 32000 tokens, but can only afford 30889. To increase, visit https://openrouter.ai/workspaces/default/keys/e0ce6ab99f81cc09c3c9e1449fefbfd3c13b2b71e8fae6186d5fa0eb5e922433 and adjust the key's total limit",
+      "learning": {
+        "taskId": "task_1784335125835",
+        "runId": "run_1784335125835",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 0,
+        "knacksPromoted": 0,
+        "usedRecallIds": []
+      },
+      "costUsd": 0,
+      "validity": "invalid",
+      "invalidReason": "funding"
+    },
+    {
+      "instanceId": "astropy__astropy-14365",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-14365-p1gate-20260718",
+      "status": "failed",
+      "error": "402 This request requires more credits, or fewer max_tokens. You requested up to 32000 tokens, but can only afford 28081. To increase, visit https://openrouter.ai/workspaces/default/keys/e0ce6ab99f81cc09c3c9e1449fefbfd3c13b2b71e8fae6186d5fa0eb5e922433 and adjust the key's total limit",
+      "learning": {
+        "taskId": "task_1784335168253",
+        "runId": "run_1784335168254",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 0,
+        "knacksPromoted": 0,
+        "usedRecallIds": []
+      },
+      "costUsd": 0,
+      "validity": "invalid",
+      "invalidReason": "funding"
+    },
+    {
+      "instanceId": "astropy__astropy-14995",
+      "dir": "evals/results/swebench/openrouter-sonnet-tier-b-on-14995-p1gate-20260718",
+      "status": "missing",
+      "validity": "invalid",
+      "invalidReason": "funding"
+    }
+  ],
+  "totalCostUsd": 0.36860385,
+  "admissionNote": "Main library empty → gate rejected all process-error lessons; verification evidence requires successful bash test/pytest/verify command.",
+  "successRuns": 2,
+  "failedRuns": 3,
+  "missingRuns": 1,
+  "abortReason": "OpenRouter 402 credit/max_tokens after 2 successful runs; campaign incomplete (2/6).",
+  "acceptance": {
+    "verifiedRatioMain": null,
+    "bar": 0.5,
+    "pass": false,
+    "note": "Main library empty (0 lessons). Gate sent all 12 process-error lessons to ephemeral. Incomplete n=2 success runs due to API credits."
+  },
+  "invalidRuns": [
+    {
+      "instanceId": "astropy__astropy-12907",
+      "reason": "funding"
+    },
+    {
+      "instanceId": "astropy__astropy-14182",
+      "reason": "funding"
+    },
+    {
+      "instanceId": "astropy__astropy-14365",
+      "reason": "funding"
+    },
+    {
+      "instanceId": "astropy__astropy-14995",
+      "reason": "funding"
+    }
+  ],
+  "rerunRequired": [
+    "astropy__astropy-12907",
+    "astropy__astropy-14182",
+    "astropy__astropy-14365",
+    "astropy__astropy-14995"
+  ],
+  "isolationCheck": {
+    "ephemeralNoise": 12,
+    "mainLibraryLeaks": 0,
+    "pass": true,
+    "note": "门控隔离侧验收通过：12/12 噪声无一入库"
+  },
+  "verifiedSideDiagnosis": {
+    "label": "时序错位、结构性零分",
+    "not": [
+      "门控失败",
+      "无料"
+    ],
+    "detail": "finalize 早于 harness；流内缺 exit-0 证据；延迟晋升补丁修复此前时序"
+  }
+}

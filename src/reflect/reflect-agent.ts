@@ -18,7 +18,10 @@ import { BreakerLogManager } from './breaker-log-manager.js';
 import { LessonsManager } from '../memory/lessons/index.js';
 import { KnacksManager } from '../memory/knacks/index.js';
 import type { LessonCandidate } from '../memory/lessons/index.js';
-import type { LessonVerificationEvidence } from '../memory/lessons/index.js';
+import type {
+  LessonOperationEvidence,
+  LessonVerificationEvidence,
+} from '../memory/lessons/manager.js';
 import type { SignalKind } from '../memory/signals/index.js';
 
 export interface ReflectInput {
@@ -30,6 +33,7 @@ export interface ReflectInput {
   /** 累计任务计数，用于冷启动保护判断 */
   totalTaskCount: number;
   lessonVerificationEvidence?: LessonVerificationEvidence[];
+  lessonOperationEvidence?: LessonOperationEvidence[];
 }
 
 export interface ReflectResult {
@@ -80,6 +84,7 @@ export class ReflectAgent {
           sessionRef: input.sessionRef,
           limit: 20,
           verificationEvidence: input.lessonVerificationEvidence,
+          operationEvidence: input.lessonOperationEvidence,
         });
         result.lessonsExtracted = lessons.length;
       }
