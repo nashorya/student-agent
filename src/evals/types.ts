@@ -38,6 +38,10 @@ export interface EvalTokenUsage {
     cacheWrite: number;
     total: number;
   };
+  /** local_estimate = recomputed from tokens×rates; gateway = billed amount when known. */
+  costAuthority?: 'local_estimate' | 'gateway';
+  /** Provider completion id (e.g. ZenMux generation id) when present. */
+  generationId?: string;
 }
 
 export interface EvalTokenUsageEvent {
@@ -61,6 +65,12 @@ export interface EvalPiSchemaTrace {
   estimatedTotalSchemaTokens: number;
   perTool: EvalPiSchemaToolTrace[];
   note: string;
+}
+
+/** Controlled skill isolation manifest for evals (paths relative or absolute under fixtures). */
+export interface EvalSkillManifest {
+  roots: string[];
+  entries: string[];
 }
 
 export type EvalContextLayer = 'L0' | 'L1' | 'L2' | 'L3';
@@ -262,6 +272,8 @@ export interface StudentAgentEvalTrace {
     taskId: string;
     runId: string;
   };
+  /** Controlled skill roots loaded for this eval (should not include home paths). */
+  skillManifest?: EvalSkillManifest;
 }
 
 export interface FileSnapshotEntry {

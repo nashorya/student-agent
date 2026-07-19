@@ -225,6 +225,13 @@ function admitSignalCausalPair(
   verification?: LessonCandidate['verification'];
 } {
   const evidence = options.verificationEvidence ?? [];
+  // Process-noise signals (hashline/import/toolguard) must not enter the main
+  // library via provisional recovery or unrelated bash exit-0. Only harness
+  // external verification (options.verification) may admit them later.
+  if (isProcessNoiseSignal(signal) && !options.verification) {
+    return { paired: false };
+  }
+
   const events = buildCausalEventsFromSignal(
     signal,
     evidence,
@@ -300,6 +307,26 @@ async function readLessons(path: string): Promise<LessonCandidate[]> {
     if (isNodeError(err) && err.code === 'ENOENT') return [];
     throw err;
   }
+}
+
+/** Hashline / import / toolguard noise — not verified-fix material. */
+export function isProcessNoiseSignal(signal: Signal): boolean {
+  if (
+    signal.kind === 'toolguard_block'
+    || signal.kind === 'hashline_rejection'
+    || signal.kind === 'fileguard_block'
+  ) {
+    return true;
+  }
+  const summary = signal.summary.toLowerCase();
+  return (
+    summary.includes('hashline')
+    || summary.includes('modulenotfounderror')
+    || summary.includes('no module named')
+    || summary.includes('traceback (most recent call last)')
+    || summary.includes('import error')
+    || summary.startsWith('sed:')
+  );
 }
 
 function lessonText(signal: Signal): string {

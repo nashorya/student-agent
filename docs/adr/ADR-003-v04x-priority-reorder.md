@@ -164,8 +164,19 @@ ephemeral note，不归档、不跨任务传播。
 > - **召回**：本批 `usedRecallIds` 均为空。
 > - **盲审表**：`evals/distillation/p1-phase2b-zenmux-blind-review.md`（5 条主库样本）。
 > - **报告**：`evals/distillation/p1-phase2b-zenmux-admission-report.json`。
-> - **验收（produce 侧）**：格式/隔离/主库 verified 门槛 **暂过**；完整 ADR-003
->   仍差 harness 晋升 + 作者盲审 ≥3/5。
+> - **验收（produce 侧）**：曾报 verified 53.8% **已作废**（主库过程噪声误入，
+>   见 2026-07-19 写入路径审计）。成本回填网关 **$2.41**（本地 $0.74 作废）。
+>
+> **状态注 · P1 收尾 + 仪器三修（2026-07-19）**
+>
+> - **A 成本**：网关权威 **$2.41**；本地低估 3.3× 记 buglog；计价器补 cache 分项
+>   重算 + `costAuthority`；历史批次不重算、跨批 ÷3.3 折算注。
+> - **B skill 隔离**：eval `controlledSkillRoots=evals/fixtures/skills`（空）+
+>   `noSkills` 禁默认发现；trace `skillManifest`；diagnostics 移出被试 prompt。
+> - **C 缓存前缀**：仅 proposal → `docs/proposals/p1-cache-prefix-reorder.md`。
+> - **D+ 主库审计**：13 条均经 LessonWriter 但判据过松；已全部降 ephemeral；
+>   盲审 **0/5** 归因「写入路径旁路真判据」，**非**轨迹无料；knack 线不死刑。
+> - **D harness**：待作者批后跑；P1 验收 **重开**。
 
 ### P2 · 召回排序去 recency 偏置
 

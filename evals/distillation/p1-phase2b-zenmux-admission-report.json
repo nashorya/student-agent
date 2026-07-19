@@ -10,11 +10,12 @@
     "candidate": 6,
     "verified": 7
   },
-  "verifiedRatioInMainLibrary": 0.5384615384615384,
+  "verifiedRatioInMainLibrary": "voided",
   "acceptance": {
+    "verifiedPass": false,
     "verifiedBar": 0.5,
-    "verifiedPass": true,
-    "note": "pre-harness stream-verified ratio; harness promotion may raise further"
+    "note": "P1 reopened after write-path audit; blind 0/5 attributed to gate looseness",
+    "blindReview": "0/5"
   },
   "totalCostUsd": 0.7406459999999999,
   "successRuns": 6,
@@ -260,5 +261,10 @@
       }
     }
   ],
-  "recallHits": []
+  "recallHits": [],
+  "officialGatewayCostUsd": 2.41,
+  "localTraceCostUsdVoided": 0.74,
+  "verifiedRatioNote": "13 process-noise lessons demoted to ephemeral 2026-07-19; 53.8% voided",
+  "mainLessonsAfterAudit": 0,
+  "ephemeralAfterAudit": 26
 }

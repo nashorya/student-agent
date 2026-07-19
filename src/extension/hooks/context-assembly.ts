@@ -195,16 +195,14 @@ export async function newPipelineHook(
   return prompt;
 }
 
-function renderBuiltContext(context: BuiltContext, tierReason?: string): string {
+function renderBuiltContext(context: BuiltContext, _tierReason?: string): string {
+  // Diagnostics stay on the trace side only (see onTrace sections) — do not inject
+  // into the subject prompt (dynamic prefix kills cache + leaks instrument noise).
   const sections = context.sections.map(renderContextSection);
-  const diagnostics = buildBuiltContextDiagnostics(context, tierReason);
   return [
     '## Context Assembly（新记忆管线，按优先级组装）',
     '',
     ...sections,
-    '',
-    '### context_assembly_diagnostics',
-    diagnostics,
   ].join('\n');
 }
 

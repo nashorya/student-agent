@@ -76,7 +76,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   const startedMs = Date.now();
   const startedAt = new Date(startedMs).toISOString();
   const toolCalls: ToolTraceEntry[] = [];
-  const outputCollector = new AssistantTextCollector();
+  let outputCollector = new AssistantTextCollector();
   let piSchemaTrace: EvalPiSchemaTrace | undefined;
   let taskState: EvalTaskStateTrace | undefined;
   let errorMessage: string | undefined;
@@ -84,6 +84,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   let learningRun: EvalLearningRunRef | undefined;
   let compaction: ForcedCompactionController | undefined;
   let providerPolicy: EvalProviderRequestPolicyHandle | undefined;
+  let skillManifest: import('./types.js').EvalSkillManifest | undefined;
   const protectedEventsDuringRun: import('./types.js').ProtectedEvalEvent[] = [];
 
   try {
@@ -93,6 +94,13 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     }
     const config = await loadEvalConfig(options.sandboxDir);
     const model = buildModel(config);
+    const costRates: CostRates = {
+      input: model.cost?.input ?? 0,
+      output: model.cost?.output ?? 0,
+      cacheRead: model.cost?.cacheRead ?? 0,
+      cacheWrite: model.cost?.cacheWrite ?? 0,
+    };
+    outputCollector = new AssistantTextCollector(costRates);
     modelTrace = summarizeEvalModel(model);
     providerPolicy = installEvalProviderRequestPolicy(model);
     normalizeProviderApiKeyEnv(config.model.provider);
@@ -147,7 +155,10 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       piOptions: {
         agentDir: join(options.sandboxDir, '.pi'),
       },
+      // Eval skill isolation: only load from controlled fixtures (empty dir = no skills).
+      controlledSkillRoots: [resolveEvalSkillsRoot()],
     });
+    skillManifest = await buildSkillManifest([resolveEvalSkillsRoot()]);
     piSchemaTrace = summarizePiToolSchema(agent.state.tools);
     modelTrace = {
       ...modelTrace,
@@ -244,6 +255,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     workingMemorySnapshot,
     taskState,
     featureManifest: options.featureManifest,
+    skillManifest,
     compactionEvents: compaction?.events,
     providerRequestAudit: providerPolicy?.audit,
     protectedEvents,
@@ -736,6 +748,8 @@ export class AssistantTextCollector {
   private currentMessage = '';
   private inAssistantMessage = false;
 
+  constructor(private readonly costRates?: CostRates) {}
+
   handleEvent(event: AgentEvent): void {
     if (event.type === 'message_start') {
       if (isAssistantMessageStart(event)) {
@@ -762,7 +776,7 @@ export class AssistantTextCollector {
     }
 
     if (event.type === 'message_end') {
-      this.captureUsage(event);
+      this.captureUsage(event, this.costRates);
       this.commitCurrentMessage();
       return;
     }
@@ -794,13 +808,17 @@ export class AssistantTextCollector {
     }));
   }
 
-  private captureUsage(event: AgentEvent): void {
+  private captureUsage(event: AgentEvent, rates?: CostRates): void {
     const record = event as unknown as Record<string, unknown>;
     if (!isRecord(record.message)) return;
     const message = record.message;
     if (message.role !== 'assistant' || !isRecord(message.usage)) return;
-    const usage = usageFromRaw(message.usage);
-    addUsage(this.tokenUsage, message.usage);
+    const usage = usageFromRaw(message.usage, rates);
+    if (typeof message.id === 'string' && message.id.trim()) {
+      usage.generationId = message.id;
+    }
+    addUsage(this.tokenUsage, message.usage, rates);
+    if (usage.generationId) this.tokenUsage.generationId = usage.generationId;
     this.tokenUsageEvents.push({
       index: this.tokenUsageEvents.length + 1,
       usage,
@@ -872,6 +890,7 @@ function emptyTokenUsage(): EvalTokenUsage {
       cacheWrite: 0,
       total: 0,
     },
+    costAuthority: 'local_estimate',
   };
 }
 
@@ -883,21 +902,72 @@ function cloneTokenUsage(usage: EvalTokenUsage): EvalTokenUsage {
     cacheWriteTokens: usage.cacheWriteTokens,
     totalTokens: usage.totalTokens,
     costUsd: { ...usage.costUsd },
+    costAuthority: usage.costAuthority,
+    generationId: usage.generationId,
   };
 }
 
-function usageFromRaw(raw: Record<string, unknown>): EvalTokenUsage {
+function usageFromRaw(raw: Record<string, unknown>, rates?: CostRates): EvalTokenUsage {
   const usage = emptyTokenUsage();
-  addUsage(usage, raw);
+  addUsage(usage, raw, rates);
   return usage;
 }
 
-function addUsage(target: EvalTokenUsage, raw: Record<string, unknown>): void {
+interface CostRates {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+/** Recompute costUsd from token counters × $/MTok (ZenMux-compatible table). */
+export function repriceUsageFromRates(usage: EvalTokenUsage, rates: CostRates): EvalTokenUsage {
+  const input = (usage.inputTokens * rates.input) / 1_000_000;
+  const output = (usage.outputTokens * rates.output) / 1_000_000;
+  const cacheRead = (usage.cacheReadTokens * rates.cacheRead) / 1_000_000;
+  const cacheWrite = (usage.cacheWriteTokens * rates.cacheWrite) / 1_000_000;
+  return {
+    ...usage,
+    costUsd: {
+      input: roundCost(input),
+      output: roundCost(output),
+      cacheRead: roundCost(cacheRead),
+      cacheWrite: roundCost(cacheWrite),
+      total: roundCost(input + output + cacheRead + cacheWrite),
+    },
+    costAuthority: 'local_estimate',
+  };
+}
+
+function addUsage(target: EvalTokenUsage, raw: Record<string, unknown>, rates?: CostRates): void {
+  // Prefer explicit cache write field when providers expose it (ZenMux/OpenRouter style).
+  const cacheWrite = numberValue(raw.cacheWrite)
+    || numberValue((isRecord(raw.prompt_tokens_details) ? raw.prompt_tokens_details.cache_write_tokens : undefined));
+  const cacheRead = numberValue(raw.cacheRead)
+    || numberValue((isRecord(raw.prompt_tokens_details) ? raw.prompt_tokens_details.cached_tokens : undefined));
   target.inputTokens += numberValue(raw.input);
   target.outputTokens += numberValue(raw.output);
-  target.cacheReadTokens += numberValue(raw.cacheRead);
-  target.cacheWriteTokens += numberValue(raw.cacheWrite);
+  target.cacheReadTokens += cacheRead;
+  target.cacheWriteTokens += cacheWrite;
   target.totalTokens += numberValue(raw.totalTokens);
+
+  if (rates) {
+    const priced = repriceUsageFromRates({
+      inputTokens: numberValue(raw.input),
+      outputTokens: numberValue(raw.output),
+      cacheReadTokens: cacheRead,
+      cacheWriteTokens: cacheWrite,
+      totalTokens: numberValue(raw.totalTokens),
+      costUsd: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    }, rates);
+    target.costUsd.input = roundCost(target.costUsd.input + priced.costUsd.input);
+    target.costUsd.output = roundCost(target.costUsd.output + priced.costUsd.output);
+    target.costUsd.cacheRead = roundCost(target.costUsd.cacheRead + priced.costUsd.cacheRead);
+    target.costUsd.cacheWrite = roundCost(target.costUsd.cacheWrite + priced.costUsd.cacheWrite);
+    target.costUsd.total = roundCost(target.costUsd.total + priced.costUsd.total);
+    target.costAuthority = 'local_estimate';
+    return;
+  }
 
   const cost = isRecord(raw.cost) ? raw.cost : {};
   target.costUsd.input = roundCost(target.costUsd.input + numberValue(cost.input));
@@ -905,6 +975,7 @@ function addUsage(target: EvalTokenUsage, raw: Record<string, unknown>): void {
   target.costUsd.cacheRead = roundCost(target.costUsd.cacheRead + numberValue(cost.cacheRead));
   target.costUsd.cacheWrite = roundCost(target.costUsd.cacheWrite + numberValue(cost.cacheWrite));
   target.costUsd.total = roundCost(target.costUsd.total + numberValue(cost.total));
+  target.costAuthority = 'local_estimate';
 }
 
 function numberValue(value: unknown): number {
@@ -926,6 +997,24 @@ async function loadEvalConfig(cwd: string): Promise<StudentAgentConfig> {
 
 function buildModel(config: StudentAgentConfig): Model<Api> {
   return resolveConfiguredModel(config.model);
+}
+
+function resolveEvalSkillsRoot(): string {
+  return join(process.cwd(), 'evals/fixtures/skills');
+}
+
+async function buildSkillManifest(roots: string[]): Promise<import('./types.js').EvalSkillManifest> {
+  const { readdir } = await import('node:fs/promises');
+  const entries: string[] = [];
+  for (const root of roots) {
+    try {
+      const names = await readdir(root);
+      for (const name of names) entries.push(join(root, name));
+    } catch {
+      // empty / missing controlled root is expected
+    }
+  }
+  return { roots, entries };
 }
 
 function serializeTaskState(task: Task): EvalTaskStateTrace {

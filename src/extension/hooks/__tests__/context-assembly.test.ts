@@ -67,12 +67,14 @@ describe('createContextAssemblyHook', () => {
     expect(prompt).toContain('Respect repository conventions.');
     expect(prompt).toContain('文件修改规则');
     expect(prompt).toContain('Context Assembly');
-    expect(prompt).toContain('Tier: standard');
     expect(prompt).toContain('### taskSpec');
     expect(prompt).toContain('Goal: Assemble L1 prompt from working memory');
     expect(prompt).toContain('### workingMemory');
     expect(prompt).toContain('PI CONTRACT');
     expect(prompt).not.toContain('FULL PI SCHEMA');
+    // Instrument-only diagnostics must not enter the subject prompt.
+    expect(prompt).not.toContain('context_assembly_diagnostics');
+    expect(prompt).not.toContain('Tier: standard');
   });
 
   it('records L0-L3 context assembly trace when a recorder is provided', async () => {
@@ -173,18 +175,26 @@ describe('createContextAssemblyHook', () => {
       },
     });
 
+    const traces: Array<{ sections?: Array<{ id?: string; content?: string }> }> = [];
     const prompt = await createContextAssemblyHook({
       memoryDir: tmpDir,
       useNewPipeline: true,
       runMode: 'eval',
       piSchemaRenderMode: 'summary',
+      onTrace: (trace) => traces.push(trace),
     })();
 
     expect(prompt).toContain('EVAL AUTONOMY RULE');
     expect(prompt).toContain('PI CONTRACT');
     expect(prompt).not.toContain('FULL PI SCHEMA');
-    expect(prompt).toContain('Pi schema render mode: summary');
-    expect(prompt).toContain('Eval autonomy rule enabled: true');
+    // Instrument diagnostics must not enter the subject prompt (cache + isolation).
+    expect(prompt).not.toContain('context_assembly_diagnostics');
+    expect(prompt).not.toContain('Pi schema render mode: summary');
+    expect(prompt).not.toContain('Eval autonomy rule enabled: true');
+    // Still recorded on the trace side (metadata section id; content is length-only).
+    const diag = traces.flatMap((t) => t.sections ?? []).find((s) => s.id === 'contextAssemblyDiagnostics');
+    expect(diag).toBeTruthy();
+    expect((diag?.estimatedTokens ?? 0) > 0).toBe(true);
   });
 
   it('renders hard constraints in the prompt and records them as L1 trace', async () => {

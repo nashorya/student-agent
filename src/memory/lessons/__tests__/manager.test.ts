@@ -51,14 +51,14 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
     expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
-  it('admits provisional pairs without stream verify as candidate', async () => {
+  it('admits provisional pairs without stream verify as candidate for non-noise errors', async () => {
     const mgr = LessonsManager.getInstance(tmpDir);
     const created = await mgr.observeSignals([{
       id: 'sig_provisional',
       kind: 'tool_error',
       severity: 'medium',
-      summary: 'hashline stale',
-      toolName: 'edit',
+      summary: 'assertion failed: expected matrix copy',
+      toolName: 'bash',
       toolCallId: 'call_err',
       createdAt: '2026-01-01T00:00:00.000Z',
     }], {
@@ -82,13 +82,33 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
     expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
+  it('keeps process-noise tool_errors ephemeral even with recovery ops', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const created = await mgr.observeSignals([{
+      id: 'sig_hashline_noise',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'Hashline: file has changed since last read',
+      toolName: 'edit',
+      toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1',
+      sessionRef: 'run_1',
+      operationEvidence: [{ toolName: 'read', completedAt: '2026-01-01T00:01:00.000Z' }],
+    });
+    expect(created[0].quality).toBe('low');
+    expect(await mgr.getAll()).toHaveLength(0);
+    expect(await mgr.getEphemeral()).toHaveLength(1);
+  });
+
   it('promotes candidate lessons to verified when harness reward=1', async () => {
     const mgr = LessonsManager.getInstance(tmpDir);
     await mgr.observeSignals([{
       id: 'sig_promo',
       kind: 'tool_error',
       severity: 'medium',
-      summary: 'import failed once',
+      summary: 'matrix shape mismatch on compound model',
       toolName: 'bash',
       toolCallId: 'call_err',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -114,7 +134,7 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       id: 'sig_keep',
       kind: 'tool_error',
       severity: 'medium',
-      summary: 'still broken',
+      summary: 'separability matrix filled with ones',
       toolName: 'bash',
       toolCallId: 'call_err',
       createdAt: '2026-01-01T00:00:00.000Z',

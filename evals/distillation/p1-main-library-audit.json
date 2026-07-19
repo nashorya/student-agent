@@ -1,0 +1,166 @@
+{
+  "auditedAt": "2026-07-19T03:29:27.103749+00:00",
+  "mainBefore": 13,
+  "mainAfter": 0,
+  "ephemeralAfter": 26,
+  "verifiedRatioBefore": 0.538,
+  "verifiedRatioAfter": null,
+  "verifiedRatioStatus": "voided",
+  "items": [
+    {
+      "id": "lesson_1b26454c-7bdc-4efe-9f80-9ac84f7ea456",
+      "sourceSignalId": "sig_tool_error_1784388336136_xjj1nm_kzn2",
+      "confidence": "candidate",
+      "hadVerification": false,
+      "lessonPrefix": "Treat tool error as a retry pattern: Hashline: astropy/io/fits/fitsrec.py has ch",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_024b5c59-91ad-4373-b9d6-06b391e8ad93",
+      "sourceSignalId": "sig_tool_error_1784388344702_jt48mc_6bn2",
+      "confidence": "candidate",
+      "hadVerification": false,
+      "lessonPrefix": "Treat tool error as a retry pattern: Hashline: astropy/io/fits/fitsrec.py has ch",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_5925d6cc-d6c8-4d89-b6fc-9ab13972c839",
+      "sourceSignalId": "sig_tool_error_1784388418670_x4nzgc_sydr",
+      "confidence": "candidate",
+      "hadVerification": false,
+      "lessonPrefix": "Treat tool error as a retry pattern: Hashline: astropy/wcs/wcs.py has changed si",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_324ca9ea-7d79-408c-a31a-079826b8a3e1",
+      "sourceSignalId": "sig_tool_error_1784388446074_y226fa_5n93",
+      "confidence": "candidate",
+      "hadVerification": false,
+      "lessonPrefix": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_20411c6a-a161-4745-a1e7-33a3f9cdcaa1",
+      "sourceSignalId": "sig_tool_error_1784388467673_753uta_y52s",
+      "confidence": "candidate",
+      "hadVerification": false,
+      "lessonPrefix": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_3e6954cb-c018-44df-9b11-685973d5da6d",
+      "sourceSignalId": "sig_tool_error_1784388474338_643kf4_b1fr",
+      "confidence": "candidate",
+      "hadVerification": false,
+      "lessonPrefix": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_12342e15-d8a2-41e9-89dc-de26b429f55e",
+      "sourceSignalId": "sig_tool_error_1784388535201_nazjcr_1q45",
+      "confidence": "verified",
+      "hadVerification": true,
+      "lessonPrefix": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_566d9893-8adf-4dad-a00f-58f1e045f686",
+      "sourceSignalId": "sig_tool_error_1784388652232_1xkaov_4tne",
+      "confidence": "verified",
+      "hadVerification": true,
+      "lessonPrefix": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_1c2a91e8-c144-41bd-98b8-b5190cb6bbc9",
+      "sourceSignalId": "sig_tool_error_1784388806524_8bda2f_qrxi",
+      "confidence": "verified",
+      "hadVerification": true,
+      "lessonPrefix": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_bfe6ba53-682c-4869-9dcd-668d830ca89b",
+      "sourceSignalId": "sig_tool_error_1784388885529_7b07g6_blj6",
+      "confidence": "verified",
+      "hadVerification": true,
+      "lessonPrefix": "Treat tool error as a retry pattern: Hashline: astropy/nddata/mixins/ndarithmeti",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_27e69b3d-8c5e-4cd4-8489-8c58b18a6527",
+      "sourceSignalId": "sig_tool_error_1784388895036_lzbbeo_tsmf",
+      "confidence": "verified",
+      "hadVerification": true,
+      "lessonPrefix": "Treat tool error as a retry pattern: Hashline: astropy/nddata/mixins/ndarithmeti",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_6a7443d9-10b3-43b6-b565-ffca37bf5eb9",
+      "sourceSignalId": "sig_tool_error_1784388922178_ho0cqq_wihj",
+      "confidence": "verified",
+      "hadVerification": true,
+      "lessonPrefix": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    },
+    {
+      "id": "lesson_65febc49-5424-4ee8-b692-618daa278eb3",
+      "sourceSignalId": "sig_tool_error_1784388965286_uvdccg_9f05",
+      "confidence": "verified",
+      "hadVerification": true,
+      "lessonPrefix": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"",
+      "template": "lessonText tool_error @ src/memory/lessons/manager.ts:337",
+      "path": "LessonsManager.observeSignals → admitSignalCausalPair (provisional/stream loose)",
+      "disposition": "demote_ephemeral",
+      "reason": "process-noise admitted via provisional/unrelated exit-0; not verified-fix material"
+    }
+  ],
+  "answers": {
+    "bypassLessonWriter": false,
+    "path": "Went THROUGH LessonWriter; provisional/stream admission was too loose for process noise.",
+    "distillToMain": "Distilled knacks use separate knacks.jsonl path (KnacksManager), not lessons.jsonl main gate.",
+    "streamExit0FalsePositive": "buildLessonVerificationEvidence accepts any bash with test/pytest/… exit0 after error timestamp; import/hashline errors + later env/test bash satisfied form, not semantic fix verification."
+  },
+  "blindReview": {
+    "score": "0/5",
+    "attribution": "写入路径旁路真判据（过程噪声经 provisional/假 exit-0 进主库）",
+    "not": "轨迹无料（P0 已证有料）",
+    "knackLine": "不判死刑；P1 重开验收"
+  }
+}

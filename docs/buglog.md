@@ -36,11 +36,29 @@
 
 - **时间**：2026-07-18
 - **渠道**：ZenMux Sonnet 4.6（非 OpenRouter 同批）
-- **结果**：6/6 success，cost ≈ $0.74；主库 13（verified 7 / candidate 6）=
-  **53.8%**；ephemeral 13。
+- **结果**：6/6 success；**网关实扣 ≈ $2.41**（本地 $0.74 **作废**）；
+  主库曾报 verified 53.8% **已作废**（见主库审计）。
 - **坑**：`OPENROUTER_API_KEY` 须映射为 ZenMux key（pi-ai 硬编码 env 名）。
-- **未做**：官方 harness + candidate 晋升；盲审待作者。
-- **状态**：produce 侧门槛暂过；完整验收 pending harness/盲审。
+- **状态**：P1 重开验收；见写入路径审计 / 仪器三修。
+
+## BUG · 2026-07-18 前 trace 成本系统性低估
+
+- **时间**：2026-07-19
+- **症状**：ZenMux campaign 本地合计 $0.74 vs 控制台 **$2.41（≈3.3×）**。
+- **根因**：usage 在 cache hit 时 input 记 0、cache_write 常缺；自算当账单。
+- **处置**：自算降级 `costAuthority: local_estimate`；以网关为准回填本批；
+  **2026-07-18 前跨批成本对比按 ÷3.3 打折**。历史批次不重算。
+- **状态**：FIXED-部分（计价重算路径 + 入档）；generationId 落盘后续增强。
+
+## BUG · 主库写入路径过松（过程噪声进 lessons/）
+
+- **时间**：2026-07-19
+- **症状**：盲审 0/5；13 条主库全是 `Treat tool error as a retry pattern` 过程噪声。
+- **根因**：**未绕过** LessonWriter；`admitSignalCausalPair` 的 provisional /
+  无关 bash exit-0 把 hashline/import 当 verified-fix 材料。
+- **处置**：过程噪声无 harness verification → 强制 ephemeral；本批 13 条降 ephemeral；
+  53.8% **作废**。蒸馏 knack 走 knacks.jsonl 独立路径。
+- **状态**：FIXED（门控收紧 + 库清理）；P1 验收重开。
 
 ## BUG-010 · Vitest 2.x audit critical
 
