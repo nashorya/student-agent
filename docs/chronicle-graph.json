@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "f6ca0331048629db",
+  "contentHash": "9affa2a5ff0fed1b",
   "nodes": [
     {
       "id": "ADR-001",
@@ -57,6 +57,15 @@
       "sourceLine": 4
     },
     {
+      "id": "ADR-007",
+      "kind": "adr",
+      "title": "J-space 压缩恢复线 NO-GO",
+      "status": "已采纳（NO-GO）",
+      "summary": "J-space 压缩恢复线 NO-GO",
+      "sourcePath": "docs/adr/ADR-007-jspace-compaction-recovery-no-go.md",
+      "sourceLine": 4
+    },
+    {
       "id": "ADR-008",
       "kind": "adr",
       "title": "项目定位:Measured Harness Evolution",
@@ -69,10 +78,10 @@
       "id": "ADR:external-jspace-architecture-review",
       "kind": "adr",
       "title": "External J-Space / Context Runtime 架构评审报告",
-      "status": "TOMBSTONE-REVIEW",
+      "status": "已由 ADR-007 关闭,保留供追溯",
       "summary": "External J-Space / Context Runtime 架构评审报告",
       "sourcePath": "docs/adr/external_jspace_architecture_review.md",
-      "sourceLine": 1
+      "sourceLine": 3
     },
     {
       "id": "BUG-001",
@@ -81,7 +90,7 @@
       "status": "CLOSED（Tier A/B 实跑 trace 已持续记录 task lifecycle、",
       "summary": "SWE 对比 run 的 trace 中 `layers.L1/L2/L3.sectionCount = 0`、",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 178
+      "sourceLine": 237
     },
     {
       "id": "BUG-002",
@@ -90,7 +99,7 @@
       "status": "CLOSED（OpenRouter Sonnet cache_control 透传与 usage 采集实测正常；",
       "summary": "cc（经代理跑 gpt-5.5）的 `cacheReadTokens` 恒为 0",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 195
+      "sourceLine": 254
     },
     {
       "id": "BUG-003",
@@ -99,7 +108,7 @@
       "status": "CLOSED",
       "summary": "git log 最后的版本化提交停在 v0.36，v0.4 成果埋在",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 219
+      "sourceLine": 278
     },
     {
       "id": "BUG-004",
@@ -108,7 +117,7 @@
       "status": "CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件；",
       "summary": "Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 233
+      "sourceLine": 292
     },
     {
       "id": "BUG-005",
@@ -117,7 +126,7 @@
       "status": "CLOSED",
       "summary": "`p2-overfull-hard-constraints-20260611` reward=0 看似红灯，",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 329
+      "sourceLine": 388
     },
     {
       "id": "BUG-006",
@@ -126,7 +135,7 @@
       "status": "CLOSED（verifier 依赖与 invalid_run 哨兵已实测生效；后续",
       "summary": "overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 348
+      "sourceLine": 407
     },
     {
       "id": "BUG-007",
@@ -135,7 +144,7 @@
       "status": "CLOSED（相关凭据仍建议轮换）",
       "summary": "`scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 393
+      "sourceLine": 452
     },
     {
       "id": "BUG-008",
@@ -144,7 +153,7 @@
       "status": "CLOSED",
       "summary": "README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 159
+      "sourceLine": 218
     },
     {
       "id": "BUG-009",
@@ -153,7 +162,7 @@
       "status": "CLOSED",
       "summary": "`npm run eval:validate` 报",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 147
+      "sourceLine": 206
     },
     {
       "id": "BUG-010",
@@ -162,16 +171,16 @@
       "status": "CLOSED",
       "summary": "`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 138
+      "sourceLine": 197
     },
     {
       "id": "BUG-011",
       "kind": "bug",
-      "title": "（占位）Atlas 计划 fixture / 非 buglog 实号",
-      "status": "NOT_IN_BUGLOG",
-      "summary": "仅出现在 chronicle-model TDD fixture；实档请用 BUG-004 等编号 bug 做关案叙事",
-      "sourcePath": "docs/superpowers/plans/2026-07-15-archive-chronicle-atlas.md",
-      "sourceLine": 101
+      "title": "J-space eval 工作记忆只保留 instruction 前 500 字符",
+      "status": "CLOSED（修复后 C 组 3/3 valid 且 verifier 满分，追平 plain 3/3）",
+      "summary": "正式运行",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 138
     },
     {
       "id": "BUG-UNNUMBERED-205d894e",
@@ -848,7 +857,7 @@
       "title": "外部 J-space 完整认知 OS",
       "status": "TOMBSTONE",
       "summary": "方向成立，但不应立即实现完整认知操作系统；仅作功能类比（见 external_jspace_architecture_review）",
-      "sourcePath": "docs/adr/external_jspace_architecture_review.md",
+      "sourcePath": "docs/adr/ADR-007-jspace-compaction-recovery-no-go.md",
       "sourceLine": 1,
       "tombstone": true
     },
@@ -886,7 +895,7 @@
       "status": "TOMBSTONE",
       "summary": "病灶在写入质量，扩量只放大噪声",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 254,
+      "sourceLine": 256,
       "tombstone": true
     },
     {
@@ -896,7 +905,7 @@
       "status": "TOMBSTONE",
       "summary": "off-label，成本高，已转引公开数据（见 ADR-001）",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 257,
+      "sourceLine": 259,
       "tombstone": true
     },
     {
@@ -906,7 +915,7 @@
       "status": "TOMBSTONE",
       "summary": "同上，垃圾召更多仍是垃圾",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 255,
+      "sourceLine": 257,
       "tombstone": true
     },
     {
@@ -916,7 +925,7 @@
       "status": "TOMBSTONE",
       "summary": "设计成本高，说服力弱（见 ADR-002）",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 256,
+      "sourceLine": 258,
       "tombstone": true
     },
     {
@@ -1007,7 +1016,7 @@
       "status": "CLOSED",
       "summary": "化验工具链可复现依赖",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 145
+      "sourceLine": 204
     },
     {
       "id": "phase:P1",
@@ -1025,7 +1034,7 @@
       "status": "PLANNED",
       "summary": "召回排序去 recency 偏置",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 213
+      "sourceLine": 215
     },
     {
       "id": "phase:P3",
@@ -1034,7 +1043,7 @@
       "status": "PLANNED",
       "summary": "利用可观测（recall citation）",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 223
+      "sourceLine": 225
     },
     {
       "id": "phase:P4",
@@ -1043,7 +1052,7 @@
       "status": "PLANNED",
       "summary": "Requirement Ledger 完整版",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 234
+      "sourceLine": 236
     },
     {
       "id": "phase:P5",
@@ -1052,7 +1061,7 @@
       "status": "PLANNED",
       "summary": "\"较真税\"治理（thoroughness budget）",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 242
+      "sourceLine": 244
     },
     {
       "id": "roadmap:v04-final",
@@ -1283,6 +1292,24 @@
     },
     {
       "kind": "motivates",
+      "from": "ADR-007",
+      "to": "BUG-011",
+      "label": "motivates",
+      "sourcePath": "docs/adr/ADR-007-jspace-compaction-recovery-no-go.md",
+      "sourceLine": 75,
+      "id": "motivates:ADR-007->BUG-011"
+    },
+    {
+      "kind": "motivates",
+      "from": "ADR-007",
+      "to": "phase:P4",
+      "label": "motivates",
+      "sourcePath": "docs/adr/ADR-007-jspace-compaction-recovery-no-go.md",
+      "sourceLine": 76,
+      "id": "motivates:ADR-007->phase:P4"
+    },
+    {
+      "kind": "motivates",
       "from": "ADR-008",
       "to": "finding:injection-effect-experiment",
       "label": "motivates",
@@ -1296,7 +1323,7 @@
       "to": "phase:P4",
       "label": "motivates",
       "sourcePath": "docs/adr/external_jspace_architecture_review.md",
-      "sourceLine": 12,
+      "sourceLine": 14,
       "id": "motivates:ADR:external-jspace-architecture-review->phase:P4"
     },
     {
@@ -1305,7 +1332,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 174,
+      "sourceLine": 233,
       "id": "motivates:BUG-008->phase:P0"
     },
     {
@@ -1314,7 +1341,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 157,
+      "sourceLine": 216,
       "id": "motivates:BUG-009->phase:P0"
     },
     {
@@ -1323,7 +1350,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 145,
+      "sourceLine": 204,
       "id": "motivates:BUG-010->phase:P0"
     },
     {
@@ -1395,7 +1422,7 @@
       "to": "phase:P0",
       "label": "defines",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 21,
+      "sourceLine": 23,
       "id": "produces:ADR-003->phase:P0"
     },
     {
@@ -1404,7 +1431,7 @@
       "to": "phase:P1",
       "label": "defines",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 82,
+      "sourceLine": 84,
       "id": "produces:ADR-003->phase:P1"
     },
     {
@@ -1413,7 +1440,7 @@
       "to": "phase:P2",
       "label": "defines",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 213,
+      "sourceLine": 215,
       "id": "produces:ADR-003->phase:P2"
     },
     {
@@ -1422,7 +1449,7 @@
       "to": "phase:P3",
       "label": "defines",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 223,
+      "sourceLine": 225,
       "id": "produces:ADR-003->phase:P3"
     },
     {
@@ -1431,7 +1458,7 @@
       "to": "phase:P4",
       "label": "defines",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 234,
+      "sourceLine": 236,
       "id": "produces:ADR-003->phase:P4"
     },
     {
@@ -1440,7 +1467,7 @@
       "to": "phase:P5",
       "label": "defines",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 242,
+      "sourceLine": 244,
       "id": "produces:ADR-003->phase:P5"
     },
     {
@@ -1687,7 +1714,7 @@
       "to": "finding:tombstone-lesson-seed",
       "label": "病灶在写入质量，扩量只放大噪声",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 254,
+      "sourceLine": 256,
       "id": "tombstones:ADR-003->finding:tombstone-lesson-seed"
     },
     {
@@ -1696,7 +1723,7 @@
       "to": "finding:tombstone-self-running-claude-code",
       "label": "off-label，成本高，已转引公开数据（见 ADR-001）",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 257,
+      "sourceLine": 259,
       "id": "tombstones:ADR-003->finding:tombstone-self-running-claude-code"
     },
     {
@@ -1705,7 +1732,7 @@
       "to": "finding:tombstone-top-k-4-8",
       "label": "同上，垃圾召更多仍是垃圾",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 255,
+      "sourceLine": 257,
       "id": "tombstones:ADR-003->finding:tombstone-top-k-4-8"
     },
     {
@@ -1714,8 +1741,17 @@
       "to": "finding:tombstone-x",
       "label": "设计成本高，说服力弱（见 ADR-002）",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 256,
+      "sourceLine": 258,
       "id": "tombstones:ADR-003->finding:tombstone-x"
+    },
+    {
+      "kind": "tombstones",
+      "from": "ADR-007",
+      "to": "finding:jspace-external",
+      "label": "不应立即实现完整认知 OS",
+      "sourcePath": "docs/adr/ADR-007-jspace-compaction-recovery-no-go.md",
+      "sourceLine": 1,
+      "id": "tombstones:ADR-007->finding:jspace-external"
     },
     {
       "kind": "tombstones",
@@ -1976,6 +2012,13 @@
         "sourcePath": "docs/adr/ADR-006-recall-citation-and-credit.md"
       },
       {
+        "id": "ADR-007",
+        "kind": "adr",
+        "title": "J-space 压缩恢复线 NO-GO",
+        "edgeCount": 3,
+        "sourcePath": "docs/adr/ADR-007-jspace-compaction-recovery-no-go.md"
+      },
+      {
         "id": "ADR-008",
         "kind": "adr",
         "title": "项目定位:Measured Harness Evolution",
@@ -2062,9 +2105,9 @@
       {
         "id": "BUG-011",
         "kind": "bug",
-        "title": "（占位）Atlas 计划 fixture / 非 buglog 实号",
-        "edgeCount": 1,
-        "sourcePath": "docs/superpowers/plans/2026-07-15-archive-chronicle-atlas.md"
+        "title": "J-space eval 工作记忆只保留 instruction 前 500 字符",
+        "edgeCount": 2,
+        "sourcePath": "docs/buglog.md"
       },
       {
         "id": "BUG-UNNUMBERED-205d894e",
@@ -2112,7 +2155,7 @@
         "id": "phase:P4",
         "kind": "phase",
         "title": "P4 · Requirement Ledger 完整版",
-        "edgeCount": 3,
+        "edgeCount": 4,
         "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md"
       },
       {
@@ -2126,8 +2169,8 @@
     "unconnected": []
   },
   "answers": {
-    "bug011": "BUG-011 为何而生: 仅出现在 chronicle-model TDD fixture；实档请用 BUG-004 等编号 bug 做关案叙事；关死状态: NOT_IN_BUGLOG. 实档同类关案范例 BUG-004: 生于「Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了…」，被 CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件； 收束。",
-    "jspaceTombstone": "External J-Space / Context Runtime 架构评审报告 成墓碑: External J-Space / Context Runtime 架构评审报告 (status=TOMBSTONE-REVIEW)",
+    "bug011": "BUG-011 为何而生: 正式运行；关死状态: CLOSED（修复后 C 组 3/3 valid 且 verifier 满分，追平 plain 3/3）. 实档同类关案范例 BUG-004: 生于「Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了…」，被 CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件； 收束。",
+    "jspaceTombstone": "J-space 压缩恢复线 NO-GO 成墓碑: J-space 压缩恢复线 NO-GO (status=已采纳（NO-GO）)",
     "injectionMissing": "finding:injection-effect-experiment: finding:injection-effect-experiment | 前提清单: phase:P1 status=CLOSED✓; phase:P3 status=PLANNED✗未满足"
   }
 }

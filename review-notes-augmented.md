@@ -1,5 +1,7 @@
 # jspace-compaction-recovery-001 · Review Notes（起草，不含 HARNESS_READY）
 
+回归探针。触发条件见 ADR-007 重开条件。
+
 ## 1. 主张边界（ADR-001 对齐）
 
 本 eval 只支撑自我 ablation 主张：J-space 各阶段相对 Pi built-in

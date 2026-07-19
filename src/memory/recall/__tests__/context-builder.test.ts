@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { TaskWorkingMemory } from '../../tasks/types.js';
 import type { TaskLedgerInput } from '../../tasks/task-ledger.js';
@@ -203,7 +205,7 @@ describe('ContextBuilder', () => {
     expect(hardConstraints?.content).toContain('same synonyms.txt family');
   });
 
-  it('truncates hard constraints under the minimal tier and records the truncation', () => {
+  it('marks truncated hard constraints explicitly outside eval mode', () => {
     const context = new ContextBuilder().build({
       workingMemory: workingMemory({
         hardConstraints: `Keep this visible. ${'constraint detail '.repeat(1000)}`,
@@ -218,8 +220,72 @@ describe('ContextBuilder', () => {
 
     const hardConstraints = context.sections.find((section) => section.name === 'hardConstraints');
     expect(hardConstraints?.content).toContain('Keep this visible.');
+    expect(hardConstraints?.content).toContain('[TRUNCATED at 300 tokens]');
     expect(context.truncated).toContain('hardConstraints');
     expect(hardConstraints?.estimatedTokens).toBeLessThanOrEqual(300);
+  });
+
+  it('renders over-budget task spec and hard constraints completely in eval mode', () => {
+    const instruction = readFileSync(resolve(
+      'evals/tasks/jspace-compaction-probe-01/instruction.md',
+    ), 'utf8');
+    const finalConstraint = instruction.trimEnd().split('\n').at(-1)!;
+    const finalGoal = 'TASK SPEC TAIL MUST SURVIVE';
+    expect(instruction.length).toBeGreaterThan(2800);
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory({
+        goal: `${'long goal '.repeat(400)}${finalGoal}`,
+        hardConstraints: instruction,
+        todos: [],
+        recentErrors: [],
+        recentSignals: [],
+      }),
+      recallBundle: recallBundle(),
+      tier: 'standard',
+      runMode: 'eval',
+      piSchemaRenderMode: 'none',
+    });
+
+    expect(context.sections.find((section) => section.name === 'taskSpec')?.content)
+      .toContain(finalGoal);
+    expect(context.sections.find((section) => section.name === 'hardConstraints')?.content)
+      .toContain(finalConstraint);
+    expect(context.truncated).not.toContain('taskSpec');
+    expect(context.truncated).not.toContain('hardConstraints');
+  });
+
+  it('preserves protected eval sections even when the legacy total budget is exhausted', () => {
+    const finalConstraint = 'LEGACY CONSTRAINT TAIL MUST SURVIVE';
+    const finalGoal = 'LEGACY TASK SPEC TAIL MUST SURVIVE';
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory({
+        goal: `${'long goal '.repeat(100)}${finalGoal}`,
+        hardConstraints: `${'constraint detail '.repeat(100)}${finalConstraint}`,
+      }),
+      recallBundle: recallBundle(),
+      maxTokenBudget: 1,
+      runMode: 'eval',
+      piSchemaRenderMode: 'none',
+    });
+
+    expect(context.sections.find((section) => section.name === 'taskSpec')?.content)
+      .toContain(finalGoal);
+    expect(context.sections.find((section) => section.name === 'hardConstraints')?.content)
+      .toContain(finalConstraint);
+    expect(context.truncated).not.toContain('taskSpec');
+    expect(context.truncated).not.toContain('hardConstraints');
+  });
+
+  it('omits rather than silently slicing a non-eval section when no marker can fit', () => {
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory({ hardConstraints: 'constraint'.repeat(100) }),
+      recallBundle: recallBundle(),
+      maxTokenBudget: 1,
+      piSchemaRenderMode: 'none',
+    });
+
+    expect(context.sections).toEqual([]);
+    expect(context.truncated).toEqual(expect.arrayContaining(['taskSpec', 'hardConstraints']));
   });
 
   it('omits retrieved context sections in minimal tier while keeping pinned context', () => {
@@ -352,7 +418,6 @@ describe('ContextBuilder', () => {
       'hardConstraints',
       'workingMemory',
       'recentErrors',
-      'recentSignals',
     ]);
     expect(context.totalEstimatedTokens).toBeLessThanOrEqual(60);
     expect(context.truncated).toContain('recentSignals');

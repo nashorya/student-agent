@@ -3,6 +3,8 @@
 - **日期**：2026-06-13
 - **状态**：已采纳
 
+P4 已由 ADR-007 关闭并勘误,详见 ADR-007
+
 ## 背景
 
 Tier B pilot（2026-06-12，OpenRouter Sonnet 4.6，astropy 6 题，1 seed）给出了首条

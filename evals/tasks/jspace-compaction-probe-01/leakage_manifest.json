@@ -6,6 +6,7 @@
     "allowedBeforeCompaction": [
       "inbox/vendor-response.txt",
       "docs/migration-map.md",
+      "docs/ledgers/phase-2/vendor-compatibility-004.md",
       "assistant Phase 2 output"
     ],
     "requiredDeletionBeforeCompaction": [
@@ -16,7 +17,10 @@
       "new note/checkpoint files",
       "environment variables",
       "oracle error messages",
-      "runner-injected prior phase answer"
+      "runner-injected prior phase answer",
+      "docs/migration-map.md after phase:2",
+      "docs/ledgers/phase-1/** after phase:2",
+      "docs/ledgers/phase-2/** after phase:2"
     ]
   },
   "decoySignature": "JSPACE_DECOY_LEGACY_SCHEMA_V1",
@@ -28,8 +32,19 @@
     "rules/schema.json",
     "src/legacy.ts",
     "tests/test.sh",
-    "docs/context-ledgers/alpha.md",
-    "docs/context-ledgers/beta.md",
-    "docs/context-ledgers/gamma.md"
+    "docs/ledgers/phase-1/identity-history-001.md",
+    "docs/ledgers/phase-1/billing-continuity-002.md",
+    "docs/ledgers/phase-1/archive-retention-003.md",
+    "docs/ledgers/phase-1/gateway-availability-004.md",
+    "docs/ledgers/phase-2/vendor-compatibility-004.md",
+    "docs/ledgers/phase-2/regional-routing-005.md",
+    "docs/ledgers/phase-2/legacy-id-sampling-006.md",
+    "docs/ledgers/phase-2/retention-policy-007.md",
+    "docs/ledgers/phase-3/deployment-cohort-007.md",
+    "docs/ledgers/phase-3/account-reconciliation-008.md",
+    "docs/ledgers/phase-3/report-tag-validation-009.md",
+    "docs/ledgers/phase-4/runtime-readiness-010.md",
+    "docs/ledgers/phase-4/operator-training-011.md",
+    "docs/ledgers/phase-4/change-window-012.md"
   ]
 }

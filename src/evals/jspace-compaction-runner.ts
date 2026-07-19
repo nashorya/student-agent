@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type {
   EvalFeatureManifest,
   EvalProviderRequestAuditEntry,
+  EvalProviderUsageTimelineEntry,
   EvalTaskDefinition,
   EvalTokenUsage,
   StudentAgentEvalTrace,
@@ -218,7 +219,8 @@ export function summarizeEffectiveParams(
 
 export interface JspaceRunValidity {
   valid: boolean;
-  status: 'complete' | 'incomplete' | 'aborted';
+  status: 'complete' | 'incomplete' | 'aborted' | 'compaction_ineffective' |
+    'invalid_probe_leakage';
   expectedBoundaries: string[];
   observedBoundaries: string[];
   reasons: string[];
@@ -226,9 +228,14 @@ export interface JspaceRunValidity {
 }
 
 export function assessJspaceRunValidity(
-  trace: Pick<StudentAgentEvalTrace, 'status' | 'mode' | 'taskState' | 'compactionEvents'>,
+  trace: Pick<StudentAgentEvalTrace, 'status' | 'mode' | 'taskState' | 'compactionEvents'> &
+    Partial<Pick<StudentAgentEvalTrace, 'toolCalls' | 'contextAssemblyTraces'>>,
   expectedPhaseBoundaries: number[],
   verifier?: Pick<VerifierResult, 'perCheck'>,
+  options: {
+    requireEffectiveCompaction?: boolean;
+    rejectSealedMaterialReads?: boolean;
+  } = {},
 ): JspaceRunValidity {
   const expectedBoundaries = expectedPhaseBoundaries.map((phase) => `phase:${phase}`);
   const observedBoundaries = (trace.compactionEvents ?? [])
@@ -257,9 +264,30 @@ export function assessJspaceRunValidity(
     !observedBoundaries.includes(boundary));
   const boundariesComplete = missingBoundaries.length === 0;
   const completedByOutcomeEvidence = allChecksPassed && boundariesComplete;
-  const valid = boundariesComplete &&
+  const compactionReasons = options.requireEffectiveCompaction
+    ? expectedBoundaries.flatMap((boundary) => {
+      const event = (trace.compactionEvents ?? []).find((candidate): candidate is Extract<
+        CompactionProbeEvent,
+        { kind: 'forced_compaction' }
+      > => candidate.kind === 'forced_compaction' && candidate.boundary === boundary);
+      return ineffectiveCompactionReasons(boundary, event);
+    })
+    : [];
+  const leakageReasons = options.rejectSealedMaterialReads
+    ? sealedMaterialReadReasons(trace.toolCalls ?? [], trace.compactionEvents ?? [])
+    : [];
+  const contextTruncationReasons = [...new Set((trace.contextAssemblyTraces ?? []).flatMap(
+    (assembly, index) => ['hardConstraints', 'taskSpec']
+      .filter((section) => assembly.truncated.includes(section))
+      .map((section) => `context assembly ${index + 1} truncated protected section: ${section}`),
+  ))];
+  const valid = compactionReasons.length === 0 && leakageReasons.length === 0 &&
+    contextTruncationReasons.length === 0 && boundariesComplete &&
     ((trace.status === 'success' && taskLifecycleComplete) || completedByOutcomeEvidence);
   if (!valid) {
+    reasons.push(...compactionReasons);
+    reasons.push(...leakageReasons);
+    reasons.push(...contextTruncationReasons);
     if (trace.status === 'failed') reasons.push('agent trace failed');
     if (!taskLifecycleComplete) reasons.push(...annotations);
     if (!boundariesComplete) {
@@ -270,12 +298,102 @@ export function assessJspaceRunValidity(
   }
   return {
     valid,
-    status: valid ? 'complete' : trace.status === 'failed' ? 'aborted' : 'incomplete',
+    status: valid
+      ? 'complete'
+      : compactionReasons.length > 0
+        ? 'compaction_ineffective'
+        : leakageReasons.length > 0
+          ? 'invalid_probe_leakage'
+        : trace.status === 'failed'
+          ? 'aborted'
+          : 'incomplete',
     expectedBoundaries,
     observedBoundaries,
     reasons,
     annotations,
   };
+}
+
+const SEALED_MATERIAL_PATHS = [
+  'docs/migration-map.md',
+  'docs/ledgers/phase-1/',
+  'docs/ledgers/phase-2/',
+] as const;
+
+function sealedMaterialReadReasons(
+  toolCalls: StudentAgentEvalTrace['toolCalls'],
+  events: CompactionProbeEvent[],
+): string[] {
+  const phaseTwo = events.find((event): event is Extract<
+    CompactionProbeEvent,
+    { kind: 'forced_compaction' }
+  > => event.kind === 'forced_compaction' && event.boundary === 'phase:2' &&
+    event.status === 'completed');
+  if (!phaseTwo) return [];
+  const sealedAt = Date.parse(
+    phaseTwo.nextPhaseStartedAt ?? phaseTwo.completedAt ?? phaseTwo.requestedAt,
+  );
+  return toolCalls.flatMap((call) => {
+    if (Date.parse(call.startedAt) < sealedAt) return [];
+    return sealedPathsReferencedBy(call).map((path) =>
+      `sealed material reread after phase:2 via ${call.name}: ${path}`);
+  });
+}
+
+function sealedPathsReferencedBy(call: StudentAgentEvalTrace['toolCalls'][number]): string[] {
+  if (!call.args || typeof call.args !== 'object' || Array.isArray(call.args)) return [];
+  const args = call.args as { path?: unknown; paths?: unknown; command?: unknown };
+  const toolName = normalizeToolName(call.name);
+  const values = toolName === 'read' && typeof args.path === 'string'
+    ? [args.path]
+    : toolName === 'read_many' && Array.isArray(args.paths)
+      ? args.paths.filter((path): path is string => typeof path === 'string')
+      : toolName === 'bash' && typeof args.command === 'string'
+        ? [args.command]
+        : [];
+  if ((toolName === 'bash' || toolName === 'search_files') && call.resultText) {
+    values.push(call.resultText);
+  }
+  return SEALED_MATERIAL_PATHS.filter((sealedPath) =>
+    values.some((value) => value.replaceAll('\\', '/').includes(sealedPath)));
+}
+
+export function annotateCompactionPromptTokens(
+  events: CompactionProbeEvent[],
+  timeline: EvalProviderUsageTimelineEntry[],
+): void {
+  const ordered = [...timeline].sort((left, right) =>
+    Date.parse(left.ts) - Date.parse(right.ts) || left.seq - right.seq);
+  for (const event of events) {
+    if (event.kind !== 'forced_compaction') continue;
+    const requestedAt = Date.parse(event.requestedAt);
+    const nextPhaseStartedAt = event.nextPhaseStartedAt
+      ? Date.parse(event.nextPhaseStartedAt)
+      : Date.parse(event.completedAt ?? event.requestedAt);
+    const before = [...ordered].reverse().find((entry) => Date.parse(entry.ts) <= requestedAt);
+    const after = ordered.find((entry) => Date.parse(entry.ts) >= nextPhaseStartedAt);
+    event.state.promptTokensBefore = before?.promptTokens ?? null;
+    event.state.promptTokensAfter = after?.promptTokens ?? null;
+  }
+}
+
+function ineffectiveCompactionReasons(
+  boundary: string,
+  event: Extract<CompactionProbeEvent, { kind: 'forced_compaction' }> | undefined,
+): string[] {
+  if (!event || event.status !== 'completed') {
+    return [`${boundary}: forced compaction did not complete`];
+  }
+  const reasons: string[] = [];
+  const { messagesBefore, messagesAfter, promptTokensBefore, promptTokensAfter } = event.state;
+  if (messagesBefore === null || messagesAfter === null || messagesAfter >= messagesBefore) {
+    reasons.push(`${boundary}: messages did not decrease after forced compaction`);
+  }
+  if (promptTokensBefore === null || promptTokensAfter === null || promptTokensBefore <= 0 ||
+    promptTokensAfter > promptTokensBefore * 0.6) {
+    reasons.push(`${boundary}: prompt tokens did not decrease by at least 40 percent`);
+  }
+  return reasons;
 }
 
 export function summarizeThinkingEvidence(
@@ -468,8 +586,14 @@ export async function writeJspaceRunArtifacts(outputDir: string, artifacts: {
   effectiveParams?: unknown;
   tokenUsage?: unknown;
   contextVolume?: unknown;
+  compactionSummaries?: Record<string, string>;
+  postCompactionPrompts?: Record<string, string>;
   resultScope?: 'pipeline_only' | 'formal_eval';
 }): Promise<void> {
+  const textArtifacts = [
+    ...boundaryTextArtifacts('compaction-summary', artifacts.compactionSummaries),
+    ...boundaryTextArtifacts('post-compaction-prompt', artifacts.postCompactionPrompts),
+  ];
   await mkdir(outputDir, { recursive: true });
   await Promise.all([
     writeJson(join(outputDir, 'feature-manifest.json'), artifacts.featureManifest),
@@ -489,7 +613,19 @@ export async function writeJspaceRunArtifacts(outputDir: string, artifacts: {
       sandboxPath: artifacts.sandboxPath,
       result_scope: artifacts.resultScope ?? 'formal_eval',
     }),
+    ...textArtifacts.map(({ filename, content }) =>
+      writeFile(join(outputDir, filename), `${content}\n`, 'utf8')),
   ]);
+}
+
+function boundaryTextArtifacts(
+  prefix: string,
+  values: Record<string, string> | undefined,
+): Array<{ filename: string; content: string }> {
+  return Object.entries(values ?? {}).map(([boundary, content]) => ({
+    filename: `${prefix}-${boundary.replace(/[^a-zA-Z0-9._-]/gu, '-')}.txt`,
+    content,
+  }));
 }
 
 function normalizeToolName(name: string): string {

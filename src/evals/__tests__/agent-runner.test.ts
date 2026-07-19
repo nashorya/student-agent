@@ -185,6 +185,7 @@ describe('ForcedCompactionController', () => {
 
   it('records Pi manual compaction lifecycle events from the session it invokes', async () => {
     let listener: ((event: unknown) => void) | undefined;
+    let capturedBoundary: string | undefined;
     const messages: unknown[] = [{ role: 'user' }, { role: 'assistant' }];
     const entries: unknown[] = [{ type: 'message' }, { type: 'message' }];
     const session = {
@@ -205,11 +206,18 @@ describe('ForcedCompactionController', () => {
         });
         messages.splice(0, 1);
         entries.push({ type: 'compaction' });
+        return { summary: 'Pi summary' };
       },
     };
-    const controller = new ForcedCompactionController(session, new Set([2]));
+    const controller = new ForcedCompactionController(
+      session,
+      new Set([2]),
+      new Set([2]),
+      (boundary) => { capturedBoundary = boundary; },
+    );
 
     await controller.compactAfterPhase(2);
+    expect(capturedBoundary).toBeUndefined();
     controller.noteNextPhaseStarted(3);
 
     expect(controller.events).toEqual([
@@ -228,11 +236,15 @@ describe('ForcedCompactionController', () => {
           messagesAfter: 1,
           entriesBefore: 2,
           entriesAfter: 3,
+          promptTokensBefore: null,
+          promptTokensAfter: null,
           changed: true,
         },
         nextPhaseStartedAt: expect.any(String),
       }),
     ]);
+    expect(controller.summaries).toEqual({ 'phase:2': 'Pi summary' });
+    expect(capturedBoundary).toBe('phase:2');
   });
 });
 

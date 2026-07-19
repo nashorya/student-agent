@@ -163,11 +163,12 @@ export async function seedContextRuntimeEvalMemory(options: {
       workflowStatus: 'executing',
       workingMemory: {
         goal: `Eval task: ${options.task.title}`,
+        hardConstraints: options.instruction,
         phase: 'executing',
         currentStep: `Execute eval task ${options.task.id}`,
         todos: [{
           id: `todo_${options.task.id}`,
-          content: compactInstruction(options.instruction),
+          content: `Execute eval task ${options.task.id}`,
           status: 'in_progress',
           updatedAt: now,
         }],
@@ -327,11 +328,6 @@ function renderComparison(summaries: ContextRuntimeVariantSummary[]): string {
   }
   lines.push('');
   return lines.join('\n');
-}
-
-function compactInstruction(instruction: string): string {
-  const normalized = instruction.replace(/\s+/gu, ' ').trim();
-  return normalized.length > 500 ? `${normalized.slice(0, 500).trimEnd()}...` : normalized;
 }
 
 function average(values: number[]): number {

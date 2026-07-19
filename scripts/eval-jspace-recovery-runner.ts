@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { runStudentAgentEval } from '../src/evals/agent-runner.js';
 import {
+  annotateCompactionPromptTokens,
   assessJspaceRunValidity,
   compareRunStructures,
   extractRunStructure,
@@ -45,12 +46,12 @@ async function main(): Promise<void> {
       'Use only the prior migration conclusion to update the target and verify protected constraints and no decoy retry.',
     ],
   } : {
-    name: 'J-space compaction recovery probe',
+    name: 'APAC compatibility migration review',
     phases: [
-      'Read the five small protected/current-state files with read_many, consume the runner-attached controlled context payload, and report its three CONTROL_MARKER values. Do not read ledger files with tools. Make no changes.',
-      'Run scripts/legacy-migrate.sh exactly once; read the one-time vendor response and migration map with read_many; derive and report MIGRATION_DECISION; delete the vendor response; do not edit migration-config yet.',
-      'Without retrying the legacy helper, apply the Phase 2 MIGRATION_DECISION to src/migration-config.json with migrationVersion 2.',
-      'Update src/runner.ts and docs/ops-checklist.md exactly as instructed. Do not read ledger files with tools; the compacted Phase 1 payload supplies the controlled context volume. Do not change protected files.',
+      'Read the five small protected/current-state files with read_many, then independently read the four Phase 1 compliance ledgers and report the three CONTROL_MARKER values. Make no changes.',
+      'Run scripts/legacy-migrate.sh exactly once; read the vendor response, migration map, and four Phase 2 audit ledgers; derive and report MIGRATION_DECISION; delete the vendor response, then verify its absence with a separate bash call; do not edit migration-config yet.',
+      'Treat all Phase 1-2 materials as sealed: do not reread or globally search the vendor response, migration map, earlier ledgers, or their decision values. Without retrying the legacy helper, independently read the three Phase 3 rollout ledgers, then apply the Phase 2 MIGRATION_DECISION to src/migration-config.json with migrationVersion 2.',
+      'Independently read the three Phase 4 release-readiness ledgers, then update src/runner.ts and append the three required ops-checklist lines verbatim. Do not change protected files.',
       'Run npx tsx src/runner.ts and verify its exact migration output, protected files, one-time input deletion, and that the rejected helper was not retried.',
     ],
   };
@@ -74,9 +75,9 @@ async function main(): Promise<void> {
           sandboxDir: sandbox.path,
           instruction,
         });
-        const phaseContextPayloads = options.smoke ? undefined : {
-          1: await loadControlledContextPayload(task.environmentDir, 'context-ledgers'),
-        };
+        await mkdir(runDir, { recursive: true });
+        const usageTimelinePath = join(runDir, 'usage-timeline.jsonl');
+        await writeFile(usageTimelinePath, '', 'utf8');
         const trace = await runStudentAgentEval({
           task,
           sandboxDir: sandbox.path,
@@ -89,12 +90,13 @@ async function main(): Promise<void> {
           observeCompactionAfterPhases: boundaries,
           featureManifest: prepared.featureManifest,
           predeclaredTask,
-          phaseContextPayloads,
+          providerUsageTimelinePath: usageTimelinePath,
           maxModelCallsPerPhase: 20,
-          maxWallClockMsPerPhase: 360_000,
+          maxWallClockMsPerPhase: 600_000,
         });
         const verifier = await runVerifier(task, sandbox);
         const compactionEvents = trace.compactionEvents ?? [];
+        annotateCompactionPromptTokens(compactionEvents, trace.providerUsageTimeline ?? []);
         const runStructure = extractRunStructure(trace, verifier);
         const thinkingEvidence = summarizeThinkingEvidence(trace.providerRequestAudit ?? []);
         const effectiveParams = summarizeEffectiveParams(trace.providerRequestAudit ?? []);
@@ -106,7 +108,10 @@ async function main(): Promise<void> {
           trace.providerRequestAudit ?? [],
           compactionEvents,
         );
-        const runValidity = assessJspaceRunValidity(trace, boundaries, verifier);
+        const runValidity = assessJspaceRunValidity(trace, boundaries, verifier, {
+          requireEffectiveCompaction: mode === 'forced',
+          rejectSealedMaterialReads: mode === 'forced',
+        });
         const observedManifest = {
           ...prepared.featureManifest,
           observed: {
@@ -141,6 +146,8 @@ async function main(): Promise<void> {
           effectiveParams,
           tokenUsage,
           contextVolume,
+          compactionSummaries: trace.compactionSummaries,
+          postCompactionPrompts: trace.postCompactionPrompts,
           resultScope: options.smoke ? 'pipeline_only' : 'formal_eval',
         });
         if (compactionEvidence) {
@@ -220,8 +227,8 @@ async function main(): Promise<void> {
       const control = records.find((record) => record.arm === arm && record.seed === seed && record.mode === 'control')!;
       const noOp = records.find((record) => record.arm === arm && record.seed === seed && record.mode === 'no-op')!;
       const calibration = calibrations.find((entry) => entry.arm === arm)!;
-      const controlValidity = control.runValidity as { valid: boolean; status: 'complete' | 'incomplete' | 'aborted' };
-      const noOpValidity = noOp.runValidity as { valid: boolean; status: 'complete' | 'incomplete' | 'aborted' };
+      const controlValidity = control.runValidity as { valid: boolean; status: 'complete' | 'incomplete' | 'aborted' | 'compaction_ineffective' | 'invalid_probe_leakage' };
+      const noOpValidity = noOp.runValidity as { valid: boolean; status: 'complete' | 'incomplete' | 'aborted' | 'compaction_ineffective' | 'invalid_probe_leakage' };
       const pairResult = noOpNeutralityResult({
         mode: options.neutralityMode,
         control: {
@@ -311,7 +318,7 @@ async function main(): Promise<void> {
     forcedCompactionAfterPhases: records.some((record) => record.mode === 'forced') ? boundaries : [],
     limits: {
       maxModelCallsPerPhase: 20,
-      maxWallClockMsPerPhase: 360_000,
+      maxWallClockMsPerPhase: 600_000,
     },
     records,
     calibrations,
@@ -425,18 +432,6 @@ function summarizeRunTokenUsage(records: Array<Record<string, unknown>>): Record
 function parseNeutralityMode(value: string): NeutralityMode {
   if (value === 'strict' || value === 'tolerant') return value;
   throw new Error(`Unsupported neutrality mode: ${value}`);
-}
-
-async function loadControlledContextPayload(
-  environmentDir: string,
-  directory: 'context-ledgers',
-): Promise<string> {
-  const names = ['alpha.md', 'beta.md', 'gamma.md'];
-  const contents = await Promise.all(names.map(async (name) => {
-    const path = join(environmentDir, 'docs', directory, name);
-    return `--- ${directory}/${name} ---\n${await readFile(path, 'utf8')}`;
-  }));
-  return contents.join('\n\n');
 }
 
 function parseArm(value: string): JspaceCompactionArm {

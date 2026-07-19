@@ -135,6 +135,65 @@
 - **状态**：FIXED（门控收紧 + 库清理）；P1 验收重开。
 - **motivates** → `phase:P1` · LessonWriter 门控收紧
 
+## BUG-011 · J-space eval 工作记忆只保留 instruction 前 500 字符
+
+- **决策点编号**：BUG-006。仓库已有历史 BUG-006，本条使用下一个唯一编号消歧。
+- **时间**：2026-07-17，发现者：codex
+- **症状**：正式运行
+  `evals/results/jspace-compaction/2026-07-17T03-45-10-714Z/current-seed-2-forced/`
+  在 Phase 2 压缩后读取 `.jspace-current-memory/tasks.json`，随后搜索已封存的
+  `docs/migration-map.md`、遗漏 Phase 4 三条逐字 checklist，并再次运行失败 helper。
+- **根因**：`src/evals/context-runtime-runner.ts` 的 `compactInstruction()` 将用户
+  instruction 归一化后截断至 500 字符写入工作记忆 todo；该任务的
+  `hardConstraints` 实际为空。seed 2 时间线证据见同目录 `tool-trace.json`，有效性
+  判定见 `run-validity.json`。
+- **修复/处置**：注入层改为把用户 instruction 完整、逐字写入
+  `working_memory.hardConstraints`；todo 只保存短执行动作，不再复制或截断 instruction。
+  不修改 memory schema。forced compaction 另外保存 Pi 摘要和压缩后第一次完整 provider
+  messages，文件名为 `compaction-summary-<boundary>.txt` 与
+  `post-compaction-prompt-<boundary>.txt`，用于区分摘要缺失与行为未遵守。
+- **2026-07-17 C 组回归**：仅运行修复后的 current 臂 ×3，结果目录为
+  `evals/results/jspace-compaction/2026-07-17T06-39-20-453Z/`：
+  - seed 1：`verifierScore=0`，`runValidity=compaction_ineffective`，Phase 4
+    wall-clock 超时；失败项为 `checklist-cleanup`、`checklist-no-retry`；
+  - seed 2：`verifierScore=1`，`runValidity=complete`，无失败项；
+  - seed 3：`verifierScore=1`，但 Phase 1 wall-clock 超时且两处边界均未发生，
+    `runValidity=compaction_ineffective`。
+- **新归因字段对照**：seed 1 的 `compaction-summary-phase-2.txt` 保留了 runner 输出
+  格式，但没有三条 checklist 原文；`post-compaction-prompt-phase-2.txt` 显示
+  `hardConstraints` 按 standard tier 截在 800 token，停在
+  `Confirm the on...`，未包含后两条 checklist 原文。seed 2 的 Phase 2/4 summary 与
+  post-compaction prompt 均包含三条 checklist 原文，并通过全部 per-check。seed 3
+  未到压缩边界，因此没有对应文本 artifact。
+- **2026-07-17 渲染层归因修正**：存储层修复已生效，剩余缺陷位于
+  `src/memory/recall/context-builder.ts`：standard tier 对 `hardConstraints` / `taskSpec`
+  逐段静默截断。现已让 eval 路径完整渲染两段；其他路径若保留截断内容，其尾部写入
+  `[TRUNCATED at <n> tokens]`，省略或截断的段均保留在 `ContextResult.truncated`。J-space runner 若发现
+  eval trace 的任一保护段被截断，会将 run 标为 invalid 并记录具体段名。回归测试以
+  fixture instruction 的最后一行逐字验证超 2800 字符的 `hardConstraints` 尾部仍在。
+- **超时体检与仪器调整**：旧 C 组 seed 1 Phase 4 为 `360.004s`、seed 3 Phase 1 为
+  `360.000s`，均贴住原 `360_000ms` 上限；其余完成 phase 为 `41.615s`–`152.233s`。
+  两处 `maxWallClockMsPerPhase` 已上调至 `600_000ms`，仅属仪器参数调整，不是被试改动。
+  证据来自上述结果目录的 `summary.json`、各 run 的 `provider-request-audit.json`、
+  `compaction-events.json`、`run-validity.json` 与 `usage-timeline.jsonl`。
+- **重跑门禁**：定向 55/55、`npm run build`、`npm run eval:validate` 通过；全量 Vitest
+  为 1070 pass / 3 fail / 1 skip，失败均在 `src/archive/__tests__/service.test.ts` 与
+  `src/archive/__tests__/html-renderer.test.ts` 的既有 dashboard 断言，`src/archive/` 无本单
+  diff；用户确认这 3 项为本单基线例外后，才执行付费重跑。
+- **2026-07-17 C 组重跑**：结果目录
+  `evals/results/jspace-compaction/2026-07-17T09-44-45-805Z/`。current 臂 ×3 均为
+  `verifierScore=1`、`runValidity.valid=true`、`runStatus=complete`，14 个 per-check 全部
+  通过，无失败项，`rerunRequired=[]`；对应峰值 prompt tokens 为 70,178 / 69,467 /
+  68,145。三 run 的 list-price equivalent 合计 ¥9.666972，低于 ¥15 上限。
+- **摘要/完整 prompt 对照**：三个 seed 的 Phase 2/4 共 6 个
+  `post-compaction-prompt-*.txt` 均逐字包含三条 checklist。seed 1 的两份
+  `compaction-summary-*.txt` 也包含三条；seed 2/3 的四份摘要未逐字包含，但对应完整
+  prompt 均包含，且每 run 全部 per-check 通过。修复后 current 3/3 追平 plain 3/3；
+  这是 BUG-011 修复前后对照，不外推 current 臂整体效果。无需起草或执行 D 组。
+- **备忘**：`estimateTokens` 对 CJK 的低估另案处理，本单不修。
+- **旧状态（已由上述重跑取代）**：OPEN（C 组仅 1/3 同时满足 verifier 满分与有效 run，未追平 plain 3/3）
+- **状态**：CLOSED（修复后 C 组 3/3 valid 且 verifier 满分，追平 plain 3/3）
+
 ## BUG-010 · Vitest 2.x audit critical
 
 - **时间**：2026-07-13，发现者：codex

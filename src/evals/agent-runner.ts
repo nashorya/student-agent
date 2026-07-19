@@ -68,6 +68,7 @@ export interface RunStudentAgentEvalOptions {
   phaseContextPayloads?: Record<number, string>;
   maxModelCallsPerPhase?: number;
   maxWallClockMsPerPhase?: number;
+  providerUsageTimelinePath?: string;
 }
 
 export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): Promise<StudentAgentEvalTrace> {
@@ -102,7 +103,9 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     };
     outputCollector = new AssistantTextCollector(costRates);
     modelTrace = summarizeEvalModel(model);
-    providerPolicy = installEvalProviderRequestPolicy(model);
+    providerPolicy = installEvalProviderRequestPolicy(model, globalThis, {
+      usageTimelinePath: options.providerUsageTimelinePath,
+    });
     normalizeProviderApiKeyEnv(config.model.provider);
     const apiKeyEnvName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
     const apiKey = process.env[apiKeyEnvName];
@@ -175,6 +178,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       session,
       new Set(options.forceCompactionAfterPhases ?? []),
       new Set(options.observeCompactionAfterPhases ?? options.forceCompactionAfterPhases ?? []),
+      (boundary) => providerPolicy?.captureNextPrompt(boundary),
     );
 
     const unsubscribe = agent.subscribe((event) => outputCollector.handleEvent(event));
@@ -257,7 +261,10 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     featureManifest: options.featureManifest,
     skillManifest,
     compactionEvents: compaction?.events,
+    compactionSummaries: compaction?.summaries,
     providerRequestAudit: providerPolicy?.audit,
+    providerUsageTimeline: providerPolicy?.usageTimeline,
+    postCompactionPrompts: providerPolicy?.postCompactionPrompts,
     protectedEvents,
     guardRuleCounts: countGuardRules(protectedEvents),
     learningRun,

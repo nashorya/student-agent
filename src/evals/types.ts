@@ -204,6 +204,14 @@ export interface EvalProviderRequestAuditEntry {
   };
 }
 
+export interface EvalProviderUsageTimelineEntry {
+  seq: number;
+  ts: string;
+  promptTokens: number | null;
+  cachedPromptTokens: number | null;
+  completionTokens: number | null;
+}
+
 type L1TierString = 'minimal' | 'standard' | 'heavy';
 
 export interface EvalTaskStateTrace {
@@ -261,8 +269,14 @@ export interface StudentAgentEvalTrace {
   taskState?: EvalTaskStateTrace;
   featureManifest?: EvalFeatureManifest;
   compactionEvents?: import('./forced-compaction-controller.js').CompactionProbeEvent[];
+  /** Pi-generated summary text keyed by forced compaction boundary. */
+  compactionSummaries?: Record<string, string>;
   /** Sanitized final provider request fields captured by the eval-only fetch policy. */
   providerRequestAudit?: EvalProviderRequestAuditEntry[];
+  /** Response-side provider usage appended to the protected per-run JSONL artifact. */
+  providerUsageTimeline?: EvalProviderUsageTimelineEntry[];
+  /** First complete provider request body after each forced compaction. */
+  postCompactionPrompts?: Record<string, string>;
   /** Protected eval events collected during the run (hashline, signal, toolguard). */
   protectedEvents?: ProtectedEvalEvent[];
   /** Protected ToolGuard events grouped by rule name. */

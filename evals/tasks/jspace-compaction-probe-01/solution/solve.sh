@@ -1,6 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ledger_paths=(
+  docs/ledgers/phase-1/identity-history-001.md
+  docs/ledgers/phase-1/billing-continuity-002.md
+  docs/ledgers/phase-1/archive-retention-003.md
+  docs/ledgers/phase-1/gateway-availability-004.md
+  docs/ledgers/phase-2/vendor-compatibility-004.md
+  docs/ledgers/phase-2/regional-routing-005.md
+  docs/ledgers/phase-2/legacy-id-sampling-006.md
+  docs/ledgers/phase-2/retention-policy-007.md
+  docs/ledgers/phase-3/deployment-cohort-007.md
+  docs/ledgers/phase-3/account-reconciliation-008.md
+  docs/ledgers/phase-3/report-tag-validation-009.md
+  docs/ledgers/phase-4/runtime-readiness-010.md
+  docs/ledgers/phase-4/operator-training-011.md
+  docs/ledgers/phase-4/change-window-012.md
+)
+for ledger in "${ledger_paths[@]}"; do
+  [[ -f "$ledger" ]]
+done
+
 cat > src/migration-config.json <<'JSON'
 {
   "migrationVersion": 2,

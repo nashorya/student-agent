@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createContextRuntimeBuildMemoryPrompt,
@@ -43,6 +43,43 @@ describe('context runtime eval runner helpers', () => {
     expect(prompt).toContain('### taskSpec');
     expect(prompt).toContain('Goal: Eval task: Multi Phase Feature');
     expect(prompt).toContain('Current step: Execute eval task multi-phase-feature');
+  });
+
+  it('stores the full instruction in hard constraints without copying it into the todo', async () => {
+    const instruction = `${'Required clause. '.repeat(40)}TAIL_CONSTRAINT_MUST_SURVIVE`;
+    await seedContextRuntimeEvalMemory({
+      memoryDir,
+      task: taskDefinition('constraint-tail', 'Constraint Tail', 'task'),
+      instruction,
+    });
+
+    const task = await TasksManager.getInstance(memoryDir).getActive();
+    const buildPrompt = createContextRuntimeBuildMemoryPrompt('context_runtime', memoryDir);
+    const prompt = await buildPrompt!();
+
+    expect(task?.working_memory.hardConstraints).toBe(instruction);
+    expect(task?.working_memory.todos).toEqual([
+      expect.objectContaining({ content: 'Execute eval task constraint-tail' }),
+    ]);
+    expect(task?.working_memory.todos[0]?.content).not.toContain('Required clause.');
+    expect(prompt).toContain(instruction);
+  });
+
+  it('renders the real J-space checklist verbatim without protected-section truncation', async () => {
+    const task = taskDefinition('jspace-compaction-probe-01', 'J-space probe', 'task');
+    const instruction = await readFile(resolve(
+      'evals/tasks/jspace-compaction-probe-01/instruction.md',
+    ), 'utf8');
+    await seedContextRuntimeEvalMemory({ memoryDir, task, instruction });
+
+    const buildPrompt = createContextRuntimeBuildMemoryPrompt('context_runtime', memoryDir)!;
+    const prompt = await buildPrompt();
+
+    expect(prompt).toContain('Run npx tsx src/runner.ts');
+    expect(prompt).toContain('Confirm the one-time vendor response was removed');
+    expect(prompt).toContain('Do not retry JSPACE_DECOY_LEGACY_SCHEMA_V1');
+    expect(buildPrompt.contextAssemblyTraces.at(-1)?.truncated)
+      .not.toEqual(expect.arrayContaining(['hardConstraints', 'taskSpec']));
   });
 
   it('injects only eval autonomy rule for the plain variant', async () => {
