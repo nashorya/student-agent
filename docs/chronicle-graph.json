@@ -1,0 +1,1462 @@
+{
+  "schemaVersion": 1,
+  "contentHash": "59aa16cdb61d73e3",
+  "nodes": [
+    {
+      "id": "ADR-001",
+      "kind": "adr",
+      "title": "评测口径：跨 agent 对比与自建 eval 严格分离",
+      "status": "已采纳",
+      "summary": "评测口径：跨 agent 对比与自建 eval 严格分离",
+      "sourcePath": "docs/adr/ADR-001-eval-claim-separation.md",
+      "sourceLine": 4
+    },
+    {
+      "id": "ADR-002",
+      "kind": "adr",
+      "title": "学习 eval：别人的题 + 自己的协议",
+      "status": "已采纳；astropy pilot 完成，扩量暂缓",
+      "summary": "学习 eval：别人的题 + 自己的协议",
+      "sourcePath": "docs/adr/ADR-002-learning-eval-protocol.md",
+      "sourceLine": 4
+    },
+    {
+      "id": "ADR-003",
+      "kind": "adr",
+      "title": "v0.4x 优先级重排（基于 Tier B 数据）",
+      "status": "已采纳",
+      "summary": "v0.4x 优先级重排（基于 Tier B 数据）",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 4
+    },
+    {
+      "id": "ADR-004",
+      "kind": "adr",
+      "title": "Knack Schema v1（定稿）",
+      "status": "已采纳",
+      "summary": "Knack Schema v1（定稿）",
+      "sourcePath": "docs/adr/ADR-004-knack-schema-v1.md",
+      "sourceLine": 4
+    },
+    {
+      "id": "ADR-005",
+      "kind": "adr",
+      "title": "Recall Ranking Protocol（P2）",
+      "status": "已采纳",
+      "summary": "Recall Ranking Protocol（P2）",
+      "sourcePath": "docs/adr/ADR-005-recall-ranking-protocol.md",
+      "sourceLine": 4
+    },
+    {
+      "id": "ADR-006",
+      "kind": "adr",
+      "title": "Recall Citation 与成功归因",
+      "status": "已采纳",
+      "summary": "Recall Citation 与成功归因",
+      "sourcePath": "docs/adr/ADR-006-recall-citation-and-credit.md",
+      "sourceLine": 4
+    },
+    {
+      "id": "BUG-001",
+      "kind": "bug",
+      "title": "benchmark 路径未接入 Context Runtime",
+      "status": "CLOSED（Tier A/B 实跑 trace 已持续记录 task lifecycle、",
+      "summary": "SWE 对比 run 的 trace 中 `layers.L1/L2/L3.sectionCount = 0`、",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 173
+    },
+    {
+      "id": "BUG-002",
+      "kind": "bug",
+      "title": "cc usage 采集不认 OpenAI 格式，cache 恒为 0",
+      "status": "CLOSED（OpenRouter Sonnet cache_control 透传与 usage 采集实测正常；",
+      "summary": "cc（经代理跑 gpt-5.5）的 `cacheReadTokens` 恒为 0",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 190
+    },
+    {
+      "id": "BUG-003",
+      "kind": "bug",
+      "title": "档案纪律失守：v0.37–v0.4 被打包进 batch commit",
+      "status": "CLOSED",
+      "summary": "git log 最后的版本化提交停在 v0.36，v0.4 成果埋在",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 214
+    },
+    {
+      "id": "BUG-004",
+      "kind": "bug",
+      "title": "overfull-hbox 约束未进入近场，导致非法 synonym 替换",
+      "status": "CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件；",
+      "summary": "Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 228
+    },
+    {
+      "id": "BUG-005",
+      "kind": "bug",
+      "title": "P2 overfull 回归为无效 run：provider 漂移 + 缺 API key",
+      "status": "CLOSED",
+      "summary": "`p2-overfull-hard-constraints-20260611` reward=0 看似红灯，",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 324
+    },
+    {
+      "id": "BUG-006",
+      "kind": "bug",
+      "title": "verifier 环境失败被计为 reward 0，污染判分与重跑配额",
+      "status": "CLOSED（verifier 依赖与 invalid_run 哨兵已实测生效；后续",
+      "summary": "overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 343
+    },
+    {
+      "id": "BUG-007",
+      "kind": "bug",
+      "title": "本地 probe 凭据误入未推送分支历史",
+      "status": "CLOSED（相关凭据仍建议轮换）",
+      "summary": "`scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 388
+    },
+    {
+      "id": "BUG-008",
+      "kind": "bug",
+      "title": "pi 本地依赖跟随 main，干净检出不可复现",
+      "status": "CLOSED",
+      "summary": "README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 155
+    },
+    {
+      "id": "BUG-009",
+      "kind": "bug",
+      "title": "imported LocoBench smoke 被当作 oracle fixture 验证",
+      "status": "CLOSED",
+      "summary": "`npm run eval:validate` 报",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 144
+    },
+    {
+      "id": "BUG-010",
+      "kind": "bug",
+      "title": "Vitest 2.x audit critical",
+      "status": "CLOSED",
+      "summary": "`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 136
+    },
+    {
+      "id": "BUG-011",
+      "kind": "bug",
+      "title": "（占位）Atlas 计划 fixture / 非 buglog 实号",
+      "status": "NOT_IN_BUGLOG",
+      "summary": "仅出现在 chronicle-model TDD fixture；实档请用 BUG-004 等编号 bug 做关案叙事",
+      "sourcePath": "docs/superpowers/plans/2026-07-15-archive-chronicle-atlas.md",
+      "sourceLine": 101
+    },
+    {
+      "id": "BUG-UNNUMBERED-1f8fc4d6",
+      "kind": "bug",
+      "title": "NNN · 一句话标题",
+      "status": "OPEN / FIXED / FIXED-待回归 / WONTFIX",
+      "summary": "（现象 + 证据位置）",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 409
+    },
+    {
+      "id": "BUG-UNNUMBERED-205d894e",
+      "kind": "bug",
+      "title": "主库写入路径过松（过程噪声进 lessons/）",
+      "status": "FIXED（门控收紧 + 库清理）；P1 验收重开。",
+      "summary": "盲审 0/5；13 条主库全是 `Treat tool error as a retry pattern` 过程噪声。",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 126
+    },
+    {
+      "id": "BUG-UNNUMBERED-561c42ed",
+      "kind": "bug",
+      "title": "2026-07-18 前 trace 成本系统性低估",
+      "status": "FIXED-部分（计价重算路径 + 入档）；generationId 落盘后续增强。",
+      "summary": "ZenMux campaign 本地合计 $0.74 vs 控制台 **$2.41（≈3.3×）**。",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 117
+    },
+    {
+      "id": "campaign:c2-cache-prefix-smoke-proxy7897.json",
+      "kind": "campaign",
+      "title": "c2-cache-prefix-smoke-proxy7897.json",
+      "status": "RECORDED",
+      "summary": "{ \"at\": \"2026-07-19T05:39:48.911283+00:00\", \"proxy\": \"http://127.0.0.1:7897\", \"endpoint\": \"https://zenmux.ai/api/v1/chat/completions\", \"model\": \"anthropic/claude-sonnet-4.6\", \"mode\": \"same-s",
+      "sourcePath": "evals/distillation/c2-cache-prefix-smoke-proxy7897.json",
+      "sourceLine": 1,
+      "vitals": {
+        "cache_read_share_overall": 0.9942
+      }
+    },
+    {
+      "id": "campaign:c2-cache-prefix-smoke.md",
+      "kind": "campaign",
+      "title": "c2-cache-prefix-smoke.md",
+      "status": "CLOSED",
+      "summary": "# C-2 · 缓存前缀重排 — 探针账目 + TTL + 集成口径 - **代码**：commit `2269eade`（段序）+ 后续 1h TTL 配置（model compat + stream `cacheRetention: long`） - **代理**：`127.0.0.1:7897`（无代理时 Anthropic 经 ZenMux 地区限制，勿再当有效调用） - **机器账**",
+      "sourcePath": "evals/distillation/c2-cache-prefix-smoke.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:candidate-knacks.json",
+      "kind": "campaign",
+      "title": "candidate-knacks.json",
+      "status": "RECORDED",
+      "summary": "[ { \"id\": \"knack-astropy-astropy-441a5f2731ca\", \"dedup_key\": \"astropy-astropy:0f6dfb62485a\", \"repo\": \"astropy/astropy\", \"symptom\": \"In `_arithmetic_mask`, the `else` branch calls `ha",
+      "sourcePath": "evals/distillation/candidate-knacks.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:index-014",
+      "kind": "campaign",
+      "title": "v0.33 TUI/Trace 稳定化；砍掉 design-study",
+      "status": "RECORDED",
+      "summary": "v0.33 TUI/Trace 稳定化；砍掉 design-study",
+      "date": "2026-06-04 ~ 06",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 14
+    },
+    {
+      "id": "campaign:index-015",
+      "kind": "campaign",
+      "title": "v0.34 Hashline / v0.35 WM+XState / v0.36 ToolGuard",
+      "status": "RECORDED",
+      "summary": "v0.34 Hashline / v0.35 WM+XState / v0.36 ToolGuard",
+      "date": "2026-06-07",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 15
+    },
+    {
+      "id": "campaign:index-016",
+      "kind": "campaign",
+      "title": "v0.4 Context Runtime Freeze（batch commit `79ad7f64`，教训见 BUG-003）",
+      "status": "RECORDED",
+      "summary": "v0.4 Context Runtime Freeze（batch commit `79ad7f64`，教训见 BUG-003）",
+      "date": "2026-06-08",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 16
+    },
+    {
+      "id": "campaign:index-017",
+      "kind": "campaign",
+      "title": "SWE/terminal-bench 对比跑分（gpt-5.5，cc vs student-agent）",
+      "status": "RECORDED",
+      "summary": "SWE/terminal-bench 对比跑分（gpt-5.5，cc vs student-agent）",
+      "date": "2026-06-10 ~ 11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 17
+    },
+    {
+      "id": "campaign:index-018",
+      "kind": "campaign",
+      "title": "发现 benchmark 未接入 context runtime（BUG-001）；cc usage 采集修复（BUG-002）；评测口径敲定（ADR-001/002）",
+      "status": "RECORDED",
+      "summary": "发现 benchmark 未接入 context runtime（BUG-001）；cc usage 采集修复（BUG-002）；评测口径敲定（ADR-001/002）",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 18
+    },
+    {
+      "id": "campaign:index-019",
+      "kind": "campaign",
+      "title": "旧版 TUI 与遗留物清理立项（待 benchmark 收尾后执行）",
+      "status": "RECORDED",
+      "summary": "旧版 TUI 与遗留物清理立项（待 benchmark 收尾后执行）",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 19
+    },
+    {
+      "id": "campaign:index-020",
+      "kind": "campaign",
+      "title": "BUG-001 接线修复完成（codex，分支 `codex/context-runtime-benchmark`）；ON/OFF smoke 对比：token ×4~6、轮次 10→16/8→18，归因为注入的验证工作流引发\"较真行为\"+",
+      "status": "RECORDED",
+      "summary": "BUG-001 接线修复完成（codex，分支 `codex/context-runtime-benchmark`）；ON/OFF smoke 对比：token ×4~6、轮次 10→16/8→18，归因为注入的验证工作流引发\"较真行为\"+ 环境摩擦（astropy pytest warning 配置、build_ext），非上下文迷路；质量持平（题太简单）。治理方向：验证重试刹车（Bounded Breaker 用例），不减配 autonomy rule",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 20
+    },
+    {
+      "id": "campaign:index-021",
+      "kind": "campaign",
+      "title": "Benchmark 矩阵 v1 敲定（Tier A 冒烟 / B 学习 / C 跨 agent；LoCoBench parked）；前置改动：autonomy rule 环境豁免补丁 + ToolGuard `verify_retry` 刹",
+      "status": "RECORDED",
+      "summary": "Benchmark 矩阵 v1 敲定（Tier A 冒烟 / B 学习 / C 跨 agent；LoCoBench parked）；前置改动：autonomy rule 环境豁免补丁 + ToolGuard `verify_retry` 刹车",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 21
+    },
+    {
+      "id": "campaign:index-022",
+      "kind": "campaign",
+      "title": "Tier A 结果（口径：final records 的 inputTokens/turns）：SWE 两题官方 resolved，12907 = 189k/11 calls，14182 = 189k/9 turns（政策补丁前 22 ca",
+      "status": "RECORDED",
+      "summary": "Tier A 结果（口径：final records 的 inputTokens/turns）：SWE 两题官方 resolved，12907 = 189k/11 calls，14182 = 189k/9 turns（政策补丁前 22 calls/493k input，降幅成立）；`verify_retry`/`patch_retry` 均 0 触发——补丁在上游消灭死磕，刹车仅有单测覆盖。Terminal：prove-plus-comm ✓、fix-git ✓（首次 verifier 被 Debian mirror 502 绊倒，重跑过）、**overfull-hbox ✗（红）**：消除 warning 但用了非法 synonym（natures→traits，跨 family）——约束跟踪失败，归因方法：查失败轮 prompt 中约束是否仍在，在=渲染问题/不在=装配问题；此为 v0.4x Requirement Ledger 的首份实证证据。首跑 401 令牌失效，fallback 渠道完成",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 22
+    },
+    {
+      "id": "campaign:index-023",
+      "kind": "campaign",
+      "title": "Tier A 收尾 + Sonnet 锚点轮计划立项（P0 归因 → P1 Hard Constraints MVP + 政策补丁 + 基础设施固化 → P2 全量回归 → P3 tag 冻结 + sonnet），交 codex 执行",
+      "status": "RECORDED",
+      "summary": "Tier A 收尾 + Sonnet 锚点轮计划立项（P0 归因 → P1 Hard Constraints MVP + 政策补丁 + 基础设施固化 → P2 全量回归 → P3 tag 冻结 + sonnet），交 codex 执行",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 23
+    },
+    {
+      "id": "campaign:index-024",
+      "kind": "campaign",
+      "title": "验收发现 P2 overfull 回归为无效 run（BUG-005：provider 漂移 deepseek + 缺 key，agent 未运行）；cc-sonnet smoke ×2 errored。决策：**停止自跑 cc**，跨 a",
+      "status": "RECORDED",
+      "summary": "验收发现 P2 overfull 回归为无效 run（BUG-005：provider 漂移 deepseek + 缺 key，agent 未运行）；cc-sonnet smoke ×2 errored。决策：**停止自跑 cc**，跨 agent 改引公开 leaderboard 数据（per-instance artifact 与子集求交集），matrix Tier C 已修订；sonnet 轮改为 student-agent 单边",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 24
+    },
+    {
+      "id": "campaign:index-025",
+      "kind": "campaign",
+      "title": "`codex/context-runtime-benchmark` 按 11 批小步提交完成入库整理（repo ignore、非交互 context runtime、hardConstraints、verify_retry、外部 bench",
+      "status": "RECORDED",
+      "summary": "`codex/context-runtime-benchmark` 按 11 批小步提交完成入库整理（repo ignore、非交互 context runtime、hardConstraints、verify_retry、外部 benchmark runner、fixtures、docs、CLI packaging、core/observability 支撑）；提交后完整 `npx vitest run` 通过：130 files passed / 1 skipped，909 tests passed / 1 skipped，duration 47s",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 25
+    },
+    {
+      "id": "campaign:index-026",
+      "kind": "campaign",
+      "title": "BUG-005 哨兵完成并实战验证：gpt-5.5 中转链路 3 次 agent exit 1（503）均标记 `invalid_run=true`，不计 reward，BUG-005 关案。改用 DeepSeek 官方 endpoint ",
+      "status": "RECORDED",
+      "summary": "BUG-005 哨兵完成并实战验证：gpt-5.5 中转链路 3 次 agent exit 1（503）均标记 `invalid_run=true`，不计 reward，BUG-005 关案。改用 DeepSeek 官方 endpoint 做 overfull 功能回归：有效 run 的 verifier 3/4 通过，编译与 overfull 目标达成，但残留非法 `to→of`；trace 证明 L1 `hardConstraints` 已渲染且含 synonym family 约束，故 BUG-004 定位为装配已修、行为/最终验证闭环仍 OPEN。seed 2 启动后按失败即停规则终止，未计结果",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 26
+    },
+    {
+      "id": "campaign:index-027",
+      "kind": "campaign",
+      "title": "新 key 的 gpt-5.5 overfull smoke 为有效 run（14 turns / 172,788 input），仍为 verifier 3/4：`natures→traits` 跨 family，复现最初症状；hardCo",
+      "status": "RECORDED",
+      "summary": "新 key 的 gpt-5.5 overfull smoke 为有效 run（14 turns / 172,788 input），仍为 verifier 3/4：`natures→traits` 跨 family，复现最初症状；hardConstraints 已完整进入 L1，失败点收敛到“最终未运行可执行 synonym-family 校验”。按计划未继续另外两轮与 SWE，未打 tag",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 27
+    },
+    {
+      "id": "campaign:index-028",
+      "kind": "campaign",
+      "title": "completion self-check 已实现（commit `c1d2aff9`，全量 131 files / 912 tests 通过），gpt-5.5 overfull 3 seed 均有工具取证，但仅 1/3 verifier ",
+      "status": "RECORDED",
+      "summary": "completion self-check 已实现（commit `c1d2aff9`，全量 131 files / 912 tests 通过），gpt-5.5 overfull 3 seed 均有工具取证，但仅 1/3 verifier 4/4：seed 1 `an→a`、seed 3 `natures→moods`。自查 trace 显示模型用 examples 抽查后错误声明全部满足，未做完整逐 token 对照。按失败停止规则未跑 SWE、未打 tag",
+      "date": "2026-06-11",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 28
+    },
+    {
+      "id": "campaign:index-029",
+      "kind": "campaign",
+      "title": "BUG-004 第四层关案：`SELF_CHECK_PROMPT` 增加 full-diff 穷举与机械约束脚本化原则（commit `5537d326`），gpt-5.5 overfull 3 seed 全部 verifier 4/4，三",
+      "status": "RECORDED",
+      "summary": "BUG-004 第四层关案：`SELF_CHECK_PROMPT` 增加 full-diff 穷举与机械约束脚本化原则（commit `5537d326`），gpt-5.5 overfull 3 seed 全部 verifier 4/4，三元组为 553k/675k/34、1,059k/1,219k/38、562k/631k/25；三轮自查均生成并运行 Node 校验器，实际抓出 article、跨 family 和文件尾结构违规后修复。成本显著高于 140k~177k/16~20 基线，归因为容器缺 git/python、脚本修复及真实违规返工",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 29
+    },
+    {
+      "id": "campaign:index-030",
+      "kind": "campaign",
+      "title": "Tier A 全绿：SWE 官方 harness 12907/14182 均 resolved。12907=`425,030 / 447,385 / 16`，input 较 189k 基线上涨 124.7%，trace 归因为验证环境摩擦导",
+      "status": "RECORDED",
+      "summary": "Tier A 全绿：SWE 官方 harness 12907/14182 均 resolved。12907=`425,030 / 447,385 / 16`，input 较 189k 基线上涨 124.7%，trace 归因为验证环境摩擦导致 31 次工具调用（基线 11）；14182 有效重跑=`136,215 / 148,775 / 8`，低于基线。14182 首次联合运行被外部终止并形成全仓删除式 suspicious patch，作为无效产物排除，未送判分",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 30
+    },
+    {
+      "id": "campaign:index-031",
+      "kind": "campaign",
+      "title": "OpenRouter Sonnet cache 探针通过，BUG-002 关案：`prove-plus-comm` reward 1.0，`5,205 / 65,733 / 11`，cache read/write=`48,998 / 7,",
+      "status": "RECORDED",
+      "summary": "OpenRouter Sonnet cache 探针通过，BUG-002 关案：`prove-plus-comm` reward 1.0，`5,205 / 65,733 / 11`，cache read/write=`48,998 / 7,436`，cache read 占 prompt 输入 79.49%，实际成本 `$0.1196094`。逐轮 usage 显示首轮创建 cache、后续每轮读取，确认 Pi 的 Anthropic `cache_control` 经 OpenRouter 透传；run metadata 含 commit `452e46b0`、模型与 OpenRouter 单价",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 31
+    },
+    {
+      "id": "campaign:index-032",
+      "kind": "campaign",
+      "title": "渠道切换 OpenRouter sonnet-4.6（预算 $10）。cache 探针通过：prove-plus-comm reward 1.0、cache read 占比 79.49%、$0.12 → **BUG-002 关案**（Ope",
+      "status": "RECORDED",
+      "summary": "渠道切换 OpenRouter sonnet-4.6（预算 $10）。cache 探针通过：prove-plus-comm reward 1.0、cache read 占比 79.49%、$0.12 → **BUG-002 关案**（OpenRouter 口径）。Tier A 重定基线进行中：fix-git 绿（$0.19）；overfull-hbox 判分无效——verifier 装 uv 失败（astral.sh SSL + uvx not found），记 **BUG-006**（verifier infra 失败应标 invalid_run，依赖需预烘焙；红线修订：infra 失败不耗重跑配额）。累计 $2.30",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 32
+    },
+    {
+      "id": "campaign:index-033",
+      "kind": "campaign",
+      "title": "BUG-006 代码修复完成、待回归：terminal 汇总新增 `invalid_reasons`，agent timeout 与 verifier setup failure 均标 invalid_run；新增 `prepare_ter",
+      "status": "RECORDED",
+      "summary": "BUG-006 代码修复完成、待回归：terminal 汇总新增 `invalid_reasons`，agent timeout 与 verifier setup failure 均标 invalid_run；新增 `prepare_terminal_bench_verifier_deps.py`，已生成本地 patched `overfull-hbox` task 与预装 `uv/uvx` 的 verifier 镜像，避免判分时访问 astral.sh。当前 shell 缺 `OPENROUTER_API_KEY`，未继续付费重测",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 33
+    },
+    {
+      "id": "campaign:index-034",
+      "kind": "campaign",
+      "title": "OpenRouter key 从 `~/.student-agent/.env` 注入后重测 patched overfull：BUG-006 的 verifier 侧已修好（不再拉 astral.sh，pytest 可运行；secret ",
+      "status": "RECORDED",
+      "summary": "OpenRouter key 从 `~/.student-agent/.env` 注入后重测 patched overfull：BUG-006 的 verifier 侧已修好（不再拉 astral.sh，pytest 可运行；secret env file 避免 key 出现在 compose 参数），但 overfull 两次均为 `AgentTimeoutError`，新哨兵均标 invalid（`validRewardTrials=0`）。第二次 timeout 已按 ×1.5 提到 1125s，仍在 agent 第一轮 bash 后长时间无输出，未形成有效 run；OpenRouter usage `$3.89538615`，低于 `$5`，按红线停止，不跑 SWE",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 34
+    },
+    {
+      "id": "campaign:index-035",
+      "kind": "campaign",
+      "title": "零编辑续航哨兵完成（commit `bc036f02`）：非交互第一阶段结束后，若 `hardConstraints` 非空且 working memory `writeFiles` 仍为空，追加固定续航提示，最多 2 轮，每轮重查 `wr",
+      "status": "RECORDED",
+      "summary": "零编辑续航哨兵完成（commit `bc036f02`）：非交互第一阶段结束后，若 `hardConstraints` 非空且 working memory `writeFiles` 仍为空，追加固定续航提示，最多 2 轮，每轮重查 `writeFiles`；JSON summary 记录 `continuationRounds`。overfull patched task 的 agent timeout 提到 2400s。预算预估：OpenRouter usage `$3.89538615`，距 `$5` 仅 `$1.1046`，而上一条 overfull 有效 agent 成本 `$1.3772`，预计单跑即可能越线，按熔断规则暂停等人工批准",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 35
+    },
+    {
+      "id": "campaign:index-036",
+      "kind": "campaign",
+      "title": "预算重排决策：overfull 标 **deferred**（Tier A 最贵、对 Tier B GO/NO-GO 价值最低，BUG-004 已在 gpt-5.5 关案；续航哨兵实战验证顺延），优先跑 SWE 12907/14182 so",
+      "status": "RECORDED",
+      "summary": "预算重排决策：overfull 标 **deferred**（Tier A 最贵、对 Tier B GO/NO-GO 价值最低，BUG-004 已在 gpt-5.5 关案；续航哨兵实战验证顺延），优先跑 SWE 12907/14182 sonnet 基线（Tier B 直接前置，off 臂复用）。单 run 成本 >$1.5 中止；预计累计 ~$4.7 守住 $5 线",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 36
+    },
+    {
+      "id": "campaign:index-037",
+      "kind": "campaign",
+      "title": "OpenRouter Sonnet Tier A 重定基线完成 **4/5**（overfull deferred）：SWE 官方 harness 均 resolved。12907=`14,035 / 168,143 / 14`，`$0.2",
+      "status": "RECORDED",
+      "summary": "OpenRouter Sonnet Tier A 重定基线完成 **4/5**（overfull deferred）：SWE 官方 harness 均 resolved。12907=`14,035 / 168,143 / 14`，`$0.21995895`，cache read 79.43%；14182=`39,355 / 486,207 / 34`，`$0.43223445`，cache read 86.85%。两题合计 trace 成本 `$0.6521934`、cache read 84.96%；OpenRouter 账户增量 `$0.5816424`，账户累计 `$4.54712565`，低于 `$5` 熔断线。直连因地区限制 403，commit `bba4011f` 增加通用 Node proxy bootstrap 后经系统代理完成；metadata 如实记录 route/model/单价/commit。有效 4 题 trace 成本合计 `$0.9569841`",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 37
+    },
+    {
+      "id": "campaign:index-038",
+      "kind": "campaign",
+      "title": "Tier B OpenRouter Sonnet astropy pilot 完成（commit `fa1cbdf0`，1 seed；12907/14182 off 复用 Tier A）：两臂官方 resolved 均 `4/6`。on 聚",
+      "status": "RECORDED",
+      "summary": "Tier B OpenRouter Sonnet astropy pilot 完成（commit `fa1cbdf0`，1 seed；12907/14182 off 复用 Tier A）：两臂官方 resolved 均 `4/6`。on 聚合为 `141,190 / 1,571,658 / 111`，off 为 `158,142 / 1,951,947 / 140`，trace cost `$1.8058 vs $1.9091`；但效率改善由 14995 单题主导，排除后 on 的 input/total/turns/cost 分别回涨 6.03%/14.04%/2.20%/17.94%。第 2 题起均召回 4 条，证明跨任务链路可运行，但内容主要为临时工具/环境错误，未见明确利用证据；resolved 无提升，按 ADR-002 **NO-GO 扩量**。10 个新 run 账户最终结算增量 `$2.7225`，累计 `$7.2696`，未触发熔断。收尾验证：`tsc --noEmit` 通过，Vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 38
+    },
+    {
+      "id": "campaign:index-039",
+      "kind": "campaign",
+      "title": "CC/外部参照证据盘点完成，未新增付费 run：本地 Claude Code 2.1.153 + gpt-5.5 仅覆盖 SWE 12907/14182，merged 官方 harness 2/2，但属于 off-label 历史内部参考；",
+      "status": "RECORDED",
+      "summary": "CC/外部参照证据盘点完成，未新增付费 run：本地 Claude Code 2.1.153 + gpt-5.5 仅覆盖 SWE 12907/14182，merged 官方 harness 2/2，但属于 off-label 历史内部参考；未在 SWE-bench 官方 experiments 找到命名为 Claude Code 的逐题提交。Epoch 公开 Sonnet 4.6 为 `bash_agent` 而非 CC，与 Tier B 相交四题 4/4；student-agent on/off 在同四题均 3/4，差题 14365 已定位为只改 case-insensitive regex、漏改小写 `no` 的后续 masked-value 判断。故当前不能下“vs CC”胜负结论。验证：`tsc --noEmit` 通过，Vitest 135 files passed / 1 skipped、926 tests passed / 1 skipped",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 39
+    },
+    {
+      "id": "campaign:index-040",
+      "kind": "campaign",
+      "title": "发布前门面与安全清理：根目录遗留物取消跟踪并 ignore，package description 正式化，README 中英文新增评测结果入口与六月完整报告；秘密/个人路径扫描修复 BUG-007，37 个未推送提交定向重写且冻结 tag",
+      "status": "RECORDED",
+      "summary": "发布前门面与安全清理：根目录遗留物取消跟踪并 ignore，package description 正式化，README 中英文新增评测结果入口与六月完整报告；秘密/个人路径扫描修复 BUG-007，37 个未推送提交定向重写且冻结 tag 重建，`main` 与最终代码树不变。BUG-001/003/006/007 状态核对关案",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 40
+    },
+    {
+      "id": "campaign:index-041",
+      "kind": "campaign",
+      "title": "发布到远端：`codex/context-runtime-benchmark` 以 `--no-ff` 合入 `main`（merge `2a764bfb`），`main` 与 `v0.4.1-bench-frozen` 已推送。合并后 `",
+      "status": "RECORDED",
+      "summary": "发布到远端：`codex/context-runtime-benchmark` 以 `--no-ff` 合入 `main`（merge `2a764bfb`），`main` 与 `v0.4.1-bench-frozen` 已推送。合并后 `tsc --noEmit`、Vitest 135 files / 926 tests 与 Python runner 20 tests 全绿；GitHub 首页 README、三条评测链接及根目录文件列表完成浏览器验收",
+      "date": "2026-06-12",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 41
+    },
+    {
+      "id": "campaign:index-042",
+      "kind": "campaign",
+      "title": "基于 Tier B 数据完成 v0.4x 优先级重排（ADR-003）：P0 离线蒸馏化验（零成本验证 skill/knack 前提）→ P1 lesson 准入门控（batch distillation 管道）→ P2 召回排序去 rec",
+      "status": "RECORDED",
+      "summary": "基于 Tier B 数据完成 v0.4x 优先级重排（ADR-003）：P0 离线蒸馏化验（零成本验证 skill/knack 前提）→ P1 lesson 准入门控（batch distillation 管道）→ P2 召回排序去 recency 偏置 → P3 利用可观测 → P4 Requirement Ledger → P5 较真税治理；tombstone 四条废案",
+      "date": "2026-06-13",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 42
+    },
+    {
+      "id": "campaign:index-043",
+      "kind": "campaign",
+      "title": "P0/P1 实现完成并合并 main（`de06fe06`）：Context7 接入 eval failure escalation（`e41a057e`）、离线 knack 蒸馏脚本（`0934d40b`）、lesson 验证准入与 ep",
+      "status": "RECORDED",
+      "summary": "P0/P1 实现完成并合并 main（`de06fe06`）：Context7 接入 eval failure escalation（`e41a057e`）、离线 knack 蒸馏脚本（`0934d40b`）、lesson 验证准入与 ephemeral 隔离（`8a15065b`）、symptom 提取修复（`de06fe06`）。蒸馏产出 6 条 verified knack（覆盖 6938/12907/14182/14995），symptom 改为优先提取根因 marker。P0 通过验收：轨迹里存在可蒸馏的验证解法。937 tests passed。待推远端",
+      "date": "2026-06-13",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 43
+    },
+    {
+      "id": "campaign:index-044",
+      "kind": "campaign",
+      "title": "ADR-004 knack schema v1 定稿并实现（`f78ed974`）：fix_summary 提取、dedup_key 去重（6→4 条）、生命周期字段（injected_count / last_succeeded_task",
+      "status": "RECORDED",
+      "summary": "ADR-004 knack schema v1 定稿并实现（`f78ed974`）：fix_summary 提取、dedup_key 去重（6→4 条）、生命周期字段（injected_count / last_succeeded_task / last_injected_task）、verified_fix 标记 audit only。945 tests passed。待推远端",
+      "date": "2026-06-13",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 44
+    },
+    {
+      "id": "campaign:index-045",
+      "kind": "campaign",
+      "title": "P1 knack 注入验证（Tier A）：12907/6938 均 resolved；6938 命中对应 distilled knack，turns 11；12907 turns 14→9、total token -36.87%，knac",
+      "status": "RECORDED",
+      "summary": "P1 knack 注入验证（Tier A）：12907/6938 均 resolved；6938 命中对应 distilled knack，turns 11；12907 turns 14→9、total token -36.87%，knack 因 top-3 截断未命中对应条目，归因留待 P2 排序修复后再验；合计 $0.3389",
+      "date": "2026-06-13",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 45
+    },
+    {
+      "id": "campaign:index-046",
+      "kind": "campaign",
+      "title": "Context7 Python import 提取修复（astropy + `from x import y` 语法）；distilled knack 导入 recall store（4 条，idempotent）；dashboard HT",
+      "status": "RECORDED",
+      "summary": "Context7 Python import 提取修复（astropy + `from x import y` 语法）；distilled knack 导入 recall store（4 条，idempotent）；dashboard HTML 生成脚本",
+      "date": "2026-06-13",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 46
+    },
+    {
+      "id": "campaign:index-047",
+      "kind": "campaign",
+      "title": "安装与确定性验证修复：pi 从未锁定的本地 main 改为 npm 0.73.1 精确版本；oracle fixture validation 跳过无 reference solution 的 LocoBench session-score",
+      "status": "RECORDED",
+      "summary": "安装与确定性验证修复：pi 从未锁定的本地 main 改为 npm 0.73.1 精确版本；oracle fixture validation 跳过无 reference solution 的 LocoBench session-scored smoke；Vitest 升到 4.1.10 消除 audit critical。隔离试迁 earendil 0.80.6 证实存在 API 迁移面，oh-my-pi runtime 仍按路线图排除。Roadmap 新增 v0.4x-H：Student-agent 为每个目标项目发现/维护 INDEX、ADR、buglog，并生成静态 HTML 人类视图；下一产品项仍为 ADR-003 P2 召回排序去 recency 偏置",
+      "date": "2026-07-13",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 47
+    },
+    {
+      "id": "campaign:index-048",
+      "kind": "campaign",
+      "title": "ADR-003 P2 / ADR-005 实现：distilled knack 运行时字段完整保留并可 upsert；召回改为 repository/symptom eligibility 后按 reuse、confidence、repo、",
+      "status": "RECORDED",
+      "summary": "ADR-003 P2 / ADR-005 实现：distilled knack 运行时字段完整保留并可 upsert；召回改为 repository/symptom eligibility 后按 reuse、confidence、repo、semantic similarity、anti-repeat 稳定排序；embedding 失败确定性降级 lexical；候选池从旧全局 top-8 分离为 bounded 64，standard top-3/heavy top-5 不扩容；注入按 task/run 幂等计数。6938/12907 shaped fixtures 均进入 standard top-3",
+      "date": "2026-07-13",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 48
+    },
+    {
+      "id": "campaign:index-049",
+      "kind": "campaign",
+      "title": "ADR-003 P3 / ADR-006 实现：eval-mode prompt 暴露稳定 recall ID；assistant marker 按 message/context allowlist 校验并从最终输出清除；trace、ev",
+      "status": "RECORDED",
+      "summary": "ADR-003 P3 / ADR-006 实现：eval-mode prompt 暴露稳定 recall ID；assistant marker 按 message/context allowlist 校验并从最终输出清除；trace、events、outcome 记录 `used_recall_ids`；只有 valid citation + verifier/harness passed 才幂等增加 reuseCount。新增 SWE 延迟 reconciliation 命令与 recall utilization 指标，自动 deprecated 继续冻结等待真实数据校准",
+      "date": "2026-07-13",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 49
+    },
+    {
+      "id": "campaign:p0-assay-candidates.json",
+      "kind": "campaign",
+      "title": "p0-assay-candidates.json",
+      "status": "RECORDED",
+      "summary": "[ { \"id\": \"knack-astropy-astropy-bda676b58a58\", \"dedup_key\": \"astropy-astropy:899b7d250ac9\", \"repo\": \"astropy/astropy\", \"symptom\": \"`output_field.replace(...)` returns a new array bu",
+      "sourcePath": "evals/distillation/p0-assay-candidates.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p0-assay-grading.md",
+      "kind": "campaign",
+      "title": "p0-assay-grading.md",
+      "status": "CLOSED",
+      "summary": "# P0 离线蒸馏化验 · 判卷表 - **日期**：2026-07-17 - **较真税档位**：内部一次性工具（最低档） - **预算**：模型调用 0 次 / ¥0；仅读硬盘 - **萃取器**：`src/evals/knack-distillation.ts` @ `f78ed974`（schema v1）；入口 `scripts/distill-knacks.ts` @ `0934d4",
+      "sourcePath": "evals/distillation/p0-assay-grading.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-cost-reconciliation.md",
+      "kind": "campaign",
+      "title": "p1-cost-reconciliation.md",
+      "status": "FAILED",
+      "summary": "# P1 成本对账（ZenMux 07-18 campaign） ## 网关实扣（作者控制台导出，权威） 窗口：**2026-07-18 23:24–23:36 北京时间**（UTC 15:24–15:36）= ZenMux produce 6 run。 | 项 | Credits | |---|---:| | 主战役（流式 agent 调用，~89 条） | **≈ $2.409** | ",
+      "sourcePath": "evals/distillation/p1-cost-reconciliation.md",
+      "sourceLine": 1,
+      "vitals": {
+        "mentionedCostUsd": "2.409"
+      }
+    },
+    {
+      "id": "campaign:p1-e-blind-key.json",
+      "kind": "campaign",
+      "title": "p1-e-blind-key.json",
+      "status": "CLOSED",
+      "summary": "{ \"createdAt\": \"2026-07-19T04:39:25.116118+00:00\", \"verifiedRatio\": 1.0, \"mainCount\": 3, \"verified\": 3, \"candidate\": 0, \"items\": [ { \"blindIndex\": 1, \"lessonId\": \"lesson_15",
+      "sourcePath": "evals/distillation/p1-e-blind-key.json",
+      "sourceLine": 1,
+      "vitals": {
+        "verifiedRatio": 1
+      }
+    },
+    {
+      "id": "campaign:p1-e-blind-review.md",
+      "kind": "campaign",
+      "title": "p1-e-blind-review.md",
+      "status": "CLOSED",
+      "summary": "# P1-E · 盲审表（蒸馏供给入主库） - **供给路径**：蒸馏(events) → LessonWriter.findCausalPair 门控 → `lessons.jsonl` → harness 晋升 - memory: `evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1prom-20260718-zenmux",
+      "sourcePath": "evals/distillation/p1-e-blind-review.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-e-supply-report.json",
+      "kind": "campaign",
+      "title": "p1-e-supply-report.json",
+      "status": "RECORDED",
+      "summary": "{ \"supplyPath\": \"distill(events) \\u2192 LessonWriter.findCausalPair gate \\u2192 lessons.jsonl \\u2192 harness promote\", \"distilled\": [ { \"id\": \"knack-astropy-astropy-2de58f692aea\", ",
+      "sourcePath": "evals/distillation/p1-e-supply-report.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-fidelity-v2-diff.json",
+      "kind": "campaign",
+      "title": "p1-fidelity-v2-diff.json",
+      "status": "RECORDED",
+      "summary": "[ { \"instanceId\": \"astropy__astropy-6938\", \"sessionRef\": \"run_1784388318631\", \"before_symptom\": \"confirmed.\", \"before_fix\": \"to assign the result of `replace` back to `output_field`:",
+      "sourcePath": "evals/distillation/p1-fidelity-v2-diff.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-fidelity-v2-diff.md",
+      "kind": "campaign",
+      "title": "p1-fidelity-v2-diff.md",
+      "status": "CLOSED",
+      "summary": "# 蒸馏保真度 v2 · 新旧对照（作者确认） - **批次**：zenmux p1prom resolved 三题 - **before**：`evals/distillation/p1-e-main-lessons.before-fidelity-v2.jsonl` - **after**：`evals/distillation/p1-fidelity-v2-supply-repor",
+      "sourcePath": "evals/distillation/p1-fidelity-v2-diff.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-fidelity-v2-supply-report.json",
+      "kind": "campaign",
+      "title": "p1-fidelity-v2-supply-report.json",
+      "status": "RECORDED",
+      "summary": "{ \"distilled\": [ { \"id\": \"knack-astropy-astropy-d5c8f9f76852\", \"dedup_key\": \"astropy-astropy:d0178c054339\", \"repo\": \"astropy/astropy\", \"symptom\": \"Possible bug in io.fits",
+      "sourcePath": "evals/distillation/p1-fidelity-v2-supply-report.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-main-library-audit.json",
+      "kind": "campaign",
+      "title": "p1-main-library-audit.json",
+      "status": "FAILED",
+      "summary": "{ \"auditedAt\": \"2026-07-19T03:29:27.103749+00:00\", \"mainBefore\": 13, \"mainAfter\": 0, \"ephemeralAfter\": 26, \"verifiedRatioBefore\": 0.538, \"verifiedRatioAfter\": null, \"verifiedRatioStatus\"",
+      "sourcePath": "evals/distillation/p1-main-library-audit.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-phase2-admission-report.json",
+      "kind": "campaign",
+      "title": "p1-phase2-admission-report.json",
+      "status": "FAILED",
+      "summary": "{ \"memoryDir\": \"evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1gate-20260718\", \"mainLessons\": 0, \"ephemeralLessons\": 12, \"mainConfidence\": {}, \"verifiedRatioInMainLibrary\": null",
+      "sourcePath": "evals/distillation/p1-phase2-admission-report.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-phase2-blind-key.json",
+      "kind": "campaign",
+      "title": "p1-phase2-blind-key.json",
+      "status": "RECORDED",
+      "summary": "[ { \"source\": \"ephemeral\", \"quality\": \"low\", \"confidence\": null, \"lesson\": \"Treat tool error as a retry pattern: Hashline: astropy/io/fits/fitsrec.py has changed since last read (tag",
+      "sourcePath": "evals/distillation/p1-phase2-blind-key.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-phase2-blind-review.md",
+      "kind": "campaign",
+      "title": "p1-phase2-blind-review.md",
+      "status": "RECORDED",
+      "summary": "# P1 阶段 2 · 盲审表（作者填） - memory: `evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1gate-20260718` - main lessons: 0 (verified=0, candidate=0) - ephemeral: 12 - verified 占比（主库）: N/A（主库空） - 验收",
+      "sourcePath": "evals/distillation/p1-phase2-blind-review.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-phase2b-zenmux-admission-report.json",
+      "kind": "campaign",
+      "title": "p1-phase2b-zenmux-admission-report.json",
+      "status": "FAILED",
+      "summary": "{ \"channel\": \"zenmux\", \"model\": \"anthropic/claude-sonnet-4.6\", \"baseUrl\": \"https://zenmux.ai/api/v1\", \"memoryDir\": \"evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1prom-20260718-ze",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-admission-report.json",
+      "sourceLine": 1,
+      "vitals": {
+        "officialGatewayCostUsd": 2.41
+      }
+    },
+    {
+      "id": "campaign:p1-phase2b-zenmux-blind-key.json",
+      "kind": "campaign",
+      "title": "p1-phase2b-zenmux-blind-key.json",
+      "status": "RECORDED",
+      "summary": "[ { \"source\": \"main\", \"confidence\": \"verified\", \"quality\": \"high\", \"lesson\": \"Treat tool error as a retry pattern: Traceback (most recent call last):\\n File \\\"/private/var/folders/y",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-blind-key.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-phase2b-zenmux-blind-review.md",
+      "kind": "campaign",
+      "title": "p1-phase2b-zenmux-blind-review.md",
+      "status": "FAILED",
+      "summary": "# P1 阶段 2b · 盲审表（ZenMux Sonnet 4.6） - channel: ZenMux `https://zenmux.ai/api/v1` / model `anthropic/claude-sonnet-4.6` - memory: `evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1prom-2026",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-blind-review.md",
+      "sourceLine": 1,
+      "vitals": {
+        "mentionedCostUsd": "0.74"
+      }
+    },
+    {
+      "id": "campaign:p1-phase2b-zenmux-cost-report.json",
+      "kind": "campaign",
+      "title": "p1-phase2b-zenmux-cost-report.json",
+      "status": "RECORDED",
+      "summary": "{ \"note\": \"ZenMux management/generation requires per-call response id. Campaign traces did not persist those IDs, so historical official bill cannot be reconstructed via this API. Local cost is esti",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-cost-report.json",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-phase2b-zenmux-harness-report.json",
+      "kind": "campaign",
+      "title": "p1-phase2b-zenmux-harness-report.json",
+      "status": "FAILED",
+      "summary": "{ \"harnessRunId\": \"p1prom-20260718-zenmux\", \"dataset\": \"SWE-bench/SWE-bench_Lite\", \"completedAt\": \"2026-07-19T03:57:36.479367+00:00\", \"produceSuccess\": 6, \"harnessCompleted\": 6, \"resolved\"",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-harness-report.json",
+      "sourceLine": 1,
+      "vitals": {
+        "resolvedRate": 0.5,
+        "gatewayCostUsd": 2.41
+      }
+    },
+    {
+      "id": "campaign:p1-phase2b-zenmux-harness.md",
+      "kind": "campaign",
+      "title": "p1-phase2b-zenmux-harness.md",
+      "status": "FAILED",
+      "summary": "# P1-D · SWE-bench harness 判分（ZenMux produce 批） - **日期**：2026-07-19 - **dataset**：`SWE-bench/SWE-bench_Lite`（test split） - **predictions**：6 条（6938 / 7746 / 12907 / 14182 / 14365 / 14995） - **raw rep",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-harness.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:p1-skill-isolation-smoke.md",
+      "kind": "campaign",
+      "title": "p1-skill-isolation-smoke.md",
+      "status": "RECORDED",
+      "summary": "# P1-B · Skill 隔离烟测（2026-07-19） ## 机制 - `createStudentSession({ controlledSkillRoots })` → `DefaultResourceLoader({ noSkills: true, additionalSkillPaths: roots, agentDir: <sandbox>/.pi-eval-agent })",
+      "sourcePath": "evals/distillation/p1-skill-isolation-smoke.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:todo-distill-fidelity-v2.md",
+      "kind": "campaign",
+      "title": "todo-distill-fidelity-v2.md",
+      "status": "CLOSED",
+      "summary": "# TODO · 蒸馏表述保真度 v2 - **登记**：2026-07-19 - **状态**：**CLOSED**（作者确认 2026-07-19） - **落地**：`5d0b6be4` / `extractSymptom` 任务侧优先 + `softSummarize` 按句取整 - **对照**：`evals/distillation/p1-fidelity-v2-diff",
+      "sourcePath": "evals/distillation/todo-distill-fidelity-v2.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "finding:c2-cache-prefix",
+      "kind": "finding",
+      "title": "C-2 缓存前缀重排",
+      "status": "CLOSED",
+      "summary": "static→breakpoint→dynamic; 1h TTL; sequence cache read ~75%",
+      "sourcePath": "evals/distillation/c2-cache-prefix-smoke.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "finding:injection-effect-experiment",
+      "kind": "finding",
+      "title": "注入效果实验（lesson 注入改善后续任务）",
+      "status": "BLOCKED",
+      "summary": "P1 合页后仍未验证注入改善后续任务；缺独立实验设计与预注册",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 207
+    },
+    {
+      "id": "finding:jspace-external",
+      "kind": "finding",
+      "title": "外部 J-space 完整认知 OS",
+      "status": "TOMBSTONE",
+      "summary": "方向成立，但不应立即实现完整认知操作系统；仅作功能类比（见 external_jspace_architecture_review）",
+      "sourcePath": "docs/adr/external_jspace_architecture_review.md",
+      "sourceLine": 1,
+      "tombstone": true
+    },
+    {
+      "id": "finding:tombstone-lesson-seed",
+      "kind": "finding",
+      "title": "直接扩 lesson 量（更多 seed / 更多题）",
+      "status": "TOMBSTONE",
+      "summary": "病灶在写入质量，扩量只放大噪声",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 254,
+      "tombstone": true
+    },
+    {
+      "id": "finding:tombstone-self-running-claude-code",
+      "kind": "finding",
+      "title": "self-running Claude Code 对比",
+      "status": "TOMBSTONE",
+      "summary": "off-label，成本高，已转引公开数据（见 ADR-001）",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 257,
+      "tombstone": true
+    },
+    {
+      "id": "finding:tombstone-top-k-4-8",
+      "kind": "finding",
+      "title": "调优召回 top-k（从 4 → 8）",
+      "status": "TOMBSTONE",
+      "summary": "同上，垃圾召更多仍是垃圾",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 255,
+      "tombstone": true
+    },
+    {
+      "id": "finding:tombstone-x",
+      "kind": "finding",
+      "title": "自建埋坑任务序列",
+      "status": "TOMBSTONE",
+      "summary": "设计成本高，说服力弱（见 ADR-002）",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 256,
+      "tombstone": true
+    },
+    {
+      "id": "phase:P0",
+      "kind": "phase",
+      "title": "P0 · 离线蒸馏化验（零成本验证前提）",
+      "status": "CLOSED",
+      "summary": "离线蒸馏化验（零成本验证前提）",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 21
+    },
+    {
+      "id": "phase:P1",
+      "kind": "phase",
+      "title": "P1 · Lesson 准入门控（batch distillation 管道）",
+      "status": "CLOSED",
+      "summary": "Lesson 准入门控（batch distillation 管道）",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 82
+    },
+    {
+      "id": "phase:P2",
+      "kind": "phase",
+      "title": "P2 · 召回排序去 recency 偏置",
+      "status": "PLANNED",
+      "summary": "召回排序去 recency 偏置",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 213
+    },
+    {
+      "id": "phase:P3",
+      "kind": "phase",
+      "title": "P3 · 利用可观测（recall citation）",
+      "status": "PLANNED",
+      "summary": "利用可观测（recall citation）",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 223
+    },
+    {
+      "id": "phase:P4",
+      "kind": "phase",
+      "title": "P4 · Requirement Ledger 完整版",
+      "status": "PLANNED",
+      "summary": "Requirement Ledger 完整版",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 234
+    },
+    {
+      "id": "phase:P5",
+      "kind": "phase",
+      "title": "P5 · \"较真税\"治理（thoroughness budget）",
+      "status": "PLANNED",
+      "summary": "\"较真税\"治理（thoroughness budget）",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 242
+    }
+  ],
+  "edges": [
+    {
+      "kind": "exposes",
+      "from": "campaign:index-016",
+      "to": "BUG-003",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 16,
+      "id": "exposes:campaign:index-016->BUG-003"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-018",
+      "to": "ADR-001",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 18,
+      "id": "exposes:campaign:index-018->ADR-001"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-018",
+      "to": "BUG-001",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 18,
+      "id": "exposes:campaign:index-018->BUG-001"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-018",
+      "to": "BUG-002",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 18,
+      "id": "exposes:campaign:index-018->BUG-002"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-020",
+      "to": "BUG-001",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 20,
+      "id": "exposes:campaign:index-020->BUG-001"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-024",
+      "to": "BUG-005",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 24,
+      "id": "exposes:campaign:index-024->BUG-005"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-026",
+      "to": "BUG-004",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 26,
+      "id": "exposes:campaign:index-026->BUG-004"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-026",
+      "to": "BUG-005",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 26,
+      "id": "exposes:campaign:index-026->BUG-005"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-029",
+      "to": "BUG-004",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 29,
+      "id": "exposes:campaign:index-029->BUG-004"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-031",
+      "to": "BUG-002",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 31,
+      "id": "exposes:campaign:index-031->BUG-002"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-032",
+      "to": "BUG-002",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 32,
+      "id": "exposes:campaign:index-032->BUG-002"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-032",
+      "to": "BUG-006",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 32,
+      "id": "exposes:campaign:index-032->BUG-006"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-033",
+      "to": "BUG-006",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 33,
+      "id": "exposes:campaign:index-033->BUG-006"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-034",
+      "to": "BUG-006",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 34,
+      "id": "exposes:campaign:index-034->BUG-006"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-036",
+      "to": "BUG-004",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 36,
+      "id": "exposes:campaign:index-036->BUG-004"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-038",
+      "to": "ADR-002",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 38,
+      "id": "exposes:campaign:index-038->ADR-002"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-040",
+      "to": "BUG-001",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 40,
+      "id": "exposes:campaign:index-040->BUG-001"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-040",
+      "to": "BUG-007",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 40,
+      "id": "exposes:campaign:index-040->BUG-007"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-042",
+      "to": "ADR-003",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 42,
+      "id": "exposes:campaign:index-042->ADR-003"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-044",
+      "to": "ADR-004",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 44,
+      "id": "exposes:campaign:index-044->ADR-004"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-047",
+      "to": "ADR-003",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 47,
+      "id": "exposes:campaign:index-047->ADR-003"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-048",
+      "to": "ADR-003",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 48,
+      "id": "exposes:campaign:index-048->ADR-003"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-048",
+      "to": "ADR-005",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 48,
+      "id": "exposes:campaign:index-048->ADR-005"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-049",
+      "to": "ADR-003",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 49,
+      "id": "exposes:campaign:index-049->ADR-003"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-049",
+      "to": "ADR-006",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 49,
+      "id": "exposes:campaign:index-049->ADR-006"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-003",
+      "to": "phase:P0",
+      "label": "defines",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 21,
+      "id": "produces:ADR-003->phase:P0"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-003",
+      "to": "phase:P1",
+      "label": "defines",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 82,
+      "id": "produces:ADR-003->phase:P1"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-003",
+      "to": "phase:P2",
+      "label": "defines",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 213,
+      "id": "produces:ADR-003->phase:P2"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-003",
+      "to": "phase:P3",
+      "label": "defines",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 223,
+      "id": "produces:ADR-003->phase:P3"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-003",
+      "to": "phase:P4",
+      "label": "defines",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 234,
+      "id": "produces:ADR-003->phase:P4"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-003",
+      "to": "phase:P5",
+      "label": "defines",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 242,
+      "id": "produces:ADR-003->phase:P5"
+    },
+    {
+      "kind": "requires",
+      "from": "finding:injection-effect-experiment",
+      "to": "phase:P1",
+      "label": "needs closed supply path",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 207,
+      "id": "requires:finding:injection-effect-experiment->phase:P1"
+    },
+    {
+      "kind": "requires",
+      "from": "finding:injection-effect-experiment",
+      "to": "phase:P3",
+      "label": "needs citation observability for utilization",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 232,
+      "id": "requires:finding:injection-effect-experiment->phase:P3"
+    },
+    {
+      "kind": "requires",
+      "from": "phase:P1",
+      "to": "phase:P0",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 1,
+      "id": "requires:phase:P1->phase:P0"
+    },
+    {
+      "kind": "requires",
+      "from": "phase:P2",
+      "to": "phase:P1",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 1,
+      "id": "requires:phase:P2->phase:P1"
+    },
+    {
+      "kind": "requires",
+      "from": "phase:P3",
+      "to": "phase:P1",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 1,
+      "id": "requires:phase:P3->phase:P1"
+    },
+    {
+      "kind": "requires",
+      "from": "phase:P4",
+      "to": "phase:P3",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 1,
+      "id": "requires:phase:P4->phase:P3"
+    },
+    {
+      "kind": "requires",
+      "from": "phase:P5",
+      "to": "phase:P1",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 1,
+      "id": "requires:phase:P5->phase:P1"
+    },
+    {
+      "kind": "tombstones",
+      "from": "ADR-003",
+      "to": "finding:tombstone-lesson-seed",
+      "label": "病灶在写入质量，扩量只放大噪声",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 254,
+      "id": "tombstones:ADR-003->finding:tombstone-lesson-seed"
+    },
+    {
+      "kind": "tombstones",
+      "from": "ADR-003",
+      "to": "finding:tombstone-self-running-claude-code",
+      "label": "off-label，成本高，已转引公开数据（见 ADR-001）",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 257,
+      "id": "tombstones:ADR-003->finding:tombstone-self-running-claude-code"
+    },
+    {
+      "kind": "tombstones",
+      "from": "ADR-003",
+      "to": "finding:tombstone-top-k-4-8",
+      "label": "同上，垃圾召更多仍是垃圾",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 255,
+      "id": "tombstones:ADR-003->finding:tombstone-top-k-4-8"
+    },
+    {
+      "kind": "tombstones",
+      "from": "ADR-003",
+      "to": "finding:tombstone-x",
+      "label": "设计成本高，说服力弱（见 ADR-002）",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 256,
+      "id": "tombstones:ADR-003->finding:tombstone-x"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:c2-cache-prefix-smoke-proxy7897.json",
+      "to": "finding:c2-cache-prefix",
+      "sourcePath": "evals/distillation/c2-cache-prefix-smoke-proxy7897.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:c2-cache-prefix-smoke-proxy7897.json->finding:c2-cache-prefix"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:c2-cache-prefix-smoke.md",
+      "to": "finding:c2-cache-prefix",
+      "sourcePath": "evals/distillation/c2-cache-prefix-smoke.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:c2-cache-prefix-smoke.md->finding:c2-cache-prefix"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p0-assay-grading.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p0-assay-grading.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p0-assay-grading.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-cost-reconciliation.md",
+      "to": "finding:c2-cache-prefix",
+      "sourcePath": "evals/distillation/p1-cost-reconciliation.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-cost-reconciliation.md->finding:c2-cache-prefix"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-cost-reconciliation.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-cost-reconciliation.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-cost-reconciliation.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-e-blind-key.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-e-blind-key.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-e-blind-key.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-e-blind-review.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-e-blind-review.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-e-blind-review.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-e-supply-report.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-e-supply-report.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-e-supply-report.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-fidelity-v2-diff.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-fidelity-v2-diff.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-fidelity-v2-diff.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-fidelity-v2-supply-report.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-fidelity-v2-supply-report.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-fidelity-v2-supply-report.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-main-library-audit.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-main-library-audit.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-main-library-audit.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2-admission-report.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-phase2-admission-report.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2-admission-report.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2-blind-key.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-phase2-blind-key.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2-blind-key.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2-blind-review.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-phase2-blind-review.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2-blind-review.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2b-zenmux-admission-report.json",
+      "to": "finding:c2-cache-prefix",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-admission-report.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2b-zenmux-admission-report.json->finding:c2-cache-prefix"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2b-zenmux-admission-report.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-admission-report.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2b-zenmux-admission-report.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2b-zenmux-blind-key.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-blind-key.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2b-zenmux-blind-key.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2b-zenmux-blind-review.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-blind-review.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2b-zenmux-blind-review.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2b-zenmux-cost-report.json",
+      "to": "finding:c2-cache-prefix",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-cost-report.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2b-zenmux-cost-report.json->finding:c2-cache-prefix"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2b-zenmux-harness-report.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-harness-report.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2b-zenmux-harness-report.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-phase2b-zenmux-harness.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-phase2b-zenmux-harness.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-phase2b-zenmux-harness.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:p1-skill-isolation-smoke.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/p1-skill-isolation-smoke.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:p1-skill-isolation-smoke.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:todo-distill-fidelity-v2.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/todo-distill-fidelity-v2.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:todo-distill-fidelity-v2.md->phase:P1"
+    }
+  ],
+  "nextActions": [
+    "phase:P2",
+    "phase:P3",
+    "phase:P5"
+  ],
+  "parseErrors": [
+    {
+      "path": "docs/adr/external_jspace_architecture_review.md",
+      "line": 1,
+      "message": "ADR file missing `# ADR-NNN` title"
+    }
+  ],
+  "todoDiff": {
+    "inGraphNotTodo": [
+      "phase:P2 (P2 · 召回排序去 recency 偏置)",
+      "phase:P3 (P3 · 利用可观测（recall citation）)",
+      "phase:P5 (P5 · \"较真税\"治理（thoroughness budget）)"
+    ],
+    "inTodoNotGraph": []
+  },
+  "answers": {
+    "bug011": "BUG-011 为何而生: 仅出现在 chronicle-model TDD fixture；实档请用 BUG-004 等编号 bug 做关案叙事；关死状态: NOT_IN_BUGLOG. 实档同类关案范例 BUG-004: 生于「Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了…」，被 CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件； 收束。",
+    "jspaceTombstone": "外部 J-space 完整认知 OS 成墓碑: 方向成立，但不应立即实现完整认知操作系统；仅作功能类比（见 external_jspace_architecture_review） (status=TOMBSTONE)",
+    "injectionMissing": "注入效果实验（lesson 注入改善后续任务）: P1 合页后仍未验证注入改善后续任务；缺独立实验设计与预注册 | 前提清单: phase:P1 status=CLOSED✓; phase:P3 status=PLANNED✗未满足"
+  }
+}

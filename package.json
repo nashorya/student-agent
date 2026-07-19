@@ -7,7 +7,9 @@
     "student-agent": "./bin/student-agent"
   },
   "scripts": {
-    "dev": "npx tsx src/extension/index.ts",
+    "dev": "STUDENT_AGENT_TUI=v2 bun src/extension/index.ts",
+    "dev:v1": "STUDENT_AGENT_TUI=v1 bun src/extension/index.ts",
+    "dev:v2": "STUDENT_AGENT_TUI=v2 bun src/extension/index.ts",
     "build": "tsc",
     "eval:validate": "npx tsx scripts/eval-validate.ts",
     "eval:baseline": "npx tsx scripts/eval-baseline.ts",
@@ -19,6 +21,7 @@
     "eval:swebench": "npx tsx scripts/eval-swebench.ts",
     "eval:swebench:produce": "npx tsx scripts/eval-swebench-produce.ts",
     "eval:recall:reconcile": "npx tsx scripts/reconcile-recall-credit.ts",
+    "chronicle:build": "npx tsx scripts/build-chronicle-graph.ts",
     "import:locobench-agent": "npx tsx scripts/import-locobench-agent.ts",
     "eval:locobench-agent:official": "npx tsx scripts/eval-locobench-agent-official.ts",
     "eval:locobench-agent:unified": "npx tsx scripts/eval-locobench-agent-unified.ts",

@@ -1,5 +1,7 @@
 export * from './types.js';
 export * from './chronicle-model.js';
+export * from './knowledge-graph.js';
+export * from './knowledge-dashboard.js';
 export * from './discovery.js';
 export * from './html-renderer.js';
 export * from './pending-actions.js';

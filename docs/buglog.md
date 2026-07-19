@@ -5,6 +5,20 @@
 
 ---
 
+## NOTE · Chronicle Dashboard 第 0 步 triage（archive 三红）
+
+- **时间**：2026-07-19
+- **现象**：`src/archive` 套件 3 失败：
+  `html-renderer`×2（`Project Health` / `main-content`）、
+  `service`×1（`ADR waiting for acceptance`）。
+- **对照**：`docs/superpowers/plans/2026-07-15-archive-chronicle-atlas.md`
+  Task 3 Step 1 明确要求**替换** flat-dashboard 断言为 Chronicle Atlas 结构；
+  当前 `renderArchiveHtml` 已输出 `Chronicle Atlas` / minimap / timeline，
+  而测试仍期望旧 flat 字符串。`chronicle-model.test.ts` 6/6 绿。
+- **判定**：**有意 TDD 残桩 / 迁移未收尾**，非运行时回归。
+- **处置**：本单按知识图谱形态继续；顺手把三测改为 Atlas 断言。
+- **状态**：TRIAGED
+
 ## NOTE · P1 Lesson 准入门控阶段 1（非 bug，留痕）
 
 - **时间**：2026-07-17

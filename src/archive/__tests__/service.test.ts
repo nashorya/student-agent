@@ -18,7 +18,10 @@ describe('ArchiveService', () => {
     await writeFile(join(root, 'docs/adr/ADR-001-choice.md'), '---\nid: ADR-001\ntitle: Choice\ndate: 2026-07-14\ndecision_status: proposed\nimplementation_status: verified\n---\nBody\n', 'utf8');
     const result = await new ArchiveService({ root, config: { dashboardPath: 'docs/dashboard.html' } }).build();
     expect(result.dashboardPath).toBe('docs/dashboard.html');
-    expect(await readFile(join(root, 'docs/dashboard.html'), 'utf8')).toContain('ADR waiting for acceptance');
+    const html = await readFile(join(root, 'docs/dashboard.html'), 'utf8');
+    expect(html).toContain('Chronicle Atlas');
+    expect(html).toContain('archive-minimap');
+    expect(html).toContain('#adr/ADR-001');
   });
 
   it('preserves canonical files when candidate validation fails', async () => {
