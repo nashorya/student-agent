@@ -75,6 +75,15 @@ describe('createContextAssemblyHook', () => {
     // Instrument-only diagnostics must not enter the subject prompt.
     expect(prompt).not.toContain('context_assembly_diagnostics');
     expect(prompt).not.toContain('Tier: standard');
+    // C-2: cache breakpoint after static prefix; dynamic taskSpec after it.
+    expect(prompt).toContain('cache_prefix_breakpoint');
+    const breakAt = prompt.indexOf('cache_prefix_breakpoint');
+    const taskSpecAt = prompt.indexOf('### taskSpec');
+    const piAt = prompt.indexOf('PI CONTRACT');
+    expect(breakAt).toBeGreaterThan(-1);
+    expect(taskSpecAt).toBeGreaterThan(breakAt);
+    expect(piAt).toBeGreaterThan(-1);
+    expect(piAt).toBeLessThan(breakAt);
   });
 
   it('records L0-L3 context assembly trace when a recorder is provided', async () => {

@@ -173,7 +173,9 @@ ephemeral note，不归档、不跨任务传播。
 >   重算 + `costAuthority`；历史批次不重算、跨批 ÷3.3 折算注。
 > - **B skill 隔离**：eval `controlledSkillRoots=evals/fixtures/skills`（空）+
 >   `noSkills` 禁默认发现；trace `skillManifest`；diagnostics 移出被试 prompt。
-> - **C 缓存前缀**：仅 proposal → `docs/proposals/p1-cache-prefix-reorder.md`。
+> - **C 缓存前缀**：proposal 已批；**C-2 落地**（static→breakpoint→dynamic，
+>   截断语义不变）见 `docs/proposals/p1-cache-prefix-reorder.md` 修订与
+>   `evals/distillation/c2-cache-prefix-smoke.md`。
 > - **D+ 主库审计**：13 条均经 LessonWriter 但判据过松；已全部降 ephemeral；
 >   盲审 **0/5** 归因「写入路径旁路真判据」，**非**轨迹无料；knack 线不死刑。
 > - **D harness（2026-07-19）**：官方 SWE-bench Lite harness 6/6 完成；

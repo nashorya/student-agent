@@ -41,6 +41,17 @@
 - **坑**：`OPENROUTER_API_KEY` 须映射为 ZenMux key（pi-ai 硬编码 env 名）。
 - **状态**：P1 重开验收；见写入路径审计 / 仪器三修。
 
+## NOTE · C-2 缓存前缀重排落地
+
+- **时间**：2026-07-19
+- **改动**：context-builder 静态/动态分区 + assembly 渲染断点 + session
+  system 序（Pi base → memory static→break→dynamic）；**≤80 行**生产代码。
+- **截断语义**：`applySectionBudgets` 按段独立，重排不改变谁先被截（见 proposal 修订）。
+- **验收**：单测不变量 a/b/c 绿；烟测 3 turn 出站均含 `cache_control` 与
+  `cache_prefix_breakpoint`；本地 usage 分项仍空 → 网关回填 cache_read 占比。
+- **报告**：`evals/distillation/c2-cache-prefix-smoke.md`
+- **状态**：DONE-代码；网关分项数字待作者控制台补。
+
 ## NOTE · P1-E 接通供给管道（蒸馏 → 主库）
 
 - **时间**：2026-07-19

@@ -163,8 +163,10 @@ export async function createStudentSession(
         // Lock skills to controlled roots only (empty dir → empty <available_skills>).
         noSkills: isolateSkills,
         additionalSkillPaths: isolateSkills ? controlledSkillRoots : undefined,
+        // Pi base (tools/skills) is run-stable; student memory already orders
+        // static→breakpoint→dynamic so the mutable suffix is last for prefix cache.
         systemPromptOverride: memoryPrompt
-          ? (base) => [memoryPrompt, base].filter((part): part is string => Boolean(part)).join('\n\n')
+          ? (base) => [base, memoryPrompt].filter((part): part is string => Boolean(part)).join('\n\n')
           : undefined,
       });
       await resourceLoader.reload();

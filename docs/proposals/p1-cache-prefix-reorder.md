@@ -1,7 +1,7 @@
-# Proposal · 缓存前缀重排（P1-C，只设计不落地）
+# Proposal · 缓存前缀重排（P1-C / C-2）
 
 - **日期**：2026-07-19
-- **状态**：待作者批准后再动 context-builder（核心线较真税）
+- **状态**：**作者已批 · C-2 落地中**（context-builder + assembly + session 段序）
 - **背景**：ZenMux 07-18 日志写多读少（write 侧实质成本高于 read），`cache_control` 打在含动态段的 developer 消息上，每轮前缀变化 → 断点失效。
 
 ## 现状（问题）
@@ -64,5 +64,25 @@
 
 ## 请作者批
 
-- [ ] 批准按上表改 context-builder / session-factory  
+- [x] 批准按上表改 context-builder / session-factory  
 - [ ] 或要求先做单题 A/B（改前/改后各 1 run）再合入  
+
+## C-2 落地修订（2026-07-19）
+
+### 截断语义（不变量 3）
+
+`applySectionBudgets` **按段独立**取 `sectionBudgets[name]` 截断，**不**按物理段序累计抢预算。  
+因此重排只改变 prompt **物理位置**，不改变「谁先被截」的既有语义。
+
+`applyLegacyBudget`（无 tier、仅 `maxTokenBudget`）仍按 `SECTION_ORDER` 累计；  
+C-2 保持 `SECTION_ORDER = static… + dynamic…`，与重排前静态优先一致，**无语义回退**。
+
+### 实现要点
+
+| 点 | 做法 |
+|---|---|
+| 静态段 | `evalAutonomyRule` / `anthropicExecutionOverride` / `piContract*` / schema |
+| 动态段 | `taskSpec` / `hardConstraints` / ledger / wm / knacks / … |
+| 断点 | 渲染标记 `CACHE_PREFIX_BREAKPOINT`（非预算段） |
+| system 拼装 | Pi base（tools/skills）在前，memory（static→break→dynamic）在后 |
+| diagnostics | 仍只进 trace（B 已做） |
