@@ -47,6 +47,9 @@
 - **症状**：P1-E #1 symptom=`confirmed.` 口水话；fix 半句截断风险。
 - **处置**：`extractSymptom` 任务侧优先 + Hashline/Import 噪声跳过 + 拒低信息量短语；
   `softSummarize` 软150/硬300 句界取整。同批 resolved 三题重蒸入主库（harness 不重跑）。
+- **作者确认**：3/3 症状换源成功、口水话消失；#1 fix 残留 v1 废话尾缀
+  「The fix is in place.」（**v3 候选，不开单**）；主库 3 verified 焕新。
+- **#2 观察**：对照表展示截断误读；数据全文完整（无句号标题 &lt; 软限，规则已覆盖 symptom）。
 - **对照**：`evals/distillation/p1-fidelity-v2-diff.md`；快照
   `p1-e-main-lessons.before-fidelity-v2.jsonl`
 - **状态**：**CLOSED**
