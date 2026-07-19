@@ -1,0 +1,54 @@
+{
+  "createdAt": "2026-07-19T04:39:25.116118+00:00",
+  "verifiedRatio": 1.0,
+  "mainCount": 3,
+  "verified": 3,
+  "candidate": 0,
+  "items": [
+    {
+      "blindIndex": 1,
+      "lessonId": "lesson_1586e3e4-6196-40cc-8197-f01e857cdc71",
+      "instanceId": "astropy__astropy-6938",
+      "sessionRef": "run_1784388318631",
+      "confidence": "verified",
+      "promotedAt": "2026-07-19T03:57:36.479367+00:00",
+      "sourceSignalId": "distill:knack-astropy-astropy-2de58f692aea",
+      "lesson": "Symptom: confirmed. Fix: to assign the result of `replace` back to `output_field`:The fix is in place."
+    },
+    {
+      "blindIndex": 2,
+      "lessonId": "lesson_532058d4-fb51-478f-bcf5-98ef7e731a2d",
+      "instanceId": "astropy__astropy-14995",
+      "sessionRef": "run_1784388855001",
+      "confidence": "verified",
+      "promotedAt": "2026-07-19T03:57:36.479367+00:00",
+      "sourceSignalId": "distill:knack-astropy-astropy-cafd4af83aeb",
+      "lesson": "Symptom: In the `_arithmetic_mask` method (line 525-527), when both operands are present (`else` branch), it calls `handle_mask(self.mask, operand.mask, **kwd\u2026 Fix: **Fix:** Added an `elif operand.mask is None` branch that returns `deepcopy(self.mask)`, consistent with the documented behavior: \"If only one mask w\u2026"
+    },
+    {
+      "blindIndex": 3,
+      "lessonId": "lesson_12b555df-ca79-444f-8730-1edfff865d94",
+      "instanceId": "astropy__astropy-12907",
+      "sessionRef": "run_1784388508942",
+      "confidence": "verified",
+      "promotedAt": "2026-07-19T03:57:36.479367+00:00",
+      "sourceSignalId": "distill:knack-astropy-astropy-3fb98fc6f0ce",
+      "lesson": "Symptom: In `_cstack`, when `right` is an ndarray (i.e., already a computed coord_matrix from a nested CompoundModel), the code does: ```python cright[-right.\u2026 Fix: The fix copies the actual computed matrix `right` into the correct position, preserving the separability structure of nested CompoundModels."
+    }
+  ],
+  "skippedUnresolved": [
+    {
+      "instanceId": "astropy__astropy-7746",
+      "reason": "no_stream_or_harness_verification"
+    },
+    {
+      "instanceId": "astropy__astropy-14182",
+      "reason": "no_stream_or_harness_verification"
+    },
+    {
+      "instanceId": "astropy__astropy-14365",
+      "reason": "no_stream_or_harness_verification"
+    }
+  ],
+  "supplyPath": "distill(events) \u2192 LessonWriter.findCausalPair gate \u2192 lessons.jsonl \u2192 harness promote"
+}

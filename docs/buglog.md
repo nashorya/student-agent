@@ -41,6 +41,17 @@
 - **坑**：`OPENROUTER_API_KEY` 须映射为 ZenMux key（pi-ai 硬编码 env 名）。
 - **状态**：P1 重开验收；见写入路径审计 / 仪器三修。
 
+## NOTE · P1-E 接通供给管道（蒸馏 → 主库）
+
+- **时间**：2026-07-19
+- **路径**：`distill(events)` → `LessonsManager.admitDistilled`（同 `findCausalPair`，
+  无 provisional 后门）→ `lessons.jsonl` → `promoteCandidatesForRun`（harness 时间戳）。
+- **本批**：蒸馏 3 / 准入 3 / 晋升 3；unresolved 3 题 skip（无 stream exit-0 且非 resolved）。
+- **主库**：3 条 verified，占比 **100%**；旧「主库 0」已接续翻盘。
+- **边界**：不改蒸馏/门控判据；不动 knacks manager。
+- **盲审**：`evals/distillation/p1-e-blind-review.md`（作者填）。
+- **状态**：DONE-供给接通；P1 合页仍待盲审。
+
 ## NOTE · P1-D harness 判分（ZenMux produce 批）
 
 - **时间**：2026-07-19

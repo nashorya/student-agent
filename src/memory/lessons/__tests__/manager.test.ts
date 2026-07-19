@@ -152,6 +152,46 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
     expect((await mgr.getAll())[0].promotedAt).toBeUndefined();
   });
 
+  it('admits distilled products only when findCausalPair has verification', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const events = [
+      { kind: 'tool_error', summary: 'matrix copy wrong', toolName: 'bash', isError: true },
+      { kind: 'tool_call', toolName: 'edit', name: 'edit' },
+      { kind: 'tool_call', toolName: 'bash', name: 'bash' },
+    ];
+    const rejected = await mgr.admitDistilled({
+      events,
+      lesson: 'Symptom: matrix Fix: assign copy',
+      sourceSignalId: 'distill:test-no-verify',
+      taskId: 'task_d',
+      sessionRef: 'run_d',
+    });
+    expect(rejected).toBeNull();
+    expect(await mgr.getAll()).toHaveLength(0);
+
+    const admitted = await mgr.admitDistilled({
+      events,
+      verification: 'verifier reward=1',
+      lesson: 'Symptom: matrix Fix: assign copy',
+      sourceSignalId: 'distill:test-harness',
+      taskId: 'task_d',
+      sessionRef: 'run_d',
+    });
+    expect(admitted?.quality).toBe('high');
+    expect(admitted?.confidence).toBe('candidate');
+    expect(await mgr.getAll()).toHaveLength(1);
+
+    const promo = await mgr.promoteCandidatesForRun({
+      sessionRef: 'run_d',
+      reward: 1,
+      promotedAt: '2026-07-19T03:57:36.479Z',
+    });
+    expect(promo.promoted).toBe(1);
+    const [lesson] = await mgr.getAll();
+    expect(lesson.confidence).toBe('verified');
+    expect(lesson.promotedAt).toBe('2026-07-19T03:57:36.479Z');
+  });
+
   it('routes unpaired process noise to ephemeral', async () => {
     await appendSignal({
       id: 'sig_noise',

@@ -179,10 +179,18 @@ ephemeral note，不归档、不跨任务传播。
 > - **D harness（2026-07-19）**：官方 SWE-bench Lite harness 6/6 完成；
 >   **resolved 3/6（50%）** vs produce success 6/6（success ≠ resolved，如实记）。
 >   resolved：6938 / 12907 / 14995；unresolved：7746 / 14182 / 14365。
->   晋升：主库已空（D+ 过程噪声全降 ephemeral）→ `promoteCandidatesForRun` **0**；
->   verified 占比仍 **voided_empty_main**。报告：
->   `evals/distillation/p1-phase2b-zenmux-harness-report.json`。
->   P1 验收仍 **重开**（盲审 0/5 + 主库空；仪器 A/B 已落地，C 仅 proposal）。
+>   当时主库空（D+ 过程噪声全降 ephemeral）→ 晋升 **0**；verified 曾 **voided_empty_main**。
+>   报告：`evals/distillation/p1-phase2b-zenmux-harness-report.json`。
+>
+> **状态注 · P1-E 接通供给管道（2026-07-19）**
+>
+> - **供给路径**：蒸馏(events) → LessonWriter.`findCausalPair` 门控 → 主库 → harness 晋升  
+>   （`importDistilledLessons` + `admitDistilled`；**不**碰 KnacksManager / 不改蒸馏·门控判据）。
+> - 接续「主库 0 条」：对本批 6 run 蒸馏；resolved 三题入主库并 promote（`promotedAt`=harness 时间）；
+>   unresolved 三题无 stream/harness 外证 → 蒸馏合法 null（非后门）。
+> - **主库现 3**（verified **3** / candidate **0**）→ verified 占比 **100%**（样本小，盲审另判）。
+> - 新盲审表：`evals/distillation/p1-e-blind-review.md`（正货 symptom+fix）；
+>   报告：`evals/distillation/p1-e-supply-report.json`。P1 待作者盲审 ≥3/5 再合页。
 
 ### P2 · 召回排序去 recency 偏置
 

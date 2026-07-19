@@ -103,6 +103,42 @@ export class LessonsManager {
     return candidates;
   }
 
+  /** Distill product → main via same findCausalPair gate as distillRunEvents (no provisional). */
+  async admitDistilled(options: {
+    events: Array<Record<string, unknown> | { line?: number; data: Record<string, unknown> }>;
+    verification?: VerificationKind;
+    lesson: string;
+    sourceSignalId: string;
+    taskId: string;
+    sessionRef: string;
+  }): Promise<LessonCandidate | null> {
+    const pair = findCausalPair(options.events, { verification: options.verification });
+    if (!pair?.verification) return null;
+    const now = new Date().toISOString();
+    const candidate: LessonCandidate = {
+      id: `lesson_${randomUUID()}`,
+      sourceSignalId: options.sourceSignalId,
+      lesson: options.lesson,
+      trigger: { signalKinds: ['tool_error'], paths: [] },
+      applicableWhen: [options.lesson],
+      doNotApplyWhen: [],
+      evidenceRefs: [options.sourceSignalId],
+      severity: 'medium',
+      quality: 'high',
+      confidence: pair.streamVerified ? 'verified' : 'candidate',
+      status: 'observed',
+      provenance: {
+        taskId: options.taskId,
+        sessionRef: options.sessionRef,
+        signalId: options.sourceSignalId,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.append(candidate);
+    return candidate;
+  }
+
   /**
    * After harness reward: promote this run's candidate lessons → verified.
    * reward≠1 keeps candidates in place (no delete).
@@ -110,10 +146,11 @@ export class LessonsManager {
   async promoteCandidatesForRun(options: {
     sessionRef: string;
     reward: number;
+    promotedAt?: string;
   }): Promise<{ promoted: number }> {
     return WriteQueue.getInstance().enqueue(async () => {
       const lessons = await this.getAll();
-      const now = new Date().toISOString();
+      const now = options.promotedAt ?? new Date().toISOString();
       let promoted = 0;
       const updated = lessons.map((lesson) => {
         if (lesson.confidence !== 'candidate') return lesson;
