@@ -1,0 +1,128 @@
+{
+  "at": "2026-07-19T05:39:48.911283+00:00",
+  "proxy": "http://127.0.0.1:7897",
+  "endpoint": "https://zenmux.ai/api/v1/chat/completions",
+  "model": "anthropic/claude-sonnet-4.6",
+  "mode": "same-static-prefix independent turns (dynamic only in second system block + user)",
+  "turns": [
+    {
+      "turn": "T1",
+      "ok": true,
+      "status": 200,
+      "id": "4ac2a741fde1442ba4243d05b369f4fd",
+      "reply": "T1",
+      "latencySec": 4.76,
+      "prompt_tokens": 30,
+      "completion_tokens": 5,
+      "cached_tokens": 5102,
+      "cache_creation": 0,
+      "ephemeral_5m": 0,
+      "ephemeral_1h": 0,
+      "cache_read_share": 0.9942,
+      "prompt_tokens_details": {
+        "cached_tokens": 5102,
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0,
+        "web_search": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "input_total_est": 5132,
+      "uncached_share": 0.0058,
+      "cache_write_share": 0.0
+    },
+    {
+      "turn": "T2",
+      "ok": true,
+      "status": 200,
+      "id": "fc224db919564d5cbe0c232e742484f2",
+      "reply": "T2",
+      "latencySec": 2.55,
+      "prompt_tokens": 30,
+      "completion_tokens": 5,
+      "cached_tokens": 5102,
+      "cache_creation": 0,
+      "ephemeral_5m": 0,
+      "ephemeral_1h": 0,
+      "cache_read_share": 0.9942,
+      "prompt_tokens_details": {
+        "cached_tokens": 5102,
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0,
+        "web_search": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "input_total_est": 5132,
+      "uncached_share": 0.0058,
+      "cache_write_share": 0.0
+    },
+    {
+      "turn": "T3",
+      "ok": true,
+      "status": 200,
+      "id": "92754c6c3f57487a99dd44caf7c2de0d",
+      "reply": "T3",
+      "latencySec": 5.35,
+      "prompt_tokens": 30,
+      "completion_tokens": 5,
+      "cached_tokens": 5102,
+      "cache_creation": 0,
+      "ephemeral_5m": 0,
+      "ephemeral_1h": 0,
+      "cache_read_share": 0.9942,
+      "prompt_tokens_details": {
+        "cached_tokens": 5102,
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0,
+        "web_search": 0,
+        "cacheCreationInputTokens": 0
+      },
+      "input_total_est": 5132,
+      "uncached_share": 0.0058,
+      "cache_write_share": 0.0
+    }
+  ],
+  "totals": {
+    "ok_turns": 3,
+    "uncached_prompt_tokens": 90,
+    "cached_tokens": 15306,
+    "cache_creation": 0,
+    "input_total_est": 15396,
+    "cache_read_share_overall": 0.9942,
+    "uncached_share_overall": 0.0058,
+    "per_turn_cache_read_share": [
+      0.9942,
+      0.9942,
+      0.9942
+    ],
+    "note": "ZenMux usage: prompt_tokens≈uncached; cached_tokens=cache read; cacheCreation/ephemeral_5m=write"
+  },
+  "generation_ids": [
+    "4ac2a741fde1442ba4243d05b369f4fd",
+    "fc224db919564d5cbe0c232e742484f2",
+    "92754c6c3f57487a99dd44caf7c2de0d"
+  ],
+  "also_from_prior_probe": {
+    "ping_id": "c740fc109fea4b92936cfbb0a3bb8c93",
+    "prior_t1_id": "0cdb2b6b88be409997e26165bfc45c8a"
+  },
+  "prior_write_turn": {
+    "id": "0cdb2b6b88be409997e26165bfc45c8a",
+    "cached_tokens": 0,
+    "cache_creation": 5102,
+    "note": "first request created 5m cache; subsequent T1-T3 read it"
+  },
+  "integrationPipeline": {
+    "at": "2026-07-19T06:08:30.980386+00:00",
+    "proxy": "http://127.0.0.1:7897",
+    "pipeline": "createStudentSession + createContextAssemblyHook + 3 prompts",
+    "outbound": {
+      "requests": 3,
+      "cache_control": true,
+      "cache_prefix_breakpoint": true,
+      "ttl_1h_in_body": true
+    },
+    "localUsageMapped": "zeros (pi usage mapping gap; gateway probe series is authoritative for hit rate)",
+    "directionalPass": true,
+    "note": "Direction: first-write then read>>write established on proxy series; pipeline emits breakpoint+1h ttl."
+  }
+}

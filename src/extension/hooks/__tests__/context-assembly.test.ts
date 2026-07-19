@@ -86,6 +86,44 @@ describe('createContextAssemblyHook', () => {
     expect(piAt).toBeLessThan(breakAt);
   });
 
+  it('keeps real static prefix byte-stable across two full renders (C-2)', async () => {
+    await writeProjectRules(tmpDir, 'Respect repository conventions.');
+    await TasksManager.getInstance(tmpDir).createTask('Stable prefix task', ['Build'], {
+      workflowStatus: 'executing',
+      workingMemory: {
+        goal: 'Byte-stable static prefix',
+        phase: 'executing',
+        currentStep: 'Render twice',
+        hardConstraints: 'Only edit src/target.ts',
+        todos: [{
+          id: 'todo_1',
+          content: 'Keep dynamic todo',
+          status: 'pending',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }],
+      },
+    });
+    const hook = createContextAssemblyHook({
+      memoryDir: tmpDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+    });
+    const a = await hook();
+    const b = await hook();
+    const prefix = (prompt: string) => {
+      const i = prompt.indexOf('cache_prefix_breakpoint');
+      expect(i).toBeGreaterThan(-1);
+      return prompt.slice(0, i);
+    };
+    // Real hardcoded + static builder sections (not synthetic pad).
+    expect(prefix(a)).toContain('文件修改规则');
+    expect(prefix(a)).toContain('Hashline');
+    expect(prefix(a)).toContain('EVAL AUTONOMY RULE');
+    expect(prefix(a)).toContain('PI CONTRACT');
+    expect(prefix(a)).not.toContain('### taskSpec');
+    expect(prefix(a)).toBe(prefix(b));
+  });
+
   it('records L0-L3 context assembly trace when a recorder is provided', async () => {
     await writeProjectRules(tmpDir, 'Respect repository conventions.');
     await TasksManager.getInstance(tmpDir).createTask('Context trace task', ['Build context'], {

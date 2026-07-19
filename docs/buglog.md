@@ -32,6 +32,23 @@
   causal-pair 补全 harness 回退，单一来源。
 - **状态**：实现 + 五类测试绿；阶段 2b 重跑待预算。
 
+## NOTE · P1 CLOSED（合页）
+
+- **时间**：2026-07-19
+- **盲审**：2/3（0/1/1）；n=3 折算线 ≥2/3；#1 失败=symptom 口水话 `"confirmed."`
+- **形态**：蒸馏 → LessonWriter 门控 → 主库 → harness 晋升（`99687ad9` 等）
+- **主库**：3 verified / 0 candidate；scope n=3 单仓单批
+- **未做**：lesson 注入改善后续任务（下阶段实验）
+- **状态**：**CLOSED**
+
+## TODO · 蒸馏表述保真度 v2（只登记不执行）
+
+- **登记**：2026-07-19
+- **目标**：`extractSymptom` 抓任务侧错误表象（issue 标题/首个报错），非 agent 诊断独白；
+  fix 截断按句取整。
+- **证据**：p1-e 盲审 #1 symptom/fix 错格（`confirmed.` / 截断脏）
+- **状态**：OPEN-占位；作者选序后动手（与 Chronicle Dashboard 并列）
+
 ## NOTE · P1 阶段 2b ZenMux 重跑（produce 完成）
 
 - **时间**：2026-07-18
@@ -39,7 +56,7 @@
 - **结果**：6/6 success；**网关实扣 ≈ $2.41**（本地 $0.74 **作废**）；
   主库曾报 verified 53.8% **已作废**（见主库审计）。
 - **坑**：`OPENROUTER_API_KEY` 须映射为 ZenMux key（pi-ai 硬编码 env 名）。
-- **状态**：P1 重开验收；见写入路径审计 / 仪器三修。
+- **状态**：已被 P1 CLOSED 收束。
 
 ## NOTE · C-2 缓存前缀重排落地
 
@@ -47,10 +64,12 @@
 - **改动**：context-builder 静态/动态分区 + assembly 渲染断点 + session
   system 序（Pi base → memory static→break→dynamic）；**≤80 行**生产代码。
 - **截断语义**：`applySectionBudgets` 按段独立，重排不改变谁先被截（见 proposal 修订）。
-- **验收**：单测不变量 a/b/c 绿；烟测 3 turn 出站均含 `cache_control` 与
-  `cache_prefix_breakpoint`；本地 usage 分项仍空 → 网关回填 cache_read 占比。
+- **网关探针（7897）**：首写 `0cdb2b6b…` write=5102；后续 T1–T3 read=5102/轮；
+  序列折算命中见 `c2-cache-prefix-smoke.md`（不单记 T2 的 99.42%）。
+- **TTL**：API 接受 `cache_control.ttl=1h`；计费分项仍见 `_5_min` 路径时以实测桶为准；
+  长轮次间隔可能击穿 5min TTL → 部分 write>read 归因。
 - **报告**：`evals/distillation/c2-cache-prefix-smoke.md`
-- **状态**：DONE-代码；网关分项数字待作者控制台补。
+- **状态**：代码 DONE；合入后集成烟测方向性验收。
 
 ## NOTE · P1-E 接通供给管道（蒸馏 → 主库）
 
@@ -60,8 +79,8 @@
 - **本批**：蒸馏 3 / 准入 3 / 晋升 3；unresolved 3 题 skip（无 stream exit-0 且非 resolved）。
 - **主库**：3 条 verified，占比 **100%**；旧「主库 0」已接续翻盘。
 - **边界**：不改蒸馏/门控判据；不动 knacks manager。
-- **盲审**：`evals/distillation/p1-e-blind-review.md`（作者填）。
-- **状态**：DONE-供给接通；P1 合页仍待盲审。
+- **盲审**：`evals/distillation/p1-e-blind-review.md` → **2/3 通过**。
+- **状态**：DONE；并入 P1 CLOSED。
 
 ## NOTE · P1-D harness 判分（ZenMux produce 批）
 

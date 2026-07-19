@@ -14,9 +14,11 @@
   "acceptance": {
     "verifiedPass": false,
     "verifiedBar": 0.5,
-    "note": "P1 still reopened: empty main after process-noise demotion; blind 0/5; instruments A/B landed",
-    "blindReview": "0/5",
-    "harnessResolvedRate": 0.5
+    "note": "P1 closed: blind 2/3 (n=3 bar \u22652/3); supply path 99687ad9; main 3 verified",
+    "blindReview": "2/3",
+    "harnessResolvedRate": 0.5,
+    "blindPass": true,
+    "p1Status": "CLOSED"
   },
   "totalCostUsd": 0.7406459999999999,
   "successRuns": 6,
@@ -287,5 +289,7 @@
     "note": "success \u2260 resolved; report in p1-phase2b-zenmux-harness-report.json",
     "promotionPromoted": 0,
     "mainLessonsAfterPromotion": 0
-  }
+  },
+  "p1ClosedAt": "2026-07-19",
+  "mainLessonsAfterSupply": 3
 }

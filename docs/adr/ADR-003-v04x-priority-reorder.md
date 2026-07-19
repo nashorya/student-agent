@@ -193,6 +193,21 @@ ephemeral note，不归档、不跨任务传播。
 > - **主库现 3**（verified **3** / candidate **0**）→ verified 占比 **100%**（样本小，盲审另判）。
 > - 新盲审表：`evals/distillation/p1-e-blind-review.md`（正货 symptom+fix）；
 >   报告：`evals/distillation/p1-e-supply-report.json`。P1 待作者盲审 ≥3/5 再合页。
+>
+> **状态注 · P1 合页（2026-07-19）**
+>
+> - **盲审**：**2/3 通过**（n=3；验收线按 ADR-003 的 3/5 比例折算为 **≥2/3**，
+>   判卷前公证）。判定 **0/1/1**。  
+>   第 1 条判 0 归因：symptom 格为诊断口水话（`"confirmed."`），检索钥匙失效  
+>   （非轨迹无料、非门控失败）。表：`evals/distillation/p1-e-blind-review.md`。
+> - **P1 最终形态**：`蒸馏(events)` → `LessonWriter` 门控 → 主库 → harness 晋升；  
+>   全链路 commit 可查（供给 `99687ad9`；仪器 `c9d2c106`；harness 文档 `6f05bf00`；
+>   延迟晋升 `b3759244`）。主库 **3 verified / 0 candidate**。
+> - **scope**：n=3、单仓库（astropy）、单批次（ZenMux 07-18 produce + harness）。  
+>   **未验证**：「lesson 注入改善后续任务」——属下阶段独立实验。
+> - **状态**：**P1 CLOSED（合页）**。  
+>   开单占位（不执行）：**蒸馏表述保真度 v2**（`extractSymptom` 改抓任务侧错误表象；
+>   fix 按句取整）——证据见 p1-e 盲审 #1 错格。
 
 ### P2 · 召回排序去 recency 偏置
 

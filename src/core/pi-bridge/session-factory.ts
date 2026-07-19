@@ -253,12 +253,20 @@ export function applyLlmRequestLimits(agent: Agent, limits: LlmRequestLimits | u
   }
 
   const originalStreamFn = agent.streamFn;
-  agent.streamFn = (model, context, options) => originalStreamFn(model, context, {
-    ...options,
-    timeoutMs: options?.timeoutMs ?? limits.timeoutMs,
-    maxTokens: options?.maxTokens ?? limits.maxTokens,
-    maxRetries: options?.maxRetries ?? limits.maxRetries,
-    maxRetryDelayMs: options?.maxRetryDelayMs ?? limits.maxRetryDelayMs,
-    apiKey: options?.apiKey ?? limits.apiKey,
-  });
+  agent.streamFn = (model, context, options) => {
+    const longCache = Boolean(
+      (model as { compat?: { supportsLongCacheRetention?: boolean } }).compat
+        ?.supportsLongCacheRetention,
+    );
+    return originalStreamFn(model, context, {
+      ...options,
+      timeoutMs: options?.timeoutMs ?? limits.timeoutMs,
+      maxTokens: options?.maxTokens ?? limits.maxTokens,
+      maxRetries: options?.maxRetries ?? limits.maxRetries,
+      maxRetryDelayMs: options?.maxRetryDelayMs ?? limits.maxRetryDelayMs,
+      apiKey: options?.apiKey ?? limits.apiKey,
+      // Prefer 1h prompt cache when provider/model supports it (C-2 TTL).
+      cacheRetention: options?.cacheRetention ?? (longCache ? 'long' : undefined),
+    });
+  };
 }

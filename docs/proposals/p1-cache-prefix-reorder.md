@@ -86,3 +86,8 @@ C-2 保持 `SECTION_ORDER = static… + dynamic…`，与重排前静态优先�
 | 断点 | 渲染标记 `CACHE_PREFIX_BREAKPOINT`（非预算段） |
 | system 拼装 | Pi base（tools/skills）在前，memory（static→break→dynamic）在后 |
 | diagnostics | 仍只进 trace（B 已做） |
+| TTL | ZenMux 实测可 `ttl=1h`（`ephemeral_1h_*`）；仓内默认 `cacheRetention: long`。若回落 5m，长间隔可能击穿 TTL |
+
+### 作者实测附件（7897 代理）
+
+见 `evals/distillation/c2-cache-prefix-smoke.md`：W0 write=5102 + T1–T3 read=5102×3；**序列折算 read≈74.6%**（含首写），非单点 T2 的 99.42%。

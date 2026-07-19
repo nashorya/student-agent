@@ -50,5 +50,12 @@
       "reason": "no_stream_or_harness_verification"
     }
   ],
-  "supplyPath": "distill(events) \u2192 LessonWriter.findCausalPair gate \u2192 lessons.jsonl \u2192 harness promote"
+  "supplyPath": "distill(events) \u2192 LessonWriter.findCausalPair gate \u2192 lessons.jsonl \u2192 harness promote",
+  "blindScores": [
+    0,
+    1,
+    1
+  ],
+  "blindPass": "2/3",
+  "p1Status": "CLOSED"
 }
