@@ -1,5 +1,10 @@
 # Done
 
+## ✅ 注入效果实验预注册草案 v0（2026-07-19）
+- `docs/proposals/injection-effect-experiment-prereg-v0.md`：H1/H2、三臂、题库规则、写死判读、预算熔断
+- 状态：草案；作者批准后冻结设计；题库附录待选
+- 关单后队列：**作者批准冻结** → 题库筛查表 → 附录 push
+
 ## ✅ ADR-008 Measured Harness Evolution（2026-07-19，纯文书）
 - 落档 `docs/adr/ADR-008-measured-harness-evolution.md`：定位声明，无代码改动
 - 图关系：clarifies→ADR-001；motivates→injection-effect-experiment；defers→chronicle:P3/P4

@@ -136,8 +136,17 @@ export function buildChronicleGraph(input: BuildGraphInput): ChronicleGraph {
   const edges: GraphEdge[] = [];
   const parseErrors: ParseError[] = [];
   const pushNode = (node: GraphNode) => {
-    if (nodes.some((n) => n.id === node.id)) return;
-    nodes.push(node);
+    const i = nodes.findIndex((n) => n.id === node.id);
+    if (i < 0) {
+      nodes.push(node);
+      return;
+    }
+    // Upgrade thin stubs created by 图关系 arrows (title/summary === id)
+    const cur = nodes[i];
+    const thin = cur.title === cur.id || cur.summary === cur.id || cur.status === 'DEFINED' || cur.status === 'REFERENCED';
+    if (thin && node.title !== node.id && node.summary !== node.id) {
+      nodes[i] = { ...cur, ...node, id: cur.id };
+    }
   };
   const pushEdge = (edge: Omit<GraphEdge, 'id'>) => {
     const id = `${edge.kind}:${edge.from}->${edge.to}`;
@@ -566,12 +575,12 @@ function ensureStubNode(
     });
     return;
   }
-  if (id.startsWith('roadmap:')) {
+  if (id.startsWith('roadmap:') || id.startsWith('campaign:')) {
     pushNode({
       id,
       kind: 'campaign',
       title: title,
-      status: 'ARCHIVED',
+      status: id.startsWith('roadmap:') ? 'ARCHIVED' : 'RECORDED',
       summary: title,
       sourcePath: path,
       sourceLine: line,
@@ -586,6 +595,18 @@ function ensureStubNode(
       status: 'DEFERRED',
       summary: title,
       sourcePath: path,
+      sourceLine: line,
+    });
+    return;
+  }
+  if (id.startsWith('docs/') || id.endsWith('.md')) {
+    pushNode({
+      id: id.startsWith('docs/') ? id : `docs:${slug(id)}`,
+      kind: 'campaign',
+      title: basename(id),
+      status: 'DOC',
+      summary: title,
+      sourcePath: id.startsWith('docs/') ? id : path,
       sourceLine: line,
     });
     return;
@@ -644,6 +665,17 @@ function parseExtraDoc(
       title: 'v0.4/v0.4x/v0.5 Paper-Calibrated Roadmap',
       status: 'ARCHIVED',
       summary: 'Paper-calibrated roadmap with settlement notes and hypothesis ledger',
+      sourcePath: path,
+      sourceLine: 1,
+    });
+  }
+  if (/injection-effect-experiment-prereg/i.test(path)) {
+    pushNode({
+      id: 'campaign:injection-effect-prereg-v0',
+      kind: 'campaign',
+      title: '预注册:注入效果实验 v0',
+      status: 'DRAFT',
+      summary: 'H1/H2 three-arm injection effect preregistration (draft until author freeze)',
       sourcePath: path,
       sourceLine: 1,
     });
@@ -1036,17 +1068,19 @@ export async function loadRepoGraphSources(root: string): Promise<BuildGraphInpu
     // optional
   }
   const extraFiles: Array<{ path: string; text: string }> = [];
-  const roadmapDir = join(root, 'docs/roadmap');
-  try {
-    const names = (await readdir(roadmapDir)).filter((n) => n.endsWith('.md')).sort();
-    for (const name of names) {
-      extraFiles.push({
-        path: `docs/roadmap/${name}`,
-        text: await readFile(join(roadmapDir, name), 'utf8'),
-      });
+  for (const sub of ['docs/roadmap', 'docs/proposals'] as const) {
+    try {
+      const dir = join(root, sub);
+      const names = (await readdir(dir)).filter((n) => n.endsWith('.md')).sort();
+      for (const name of names) {
+        extraFiles.push({
+          path: `${sub}/${name}`,
+          text: await readFile(join(dir, name), 'utf8'),
+        });
+      }
+    } catch {
+      // optional
     }
-  } catch {
-    // optional
   }
   let todoText = '';
   try {
