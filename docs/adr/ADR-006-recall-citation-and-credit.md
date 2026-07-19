@@ -78,6 +78,12 @@ P3 首版仍不启用 ADR-004 的自动 candidate/deprecated 阈值。citation �
 - marker 不出现在 final output。
 - standard/heavy top-k 保持 3/5。
 
+## 图关系
+
+> 机读约定见 `docs/chronicle-graph-contracts.md` / `knowledge-graph.ts` 头注释。
+
+- **defines** → `phase:P3` · 利用可观测（recall citation）
+
 ## 关联
 
 - 前置：[ADR-003](ADR-003-v04x-priority-reorder.md)、[ADR-005](ADR-005-recall-ranking-protocol.md)

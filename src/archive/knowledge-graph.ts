@@ -9,13 +9,24 @@
  * - Symptom line: `- **症状**：…` (optional).
  * - Failure: heading without status → parseErrors (path + line).
  *
- * ### docs/adr/ADR-*.md
+ * ### docs/adr/ADR-*.md  and docs/adr/*.md
  * - Title: first `# ADR-NNN · …` or `# ADR-NNN …`.
+ * - Non-numbered review under docs/adr/ still becomes kind=adr (id `ADR:<slug>`).
  * - Status: `- **状态**：…` near top.
  * - Tombstone table under `## Tombstone` / `## Tombstone（…）`: rows `| 方向 | 否决原因 |`.
- * - Phase blocks: `### P0 ·` … `### P5 ·` (ADR-003 style).
- * - Status notes: lines starting with `> - **状态注` or `> **状态注`.
- * - Failure: ADR file missing title id → parseErrors.
+ * - Phase blocks: `### P0 ·` … `### P5 ·` (ADR-003 style) → produces(label=defines).
+ * - **图关系** (machine-readable, preferred for ADR-004/005/006):
+ *   - `- **defines** → \`node-id\` · optional title`
+ *   - `- **consumed-by** → \`node-id\` · optional title` (from last **defines** target)
+ *   - `- **requires|produces|exposes|motivates|tombstones|verifies** → \`node-id\` · title`
+ * - Failure: empty adr folder file with no title and no usable slug → parseErrors.
+ *
+ * ### docs/buglog.md
+ * - Entry heading: `## BUG-NNN · title` or `## BUG · title` (unnumbered → synthetic id).
+ * - Status line: `- **状态**：…` (CLOSED/OPEN/FIXED/…).
+ * - Symptom line: `- **症状**：…` (optional).
+ * - Graph lines (same 图关系 tokens as ADR): `- **motivates** → \`phase:P1\` · …`
+ * - Failure: heading without status → parseErrors (path + line).
  *
  * ### docs/INDEX.md
  * - Timeline rows: `| date | event | links |` under `## 纵向`.
@@ -27,6 +38,9 @@
  *
  * Edges (六边): requires | produces | exposes | motivates | tombstones | verifies.
  * Entities (五实体): phase | bug | adr | campaign | finding.
+ *
+ * Edge coverage: every adr/bug/phase is counted; zero-edge nodes listed in
+ * `edgeCoverage.unconnected` and MUST be rendered (dashboard 未连接 partition).
  *
  * Determinism: no wall-clock; stable sort by id; same inputs → same JSON bytes.
  */
@@ -73,6 +87,21 @@ export interface ParseError {
   message: string;
 }
 
+export interface EdgeCoverageEntry {
+  id: string;
+  kind: GraphNodeKind;
+  title: string;
+  edgeCount: number;
+  sourcePath: string;
+}
+
+export interface EdgeCoverage {
+  /** adr / bug / phase only — full inventory with counts */
+  inventory: EdgeCoverageEntry[];
+  /** zero-edge subset; never silent — consumers must render 未连接 */
+  unconnected: EdgeCoverageEntry[];
+}
+
 export interface ChronicleGraph {
   schemaVersion: 1;
   contentHash: string;
@@ -81,6 +110,7 @@ export interface ChronicleGraph {
   nextActions: string[];
   parseErrors: ParseError[];
   todoDiff: { inGraphNotTodo: string[]; inTodoNotGraph: string[] };
+  edgeCoverage: EdgeCoverage;
   answers: {
     bug011?: string;
     jspaceTombstone?: string;
@@ -93,6 +123,8 @@ export interface BuildGraphInput {
   adrFiles: Array<{ path: string; text: string }>;
   indexText: string;
   distillationFiles: Array<{ path: string; text: string }>;
+  /** Extra docs (e.g. docs/roadmap/*) — paper ledger + 图关系机读块 */
+  extraFiles?: Array<{ path: string; text: string }>;
   todoText?: string;
 }
 
@@ -113,13 +145,16 @@ export function buildChronicleGraph(input: BuildGraphInput): ChronicleGraph {
     edges.push({ ...edge, id });
   };
 
-  parseBuglog(input.buglogText, 'docs/buglog.md', pushNode, parseErrors);
+  parseBuglog(input.buglogText, 'docs/buglog.md', pushNode, pushEdge, parseErrors);
   for (const adr of input.adrFiles) {
     parseAdr(adr.text, adr.path, pushNode, pushEdge, parseErrors);
   }
   parseIndex(input.indexText, 'docs/INDEX.md', pushNode, pushEdge, parseErrors);
   for (const file of input.distillationFiles) {
     parseDistillation(file.text, file.path, pushNode, pushEdge, parseErrors);
+  }
+  for (const file of input.extraFiles ?? []) {
+    parseExtraDoc(file.text, file.path, pushNode, pushEdge, parseErrors);
   }
 
   // Explicit knowledge edges for the three acceptance questions + injection chain.
@@ -132,7 +167,8 @@ export function buildChronicleGraph(input: BuildGraphInput): ChronicleGraph {
   const nextActions = deriveNextActions(nodes, edges);
   const todoDiff = diffTodo(input.todoText ?? '', nextActions, nodes);
   const answers = buildAnswers(nodes, edges);
-  const contentHash = hashGraph({ nodes, edges, nextActions, parseErrors, todoDiff, answers });
+  const edgeCoverage = computeEdgeCoverage(nodes, edges);
+  const contentHash = hashGraph({ nodes, edges, nextActions, parseErrors, todoDiff, edgeCoverage, answers });
 
   return {
     schemaVersion: 1,
@@ -142,6 +178,7 @@ export function buildChronicleGraph(input: BuildGraphInput): ChronicleGraph {
     nextActions,
     parseErrors,
     todoDiff,
+    edgeCoverage,
     answers,
   };
 }
@@ -154,10 +191,12 @@ function parseBuglog(
   text: string,
   path: string,
   pushNode: (n: GraphNode) => void,
+  pushEdge: (e: Omit<GraphEdge, 'id'>) => void,
   parseErrors: ParseError[],
 ): void {
   const lines = text.split(/\n/);
   let current: { id: string; title: string; line: number; status?: string; symptom?: string } | null = null;
+  let inFence = false;
   const flush = () => {
     if (!current) return;
     if (!current.status) {
@@ -177,6 +216,11 @@ function parseBuglog(
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (/^```/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
     const numbered = line.match(/^##\s+(BUG-\d+)\s*[·:：-]\s*(.+)\s*$/i);
     const unnumbered = line.match(/^##\s+BUG\s*[·:：-]\s*(.+)\s*$/i);
     if (numbered || unnumbered) {
@@ -195,6 +239,8 @@ function parseBuglog(
     if (status) current.status = status[1].trim();
     const symptom = line.match(/^\s*-\s*\*\*症状\*\*\s*[：:]\s*(.+)\s*$/);
     if (symptom) current.symptom = symptom[1].trim();
+    // Inline 图关系 under the bug entry (same token grammar as ADR).
+    parseGraphRelationLine(line, i + 1, path, current.id, null, pushNode, pushEdge);
   }
   flush();
 }
@@ -207,8 +253,9 @@ function parseAdr(
   parseErrors: ParseError[],
 ): void {
   const lines = text.split(/\n/);
-  // Non-numbered architecture reviews (e.g. external_jspace_*) still contribute findings.
-  if (/jspace/i.test(path) && /不应立即|不立即实现|tombstone|废案/i.test(text)) {
+  // Non-numbered architecture reviews (e.g. external_jspace_*) still contribute findings + adr node.
+  const jspaceTomb = /jspace/i.test(path) && /不应立即|不立即实现|tombstone|废案/i.test(text);
+  if (jspaceTomb) {
     pushNode({
       id: 'finding:jspace-external',
       kind: 'finding',
@@ -221,27 +268,41 @@ function parseAdr(
     });
   }
   const titleLine = lines.findIndex((l) => /^#\s+ADR-\d+/i.test(l));
-  if (titleLine < 0) {
-    parseErrors.push({ path, line: 1, message: 'ADR file missing `# ADR-NNN` title' });
-    return;
-  }
-  const titleMatch = lines[titleLine].match(/^#\s+(ADR-\d+)\s*[·:：-]?\s*(.*)$/i);
-  if (!titleMatch) {
-    parseErrors.push({ path, line: titleLine + 1, message: 'ADR title not parseable' });
-    return;
-  }
-  const adrId = titleMatch[1].toUpperCase();
-  const title = (titleMatch[2] || adrId).trim();
+  let adrId: string;
+  let title: string;
   let status = 'unknown';
-  let statusLine = titleLine + 1;
+  let statusLine = 1;
+
+  if (titleLine >= 0) {
+    const titleMatch = lines[titleLine].match(/^#\s+(ADR-\d+)\s*[·:：-]?\s*(.*)$/i);
+    if (!titleMatch) {
+      parseErrors.push({ path, line: titleLine + 1, message: 'ADR title not parseable' });
+      return;
+    }
+    adrId = titleMatch[1].toUpperCase();
+    title = (titleMatch[2] || adrId).trim();
+    statusLine = titleLine + 1;
+  } else {
+    // Non-numbered docs/adr/* still count as ADR entities (7th = external jspace review).
+    const base = basename(path).replace(/\.md$/i, '');
+    adrId = `ADR:${slug(base)}`;
+    const h1 = lines.find((l) => /^#\s+/.test(l));
+    title = h1 ? h1.replace(/^#\s+/, '').trim() : base;
+    parseErrors.push({ path, line: 1, message: 'ADR file missing `# ADR-NNN` title (using slug id)' });
+  }
+
   for (let i = 0; i < Math.min(lines.length, 40); i++) {
-    const m = lines[i].match(/^\s*-\s*\*\*状态\*\*\s*[：:]\s*(.+)\s*$/);
+    const m = lines[i].match(/^\s*-\s*\*\*状态\*\*\s*[：:]\s*(.+)\s*$/)
+      || lines[i].match(/^\s*状态\s*[：:]\s*(.+)\s*$/);
     if (m) {
       status = m[1].trim();
       statusLine = i + 1;
       break;
     }
   }
+  // Heuristic status for review docs
+  if (status === 'unknown' && jspaceTomb) status = 'TOMBSTONE-REVIEW';
+
   pushNode({
     id: adrId,
     kind: 'adr',
@@ -252,7 +313,18 @@ function parseAdr(
     sourceLine: statusLine,
   });
 
-  // Phases P0–P5
+  if (jspaceTomb) {
+    pushEdge({
+      kind: 'tombstones',
+      from: adrId,
+      to: 'finding:jspace-external',
+      label: '不应立即实现完整认知 OS',
+      sourcePath: path,
+      sourceLine: 1,
+    });
+  }
+
+  // Phases P0–P5 (ADR-003 style headings)
   for (let i = 0; i < lines.length; i++) {
     const phase = lines[i].match(/^###\s+(P[0-5])\s*[·:：-]\s*(.+)\s*$/);
     if (!phase) continue;
@@ -310,6 +382,333 @@ function parseAdr(
     });
   }
 
+  // Explicit 图关系 block / inline lines (ADR-004/005/006 contract)
+  let lastDefined: string | null = null;
+  let inGraphRel = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^##\s+图关系/i.test(lines[i])) {
+      inGraphRel = true;
+      continue;
+    }
+    if (inGraphRel && /^##\s+/.test(lines[i])) {
+      inGraphRel = false;
+    }
+    const nextDefined = parseGraphRelationLine(
+      lines[i],
+      i + 1,
+      path,
+      adrId,
+      lastDefined,
+      pushNode,
+      pushEdge,
+    );
+    if (nextDefined) lastDefined = nextDefined;
+  }
+}
+
+/**
+ * Parse one 图关系 line.
+ * Returns the node id when the line is a **defines** (for consumed-by chaining).
+ *
+ * Grammar:
+ *   - **defines** → `id` · title
+ *   - **consumed-by** → `id` · title     (from last defines target → id)
+ *   - **requires|produces|exposes|motivates|tombstones|verifies** → `id` · title
+ *   - `FROM --kind--> TO`  (ADR-008 style; kind may be clarifies|defers|…)
+ */
+function parseGraphRelationLine(
+  line: string,
+  lineNo: number,
+  path: string,
+  defaultFrom: string,
+  lastDefined: string | null,
+  pushNode: (n: GraphNode) => void,
+  pushEdge: (e: Omit<GraphEdge, 'id'>) => void,
+): string | null {
+  // ASCII arrow form: ADR-008 --clarifies--> ADR-001
+  const arrow = line.match(
+    /^\s*`?([A-Za-z0-9:._-]+)`?\s*--([A-Za-z0-9_-]+)-->\s*`?([A-Za-z0-9:._-]+)`?\s*$/,
+  );
+  if (arrow) {
+    const fromId = arrow[1].trim();
+    const token = arrow[2].toLowerCase();
+    const targetId = arrow[3].trim();
+    ensureStubNode(fromId, fromId, path, lineNo, pushNode);
+    ensureStubNode(targetId, targetId, path, lineNo, pushNode);
+    applyRelationToken(token, fromId, targetId, targetId, lastDefined, path, lineNo, pushEdge);
+    return token === 'defines' ? targetId : null;
+  }
+
+  const m = line.match(
+    /^\s*-\s*\*\*(defines|consumed-by|requires|produces|exposes|motivates|tombstones|verifies|clarifies|defers)\*\*\s*→\s*`?([A-Za-z0-9:._-]+)`?\s*(?:[·:：-]\s*(.+))?\s*$/i,
+  );
+  if (!m) return null;
+  const token = m[1].toLowerCase();
+  const targetId = m[2].trim();
+  const targetTitle = (m[3] || targetId).trim();
+
+  ensureStubNode(targetId, targetTitle, path, lineNo, pushNode);
+  return applyRelationToken(
+    token,
+    defaultFrom,
+    targetId,
+    targetTitle,
+    lastDefined,
+    path,
+    lineNo,
+    pushEdge,
+  );
+}
+
+/** Map relation token → edge(s). Returns target id when token is defines. */
+function applyRelationToken(
+  token: string,
+  fromId: string,
+  targetId: string,
+  _targetTitle: string,
+  lastDefined: string | null,
+  path: string,
+  lineNo: number,
+  pushEdge: (e: Omit<GraphEdge, 'id'>) => void,
+): string | null {
+  if (token === 'defines') {
+    pushEdge({
+      kind: 'produces',
+      from: fromId,
+      to: targetId,
+      label: 'defines',
+      sourcePath: path,
+      sourceLine: lineNo,
+    });
+    return targetId;
+  }
+  if (token === 'consumed-by') {
+    const from = lastDefined || fromId;
+    pushEdge({
+      kind: 'produces',
+      from,
+      to: targetId,
+      label: 'consumed-by',
+      sourcePath: path,
+      sourceLine: lineNo,
+    });
+    if (lastDefined) {
+      pushEdge({
+        kind: 'requires',
+        from: targetId,
+        to: lastDefined,
+        label: 'consumes',
+        sourcePath: path,
+        sourceLine: lineNo,
+      });
+    }
+    return null;
+  }
+  // clarifies / defers and other labels ride on produces when not a core kind
+  const core: GraphEdgeKind[] = [
+    'requires', 'produces', 'exposes', 'motivates', 'tombstones', 'verifies',
+  ];
+  const kind: GraphEdgeKind = (core as string[]).includes(token)
+    ? (token as GraphEdgeKind)
+    : 'produces';
+  pushEdge({
+    kind,
+    from: fromId,
+    to: targetId,
+    label: token,
+    sourcePath: path,
+    sourceLine: lineNo,
+  });
+  return null;
+}
+
+function ensureStubNode(
+  id: string,
+  title: string,
+  path: string,
+  line: number,
+  pushNode: (n: GraphNode) => void,
+): void {
+  if (id.startsWith('phase:')) {
+    const p = id.slice('phase:'.length);
+    pushNode({
+      id,
+      kind: 'phase',
+      title: title.includes('·') ? title : `${p} · ${title}`,
+      status: 'PLANNED',
+      summary: title,
+      sourcePath: path,
+      sourceLine: line,
+    });
+    return;
+  }
+  if (id.startsWith('finding:')) {
+    pushNode({
+      id,
+      kind: 'finding',
+      title,
+      status: 'DEFINED',
+      summary: title,
+      sourcePath: path,
+      sourceLine: line,
+    });
+    return;
+  }
+  if (id.startsWith('paper:')) {
+    pushNode({
+      id,
+      kind: 'finding',
+      title: title.startsWith('paper:') ? title.slice('paper:'.length) : title,
+      status: 'HYPOTHESIS',
+      summary: title,
+      sourcePath: path,
+      sourceLine: line,
+    });
+    return;
+  }
+  if (id.startsWith('roadmap:')) {
+    pushNode({
+      id,
+      kind: 'campaign',
+      title: title,
+      status: 'ARCHIVED',
+      summary: title,
+      sourcePath: path,
+      sourceLine: line,
+    });
+    return;
+  }
+  if (id.startsWith('chronicle:')) {
+    pushNode({
+      id,
+      kind: 'finding',
+      title,
+      status: 'DEFERRED',
+      summary: title,
+      sourcePath: path,
+      sourceLine: line,
+    });
+    return;
+  }
+  if (/^BUG-/.test(id)) {
+    pushNode({
+      id,
+      kind: 'bug',
+      title,
+      status: 'REFERENCED',
+      summary: title,
+      sourcePath: path,
+      sourceLine: line,
+    });
+    return;
+  }
+  if (/^ADR-/.test(id) || id.startsWith('ADR:')) {
+    pushNode({
+      id,
+      kind: 'adr',
+      title,
+      status: 'REFERENCED',
+      summary: title,
+      sourcePath: path,
+      sourceLine: line,
+    });
+    return;
+  }
+  pushNode({
+    id,
+    kind: 'finding',
+    title,
+    status: 'DEFINED',
+    summary: title,
+    sourcePath: path,
+    sourceLine: line,
+  });
+}
+
+/**
+ * Parse extra docs (roadmap etc.): paper ledger rows + ASCII 图关系 lines in fenced/plain form.
+ */
+function parseExtraDoc(
+  text: string,
+  path: string,
+  pushNode: (n: GraphNode) => void,
+  pushEdge: (e: Omit<GraphEdge, 'id'>) => void,
+  _parseErrors: ParseError[],
+): void {
+  const lines = text.split(/\n/);
+  // Roadmap archive node
+  if (/roadmap/i.test(path)) {
+    pushNode({
+      id: 'roadmap:v04-final',
+      kind: 'campaign',
+      title: 'v0.4/v0.4x/v0.5 Paper-Calibrated Roadmap',
+      status: 'ARCHIVED',
+      summary: 'Paper-calibrated roadmap with settlement notes and hypothesis ledger',
+      sourcePath: path,
+      sourceLine: 1,
+    });
+  }
+
+  // Paper table rows: | **Meta-Harness** | ... | status | evidence |
+  const paperIdByAbbrev: Record<string, string> = {
+    'meta-harness': 'paper:meta-harness',
+    ahe: 'paper:ahe',
+    'continual harness': 'paper:continual-harness',
+    'llms get lost': 'paper:llms-get-lost',
+    skill1: 'paper:skill1',
+    autogenesis: 'paper:autogenesis',
+    gam: 'paper:gam',
+    aevo: 'paper:aevo',
+    'gep/gene': 'paper:gep-gene',
+    gep: 'paper:gep-gene',
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const row = lines[i].match(/^\s*>?\s*\|\s*\*\*([^*]+)\*\*\s*\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|\s*$/);
+    if (!row) continue;
+    const abbrev = row[1].trim();
+    const key = abbrev.toLowerCase();
+    const id = paperIdByAbbrev[key];
+    if (!id) continue;
+    const paperTitle = row[2].trim();
+    const contribution = row[3].trim();
+    const status = row[4].trim().replace(/\*\*/g, '');
+    pushNode({
+      id,
+      kind: 'finding',
+      title: `${abbrev} · ${paperTitle.slice(0, 80)}`,
+      status,
+      summary: contribution.slice(0, 240),
+      sourcePath: path,
+      sourceLine: i + 1,
+    });
+  }
+
+  // 图关系 lines (including inside ``` fences)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!/--[A-Za-z0-9_-]+-->/.test(line)) continue;
+    parseGraphRelationLine(line, i + 1, path, 'roadmap:v04-final', null, pushNode, pushEdge);
+  }
+}
+
+function computeEdgeCoverage(nodes: GraphNode[], edges: GraphEdge[]): EdgeCoverage {
+  const deg = new Map<string, number>();
+  for (const e of edges) {
+    deg.set(e.from, (deg.get(e.from) ?? 0) + 1);
+    deg.set(e.to, (deg.get(e.to) ?? 0) + 1);
+  }
+  const inventory: EdgeCoverageEntry[] = nodes
+    .filter((n) => n.kind === 'adr' || n.kind === 'bug' || n.kind === 'phase')
+    .map((n) => ({
+      id: n.id,
+      kind: n.kind,
+      title: n.title,
+      edgeCount: deg.get(n.id) ?? 0,
+      sourcePath: n.sourcePath,
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const unconnected = inventory.filter((e) => e.edgeCount === 0);
+  return { inventory, unconnected };
 }
 
 function inferPhaseStatus(adrText: string, phase: string): string {
@@ -511,6 +910,17 @@ function wireDomainEdges(
       sourceLine: 101,
     });
   }
+  // Placeholder still participates in edge coverage (exemplar → real closed bug).
+  if (nodes.some((n) => n.id === 'BUG-011') && nodes.some((n) => n.id === 'BUG-004')) {
+    pushEdge({
+      kind: 'motivates',
+      from: 'BUG-011',
+      to: 'BUG-004',
+      label: 'use BUG-004 as closed-bug exemplar',
+      sourcePath: 'docs/superpowers/plans/2026-07-15-archive-chronicle-atlas.md',
+      sourceLine: 101,
+    });
+  }
 }
 
 function deriveNextActions(nodes: GraphNode[], edges: GraphEdge[]): string[] {
@@ -625,11 +1035,24 @@ export async function loadRepoGraphSources(root: string): Promise<BuildGraphInpu
   } catch {
     // optional
   }
+  const extraFiles: Array<{ path: string; text: string }> = [];
+  const roadmapDir = join(root, 'docs/roadmap');
+  try {
+    const names = (await readdir(roadmapDir)).filter((n) => n.endsWith('.md')).sort();
+    for (const name of names) {
+      extraFiles.push({
+        path: `docs/roadmap/${name}`,
+        text: await readFile(join(roadmapDir, name), 'utf8'),
+      });
+    }
+  } catch {
+    // optional
+  }
   let todoText = '';
   try {
     todoText = await readFile(join(root, 'evals/distillation/todo-distill-fidelity-v2.md'), 'utf8');
   } catch {
     // optional
   }
-  return { buglogText, adrFiles, indexText, distillationFiles, todoText };
+  return { buglogText, adrFiles, indexText, distillationFiles, extraFiles, todoText };
 }

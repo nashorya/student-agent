@@ -77,6 +77,12 @@ scanned、eligible knack 和 truncation 指示。
 - 同 task/run 重建 L1 不得重复增加 injection count。
 - preferences、doc findings 和通用六维 RecallScore 行为保持现有测试覆盖。
 
+## 图关系
+
+> 机读约定见 `docs/chronicle-graph-contracts.md` / `knowledge-graph.ts` 头注释。
+
+- **defines** → `phase:P2` · 召回排序去 recency 偏置
+
 ## 关联
 
 - 前置：[ADR-003](ADR-003-v04x-priority-reorder.md)、[ADR-004](ADR-004-knack-schema-v1.md)

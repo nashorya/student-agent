@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "59aa16cdb61d73e3",
+  "contentHash": "f6ca0331048629db",
   "nodes": [
     {
       "id": "ADR-001",
@@ -57,13 +57,31 @@
       "sourceLine": 4
     },
     {
+      "id": "ADR-008",
+      "kind": "adr",
+      "title": "项目定位:Measured Harness Evolution",
+      "status": "已采纳(2026-07-19)",
+      "summary": "项目定位:Measured Harness Evolution",
+      "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md",
+      "sourceLine": 3
+    },
+    {
+      "id": "ADR:external-jspace-architecture-review",
+      "kind": "adr",
+      "title": "External J-Space / Context Runtime 架构评审报告",
+      "status": "TOMBSTONE-REVIEW",
+      "summary": "External J-Space / Context Runtime 架构评审报告",
+      "sourcePath": "docs/adr/external_jspace_architecture_review.md",
+      "sourceLine": 1
+    },
+    {
       "id": "BUG-001",
       "kind": "bug",
       "title": "benchmark 路径未接入 Context Runtime",
       "status": "CLOSED（Tier A/B 实跑 trace 已持续记录 task lifecycle、",
       "summary": "SWE 对比 run 的 trace 中 `layers.L1/L2/L3.sectionCount = 0`、",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 173
+      "sourceLine": 178
     },
     {
       "id": "BUG-002",
@@ -72,7 +90,7 @@
       "status": "CLOSED（OpenRouter Sonnet cache_control 透传与 usage 采集实测正常；",
       "summary": "cc（经代理跑 gpt-5.5）的 `cacheReadTokens` 恒为 0",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 190
+      "sourceLine": 195
     },
     {
       "id": "BUG-003",
@@ -81,7 +99,7 @@
       "status": "CLOSED",
       "summary": "git log 最后的版本化提交停在 v0.36，v0.4 成果埋在",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 214
+      "sourceLine": 219
     },
     {
       "id": "BUG-004",
@@ -90,7 +108,7 @@
       "status": "CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件；",
       "summary": "Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 228
+      "sourceLine": 233
     },
     {
       "id": "BUG-005",
@@ -99,7 +117,7 @@
       "status": "CLOSED",
       "summary": "`p2-overfull-hard-constraints-20260611` reward=0 看似红灯，",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 324
+      "sourceLine": 329
     },
     {
       "id": "BUG-006",
@@ -108,7 +126,7 @@
       "status": "CLOSED（verifier 依赖与 invalid_run 哨兵已实测生效；后续",
       "summary": "overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 343
+      "sourceLine": 348
     },
     {
       "id": "BUG-007",
@@ -117,7 +135,7 @@
       "status": "CLOSED（相关凭据仍建议轮换）",
       "summary": "`scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 388
+      "sourceLine": 393
     },
     {
       "id": "BUG-008",
@@ -126,7 +144,7 @@
       "status": "CLOSED",
       "summary": "README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 155
+      "sourceLine": 159
     },
     {
       "id": "BUG-009",
@@ -135,7 +153,7 @@
       "status": "CLOSED",
       "summary": "`npm run eval:validate` 报",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 144
+      "sourceLine": 147
     },
     {
       "id": "BUG-010",
@@ -144,7 +162,7 @@
       "status": "CLOSED",
       "summary": "`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 136
+      "sourceLine": 138
     },
     {
       "id": "BUG-011",
@@ -156,22 +174,13 @@
       "sourceLine": 101
     },
     {
-      "id": "BUG-UNNUMBERED-1f8fc4d6",
-      "kind": "bug",
-      "title": "NNN · 一句话标题",
-      "status": "OPEN / FIXED / FIXED-待回归 / WONTFIX",
-      "summary": "（现象 + 证据位置）",
-      "sourcePath": "docs/buglog.md",
-      "sourceLine": 409
-    },
-    {
       "id": "BUG-UNNUMBERED-205d894e",
       "kind": "bug",
       "title": "主库写入路径过松（过程噪声进 lessons/）",
       "status": "FIXED（门控收紧 + 库清理）；P1 验收重开。",
       "summary": "盲审 0/5；13 条主库全是 `Treat tool error as a retry pattern` 过程噪声。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 126
+      "sourceLine": 127
     },
     {
       "id": "BUG-UNNUMBERED-561c42ed",
@@ -573,6 +582,26 @@
       "sourceLine": 49
     },
     {
+      "id": "campaign:index-050",
+      "kind": "campaign",
+      "title": "ADR-008 落档（纯文书）：项目定位 Measured Harness Evolution——对标 Hermes 式 harness 成长，但要求每环出示因果证据后才上机；澄清 ADR-001「测量平台」为阶段手段非产品身份；工具产品化",
+      "status": "RECORDED",
+      "summary": "ADR-008 落档（纯文书）：项目定位 Measured Harness Evolution——对标 Hermes 式 harness 成长，但要求每环出示因果证据后才上机；澄清 ADR-001「测量平台」为阶段手段非产品身份；工具产品化（chronicle P3/P4）排序于注入效果实验之后",
+      "date": "2026-07-19",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 50
+    },
+    {
+      "id": "campaign:index-051",
+      "kind": "campaign",
+      "title": "Roadmap 收编入库 + 假设账本：`docs/roadmap/` 归档 paper-calibrated 终稿（原文保留）并追加结账层；论文表加状态/证据列与 GEP/Gene 第 9 行；Chronicle extra source",
+      "status": "RECORDED",
+      "summary": "Roadmap 收编入库 + 假设账本：`docs/roadmap/` 归档 paper-calibrated 终稿（原文保留）并追加结账层；论文表加状态/证据列与 GEP/Gene 第 9 行；Chronicle extra source 接线图关系",
+      "date": "2026-07-19",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 51
+    },
+    {
       "id": "campaign:p0-assay-candidates.json",
       "kind": "campaign",
       "title": "p0-assay-candidates.json",
@@ -778,6 +807,24 @@
       "sourceLine": 1
     },
     {
+      "id": "chronicle:P3",
+      "kind": "finding",
+      "title": "chronicle:P3",
+      "status": "DEFERRED",
+      "summary": "chronicle:P3",
+      "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md",
+      "sourceLine": 35
+    },
+    {
+      "id": "chronicle:P4",
+      "kind": "finding",
+      "title": "chronicle:P4",
+      "status": "DEFERRED",
+      "summary": "chronicle:P4",
+      "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md",
+      "sourceLine": 36
+    },
+    {
       "id": "finding:c2-cache-prefix",
       "kind": "finding",
       "title": "C-2 缓存前缀重排",
@@ -789,11 +836,11 @@
     {
       "id": "finding:injection-effect-experiment",
       "kind": "finding",
-      "title": "注入效果实验（lesson 注入改善后续任务）",
-      "status": "BLOCKED",
-      "summary": "P1 合页后仍未验证注入改善后续任务；缺独立实验设计与预注册",
-      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 207
+      "title": "finding:injection-effect-experiment",
+      "status": "DEFINED",
+      "summary": "finding:injection-effect-experiment",
+      "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md",
+      "sourceLine": 34
     },
     {
       "id": "finding:jspace-external",
@@ -804,6 +851,33 @@
       "sourcePath": "docs/adr/external_jspace_architecture_review.md",
       "sourceLine": 1,
       "tombstone": true
+    },
+    {
+      "id": "finding:knack-fidelity-v2",
+      "kind": "finding",
+      "title": "finding:knack-fidelity-v2",
+      "status": "DEFINED",
+      "summary": "finding:knack-fidelity-v2",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2601
+    },
+    {
+      "id": "finding:knack-schema-v1",
+      "kind": "finding",
+      "title": "Knack Schema v1",
+      "status": "DEFINED",
+      "summary": "Knack Schema v1",
+      "sourcePath": "docs/adr/ADR-004-knack-schema-v1.md",
+      "sourceLine": 120
+    },
+    {
+      "id": "finding:skill-leak-knacks-jsonl",
+      "kind": "finding",
+      "title": "finding:skill-leak-knacks-jsonl",
+      "status": "DEFINED",
+      "summary": "finding:skill-leak-knacks-jsonl",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2600
     },
     {
       "id": "finding:tombstone-lesson-seed",
@@ -846,22 +920,103 @@
       "tombstone": true
     },
     {
+      "id": "paper:aevo",
+      "kind": "finding",
+      "title": "AEvo · Harnessing Agentic Evolution (港科大/DeepWisdom)",
+      "status": "已工程化",
+      "summary": "evolution as environment，meta-editing loop，evaluator 隔离防 reward hacking",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 16
+    },
+    {
+      "id": "paper:ahe",
+      "kind": "finding",
+      "title": "AHE · Agentic Harness Engineering (复旦/北大)",
+      "status": "未验",
+      "summary": "三层 observability，组件非可加性，regression blindness",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 10
+    },
+    {
+      "id": "paper:autogenesis",
+      "kind": "finding",
+      "title": "Autogenesis · Autogenesis: A Self-Evolving Agent Protocol",
+      "status": "未验",
+      "summary": "RSPL/SEPL，evolvability marker，PS-Joint-Evo",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 14
+    },
+    {
+      "id": "paper:continual-harness",
+      "kind": "finding",
+      "title": "Continual Harness · Continual Harness: Online Adaptation (普林斯顿)",
+      "status": "未验",
+      "summary": "reset-free 在线自改进，capability floor",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 11
+    },
+    {
+      "id": "paper:gam",
+      "kind": "finding",
+      "title": "GAM · General Agentic Memory Via Deep Research (智源)",
+      "status": "未验",
+      "summary": "JIT > AOT memory，Researcher 对模型规模敏感",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 15
+    },
+    {
+      "id": "paper:gep-gene",
+      "kind": "finding",
+      "title": "GEP/Gene · From Procedural Skills to Strategy Genes: Towards Experience-Driven Test-Time Ev",
+      "status": "部分已独立复现",
+      "summary": "文档型 Skill 包控制不稳定、有用信号稀疏；紧凑 Gene 表示为 first-order factor，同预算胜过 Skill 片段；failure history 附着于 gene 更有效（4590 trials / 45 scenarios）",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 17
+    },
+    {
+      "id": "paper:llms-get-lost",
+      "kind": "finding",
+      "title": "LLMs Get Lost · LLMs Get Lost In Multi-Turn Conversation",
+      "status": "在验",
+      "summary": "2 轮即退化，unreliability +112%，recap 只恢复 15-20%",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 12
+    },
+    {
+      "id": "paper:meta-harness",
+      "kind": "finding",
+      "title": "Meta-Harness · Meta-Harness: End-to-End Optimization of Model Harnesses",
+      "status": "已工程化",
+      "summary": "full traces >> scores-only（44% 差距）",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 9
+    },
+    {
+      "id": "paper:skill1",
+      "kind": "finding",
+      "title": "Skill1 · Unified Evolution of Skill-Augmented Agents via RL",
+      "status": "deferred",
+      "summary": "selection/utilization/distillation 三路 credit，variation = r(τ) - Û",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 13
+    },
+    {
       "id": "phase:P0",
       "kind": "phase",
-      "title": "P0 · 离线蒸馏化验（零成本验证前提）",
+      "title": "P0 · 化验工具链可复现依赖",
       "status": "CLOSED",
-      "summary": "离线蒸馏化验（零成本验证前提）",
-      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 21
+      "summary": "化验工具链可复现依赖",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 145
     },
     {
       "id": "phase:P1",
       "kind": "phase",
-      "title": "P1 · Lesson 准入门控（batch distillation 管道）",
+      "title": "P1 · 成本对账是 P1 供给可信度的前提",
       "status": "CLOSED",
-      "summary": "Lesson 准入门控（batch distillation 管道）",
-      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 82
+      "summary": "成本对账是 P1 供给可信度的前提",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 125
     },
     {
       "id": "phase:P2",
@@ -898,6 +1053,15 @@
       "summary": "\"较真税\"治理（thoroughness budget）",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
       "sourceLine": 242
+    },
+    {
+      "id": "roadmap:v04-final",
+      "kind": "campaign",
+      "title": "v0.4/v0.4x/v0.5 Paper-Calibrated Roadmap",
+      "status": "ARCHIVED",
+      "summary": "Paper-calibrated roadmap with settlement notes and hypothesis ledger",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 1
     }
   ],
   "edges": [
@@ -1102,6 +1266,130 @@
       "id": "exposes:campaign:index-049->ADR-006"
     },
     {
+      "kind": "exposes",
+      "from": "campaign:index-050",
+      "to": "ADR-001",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 50,
+      "id": "exposes:campaign:index-050->ADR-001"
+    },
+    {
+      "kind": "exposes",
+      "from": "campaign:index-050",
+      "to": "ADR-008",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 50,
+      "id": "exposes:campaign:index-050->ADR-008"
+    },
+    {
+      "kind": "motivates",
+      "from": "ADR-008",
+      "to": "finding:injection-effect-experiment",
+      "label": "motivates",
+      "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md",
+      "sourceLine": 34,
+      "id": "motivates:ADR-008->finding:injection-effect-experiment"
+    },
+    {
+      "kind": "motivates",
+      "from": "ADR:external-jspace-architecture-review",
+      "to": "phase:P4",
+      "label": "motivates",
+      "sourcePath": "docs/adr/external_jspace_architecture_review.md",
+      "sourceLine": 12,
+      "id": "motivates:ADR:external-jspace-architecture-review->phase:P4"
+    },
+    {
+      "kind": "motivates",
+      "from": "BUG-008",
+      "to": "phase:P0",
+      "label": "motivates",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 174,
+      "id": "motivates:BUG-008->phase:P0"
+    },
+    {
+      "kind": "motivates",
+      "from": "BUG-009",
+      "to": "phase:P0",
+      "label": "motivates",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 157,
+      "id": "motivates:BUG-009->phase:P0"
+    },
+    {
+      "kind": "motivates",
+      "from": "BUG-010",
+      "to": "phase:P0",
+      "label": "motivates",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 145,
+      "id": "motivates:BUG-010->phase:P0"
+    },
+    {
+      "kind": "motivates",
+      "from": "BUG-011",
+      "to": "BUG-004",
+      "label": "use BUG-004 as closed-bug exemplar",
+      "sourcePath": "docs/superpowers/plans/2026-07-15-archive-chronicle-atlas.md",
+      "sourceLine": 101,
+      "id": "motivates:BUG-011->BUG-004"
+    },
+    {
+      "kind": "motivates",
+      "from": "BUG-UNNUMBERED-205d894e",
+      "to": "phase:P1",
+      "label": "motivates",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 136,
+      "id": "motivates:BUG-UNNUMBERED-205d894e->phase:P1"
+    },
+    {
+      "kind": "motivates",
+      "from": "BUG-UNNUMBERED-561c42ed",
+      "to": "phase:P1",
+      "label": "motivates",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 125,
+      "id": "motivates:BUG-UNNUMBERED-561c42ed->phase:P1"
+    },
+    {
+      "kind": "motivates",
+      "from": "paper:aevo",
+      "to": "phase:P0",
+      "label": "motivates",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2604,
+      "id": "motivates:paper:aevo->phase:P0"
+    },
+    {
+      "kind": "motivates",
+      "from": "paper:llms-get-lost",
+      "to": "finding:injection-effect-experiment",
+      "label": "motivates",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2602,
+      "id": "motivates:paper:llms-get-lost->finding:injection-effect-experiment"
+    },
+    {
+      "kind": "motivates",
+      "from": "paper:meta-harness",
+      "to": "phase:P1",
+      "label": "motivates",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2603,
+      "id": "motivates:paper:meta-harness->phase:P1"
+    },
+    {
+      "kind": "motivates",
+      "from": "roadmap:v04-final",
+      "to": "finding:injection-effect-experiment",
+      "label": "motivates",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2605,
+      "id": "motivates:roadmap:v04-final->finding:injection-effect-experiment"
+    },
+    {
       "kind": "produces",
       "from": "ADR-003",
       "to": "phase:P0",
@@ -1156,6 +1444,177 @@
       "id": "produces:ADR-003->phase:P5"
     },
     {
+      "kind": "produces",
+      "from": "ADR-004",
+      "to": "finding:knack-schema-v1",
+      "label": "defines",
+      "sourcePath": "docs/adr/ADR-004-knack-schema-v1.md",
+      "sourceLine": 120,
+      "id": "produces:ADR-004->finding:knack-schema-v1"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-005",
+      "to": "phase:P2",
+      "label": "defines",
+      "sourcePath": "docs/adr/ADR-005-recall-ranking-protocol.md",
+      "sourceLine": 84,
+      "id": "produces:ADR-005->phase:P2"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-006",
+      "to": "phase:P3",
+      "label": "defines",
+      "sourcePath": "docs/adr/ADR-006-recall-citation-and-credit.md",
+      "sourceLine": 85,
+      "id": "produces:ADR-006->phase:P3"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-008",
+      "to": "ADR-001",
+      "label": "clarifies",
+      "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md",
+      "sourceLine": 33,
+      "id": "produces:ADR-008->ADR-001"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-008",
+      "to": "chronicle:P3",
+      "label": "defers",
+      "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md",
+      "sourceLine": 35,
+      "id": "produces:ADR-008->chronicle:P3"
+    },
+    {
+      "kind": "produces",
+      "from": "ADR-008",
+      "to": "chronicle:P4",
+      "label": "defers",
+      "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md",
+      "sourceLine": 36,
+      "id": "produces:ADR-008->chronicle:P4"
+    },
+    {
+      "kind": "produces",
+      "from": "finding:knack-schema-v1",
+      "to": "phase:P1",
+      "label": "consumed-by",
+      "sourcePath": "docs/adr/ADR-004-knack-schema-v1.md",
+      "sourceLine": 121,
+      "id": "produces:finding:knack-schema-v1->phase:P1"
+    },
+    {
+      "kind": "produces",
+      "from": "paper:gep-gene",
+      "to": "ADR-004",
+      "label": "independently_replicated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2599,
+      "id": "produces:paper:gep-gene->ADR-004"
+    },
+    {
+      "kind": "produces",
+      "from": "paper:gep-gene",
+      "to": "finding:knack-fidelity-v2",
+      "label": "independently_replicated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2601,
+      "id": "produces:paper:gep-gene->finding:knack-fidelity-v2"
+    },
+    {
+      "kind": "produces",
+      "from": "paper:gep-gene",
+      "to": "finding:skill-leak-knacks-jsonl",
+      "label": "independently_replicated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2600,
+      "id": "produces:paper:gep-gene->finding:skill-leak-knacks-jsonl"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:aevo",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2597,
+      "id": "produces:roadmap:v04-final->paper:aevo"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:ahe",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2591,
+      "id": "produces:roadmap:v04-final->paper:ahe"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:autogenesis",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2595,
+      "id": "produces:roadmap:v04-final->paper:autogenesis"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:continual-harness",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2592,
+      "id": "produces:roadmap:v04-final->paper:continual-harness"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:gam",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2596,
+      "id": "produces:roadmap:v04-final->paper:gam"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:gep-gene",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2598,
+      "id": "produces:roadmap:v04-final->paper:gep-gene"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:llms-get-lost",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2593,
+      "id": "produces:roadmap:v04-final->paper:llms-get-lost"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:meta-harness",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2590,
+      "id": "produces:roadmap:v04-final->paper:meta-harness"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:skill1",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2594,
+      "id": "produces:roadmap:v04-final->paper:skill1"
+    },
+    {
       "kind": "requires",
       "from": "finding:injection-effect-experiment",
       "to": "phase:P1",
@@ -1172,6 +1631,15 @@
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
       "sourceLine": 232,
       "id": "requires:finding:injection-effect-experiment->phase:P3"
+    },
+    {
+      "kind": "requires",
+      "from": "phase:P1",
+      "to": "finding:knack-schema-v1",
+      "label": "consumes",
+      "sourcePath": "docs/adr/ADR-004-knack-schema-v1.md",
+      "sourceLine": 121,
+      "id": "requires:phase:P1->finding:knack-schema-v1"
     },
     {
       "kind": "requires",
@@ -1248,6 +1716,15 @@
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
       "sourceLine": 256,
       "id": "tombstones:ADR-003->finding:tombstone-x"
+    },
+    {
+      "kind": "tombstones",
+      "from": "ADR:external-jspace-architecture-review",
+      "to": "finding:jspace-external",
+      "label": "不应立即实现完整认知 OS",
+      "sourcePath": "docs/adr/external_jspace_architecture_review.md",
+      "sourceLine": 1,
+      "id": "tombstones:ADR:external-jspace-architecture-review->finding:jspace-external"
     },
     {
       "kind": "verifies",
@@ -1443,7 +1920,7 @@
     {
       "path": "docs/adr/external_jspace_architecture_review.md",
       "line": 1,
-      "message": "ADR file missing `# ADR-NNN` title"
+      "message": "ADR file missing `# ADR-NNN` title (using slug id)"
     }
   ],
   "todoDiff": {
@@ -1454,9 +1931,203 @@
     ],
     "inTodoNotGraph": []
   },
+  "edgeCoverage": {
+    "inventory": [
+      {
+        "id": "ADR-001",
+        "kind": "adr",
+        "title": "评测口径：跨 agent 对比与自建 eval 严格分离",
+        "edgeCount": 3,
+        "sourcePath": "docs/adr/ADR-001-eval-claim-separation.md"
+      },
+      {
+        "id": "ADR-002",
+        "kind": "adr",
+        "title": "学习 eval：别人的题 + 自己的协议",
+        "edgeCount": 1,
+        "sourcePath": "docs/adr/ADR-002-learning-eval-protocol.md"
+      },
+      {
+        "id": "ADR-003",
+        "kind": "adr",
+        "title": "v0.4x 优先级重排（基于 Tier B 数据）",
+        "edgeCount": 14,
+        "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md"
+      },
+      {
+        "id": "ADR-004",
+        "kind": "adr",
+        "title": "Knack Schema v1（定稿）",
+        "edgeCount": 3,
+        "sourcePath": "docs/adr/ADR-004-knack-schema-v1.md"
+      },
+      {
+        "id": "ADR-005",
+        "kind": "adr",
+        "title": "Recall Ranking Protocol（P2）",
+        "edgeCount": 2,
+        "sourcePath": "docs/adr/ADR-005-recall-ranking-protocol.md"
+      },
+      {
+        "id": "ADR-006",
+        "kind": "adr",
+        "title": "Recall Citation 与成功归因",
+        "edgeCount": 2,
+        "sourcePath": "docs/adr/ADR-006-recall-citation-and-credit.md"
+      },
+      {
+        "id": "ADR-008",
+        "kind": "adr",
+        "title": "项目定位:Measured Harness Evolution",
+        "edgeCount": 5,
+        "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md"
+      },
+      {
+        "id": "ADR:external-jspace-architecture-review",
+        "kind": "adr",
+        "title": "External J-Space / Context Runtime 架构评审报告",
+        "edgeCount": 2,
+        "sourcePath": "docs/adr/external_jspace_architecture_review.md"
+      },
+      {
+        "id": "BUG-001",
+        "kind": "bug",
+        "title": "benchmark 路径未接入 Context Runtime",
+        "edgeCount": 3,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-002",
+        "kind": "bug",
+        "title": "cc usage 采集不认 OpenAI 格式，cache 恒为 0",
+        "edgeCount": 3,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-003",
+        "kind": "bug",
+        "title": "档案纪律失守：v0.37–v0.4 被打包进 batch commit",
+        "edgeCount": 1,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-004",
+        "kind": "bug",
+        "title": "overfull-hbox 约束未进入近场，导致非法 synonym 替换",
+        "edgeCount": 4,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-005",
+        "kind": "bug",
+        "title": "P2 overfull 回归为无效 run：provider 漂移 + 缺 API key",
+        "edgeCount": 2,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-006",
+        "kind": "bug",
+        "title": "verifier 环境失败被计为 reward 0，污染判分与重跑配额",
+        "edgeCount": 3,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-007",
+        "kind": "bug",
+        "title": "本地 probe 凭据误入未推送分支历史",
+        "edgeCount": 1,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-008",
+        "kind": "bug",
+        "title": "pi 本地依赖跟随 main，干净检出不可复现",
+        "edgeCount": 1,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-009",
+        "kind": "bug",
+        "title": "imported LocoBench smoke 被当作 oracle fixture 验证",
+        "edgeCount": 1,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-010",
+        "kind": "bug",
+        "title": "Vitest 2.x audit critical",
+        "edgeCount": 1,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-011",
+        "kind": "bug",
+        "title": "（占位）Atlas 计划 fixture / 非 buglog 实号",
+        "edgeCount": 1,
+        "sourcePath": "docs/superpowers/plans/2026-07-15-archive-chronicle-atlas.md"
+      },
+      {
+        "id": "BUG-UNNUMBERED-205d894e",
+        "kind": "bug",
+        "title": "主库写入路径过松（过程噪声进 lessons/）",
+        "edgeCount": 1,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-UNNUMBERED-561c42ed",
+        "kind": "bug",
+        "title": "2026-07-18 前 trace 成本系统性低估",
+        "edgeCount": 1,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "phase:P0",
+        "kind": "phase",
+        "title": "P0 · 化验工具链可复现依赖",
+        "edgeCount": 6,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "phase:P1",
+        "kind": "phase",
+        "title": "P1 · 成本对账是 P1 供给可信度的前提",
+        "edgeCount": 29,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "phase:P2",
+        "kind": "phase",
+        "title": "P2 · 召回排序去 recency 偏置",
+        "edgeCount": 3,
+        "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md"
+      },
+      {
+        "id": "phase:P3",
+        "kind": "phase",
+        "title": "P3 · 利用可观测（recall citation）",
+        "edgeCount": 5,
+        "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md"
+      },
+      {
+        "id": "phase:P4",
+        "kind": "phase",
+        "title": "P4 · Requirement Ledger 完整版",
+        "edgeCount": 3,
+        "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md"
+      },
+      {
+        "id": "phase:P5",
+        "kind": "phase",
+        "title": "P5 · \"较真税\"治理（thoroughness budget）",
+        "edgeCount": 2,
+        "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md"
+      }
+    ],
+    "unconnected": []
+  },
   "answers": {
     "bug011": "BUG-011 为何而生: 仅出现在 chronicle-model TDD fixture；实档请用 BUG-004 等编号 bug 做关案叙事；关死状态: NOT_IN_BUGLOG. 实档同类关案范例 BUG-004: 生于「Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了…」，被 CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件； 收束。",
-    "jspaceTombstone": "外部 J-space 完整认知 OS 成墓碑: 方向成立，但不应立即实现完整认知操作系统；仅作功能类比（见 external_jspace_architecture_review） (status=TOMBSTONE)",
-    "injectionMissing": "注入效果实验（lesson 注入改善后续任务）: P1 合页后仍未验证注入改善后续任务；缺独立实验设计与预注册 | 前提清单: phase:P1 status=CLOSED✓; phase:P3 status=PLANNED✗未满足"
+    "jspaceTombstone": "External J-Space / Context Runtime 架构评审报告 成墓碑: External J-Space / Context Runtime 架构评审报告 (status=TOMBSTONE-REVIEW)",
+    "injectionMissing": "finding:injection-effect-experiment: finding:injection-effect-experiment | 前提清单: phase:P1 status=CLOSED✓; phase:P3 status=PLANNED✗未满足"
   }
 }

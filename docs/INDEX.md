@@ -47,6 +47,8 @@
 | 2026-07-13 | 安装与确定性验证修复：pi 从未锁定的本地 main 改为 npm 0.73.1 精确版本；oracle fixture validation 跳过无 reference solution 的 LocoBench session-scored smoke；Vitest 升到 4.1.10 消除 audit critical。隔离试迁 earendil 0.80.6 证实存在 API 迁移面，oh-my-pi runtime 仍按路线图排除。Roadmap 新增 v0.4x-H：Student-agent 为每个目标项目发现/维护 INDEX、ADR、buglog，并生成静态 HTML 人类视图；下一产品项仍为 ADR-003 P2 召回排序去 recency 偏置 | [buglog BUG-008/009/010](buglog.md) · [pi 后继迁移计划](plan-pi-successor-migration.md) · [roadmap v0.4x-H](student-agent-v0.4-v0.4x-alignment-roadmap-final.md#v04x-h-project-development-archive--human-dashboard) · [ADR-003](adr/ADR-003-v04x-priority-reorder.md) |
 | 2026-07-13 | ADR-003 P2 / ADR-005 实现：distilled knack 运行时字段完整保留并可 upsert；召回改为 repository/symptom eligibility 后按 reuse、confidence、repo、semantic similarity、anti-repeat 稳定排序；embedding 失败确定性降级 lexical；候选池从旧全局 top-8 分离为 bounded 64，standard top-3/heavy top-5 不扩容；注入按 task/run 幂等计数。6938/12907 shaped fixtures 均进入 standard top-3 | [ADR-005](adr/ADR-005-recall-ranking-protocol.md) · [ADR-003](adr/ADR-003-v04x-priority-reorder.md) |
 | 2026-07-13 | ADR-003 P3 / ADR-006 实现：eval-mode prompt 暴露稳定 recall ID；assistant marker 按 message/context allowlist 校验并从最终输出清除；trace、events、outcome 记录 `used_recall_ids`；只有 valid citation + verifier/harness passed 才幂等增加 reuseCount。新增 SWE 延迟 reconciliation 命令与 recall utilization 指标，自动 deprecated 继续冻结等待真实数据校准 | [ADR-006](adr/ADR-006-recall-citation-and-credit.md) · `npm run eval:recall:reconcile` |
+| 2026-07-19 | ADR-008 落档（纯文书）：项目定位 Measured Harness Evolution——对标 Hermes 式 harness 成长，但要求每环出示因果证据后才上机；澄清 ADR-001「测量平台」为阶段手段非产品身份；工具产品化（chronicle P3/P4）排序于注入效果实验之后 | [ADR-008](adr/ADR-008-measured-harness-evolution.md) · [ADR-001](adr/ADR-001-eval-claim-separation.md) |
+| 2026-07-19 | Roadmap 收编入库 + 假设账本：`docs/roadmap/` 归档 paper-calibrated 终稿（原文保留）并追加结账层；论文表加状态/证据列与 GEP/Gene 第 9 行；Chronicle extra source 接线图关系 | [roadmap 终稿](roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md) |
 
 ## 横向 · 项目树地图
 
@@ -60,7 +62,7 @@
 | Run Archive / Trace Grader | `src/memory/run-archive/`、`src/evals/trace-grader/` | 冻结文档 |
 | Eval 框架（baseline/ablation/外部基准） | `src/evals/`、`scripts/eval-*.ts` | [eval 写作指南](eval-writing-guide.md)、[Ablation RFC](ablation-eval-rfc.md)、[外部基准](external-benchmarks.zh.md) |
 | TUI | `src/tui-v2/`（现役）、`src/tui/`（待清理） | [清理计划](plan-legacy-cleanup.md) |
-| 路线图 | — | [v0.4/v0.4x/v0.5 roadmap](student-agent-v0.4-v0.4x-alignment-roadmap-final.md) |
+| 路线图 | — | [v0.4/v0.4x/v0.5 roadmap（结账层）](roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md) |
 | 决策档案 | — | [adr/](adr/)（含被否方案与理由） |
 | Bug 档案 | — | [buglog.md](buglog.md) |
 | 新人上手 | — | [onboarding](onboarding.md) |

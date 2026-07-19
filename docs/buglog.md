@@ -122,6 +122,7 @@
 - **处置**：自算降级 `costAuthority: local_estimate`；以网关为准回填本批；
   **2026-07-18 前跨批成本对比按 ÷3.3 打折**。历史批次不重算。
 - **状态**：FIXED-部分（计价重算路径 + 入档）；generationId 落盘后续增强。
+- **motivates** → `phase:P1` · 成本对账是 P1 供给可信度的前提
 
 ## BUG · 主库写入路径过松（过程噪声进 lessons/）
 
@@ -132,6 +133,7 @@
 - **处置**：过程噪声无 harness verification → 强制 ephemeral；本批 13 条降 ephemeral；
   53.8% **作废**。蒸馏 knack 走 knacks.jsonl 独立路径。
 - **状态**：FIXED（门控收紧 + 库清理）；P1 验收重开。
+- **motivates** → `phase:P1` · LessonWriter 门控收紧
 
 ## BUG-010 · Vitest 2.x audit critical
 
@@ -140,6 +142,7 @@
 - **修复**：Vitest 从 2.1.9 升级并精确锁定到 4.1.10；全量 137 files / 949 tests
   通过（136 files / 948 tests passed，1 file / 1 test skipped）。
 - **状态**：CLOSED
+- **motivates** → `phase:P0` · 化验工具链可复现依赖
 
 ## BUG-009 · imported LocoBench smoke 被当作 oracle fixture 验证
 
@@ -151,6 +154,7 @@
 - **修复**：`eval:validate` 仅对带 reference solution 的 oracle-backed fixture 执行
   initial FAIL → solution PASS；无 solution 的 session-scored smoke 明确列入 `skipped`。
 - **状态**：CLOSED
+- **motivates** → `phase:P0` · eval 契约不得把 smoke 当 oracle
 
 ## BUG-008 · pi 本地依赖跟随 main，干净检出不可复现
 
@@ -167,6 +171,7 @@
   API 已不存在，不能只换包名；按 [pi 后继迁移计划](plan-pi-successor-migration.md)
   独立处理。`oh-my-pi` runtime 需要 Bun，继续按既有路线图排除。
 - **状态**：CLOSED
+- **motivates** → `phase:P0` · 干净检出是一切化验前提
 
 ---
 

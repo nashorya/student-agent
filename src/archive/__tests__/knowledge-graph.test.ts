@@ -114,4 +114,65 @@ describe('chronicle knowledge graph', () => {
     // P1/P0 forced closed in wireDomainEdges; injection still needs P3
     expect(graph.nextActions.some((id) => id.includes('injection') || id.includes('P2') || id.includes('P3'))).toBe(true);
   });
+
+  it('parses 图关系 defines / consumed-by from ADR docs (not parser special-cases)', () => {
+    const adr004 = `# ADR-004 · Knack Schema v1
+
+- **状态**：已采纳
+
+## 图关系
+
+- **defines** → \`finding:knack-schema-v1\` · Knack Schema v1
+- **consumed-by** → \`phase:P1\` · P1 供给管道
+`;
+    const adr005 = `# ADR-005 · Recall Ranking
+
+- **状态**：已采纳
+
+## 图关系
+
+- **defines** → \`phase:P2\` · 召回排序
+`;
+    const adr006 = `# ADR-006 · Citation
+
+- **状态**：已采纳
+
+## 图关系
+
+- **defines** → \`phase:P3\` · 利用可观测
+`;
+    const graph = buildChronicleGraph(input({
+      adrFiles: [
+        { path: 'docs/adr/ADR-003-v04x-priority-reorder.md', text: sampleAdr003 },
+        { path: 'docs/adr/ADR-004-knack-schema-v1.md', text: adr004 },
+        { path: 'docs/adr/ADR-005-recall-ranking-protocol.md', text: adr005 },
+        { path: 'docs/adr/ADR-006-recall-citation-and-credit.md', text: adr006 },
+        { path: 'docs/adr/external_jspace_architecture_review.md', text: sampleJspace },
+      ],
+    }));
+
+    const edgeIds = new Set(graph.edges.map((e) => e.id));
+    expect(edgeIds.has('produces:ADR-004->finding:knack-schema-v1')).toBe(true);
+    expect(edgeIds.has('produces:finding:knack-schema-v1->phase:P1')).toBe(true);
+    expect(edgeIds.has('requires:phase:P1->finding:knack-schema-v1')).toBe(true);
+    expect(edgeIds.has('produces:ADR-005->phase:P2')).toBe(true);
+    expect(edgeIds.has('produces:ADR-006->phase:P3')).toBe(true);
+
+    const adrs = graph.nodes.filter((n) => n.kind === 'adr');
+    expect(adrs.length).toBeGreaterThanOrEqual(5); // 003-006 + jspace slug
+    for (const a of adrs) {
+      const count = graph.edgeCoverage.inventory.find((e) => e.id === a.id)?.edgeCount ?? 0;
+      expect(count).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('reports edgeCoverage inventory and never hides zero-edge nodes', () => {
+    const graph = buildChronicleGraph(input({
+      buglogText: `${sampleBuglog}\n## BUG-088 · island\n- **状态**：OPEN\n`,
+    }));
+    expect(graph.edgeCoverage.inventory.some((e) => e.id === 'BUG-088')).toBe(true);
+    expect(graph.edgeCoverage.unconnected.some((e) => e.id === 'BUG-088')).toBe(true);
+    // connected bugs not in unconnected
+    expect(graph.edgeCoverage.unconnected.some((e) => e.id === 'BUG-004')).toBe(false);
+  });
 });
