@@ -7,6 +7,8 @@ import type { VerificationKind } from './causal-pair.js';
 
 export type DistillImportRun = {
   runId: string; taskId: string; instanceId: string; reward: 0 | 1;
+  /** Task/issue instruction for fidelity-v2 symptom extraction. */
+  taskInstruction?: string;
 };
 
 export async function importDistilledLessons(opts: {
@@ -34,6 +36,7 @@ export async function importDistilledLessons(opts: {
     const [owner, rest] = run.instanceId.split('__');
     const candidate = distillRunEvents({
       events, evidenceTask: run.instanceId, verification, finalSummary: outcome.finalSummary,
+      taskInstruction: run.taskInstruction,
       repo: owner && rest ? `${owner}/${rest.replace(/-\d+$/, '')}` : 'unknown',
     });
     if (!candidate) {

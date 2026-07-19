@@ -6,7 +6,10 @@ import {
   deduplicateCandidates,
   distillResults,
   distillRunEvents,
+  extractSymptom,
+  isInformativeSymptom,
   parseJsonLines,
+  softSummarize,
 } from '../knack-distillation.js';
 
 describe('knack distillation', () => {
@@ -237,6 +240,80 @@ describe('knack distillation', () => {
       repo: 'owner/repo',
       finalSummary: 'The fix is restore the prior boundary.',
     })?.unit_test).toBe('Verified by verifier reward=1.');
+  });
+
+  it('skips low-info agent symptom and uses first substantial tool error (fidelity v2)', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"edit","summary":"Hashline: file changed since last read"}',
+      '{"kind":"tool_error","toolName":"bash","summary":"AssertionError: expected D exponent in FITS field"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'astropy__astropy-6938',
+      repo: 'astropy/astropy',
+      finalSummary: 'The bug is confirmed. The fix is to assign replace result back.',
+    })?.symptom).toBe('AssertionError: expected D exponent in FITS field');
+  });
+
+  it('prefers issue title from taskInstruction over agent fluff', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"edit","summary":"Hashline: stale tag"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'astropy__astropy-6938',
+      repo: 'astropy/astropy',
+      taskInstruction: [
+        'Resolve this SWE-bench issue in the current repository.',
+        'Instance: astropy__astropy-6938',
+        '',
+        'Possible bug in io.fits related to D exponents',
+        'chararray.replace is not in-place.',
+      ].join('\n'),
+      finalSummary: 'The bug is confirmed. The fix is assign replace back.',
+    })?.symptom).toBe('Possible bug in io.fits related to D exponents');
+  });
+
+  it('soft-limits long fix_summary at sentence end (fidelity v2)', () => {
+    const longTail = 'Keep the rest of the paragraph for context only and do not mid-cut. ';
+    const finalSummary = `The fix is ${'Assign the replace result back to output_field so D exponents survive. '.repeat(3)}${longTail.repeat(5)}`;
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    const fix = distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary,
+    })?.fix_summary ?? '';
+
+    expect(fix.endsWith('.')).toBe(true);
+    expect(fix.length).toBeLessThanOrEqual(300);
+    expect(fix.includes('Assign the replace result')).toBe(true);
+    // Must not hard-cut mid-word at exactly 150.
+    expect(fix.length === 150 && !/[.!?]$/.test(fix)).toBe(false);
+  });
+
+  it('isInformativeSymptom rejects confirmed fluff', () => {
+    expect(isInformativeSymptom('confirmed.')).toBe(false);
+    expect(isInformativeSymptom('The issue is clear')).toBe(false);
+    expect(isInformativeSymptom('AssertionError: matrix wrong')).toBe(true);
+  });
+
+  it('softSummarize extends to sentence end instead of chopping at 150', () => {
+    const text = `${'word '.repeat(20)}Complete sentence ends here. Extra clause stays out if possible.`;
+    const out = softSummarize(text, 150, 300);
+    expect(out.endsWith('.')).toBe(true);
+    expect(out.includes('Complete sentence ends here.')).toBe(true);
   });
 
   it('links run archives to their task and resolved harness result', async () => {

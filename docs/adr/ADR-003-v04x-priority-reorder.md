@@ -205,8 +205,9 @@ ephemeral note，不归档、不跨任务传播。
 >   延迟晋升 `b3759244`）。主库 **3 verified / 0 candidate**。
 > - **scope**：n=3、单仓库（astropy）、单批次（ZenMux 07-18 produce + harness）。  
 >   **未验证**：「lesson 注入改善后续任务」——属下阶段独立实验。
-> - **状态**：**P1 CLOSED（合页）**。  
->   开单占位（不执行）：**蒸馏表述保真度 v2**（`extractSymptom` 改抓任务侧错误表象；
+> - **状态**：**P1 CLOSED（合页）**。
+> - **保真度 v2 落地** @ `84dac410`：`extractSymptom` 任务侧优先 + fix 按句取整；对照 `p1-fidelity-v2-diff.md`。
+  
 >   fix 按句取整）——证据见 p1-e 盲审 #1 错格。
 
 ### P2 · 召回排序去 recency 偏置

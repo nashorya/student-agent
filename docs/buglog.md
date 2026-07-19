@@ -41,13 +41,15 @@
 - **未做**：lesson 注入改善后续任务（下阶段实验）
 - **状态**：**CLOSED**
 
-## TODO · 蒸馏表述保真度 v2（只登记不执行）
+## NOTE · 蒸馏表述保真度 v2（CLOSED）
 
-- **登记**：2026-07-19
-- **目标**：`extractSymptom` 抓任务侧错误表象（issue 标题/首个报错），非 agent 诊断独白；
-  fix 截断按句取整。
-- **证据**：p1-e 盲审 #1 symptom/fix 错格（`confirmed.` / 截断脏）
-- **状态**：OPEN-占位；作者选序后动手（与 Chronicle Dashboard 并列）
+- **时间**：2026-07-19
+- **症状**：P1-E #1 symptom=`confirmed.` 口水话；fix 半句截断风险。
+- **处置**：`extractSymptom` 任务侧优先 + Hashline/Import 噪声跳过 + 拒低信息量短语；
+  `softSummarize` 软150/硬300 句界取整。同批 resolved 三题重蒸入主库（harness 不重跑）。
+- **对照**：`evals/distillation/p1-fidelity-v2-diff.md`；快照
+  `p1-e-main-lessons.before-fidelity-v2.jsonl`
+- **状态**：**CLOSED**
 
 ## NOTE · P1 阶段 2b ZenMux 重跑（produce 完成）
 

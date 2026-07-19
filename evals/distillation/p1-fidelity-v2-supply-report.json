@@ -1,0 +1,122 @@
+{
+  "distilled": [
+    {
+      "id": "knack-astropy-astropy-d5c8f9f76852",
+      "dedup_key": "astropy-astropy:d0178c054339",
+      "repo": "astropy/astropy",
+      "symptom": "Possible bug in io.fits related to D exponents",
+      "fix_summary": "to assign the result of `replace` back to `output_field`:The fix is in place.",
+      "verified_fix": "Tool sequence: read -> edit -> bash -> apply_patch -> bash -> bash. The bug is confirmed. The fix is to assign the result of `replace` back to `output_field`:The fix is in place. Here is a summary of the change: **File changed:** `astropy/io/fits/fitsrec.py` **Problem:** The line `output_field.replace(encode_ascii('E'), encode_ascii('D'))` called `.replace()` on a numpy chararray but discarded the return value. `chararray.replace()` is not an in-place operation — it returns a new array — so the exponent substitution from `E` to `D` was silently lost. **Fix:** Assign the result back into the array with `output_field[:] = output_field.replace(encode_ascii('E'),…",
+      "evidence_task": "astropy__astropy-6938",
+      "evidence_turns": [
+        5,
+        12
+      ],
+      "compression_level": "knack",
+      "confidence": "verified",
+      "reuse_count": 0,
+      "injected_count": 0,
+      "last_succeeded_task": null,
+      "last_injected_task": null,
+      "unit_test": "Verified by verifier reward=1."
+    },
+    {
+      "id": "knack-astropy-astropy-d1783fe64a63",
+      "dedup_key": "astropy-astropy:26c0fa7a117b",
+      "repo": "astropy/astropy",
+      "symptom": "Modeling's `separability_matrix` does not compute separability correctly for nested CompoundModels",
+      "fix_summary": "The fix copies the actual computed matrix `right` into the correct position, preserving the separability structure of nested CompoundModels.",
+      "verified_fix": "Tool sequence: bash -> bash -> bash -> bash. Now I can see the issue. In `_cstack`, when `right` is an ndarray (i.e., already a computed coord_matrix from a nested CompoundModel), the code does: ```python cright[-right.shape[0]:, -right.shape[1]:] = 1 ``` It sets the entire block to 1 instead of copying the actual matrix values. Let me verify:That's the bug. When `right` is already a matrix (from a nested CompoundModel), the code should copy the matrix values, not set everything to 1. Let me fix it:Now let me verify the fix works:The fix works correctly. Now let me also run the existing tests to make sure nothing is broken:The test envi…",
+      "evidence_task": "astropy__astropy-12907",
+      "evidence_turns": [
+        5,
+        9
+      ],
+      "compression_level": "knack",
+      "confidence": "verified",
+      "reuse_count": 0,
+      "injected_count": 0,
+      "last_succeeded_task": null,
+      "last_injected_task": null,
+      "unit_test": "Verified by verifier reward=1."
+    },
+    {
+      "id": "knack-astropy-astropy-cd70659d7b27",
+      "dedup_key": "astropy-astropy:cfd1faf0e008",
+      "repo": "astropy/astropy",
+      "symptom": "In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask",
+      "fix_summary": "**Fix:** Added an `elif operand.mask is None` branch that returns `deepcopy(self.mask)`, consistent with the documented behavior: \"If only one mask was present this mask is returned.",
+      "verified_fix": "Tool sequence: read -> edit -> bash -> apply_patch -> bash -> bash -> bash -> bash -> bash -> bash. Now let me look at the `_arithmetic_mask` function more carefully to understand the bug:I can see the bug. In the `_arithmetic_mask` method (line 525-527), when both operands are present (`else` branch), it calls `handle_mask(self.mask, operand.mask, **kwds)`. However, there's no check for the case where `operand.mask` is `None` (i.e., the second operand has no mask but `self` does). The condition on line 520 only handles `self.mask is None and operand is not None`, but doesn't handle `operand.mask is None and self.mask is not None`. The fix should add a check: if `operand.mask is None`, retu…",
+      "evidence_task": "astropy__astropy-14995",
+      "evidence_turns": [
+        6,
+        19
+      ],
+      "compression_level": "knack",
+      "confidence": "verified",
+      "reuse_count": 0,
+      "injected_count": 0,
+      "last_succeeded_task": null,
+      "last_injected_task": null,
+      "unit_test": "Verified by verifier reward=1."
+    }
+  ],
+  "admitted": [
+    {
+      "lessonId": "lesson_5f277046-badc-444c-9dfe-8cb608f367d3",
+      "instanceId": "astropy__astropy-6938",
+      "runId": "run_1784388318631",
+      "confidence": "candidate"
+    },
+    {
+      "lessonId": "lesson_a04bb961-f831-4f1c-b515-d91e746d1a5b",
+      "instanceId": "astropy__astropy-12907",
+      "runId": "run_1784388508942",
+      "confidence": "candidate"
+    },
+    {
+      "lessonId": "lesson_8dd51228-5c2e-4ab4-a0bb-8be74d806a7c",
+      "instanceId": "astropy__astropy-14995",
+      "runId": "run_1784388855001",
+      "confidence": "candidate"
+    }
+  ],
+  "promoted": 3,
+  "skipped": [
+    {
+      "instanceId": "astropy__astropy-7746",
+      "reason": "no_stream_or_harness_verification"
+    },
+    {
+      "instanceId": "astropy__astropy-14182",
+      "reason": "no_stream_or_harness_verification"
+    },
+    {
+      "instanceId": "astropy__astropy-14365",
+      "reason": "no_stream_or_harness_verification"
+    }
+  ],
+  "main": [
+    {
+      "id": "lesson_5f277046-badc-444c-9dfe-8cb608f367d3",
+      "sessionRef": "run_1784388318631",
+      "confidence": "verified",
+      "promotedAt": "2026-07-19T03:57:36.479367+00:00",
+      "lesson": "Symptom: Possible bug in io.fits related to D exponents Fix: to assign the result of `replace` back to `output_field`:The fix is in place."
+    },
+    {
+      "id": "lesson_a04bb961-f831-4f1c-b515-d91e746d1a5b",
+      "sessionRef": "run_1784388508942",
+      "confidence": "verified",
+      "promotedAt": "2026-07-19T03:57:36.479367+00:00",
+      "lesson": "Symptom: Modeling's `separability_matrix` does not compute separability correctly for nested CompoundModels Fix: The fix copies the actual computed matrix `right` into the correct position, preserving the separability structure of nested CompoundModels."
+    },
+    {
+      "id": "lesson_8dd51228-5c2e-4ab4-a0bb-8be74d806a7c",
+      "sessionRef": "run_1784388855001",
+      "confidence": "verified",
+      "promotedAt": "2026-07-19T03:57:36.479367+00:00",
+      "lesson": "Symptom: In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask Fix: **Fix:** Added an `elif operand.mask is None` branch that returns `deepcopy(self.mask)`, consistent with the documented behavior: \"If only one mask was present this mask is returned."
+    }
+  ]
+}

@@ -36,6 +36,8 @@ export interface DistillRunInput {
   repo: string;
   verification?: VerificationKind;
   finalSummary?: string;
+  /** SWE issue body / task instruction — preferred symptom source (fidelity v2). */
+  taskInstruction?: string;
 }
 
 interface VerificationEvidence {
@@ -76,10 +78,12 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     ? ` ${summarizeText(input.finalSummary, 600)}`
     : '';
   const verifiedFix = `Tool sequence: ${actionSequence}.${summary}`.trim();
-  const symptom = extractSymptom(
+  const symptom = extractSymptom({
     verifiedFix,
-    stringValue(error.data.summary) ?? 'Unknown tool error',
-  );
+    fallback: stringValue(error.data.summary) ?? 'Unknown tool error',
+    events: input.events,
+    taskInstruction: input.taskInstruction,
+  });
   const { fix_summary: fixSummary, confidence } = extractFixSummary(
     verifiedFix,
     input.finalSummary,
@@ -128,7 +132,7 @@ export function extractFixSummary(
     const markedText = verifiedFix.match(marker)?.[1]?.trim();
     if (markedText) {
       return {
-        fix_summary: summarizeText(firstSentence(markedText), 150),
+        fix_summary: softSummarize(firstSentence(markedText)),
         confidence: 'verified',
       };
     }
@@ -136,7 +140,7 @@ export function extractFixSummary(
   const codeSentence = lastCodeBearingSentence(finalSummary);
   if (codeSentence) {
     return {
-      fix_summary: summarizeText(codeSentence, 150),
+      fix_summary: softSummarize(codeSentence),
       confidence: 'verified',
     };
   }
@@ -164,17 +168,72 @@ function hasCodeSymbols(sentence: string): boolean {
   return false;
 }
 
-function extractSymptom(verifiedFix: string, fallback: string): string {
-  const exactMarkerText = verifiedFix.match(
-    /(?:The bug is|Root cause:|The issue is)\s*(.+)$/i,
-  )?.[1]
-    ?.replace(/^clear\s*(?:[.:]\s*)/i, '')
-    .trim();
-  const conversationalMarkerText = verifiedFix.match(
-    /(?:I can see the bug|I can see the issue|I understand the issue)[.!:]\s*(.+)$/i,
-  )?.[1]?.trim();
-  const markedText = exactMarkerText || conversationalMarkerText;
-  return summarizeText(markedText ? meaningfulRootCause(markedText) : fallback, 150);
+/** Fidelity v2: issue surface → substantial tool error → agent narrative; reject fluff. */
+export function extractSymptom(input: {
+  verifiedFix: string;
+  fallback: string;
+  events?: DistillationEvent[];
+  taskInstruction?: string;
+}): string {
+  const pick = (value?: string) => (value && isInformativeSymptom(value) ? softSummarize(value) : undefined);
+  const afterInst = input.taskInstruction?.split(/Instance:\s*\S+\s*/i)[1] ?? input.taskInstruction;
+  const issueLine = afterInst?.split(/\n/).map((l) => l.trim()).filter(Boolean)
+    .find((l) => !/^(Resolve this|Edit only|Do not edit|When finished|Instance:)/i.test(l));
+  const fromIssue = pick(issueLine);
+  if (fromIssue) return fromIssue;
+  for (const event of input.events ?? []) {
+    const d = event.data;
+    const kind = stringValue(d.kind) ?? stringValue(d.type) ?? '';
+    if (!(kind.includes('error') || d.isError === true)) continue;
+    const summary = stringValue(d.summary) ?? '';
+    if (!isSubstantialToolError(summary)) continue;
+    const line = pick(summary.split(/\n/)[0]?.trim());
+    if (line) return line;
+  }
+  const agentRaw = input.verifiedFix.match(/(?:The bug is|Root cause:|The issue is)\s*(.+)$/i)?.[1]
+    ?.replace(/^clear\s*(?:[.:]\s*)/i, '').trim()
+    ?? input.verifiedFix.match(/(?:I can see the bug|I can see the issue|I understand the issue)[.!:]\s*(.+)$/i)?.[1]?.trim();
+  const fromAgent = agentRaw ? pick(meaningfulRootCause(agentRaw)) : undefined;
+  if (fromAgent) return fromAgent;
+  return softSummarize(isSubstantialToolError(input.fallback) ? input.fallback : (input.fallback || 'Unknown tool error'));
+}
+
+function isProcessNoiseErrorSummary(summary: string): boolean {
+  const s = summary.toLowerCase();
+  return s.includes('hashline') || s.includes('modulenotfounderror') || s.includes('no module named')
+    || s.includes('import error') || s.startsWith('sed:');
+}
+
+function isSubstantialToolError(summary: string): boolean {
+  if (!summary.trim() || isProcessNoiseErrorSummary(summary) || !isInformativeSymptom(summary)) return false;
+  if (hasCodeSymbols(summary)) return true;
+  if (/\b(Error|Exception|AssertionError|Traceback|TypeError|ValueError|AttributeError)\b/i.test(summary)) return true;
+  return summary.trim().length >= 50;
+}
+
+/** Reject "confirmed." / clear-only fluff without code symbols. */
+export function isInformativeSymptom(text: string): boolean {
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return false;
+  const bare = trimmed.replace(/[.!?]+$/g, '').trim();
+  if (/^(confirmed|clear|ok|done|yes|the issue is clear|the bug is clear)$/i.test(bare)) return false;
+  return !(bare.length < 25 && !hasCodeSymbols(trimmed));
+}
+
+/** Soft 150 / hard 300; end on sentence boundary — no mid-clause chop at 150. */
+export function softSummarize(text: string, softLimit = 150, hardLimit = 300): string {
+  const n = text.replace(/\s+/g, ' ').trim();
+  if (n.length <= softLimit) return n;
+  const win = n.slice(0, softLimit);
+  const endSoft = Math.max(win.lastIndexOf('. '), win.lastIndexOf('! '), win.lastIndexOf('? '));
+  if (endSoft >= Math.floor(softLimit * 0.4)) return n.slice(0, endSoft + 1).trim();
+  const m = n.slice(softLimit, hardLimit).match(/[.!?](?=\s|$)/);
+  if (m?.index !== undefined) return n.slice(0, softLimit + m.index + 1).trim();
+  if (n.length <= hardLimit) return n;
+  const hard = n.slice(0, hardLimit);
+  const lastDot = Math.max(hard.lastIndexOf('. '), hard.lastIndexOf('.'));
+  if (lastDot >= Math.floor(hardLimit * 0.5)) return hard.slice(0, lastDot + 1).trim();
+  return hard.replace(/\s+\S*$/, '').trim();
 }
 
 export async function distillResults(
