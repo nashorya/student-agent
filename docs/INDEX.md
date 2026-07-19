@@ -49,7 +49,7 @@
 | 2026-07-13 | ADR-003 P3 / ADR-006 实现：eval-mode prompt 暴露稳定 recall ID；assistant marker 按 message/context allowlist 校验并从最终输出清除；trace、events、outcome 记录 `used_recall_ids`；只有 valid citation + verifier/harness passed 才幂等增加 reuseCount。新增 SWE 延迟 reconciliation 命令与 recall utilization 指标，自动 deprecated 继续冻结等待真实数据校准 | [ADR-006](adr/ADR-006-recall-citation-and-credit.md) · `npm run eval:recall:reconcile` |
 | 2026-07-19 | ADR-008 落档（纯文书）：项目定位 Measured Harness Evolution——对标 Hermes 式 harness 成长，但要求每环出示因果证据后才上机；澄清 ADR-001「测量平台」为阶段手段非产品身份；工具产品化（chronicle P3/P4）排序于注入效果实验之后 | [ADR-008](adr/ADR-008-measured-harness-evolution.md) · [ADR-001](adr/ADR-001-eval-claim-separation.md) |
 | 2026-07-19 | Roadmap 收编入库 + 假设账本：`docs/roadmap/` 归档 paper-calibrated 终稿（原文保留）并追加结账层；论文表加状态/证据列与 GEP/Gene 第 9 行；Chronicle extra source 接线图关系 | [roadmap 终稿](roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md) |
-| 2026-07-19 | 注入效果实验预注册草案 v0（finding:injection-effect-experiment）：三臂 A recall / B off / C full；同族 2×3 题；H1/H2 与写死判读；预算 ≤$25；作者批准后冻结设计 | [预注册 v0](proposals/injection-effect-experiment-prereg-v0.md) · [ADR-008](adr/ADR-008-measured-harness-evolution.md) |
+| 2026-07-19 | 注入效果实验预注册 **v0.1**（finding:injection-effect-experiment）：被试 GLM coding plan 直连；三臂 A/B/C；H1/H2 写死判读；零现金 + $25 备用换口废族；前置烟测三门；**未冻结禁止合并** | [预注册 v0.1](proposals/injection-effect-experiment-prereg-v0.md) · [ADR-008](adr/ADR-008-measured-harness-evolution.md) |
 
 ## 横向 · 项目树地图
 
