@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "644f7f6b33ff20d7",
+  "contentHash": "5527b03f44727c81",
   "nodes": [
     {
       "id": "ADR-001",
@@ -865,10 +865,10 @@
       "id": "finding:injection-effect-experiment",
       "kind": "finding",
       "title": "注入效果实验（lesson 注入改善后续任务）",
-      "status": "BLOCKED",
-      "summary": "P1 合页后仍未验证注入改善后续任务；缺独立实验设计与预注册",
-      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 207
+      "status": "PREREG-DRAFT",
+      "summary": "预注册草案 v0 已落档；待作者批准冻结后执行。见 docs/proposals/injection-effect-experiment-prereg-v0.md",
+      "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
+      "sourceLine": 1
     },
     {
       "id": "finding:jspace-external",
@@ -2199,6 +2199,6 @@
   "answers": {
     "bug011": "BUG-011 为何而生: 正式运行；关死状态: CLOSED（修复后 C 组 3/3 valid 且 verifier 满分，追平 plain 3/3）. 实档同类关案范例 BUG-004: 生于「Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了…」，被 CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件； 收束。",
     "jspaceTombstone": "J-space 压缩恢复线 NO-GO 成墓碑: J-space 压缩恢复线 NO-GO (status=已采纳（NO-GO）)",
-    "injectionMissing": "注入效果实验（lesson 注入改善后续任务）: P1 合页后仍未验证注入改善后续任务；缺独立实验设计与预注册 | 前提清单: phase:P1 status=CLOSED✓; phase:P3 status=PLANNED✗未满足"
+    "injectionMissing": "注入效果实验（lesson 注入改善后续任务）: 预注册草案 v0 已落档；待作者批准冻结后执行。见 docs/proposals/injection-effect-experiment-prereg-v0.md | 前提清单: phase:P1 status=CLOSED✓; phase:P3 status=PLANNED✗未满足"
   }
 }

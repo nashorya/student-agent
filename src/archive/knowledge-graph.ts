@@ -870,10 +870,10 @@ function wireDomainEdges(
     id: 'finding:injection-effect-experiment',
     kind: 'finding',
     title: '注入效果实验（lesson 注入改善后续任务）',
-    status: 'BLOCKED',
-    summary: 'P1 合页后仍未验证注入改善后续任务；缺独立实验设计与预注册',
-    sourcePath: 'docs/adr/ADR-003-v04x-priority-reorder.md',
-    sourceLine: 207,
+    status: 'PREREG-DRAFT',
+    summary: '预注册草案 v0 已落档；待作者批准冻结后执行。见 docs/proposals/injection-effect-experiment-prereg-v0.md',
+    sourcePath: 'docs/proposals/injection-effect-experiment-prereg-v0.md',
+    sourceLine: 1,
   });
   pushEdge({
     kind: 'requires',
