@@ -1,58 +1,47 @@
 # 注入效果实验 · 前置烟测记录
 
-> 不属实验本体；不冻结预注册设计。对照预注册 **v0.1.1**「前置烟测」三门。
+> 不属实验本体；不冻结预注册设计。对照预注册 **v0.1.1** 三门。
 
-## 轮次 2 · 2026-07-19 晚（再烟测）
+## 轮次 3 · 2026-07-19 live 收尾（**三门全通**）
 
 | 门 | 结果 | 证据 |
 |----|------|------|
-| **1. 管线（离线）** | **通过（聚焦）** | citation / context-builder / P3 recall-citation eval / failure-escalation / lessons manager / chronicle graph：**6 files · 58 tests pass** |
-| **2. 出站 / 接入** | **通过（接入可达）** | `open.bigmodel.cn` models 含 **glm-5.2**；`chat/completions` model=`glm-5.2` 返回 usage（thinking：`reasoning_tokens` 占用 completion；content 可空）。**未做**三臂注入段代理对拍、独立 memory root 实跑核对 |
-| **3. 蒸馏话风** | **部分（仅单测）** | lessons manager **8/8 pass**；causal-pair 源文件存在。**未**跑含真实错误的小任务 live 蒸馏 / marker 抓取率抽查 |
+| **1. 管线 / B 空库** | ✅ | `smoke-injection-live` B 臂：toolCalls≥5、failedToolCalls≥0/1、correctness=1、events 落盘（独立 mem-B）、`B_no_lesson_markers` |
+| **2. 三臂注入对拍** | ✅ | 预注入尺寸 B≈986 / A≈5k / C≈5k；B 无 lesson；A 含 `[recall:…]`；C 含 `full resident` / `[resident:]`；A 无 resident 标记；skill 泄漏 **否** |
+| **3. live 蒸馏话风** | ✅ | 对 B 真实轨迹 events 跑 `distillRunEvents`；成功产出 candidate（有时经 toolcall reconstruction：archive `events.jsonl` 缺 `isError` 标志）。见附录 |
 
-### 命令（轮次 2）
+### 产物
 
-```text
-npx vitest run \
-  src/memory/recall/__tests__/citation.test.ts \
-  src/memory/recall/__tests__/context-builder.test.ts \
-  src/evals/context-runtime/recall-citation.eval.test.ts \
-  src/extension/hooks/__tests__/failure-escalation.test.ts \
-  src/memory/lessons/__tests__/manager.test.ts \
-  src/archive/__tests__/knowledge-graph.test.ts
-# → 58 passed
+| 路径 | 说明 |
+|------|------|
+| `evals/tasks/smoke-injection-live/` | 微型埋坑任务（**仅烟测，非正式题库**） |
+| `scripts/smoke-injection-live.ts` | B→蒸馏→A/C 编排；临时 mem 用后销毁 |
+| `docs/proposals/injection-effect-smoke-captures-2026-07-19-12-36-20.md` | 脱敏抓包/预注入附录 |
+| 配置 | `STUDENT_AGENT_PROVIDER_PROFILE=zhipu-glm-5.2`（coding plan 直连） |
 
-# GLM-5.2
-# GET .../models → glm-5.2 present
-# POST .../chat/completions model=glm-5.2 → total_tokens>0 OK
+### 成本
+
+- 本地 model cost 字段为 0（配置未写单价）；等价标价按 token 粗估 **≪ $0.5**（三臂 micro task 各约 1–2 分钟 GLM-5.2 thinking）。
+
+### 命令
+
+```bash
+STUDENT_AGENT_PROVIDER_PROFILE=zhipu-glm-5.2 npx tsx scripts/smoke-injection-live.ts
+# → ok: true, gates.allGreen: true
 ```
 
-### 结论（轮次 2）
+### 终判
 
-- **可宣称**：聚焦管线单测绿；**glm-5.2 coding-plan 路径可达**。
-- **仍缺（烟测未全通）**：
-  1. 三臂出站对拍（A 筛选 vs C 断点后全量常驻 vs B 关闭；独立 memory root）
-  2. live 小任务：阶梯触发 + events 可蒸 + GLM 话风 marker/因果对
-- **不得合并**预注册（仍为草案；合并即冻结）。
+**烟测三门全通**（gate3 注：因果对在 archive 缺 isError 时用 toolcall 重建，属烟测可接受路径；正式实验应补全 events 错误标志）。
+
+预注册仍为 **草案 v0.1.1 · 未冻结 · 禁止合并**；待作者选族 + 批准冻结。
 
 ---
 
-## 轮次 1 · 2026-07-19 早（摘要）
+## 轮次 2 · 聚焦离线（摘要）
 
-| 门 | 结果 |
-|----|------|
-| 1 | 聚焦 76 tests pass；宽域 recall+evals 有 9 fail（未当绿） |
-| 2 | models 200；glm-5.2 可达；无三臂对拍 |
-| 3 | lessons 单测绿；无 live 蒸馏 |
+58 tests pass；glm-5.2 可达；无 live 三臂。
 
----
+## 轮次 1 · 初探（摘要）
 
-## 对照 v0.1.1 新增仪器（尚未烟测覆盖）
-
-| 条款 | 烟测状态 |
-|------|----------|
-| 三臂独立 memory root / 族前空库 | 未实跑 |
-| 主库 3 verified 封存不进臂 | 未实跑 |
-| p1prom 六题黑名单筛查 | 文书条款；无自动化门 |
-| C 臂断点后全量常驻 | 未实跑 / 无单元夹具 |
-| 采样三臂一致 | 未锁数值表（冻结时入档） |
+聚焦绿；宽域 ranking 超时；无 live。

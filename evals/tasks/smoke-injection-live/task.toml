@@ -1,0 +1,6 @@
+id = "smoke-injection-live"
+title = "Smoke: fix deliberate API misuse (injection prereg gate)"
+mode = "direct"
+tags = ["smoke", "injection", "not-formal"]
+timeout_seconds = 240
+expected_files = ["src/client.cjs"]
