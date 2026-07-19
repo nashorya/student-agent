@@ -1,0 +1,115 @@
+{
+  "harnessRunId": "p1prom-20260718-zenmux",
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "completedAt": "2026-07-19T03:57:36.479367+00:00",
+  "produceSuccess": 6,
+  "harnessCompleted": 6,
+  "resolved": 3,
+  "unresolved": 3,
+  "resolvedRate": 0.5,
+  "resolvedIds": [
+    "astropy__astropy-12907",
+    "astropy__astropy-14995",
+    "astropy__astropy-6938"
+  ],
+  "unresolvedIds": [
+    "astropy__astropy-14182",
+    "astropy__astropy-14365",
+    "astropy__astropy-7746"
+  ],
+  "perInstance": [
+    {
+      "instanceId": "astropy__astropy-6938",
+      "produceStatus": "success",
+      "harness": "resolved",
+      "runId": "run_1784388318631",
+      "patchBytes": 519
+    },
+    {
+      "instanceId": "astropy__astropy-7746",
+      "produceStatus": "success",
+      "harness": "unresolved",
+      "runId": "run_1784388388137",
+      "patchBytes": 1147
+    },
+    {
+      "instanceId": "astropy__astropy-12907",
+      "produceStatus": "success",
+      "harness": "resolved",
+      "runId": "run_1784388508942",
+      "patchBytes": 506
+    },
+    {
+      "instanceId": "astropy__astropy-14182",
+      "produceStatus": "success",
+      "harness": "unresolved",
+      "runId": "run_1784388582863",
+      "patchBytes": 851
+    },
+    {
+      "instanceId": "astropy__astropy-14365",
+      "produceStatus": "success",
+      "harness": "unresolved",
+      "runId": "run_1784388748888",
+      "patchBytes": 619
+    },
+    {
+      "instanceId": "astropy__astropy-14995",
+      "produceStatus": "success",
+      "harness": "resolved",
+      "runId": "run_1784388855001",
+      "patchBytes": 609
+    }
+  ],
+  "promotion": {
+    "note": "Main library empty after D+ demotion; process-noise candidates were not re-admitted. promoteCandidatesForRun executed for all 6 runs.",
+    "promoted": 0,
+    "mainLessonsAfter": 0,
+    "verifiedAfter": 0,
+    "candidateAfter": 0,
+    "ephemeralAfter": 26,
+    "perRun": [
+      {
+        "runId": "run_1784388318631",
+        "instanceId": "astropy__astropy-6938",
+        "reward": 1,
+        "promoted": 0
+      },
+      {
+        "runId": "run_1784388388137",
+        "instanceId": "astropy__astropy-7746",
+        "reward": 0,
+        "promoted": 0
+      },
+      {
+        "runId": "run_1784388508942",
+        "instanceId": "astropy__astropy-12907",
+        "reward": 1,
+        "promoted": 0
+      },
+      {
+        "runId": "run_1784388582863",
+        "instanceId": "astropy__astropy-14182",
+        "reward": 0,
+        "promoted": 0
+      },
+      {
+        "runId": "run_1784388748888",
+        "instanceId": "astropy__astropy-14365",
+        "reward": 0,
+        "promoted": 0
+      },
+      {
+        "runId": "run_1784388855001",
+        "instanceId": "astropy__astropy-14995",
+        "reward": 1,
+        "promoted": 0
+      }
+    ],
+    "verifiedRatioAfter": null,
+    "verifiedRatioStatus": "voided_empty_main"
+  },
+  "gatewayCostUsd": 2.41,
+  "produceSuccessNote": "success ≠ resolved",
+  "reportPath": "evals/results/swebench/p1prom-20260718-zenmux-harness/reports/anthropic__claude-sonnet-4.6.p1prom-20260718-zenmux.json"
+}

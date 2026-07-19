@@ -176,7 +176,13 @@ ephemeral note，不归档、不跨任务传播。
 > - **C 缓存前缀**：仅 proposal → `docs/proposals/p1-cache-prefix-reorder.md`。
 > - **D+ 主库审计**：13 条均经 LessonWriter 但判据过松；已全部降 ephemeral；
 >   盲审 **0/5** 归因「写入路径旁路真判据」，**非**轨迹无料；knack 线不死刑。
-> - **D harness**：待作者批后跑；P1 验收 **重开**。
+> - **D harness（2026-07-19）**：官方 SWE-bench Lite harness 6/6 完成；
+>   **resolved 3/6（50%）** vs produce success 6/6（success ≠ resolved，如实记）。
+>   resolved：6938 / 12907 / 14995；unresolved：7746 / 14182 / 14365。
+>   晋升：主库已空（D+ 过程噪声全降 ephemeral）→ `promoteCandidatesForRun` **0**；
+>   verified 占比仍 **voided_empty_main**。报告：
+>   `evals/distillation/p1-phase2b-zenmux-harness-report.json`。
+>   P1 验收仍 **重开**（盲审 0/5 + 主库空；仪器 A/B 已落地，C 仅 proposal）。
 
 ### P2 · 召回排序去 recency 偏置
 

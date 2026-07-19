@@ -14,8 +14,9 @@
   "acceptance": {
     "verifiedPass": false,
     "verifiedBar": 0.5,
-    "note": "P1 reopened after write-path audit; blind 0/5 attributed to gate looseness",
-    "blindReview": "0/5"
+    "note": "P1 still reopened: empty main after process-noise demotion; blind 0/5; instruments A/B landed",
+    "blindReview": "0/5",
+    "harnessResolvedRate": 0.5
   },
   "totalCostUsd": 0.7406459999999999,
   "successRuns": 6,
@@ -266,5 +267,25 @@
   "localTraceCostUsdVoided": 0.74,
   "verifiedRatioNote": "13 process-noise lessons demoted to ephemeral 2026-07-19; 53.8% voided",
   "mainLessonsAfterAudit": 0,
-  "ephemeralAfterAudit": 26
+  "ephemeralAfterAudit": 26,
+  "harness": {
+    "runId": "p1prom-20260718-zenmux",
+    "resolved": 3,
+    "unresolved": 3,
+    "resolvedRate": 0.5,
+    "resolvedIds": [
+      "astropy__astropy-6938",
+      "astropy__astropy-12907",
+      "astropy__astropy-14995"
+    ],
+    "unresolvedIds": [
+      "astropy__astropy-7746",
+      "astropy__astropy-14182",
+      "astropy__astropy-14365"
+    ],
+    "produceSuccess": 6,
+    "note": "success \u2260 resolved; report in p1-phase2b-zenmux-harness-report.json",
+    "promotionPromoted": 0,
+    "mainLessonsAfterPromotion": 0
+  }
 }

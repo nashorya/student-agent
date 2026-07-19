@@ -41,6 +41,19 @@
 - **坑**：`OPENROUTER_API_KEY` 须映射为 ZenMux key（pi-ai 硬编码 env 名）。
 - **状态**：P1 重开验收；见写入路径审计 / 仪器三修。
 
+## NOTE · P1-D harness 判分（ZenMux produce 批）
+
+- **时间**：2026-07-19
+- **命令**：`python -m swebench.harness.run_evaluation -d SWE-bench/SWE-bench_Lite`
+  6 predictions；镜像已缓存。
+- **结果**：completed 6；**resolved 3 / unresolved 3（50%）**。
+  resolved: 6938, 12907, 14995；unresolved: 7746, 14182, 14365。
+- **对照**：produce success 6/6 ≠ resolved 3/6（预期会掉，如实记）。
+- **晋升**：主库已空（D+ 降 ephemeral）→ promote **0**；verified 仍 voided。
+- **knack_<uuid>**：来自 `KnacksManager` → `knacks.jsonl`（非 lessons 门控泄漏）。
+- **报告**：`evals/distillation/p1-phase2b-zenmux-harness-report.json`
+- **状态**：DONE（判分入档）；P1 合页仍否（盲审/主库门槛）。
+
 ## BUG · 2026-07-18 前 trace 成本系统性低估
 
 - **时间**：2026-07-19
