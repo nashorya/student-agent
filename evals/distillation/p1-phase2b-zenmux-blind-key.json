@@ -1,0 +1,37 @@
+[
+  {
+    "source": "main",
+    "confidence": "verified",
+    "quality": "high",
+    "lesson": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-3SnnM5/astropy__astropy-14182/astropy/__init__.py\", line 164, in _initialize_...",
+    "promotedAt": null
+  },
+  {
+    "source": "main",
+    "confidence": "verified",
+    "quality": "high",
+    "lesson": "Treat tool error as a retry pattern: Hashline: astropy/nddata/mixins/ndarithmetic.py has changed since last read (tag B8E3 is stale, current is 85A5). Re-read the file before editing.",
+    "promotedAt": null
+  },
+  {
+    "source": "main",
+    "confidence": "candidate",
+    "quality": "high",
+    "lesson": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"<string>\", line 2, in <module>\n    from astropy.wcs import WCS\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-ILdvZQ...",
+    "promotedAt": null
+  },
+  {
+    "source": "main",
+    "confidence": "verified",
+    "quality": "high",
+    "lesson": "Treat tool error as a retry pattern: Hashline: astropy/nddata/mixins/ndarithmetic.py has changed since last read (tag D048 is stale, current is 85A5). Re-read the file before editing.",
+    "promotedAt": null
+  },
+  {
+    "source": "main",
+    "confidence": "verified",
+    "quality": "high",
+    "lesson": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n    from astropy.nddata import NDDataRef\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-sweben...",
+    "promotedAt": null
+  }
+]

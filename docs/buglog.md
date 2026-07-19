@@ -5,6 +5,136 @@
 
 ---
 
+## NOTE · Chronicle Dashboard 第 0 步 triage（archive 三红）
+
+- **时间**：2026-07-19
+- **现象**：`src/archive` 套件 3 失败：
+  `html-renderer`×2（`Project Health` / `main-content`）、
+  `service`×1（`ADR waiting for acceptance`）。
+- **对照**：`docs/superpowers/plans/2026-07-15-archive-chronicle-atlas.md`
+  Task 3 Step 1 明确要求**替换** flat-dashboard 断言为 Chronicle Atlas 结构；
+  当前 `renderArchiveHtml` 已输出 `Chronicle Atlas` / minimap / timeline，
+  而测试仍期望旧 flat 字符串。`chronicle-model.test.ts` 6/6 绿。
+- **判定**：**有意 TDD 残桩 / 迁移未收尾**，非运行时回归。
+- **处置**：本单按知识图谱形态继续；顺手把三测改为 Atlas 断言。
+- **状态**：TRIAGED
+
+## NOTE · P1 Lesson 准入门控阶段 1（非 bug，留痕）
+
+- **时间**：2026-07-17
+- **事项**：堵住过程错误 lesson 入库；准入 = 共享 `findCausalPair`
+  （与 knack 萃取同一判据）。配对失败 → `ephemeral/` + `quality: low`。
+- **阶段 1**：实现 + 三类用例 + 相关测绿；**阶段 2 重跑未授权**。
+- **关联**：ADR-003 P1；commit `00ad6422`。
+- **状态**：阶段 1 DONE / 阶段 2 BLOCKED-预算门
+
+## NOTE · P1 阶段 2 验收重跑（部分，未达标）
+
+- **时间**：2026-07-18
+- **跑通**：6938/7746 success（$0.369）；其后 OpenRouter **402 credit**，
+  仅 **2/6** 题完成。
+- **准入**：主库 0 / ephemeral 12；verified 占比 N/A，**未过 ≥50%**。
+- **隔离侧**：12/12 噪声无一入库 → **通过**。
+- **verified 侧**：**时序错位、结构性零分**（非门控失败、非无料）。
+- **402**：12907/14182/14365(+14995) → invalid(funding)，须 rerun。
+- **状态**：FAILED-样本不全+主库空；补丁见「延迟晋升」。
+
+## NOTE · P1 补丁 · 延迟晋升（验证时序修复）
+
+- **时间**：2026-07-18
+- **事项**：provisional pair → candidate；harness reward=1 后晋升 verified；
+  causal-pair 补全 harness 回退，单一来源。
+- **状态**：实现 + 五类测试绿；阶段 2b 重跑待预算。
+
+## NOTE · P1 CLOSED（合页）
+
+- **时间**：2026-07-19
+- **盲审**：2/3（0/1/1）；n=3 折算线 ≥2/3；#1 失败=symptom 口水话 `"confirmed."`
+- **形态**：蒸馏 → LessonWriter 门控 → 主库 → harness 晋升（`99687ad9` 等）
+- **主库**：3 verified / 0 candidate；scope n=3 单仓单批
+- **未做**：lesson 注入改善后续任务（下阶段实验）
+- **状态**：**CLOSED**
+
+## NOTE · 蒸馏表述保真度 v2（CLOSED）
+
+- **时间**：2026-07-19
+- **症状**：P1-E #1 symptom=`confirmed.` 口水话；fix 半句截断风险。
+- **处置**：`extractSymptom` 任务侧优先 + Hashline/Import 噪声跳过 + 拒低信息量短语；
+  `softSummarize` 软150/硬300 句界取整。同批 resolved 三题重蒸入主库（harness 不重跑）。
+- **作者确认**：3/3 症状换源成功、口水话消失；#1 fix 残留 v1 废话尾缀
+  「The fix is in place.」（**v3 候选，不开单**）；主库 3 verified 焕新。
+- **#2 观察**：对照表展示截断误读；数据全文完整（无句号标题 &lt; 软限，规则已覆盖 symptom）。
+- **对照**：`evals/distillation/p1-fidelity-v2-diff.md`；快照
+  `p1-e-main-lessons.before-fidelity-v2.jsonl`
+- **状态**：**CLOSED**
+
+## NOTE · P1 阶段 2b ZenMux 重跑（produce 完成）
+
+- **时间**：2026-07-18
+- **渠道**：ZenMux Sonnet 4.6（非 OpenRouter 同批）
+- **结果**：6/6 success；**网关实扣 ≈ $2.41**（本地 $0.74 **作废**）；
+  主库曾报 verified 53.8% **已作废**（见主库审计）。
+- **坑**：`OPENROUTER_API_KEY` 须映射为 ZenMux key（pi-ai 硬编码 env 名）。
+- **状态**：已被 P1 CLOSED 收束。
+
+## NOTE · C-2 缓存前缀重排落地
+
+- **时间**：2026-07-19
+- **改动**：context-builder 静态/动态分区 + assembly 渲染断点 + session
+  system 序（Pi base → memory static→break→dynamic）；**≤80 行**生产代码。
+- **截断语义**：`applySectionBudgets` 按段独立，重排不改变谁先被截（见 proposal 修订）。
+- **网关探针（7897）**：首写 `0cdb2b6b…` write=5102；后续 T1–T3 read=5102/轮；
+  序列折算命中见 `c2-cache-prefix-smoke.md`（不单记 T2 的 99.42%）。
+- **TTL**：API 接受 `cache_control.ttl=1h`；计费分项仍见 `_5_min` 路径时以实测桶为准；
+  长轮次间隔可能击穿 5min TTL → 部分 write>read 归因。
+- **报告**：`evals/distillation/c2-cache-prefix-smoke.md`
+- **状态**：代码 DONE；合入后集成烟测方向性验收。
+
+## NOTE · P1-E 接通供给管道（蒸馏 → 主库）
+
+- **时间**：2026-07-19
+- **路径**：`distill(events)` → `LessonsManager.admitDistilled`（同 `findCausalPair`，
+  无 provisional 后门）→ `lessons.jsonl` → `promoteCandidatesForRun`（harness 时间戳）。
+- **本批**：蒸馏 3 / 准入 3 / 晋升 3；unresolved 3 题 skip（无 stream exit-0 且非 resolved）。
+- **主库**：3 条 verified，占比 **100%**；旧「主库 0」已接续翻盘。
+- **边界**：不改蒸馏/门控判据；不动 knacks manager。
+- **盲审**：`evals/distillation/p1-e-blind-review.md` → **2/3 通过**。
+- **状态**：DONE；并入 P1 CLOSED。
+
+## NOTE · P1-D harness 判分（ZenMux produce 批）
+
+- **时间**：2026-07-19
+- **命令**：`python -m swebench.harness.run_evaluation -d SWE-bench/SWE-bench_Lite`
+  6 predictions；镜像已缓存。
+- **结果**：completed 6；**resolved 3 / unresolved 3（50%）**。
+  resolved: 6938, 12907, 14995；unresolved: 7746, 14182, 14365。
+- **对照**：produce success 6/6 ≠ resolved 3/6（预期会掉，如实记）。
+- **晋升**：主库已空（D+ 降 ephemeral）→ promote **0**；verified 仍 voided。
+- **knack_<uuid>**：来自 `KnacksManager` → `knacks.jsonl`（非 lessons 门控泄漏）。
+- **报告**：`evals/distillation/p1-phase2b-zenmux-harness-report.json`
+- **状态**：DONE（判分入档）；P1 合页仍否（盲审/主库门槛）。
+
+## BUG · 2026-07-18 前 trace 成本系统性低估
+
+- **时间**：2026-07-19
+- **症状**：ZenMux campaign 本地合计 $0.74 vs 控制台 **$2.41（≈3.3×）**。
+- **根因**：usage 在 cache hit 时 input 记 0、cache_write 常缺；自算当账单。
+- **处置**：自算降级 `costAuthority: local_estimate`；以网关为准回填本批；
+  **2026-07-18 前跨批成本对比按 ÷3.3 打折**。历史批次不重算。
+- **状态**：FIXED-部分（计价重算路径 + 入档）；generationId 落盘后续增强。
+- **motivates** → `phase:P1` · 成本对账是 P1 供给可信度的前提
+
+## BUG · 主库写入路径过松（过程噪声进 lessons/）
+
+- **时间**：2026-07-19
+- **症状**：盲审 0/5；13 条主库全是 `Treat tool error as a retry pattern` 过程噪声。
+- **根因**：**未绕过** LessonWriter；`admitSignalCausalPair` 的 provisional /
+  无关 bash exit-0 把 hashline/import 当 verified-fix 材料。
+- **处置**：过程噪声无 harness verification → 强制 ephemeral；本批 13 条降 ephemeral；
+  53.8% **作废**。蒸馏 knack 走 knacks.jsonl 独立路径。
+- **状态**：FIXED（门控收紧 + 库清理）；P1 验收重开。
+- **motivates** → `phase:P1` · LessonWriter 门控收紧
+
 ## BUG-011 · J-space eval 工作记忆只保留 instruction 前 500 字符
 
 - **决策点编号**：BUG-006。仓库已有历史 BUG-006，本条使用下一个唯一编号消歧。
@@ -71,6 +201,7 @@
 - **修复**：Vitest 从 2.1.9 升级并精确锁定到 4.1.10；全量 137 files / 949 tests
   通过（136 files / 948 tests passed，1 file / 1 test skipped）。
 - **状态**：CLOSED
+- **motivates** → `phase:P0` · 化验工具链可复现依赖
 
 ## BUG-009 · imported LocoBench smoke 被当作 oracle fixture 验证
 
@@ -82,6 +213,7 @@
 - **修复**：`eval:validate` 仅对带 reference solution 的 oracle-backed fixture 执行
   initial FAIL → solution PASS；无 solution 的 session-scored smoke 明确列入 `skipped`。
 - **状态**：CLOSED
+- **motivates** → `phase:P0` · eval 契约不得把 smoke 当 oracle
 
 ## BUG-008 · pi 本地依赖跟随 main，干净检出不可复现
 
@@ -98,6 +230,7 @@
   API 已不存在，不能只换包名；按 [pi 后继迁移计划](plan-pi-successor-migration.md)
   独立处理。`oh-my-pi` runtime 需要 Bun，继续按既有路线图排除。
 - **状态**：CLOSED
+- **motivates** → `phase:P0` · 干净检出是一切化验前提
 
 ---
 

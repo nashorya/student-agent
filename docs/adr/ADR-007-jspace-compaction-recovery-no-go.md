@@ -66,5 +66,11 @@ BUG-011 登记并保持 OPEN。它属于现有注入层缺陷，不构成新建 
 
 - [ADR-003](ADR-003-v04x-priority-reorder.md)
 - [External J-space 架构评审](external_jspace_architecture_review.md)
-- [v0.4/v0.4x roadmap](../student-agent-v0.4-v0.4x-alignment-roadmap-final.md)
+- [v0.4/v0.4x roadmap](../roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md)
 - [Bug 档案](../buglog.md)
+
+## 图关系
+
+- **tombstones** → `finding:jspace-external` · 完整认知 OS / 立即实现路径 NO-GO
+- **motivates** → `BUG-011` · 压缩恢复探针暴露的注入层截断
+- **motivates** → `phase:P4` · P4 Requirement Ledger 由本 ADR 关闭

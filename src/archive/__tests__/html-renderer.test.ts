@@ -14,14 +14,18 @@ function dashboardProject(title = 'Student Agent'): ArchiveProject {
 }
 
 describe('archive HTML renderer', () => {
-  it('renders health, attention, search, filters, and full entry data', () => {
+  // Atlas plan Task 3: replace flat-dashboard assertions with Chronicle Atlas structure.
+  it('renders Chronicle Atlas structure and deep-linked details', () => {
     const html = renderArchiveHtml(dashboardProject());
-    expect(html).toContain('Project Health');
-    expect(html).toContain('ADR waiting for acceptance');
-    expect(html).toContain('OPEN bug');
-    expect(html).toContain('data-search-text=');
-    expect(html).toContain('aria-label="Filter archive entries"');
-    expect(html).toContain('source-hash-state');
+    expect(html).toContain('Chronicle Atlas');
+    expect(html).toContain('archive-minimap');
+    expect(html).toContain('archive-timeline');
+    expect(html).toContain('chronicle-list');
+    expect(html).toContain('href="#adr/ADR-001"');
+    expect(html).toContain('id="adr/ADR-001"');
+    expect(html).toContain('id="bug/BUG-001"');
+    expect(html).toContain('data-command-palette');
+    expect(html).toContain('Source integrity');
     expect(html).toContain('Adapters separate formats.');
   });
 
@@ -31,16 +35,14 @@ describe('archive HTML renderer', () => {
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 
-  it('provides accessible landmarks and responsive interaction styles', () => {
+  it('contains responsive and reduced-motion contracts', () => {
     const html = renderArchiveHtml(dashboardProject());
     expect(html).toMatch(/<header[ >]/);
-    expect(html).toContain('<main id="main-content">');
     expect(html).toContain('class="skip-link"');
     expect(html).toContain(':focus-visible');
     expect(html).toContain('min-height:44px');
-    expect(html).toContain('@media(max-width:720px)');
+    expect(html).toContain('@media(max-width:767px)');
     expect(html).toContain('@media(prefers-reduced-motion:reduce)');
-    expect(html).toContain('.entry,.source-hash-state{overflow-wrap:anywhere}');
     expect(html).not.toContain('width:1440px');
   });
 

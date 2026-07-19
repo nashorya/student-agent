@@ -113,6 +113,13 @@ P0 离线蒸馏（`evals/distillation/candidate-knacks.json`）产出 6 条 veri
 
 ---
 
+## 图关系
+
+> 机读约定见 `docs/chronicle-graph-contracts.md` / `knowledge-graph.ts` 头注释。
+
+- **defines** → `finding:knack-schema-v1` · Knack Schema v1
+- **consumed-by** → `phase:P1` · P1 供给管道（batch distillation）
+
 ## 关联
 
 - 前置：[ADR-003](ADR-003-v04x-priority-reorder.md)（P0 验收）

@@ -6,7 +6,10 @@ import {
   deduplicateCandidates,
   distillResults,
   distillRunEvents,
+  extractSymptom,
+  isInformativeSymptom,
   parseJsonLines,
+  softSummarize,
 } from '../knack-distillation.js';
 
 describe('knack distillation', () => {
@@ -29,17 +32,18 @@ describe('knack distillation', () => {
     })).toMatchObject({
       repo: 'owner/repo',
       symptom: 'AssertionError: expected 2, got 1',
-      fix_summary: 'Tool sequence: read -> edit -> bash.',
+      // No fix marker and no code-bearing sentence → never invent tool-sequence prose.
+      fix_summary: '',
       verified_fix: expect.stringContaining('read -> edit -> bash'),
       evidence_task: 'owner__repo-123',
       evidence_turns: [2, 5],
       compression_level: 'knack',
-      confidence: 'verified',
+      confidence: 'candidate',
       reuse_count: 0,
       injected_count: 0,
       last_succeeded_task: null,
       last_injected_task: null,
-      unit_test: 'Verified by exit 0.',
+      unit_test: 'Verified by exit 0. Fix not extracted.',
     });
   });
 
@@ -68,7 +72,7 @@ describe('knack distillation', () => {
     ['The fix is assign the replacement back. Ignore this. Fix: lower priority.', 'assign the replacement back.'],
     ['Fix: validate every changed line. The solution is inspect manually.', 'validate every changed line.'],
     ['The solution is preserve the existing matrix values. Done.', 'preserve the existing matrix values.'],
-    ['No explicit marker appears here. The rest is audit detail.', 'Tool sequence: edit.'],
+    ['No explicit marker appears here. The rest is audit detail.', ''],
   ])('extracts fix_summary by marker priority', (finalSummary, expectedFixSummary) => {
     const events = parseJsonLines([
       '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
@@ -82,6 +86,66 @@ describe('knack distillation', () => {
       repo: 'owner/repo',
       finalSummary,
     })?.fix_summary).toBe(expectedFixSummary);
+  });
+
+  it('keeps marker-based fix_summary and verified confidence (no regression)', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary: 'The fix is to assign `output_field[:] = output_field.replace(...)`.',
+    })).toMatchObject({
+      fix_summary: 'to assign `output_field[:] = output_field.replace(...)`.',
+      confidence: 'verified',
+      unit_test: 'Verified by verifier reward=1.',
+    });
+  });
+
+  it('degrades to empty fix_summary and candidate when no marker and no code sentence', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    const candidate = distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary: 'Everything looks fine after a careful review of the change.',
+    });
+
+    expect(candidate).toMatchObject({
+      fix_summary: '',
+      confidence: 'candidate',
+      unit_test: 'Verified by verifier reward=1. Fix not extracted.',
+    });
+    expect(candidate?.fix_summary.startsWith('Tool sequence')).toBe(false);
+  });
+
+  it('uses the last code-bearing finalSummary sentence when markers are absent', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary:
+        'Investigation complete. Accept `header_rows` in `RST.__init__` and reindex separators. Ready to ship.',
+    })).toMatchObject({
+      fix_summary: 'Accept `header_rows` in `RST.__init__` and reindex separators.',
+      confidence: 'verified',
+    });
   });
 
   it('deduplicates normalized symptoms and keeps the shorter evidence span', () => {
@@ -146,7 +210,8 @@ describe('knack distillation', () => {
       finalSummary: 'Let me verify the fix is logically correct. No explicit fix marker follows.',
     });
 
-    expect(candidate?.fix_summary).toBe('Tool sequence: edit.');
+    expect(candidate?.fix_summary).toBe('');
+    expect(candidate?.confidence).toBe('candidate');
   });
 
   it('does not emit a candidate without exit 0 or verifier reward 1', () => {
@@ -173,7 +238,82 @@ describe('knack distillation', () => {
       events,
       evidenceTask: 'owner__repo-789',
       repo: 'owner/repo',
+      finalSummary: 'The fix is restore the prior boundary.',
     })?.unit_test).toBe('Verified by verifier reward=1.');
+  });
+
+  it('skips low-info agent symptom and uses first substantial tool error (fidelity v2)', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"edit","summary":"Hashline: file changed since last read"}',
+      '{"kind":"tool_error","toolName":"bash","summary":"AssertionError: expected D exponent in FITS field"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'astropy__astropy-6938',
+      repo: 'astropy/astropy',
+      finalSummary: 'The bug is confirmed. The fix is to assign replace result back.',
+    })?.symptom).toBe('AssertionError: expected D exponent in FITS field');
+  });
+
+  it('prefers issue title from taskInstruction over agent fluff', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"edit","summary":"Hashline: stale tag"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    expect(distillRunEvents({
+      events,
+      evidenceTask: 'astropy__astropy-6938',
+      repo: 'astropy/astropy',
+      taskInstruction: [
+        'Resolve this SWE-bench issue in the current repository.',
+        'Instance: astropy__astropy-6938',
+        '',
+        'Possible bug in io.fits related to D exponents',
+        'chararray.replace is not in-place.',
+      ].join('\n'),
+      finalSummary: 'The bug is confirmed. The fix is assign replace back.',
+    })?.symptom).toBe('Possible bug in io.fits related to D exponents');
+  });
+
+  it('soft-limits long fix_summary at sentence end (fidelity v2)', () => {
+    const longTail = 'Keep the rest of the paragraph for context only and do not mid-cut. ';
+    const finalSummary = `The fix is ${'Assign the replace result back to output_field so D exponents survive. '.repeat(3)}${longTail.repeat(5)}`;
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"generic command failed"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+
+    const fix = distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary,
+    })?.fix_summary ?? '';
+
+    expect(fix.endsWith('.')).toBe(true);
+    expect(fix.length).toBeLessThanOrEqual(300);
+    expect(fix.includes('Assign the replace result')).toBe(true);
+    // Must not hard-cut mid-word at exactly 150.
+    expect(fix.length === 150 && !/[.!?]$/.test(fix)).toBe(false);
+  });
+
+  it('isInformativeSymptom rejects confirmed fluff', () => {
+    expect(isInformativeSymptom('confirmed.')).toBe(false);
+    expect(isInformativeSymptom('The issue is clear')).toBe(false);
+    expect(isInformativeSymptom('AssertionError: matrix wrong')).toBe(true);
+  });
+
+  it('softSummarize extends to sentence end instead of chopping at 150', () => {
+    const text = `${'word '.repeat(20)}Complete sentence ends here. Extra clause stays out if possible.`;
+    const out = softSummarize(text, 150, 300);
+    expect(out.endsWith('.')).toBe(true);
+    expect(out.includes('Complete sentence ends here.')).toBe(true);
   });
 
   it('links run archives to their task and resolved harness result', async () => {

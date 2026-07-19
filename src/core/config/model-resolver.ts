@@ -39,6 +39,13 @@ function resolveOpenRouterAnthropicModel(config: ModelConfig): Model<Api> | unde
     },
     contextWindow: 1_000_000,
     maxTokens: 64_000,
+    // ZenMux/OpenRouter Anthropic path: enable Anthropic cache markers + 1h TTL
+    // (pi-ai maps cacheRetention=long → cache_control.ttl=1h). Verified on ZenMux 2026-07-19.
+    compat: {
+      cacheControlFormat: 'anthropic',
+      supportsLongCacheRetention: true,
+      supportsDeveloperRole: false,
+    },
   };
 }
 

@@ -4,6 +4,7 @@
  * 稳定后可封装为 Pi Extension。
  */
 
+import { join } from 'node:path';
 import {
   createAgentSession,
   DefaultResourceLoader,
@@ -80,6 +81,11 @@ export interface CreateStudentSessionOptions {
   apiKey?: string;
   /** Whether agents may stage durable project archive records. */
   projectArchive?: boolean;
+  /**
+   * Eval skill isolation: only load skills from these roots.
+   * When set (even to []), disables default agentDir/home skill discovery.
+   */
+  controlledSkillRoots?: string[];
   /** 额外传递给 Pi 的选项 */
   piOptions?: Partial<CreateAgentSessionOptions>;
 }
@@ -101,7 +107,16 @@ export interface CreateStudentSessionResult {
 export async function createStudentSession(
   options: CreateStudentSessionOptions,
 ): Promise<CreateStudentSessionResult> {
-  const { cwd = process.cwd(), model, hooks, llm, apiKey, projectArchive = true, piOptions = {} } = options;
+  const {
+    cwd = process.cwd(),
+    model,
+    hooks,
+    llm,
+    apiKey,
+    projectArchive = true,
+    controlledSkillRoots,
+    piOptions = {},
+  } = options;
 
   const hashlineStore = createHashlineStore();
   const hashlineFs = new StudentAgentFilesystem(cwd);
@@ -129,19 +144,30 @@ export async function createStudentSession(
     customTools,
   };
 
-  if (hooks.buildMemoryPrompt) {
-    const memoryPrompt = await hooks.buildMemoryPrompt();
-    if (memoryPrompt) {
+  const isolateSkills = controlledSkillRoots !== undefined;
+  const isolatedAgentDir = isolateSkills
+    ? join(cwd, '.pi-eval-agent')
+    : (piOptions.agentDir ?? getAgentDir());
+
+  if (hooks.buildMemoryPrompt || isolateSkills) {
+    const memoryPrompt = hooks.buildMemoryPrompt ? await hooks.buildMemoryPrompt() : '';
+    if (memoryPrompt || isolateSkills) {
       if (piOptions.resourceLoader) {
-        throw new Error('buildMemoryPrompt cannot be combined with a custom Pi resourceLoader yet');
+        throw new Error('buildMemoryPrompt/controlledSkillRoots cannot combine with custom Pi resourceLoader yet');
       }
 
       const resourceLoader = new DefaultResourceLoader({
         cwd,
-        agentDir: piOptions.agentDir ?? getAgentDir(),
+        agentDir: isolatedAgentDir,
         settingsManager: piOptions.settingsManager,
-        systemPromptOverride: (base) =>
-          [memoryPrompt, base].filter((part): part is string => Boolean(part)).join('\n\n'),
+        // Lock skills to controlled roots only (empty dir → empty <available_skills>).
+        noSkills: isolateSkills,
+        additionalSkillPaths: isolateSkills ? controlledSkillRoots : undefined,
+        // Pi base (tools/skills) is run-stable; student memory already orders
+        // static→breakpoint→dynamic so the mutable suffix is last for prefix cache.
+        systemPromptOverride: memoryPrompt
+          ? (base) => [base, memoryPrompt].filter((part): part is string => Boolean(part)).join('\n\n')
+          : undefined,
       });
       await resourceLoader.reload();
       agentOptions.resourceLoader = resourceLoader;
@@ -227,12 +253,20 @@ export function applyLlmRequestLimits(agent: Agent, limits: LlmRequestLimits | u
   }
 
   const originalStreamFn = agent.streamFn;
-  agent.streamFn = (model, context, options) => originalStreamFn(model, context, {
-    ...options,
-    timeoutMs: options?.timeoutMs ?? limits.timeoutMs,
-    maxTokens: options?.maxTokens ?? limits.maxTokens,
-    maxRetries: options?.maxRetries ?? limits.maxRetries,
-    maxRetryDelayMs: options?.maxRetryDelayMs ?? limits.maxRetryDelayMs,
-    apiKey: options?.apiKey ?? limits.apiKey,
-  });
+  agent.streamFn = (model, context, options) => {
+    const longCache = Boolean(
+      (model as { compat?: { supportsLongCacheRetention?: boolean } }).compat
+        ?.supportsLongCacheRetention,
+    );
+    return originalStreamFn(model, context, {
+      ...options,
+      timeoutMs: options?.timeoutMs ?? limits.timeoutMs,
+      maxTokens: options?.maxTokens ?? limits.maxTokens,
+      maxRetries: options?.maxRetries ?? limits.maxRetries,
+      maxRetryDelayMs: options?.maxRetryDelayMs ?? limits.maxRetryDelayMs,
+      apiKey: options?.apiKey ?? limits.apiKey,
+      // Prefer 1h prompt cache when provider/model supports it (C-2 TTL).
+      cacheRetention: options?.cacheRetention ?? (longCache ? 'long' : undefined),
+    });
+  };
 }

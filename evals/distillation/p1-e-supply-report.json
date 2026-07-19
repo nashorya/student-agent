@@ -1,0 +1,132 @@
+{
+  "supplyPath": "distill(events) \u2192 LessonWriter.findCausalPair gate \u2192 lessons.jsonl \u2192 harness promote",
+  "distilled": [
+    {
+      "id": "knack-astropy-astropy-2de58f692aea",
+      "dedup_key": "astropy-astropy:9599915bd8cd",
+      "repo": "astropy/astropy",
+      "symptom": "confirmed.",
+      "fix_summary": "to assign the result of `replace` back to `output_field`:The fix is in place.",
+      "verified_fix": "Tool sequence: read -> edit -> bash -> apply_patch -> bash -> bash. The bug is confirmed. The fix is to assign the result of `replace` back to `output_field`:The fix is in place. Here is a summary of the change: **File changed:** `astropy/io/fits/fitsrec.py` **Problem:** The line `output_field.replace(encode_ascii('E'), encode_ascii('D'))` called `.replace()` on a numpy chararray but discarded the return value. `chararray.replace()` is not an in-place operation \u2014 it returns a new array \u2014 so the exponent substitution from `E` to `D` was silently lost. **Fix:** Assign the result back into the array with `output_field[:] = output_field.replace(encode_ascii('E'),\u2026",
+      "evidence_task": "astropy__astropy-6938",
+      "evidence_turns": [
+        5,
+        12
+      ],
+      "compression_level": "knack",
+      "confidence": "verified",
+      "reuse_count": 0,
+      "injected_count": 0,
+      "last_succeeded_task": null,
+      "last_injected_task": null,
+      "unit_test": "Verified by verifier reward=1."
+    },
+    {
+      "id": "knack-astropy-astropy-3fb98fc6f0ce",
+      "dedup_key": "astropy-astropy:9f67f90f3c11",
+      "repo": "astropy/astropy",
+      "symptom": "In `_cstack`, when `right` is an ndarray (i.e., already a computed coord_matrix from a nested CompoundModel), the code does: ```python cright[-right.\u2026",
+      "fix_summary": "The fix copies the actual computed matrix `right` into the correct position, preserving the separability structure of nested CompoundModels.",
+      "verified_fix": "Tool sequence: bash -> bash -> bash -> bash. Now I can see the issue. In `_cstack`, when `right` is an ndarray (i.e., already a computed coord_matrix from a nested CompoundModel), the code does: ```python cright[-right.shape[0]:, -right.shape[1]:] = 1 ``` It sets the entire block to 1 instead of copying the actual matrix values. Let me verify:That's the bug. When `right` is already a matrix (from a nested CompoundModel), the code should copy the matrix values, not set everything to 1. Let me fix it:Now let me verify the fix works:The fix works correctly. Now let me also run the existing tests to make sure nothing is broken:The test envi\u2026",
+      "evidence_task": "astropy__astropy-12907",
+      "evidence_turns": [
+        5,
+        9
+      ],
+      "compression_level": "knack",
+      "confidence": "verified",
+      "reuse_count": 0,
+      "injected_count": 0,
+      "last_succeeded_task": null,
+      "last_injected_task": null,
+      "unit_test": "Verified by verifier reward=1."
+    },
+    {
+      "id": "knack-astropy-astropy-cafd4af83aeb",
+      "dedup_key": "astropy-astropy:6c541667233e",
+      "repo": "astropy/astropy",
+      "symptom": "In the `_arithmetic_mask` method (line 525-527), when both operands are present (`else` branch), it calls `handle_mask(self.mask, operand.mask, **kwd\u2026",
+      "fix_summary": "**Fix:** Added an `elif operand.mask is None` branch that returns `deepcopy(self.mask)`, consistent with the documented behavior: \"If only one mask w\u2026",
+      "verified_fix": "Tool sequence: read -> edit -> bash -> apply_patch -> bash -> bash -> bash -> bash -> bash -> bash. Now let me look at the `_arithmetic_mask` function more carefully to understand the bug:I can see the bug. In the `_arithmetic_mask` method (line 525-527), when both operands are present (`else` branch), it calls `handle_mask(self.mask, operand.mask, **kwds)`. However, there's no check for the case where `operand.mask` is `None` (i.e., the second operand has no mask but `self` does). The condition on line 520 only handles `self.mask is None and operand is not None`, but doesn't handle `operand.mask is None and self.mask is not None`. The fix should add a check: if `operand.mask is None`, retu\u2026",
+      "evidence_task": "astropy__astropy-14995",
+      "evidence_turns": [
+        6,
+        19
+      ],
+      "compression_level": "knack",
+      "confidence": "verified",
+      "reuse_count": 0,
+      "injected_count": 0,
+      "last_succeeded_task": null,
+      "last_injected_task": null,
+      "unit_test": "Verified by verifier reward=1."
+    }
+  ],
+  "admitted": [
+    {
+      "lessonId": "lesson_1586e3e4-6196-40cc-8197-f01e857cdc71",
+      "instanceId": "astropy__astropy-6938",
+      "runId": "run_1784388318631",
+      "confidence": "candidate"
+    },
+    {
+      "lessonId": "lesson_12b555df-ca79-444f-8730-1edfff865d94",
+      "instanceId": "astropy__astropy-12907",
+      "runId": "run_1784388508942",
+      "confidence": "candidate"
+    },
+    {
+      "lessonId": "lesson_532058d4-fb51-478f-bcf5-98ef7e731a2d",
+      "instanceId": "astropy__astropy-14995",
+      "runId": "run_1784388855001",
+      "confidence": "candidate"
+    }
+  ],
+  "promoted": 3,
+  "skipped": [
+    {
+      "instanceId": "astropy__astropy-7746",
+      "reason": "no_stream_or_harness_verification"
+    },
+    {
+      "instanceId": "astropy__astropy-14182",
+      "reason": "no_stream_or_harness_verification"
+    },
+    {
+      "instanceId": "astropy__astropy-14365",
+      "reason": "no_stream_or_harness_verification"
+    }
+  ],
+  "mainLibrary": {
+    "total": 3,
+    "verified": 3,
+    "candidate": 0,
+    "verifiedRatio": 1.0,
+    "lessons": [
+      {
+        "id": "lesson_1586e3e4-6196-40cc-8197-f01e857cdc71",
+        "confidence": "verified",
+        "promotedAt": "2026-07-19T03:57:36.479367+00:00",
+        "sessionRef": "run_1784388318631",
+        "instanceId": "astropy__astropy-6938",
+        "lesson": "Symptom: confirmed. Fix: to assign the result of `replace` back to `output_field`:The fix is in place."
+      },
+      {
+        "id": "lesson_12b555df-ca79-444f-8730-1edfff865d94",
+        "confidence": "verified",
+        "promotedAt": "2026-07-19T03:57:36.479367+00:00",
+        "sessionRef": "run_1784388508942",
+        "instanceId": "astropy__astropy-12907",
+        "lesson": "Symptom: In `_cstack`, when `right` is an ndarray (i.e., already a computed coord_matrix from a nested CompoundModel), the code does: ```python cright[-right.\u2026 Fix: The fix copies the actual computed matrix `right` into the correct position, preserving the separability structure of nested CompoundModels."
+      },
+      {
+        "id": "lesson_532058d4-fb51-478f-bcf5-98ef7e731a2d",
+        "confidence": "verified",
+        "promotedAt": "2026-07-19T03:57:36.479367+00:00",
+        "sessionRef": "run_1784388855001",
+        "instanceId": "astropy__astropy-14995",
+        "lesson": "Symptom: In the `_arithmetic_mask` method (line 525-527), when both operands are present (`else` branch), it calls `handle_mask(self.mask, operand.mask, **kwd\u2026 Fix: **Fix:** Added an `elif operand.mask is None` branch that returns `deepcopy(self.mask)`, consistent with the documented behavior: \"If only one mask w\u2026"
+      }
+    ]
+  }
+}

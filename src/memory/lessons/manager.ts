@@ -3,21 +3,36 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { getProjectMemoryDir } from '../../core/paths.js';
 import { WriteQueue } from '../../core/write-queue.js';
+import {
+  findCausalPair,
+  type VerificationKind,
+} from '../../evals/causal-pair.js';
 import { readRecentSignals } from '../signals/index.js';
 import type { Signal } from '../signals/types.js';
-import type { LessonCandidate, LessonCandidateStatus } from './types.js';
+import type { LessonCandidate, LessonCandidateStatus, LessonConfidence } from './types.js';
 
 export interface ObserveRecentSignalsOptions {
   taskId: string;
   sessionRef: string;
   limit?: number;
+  /** In-stream exit-0 verification tools (pytest etc.). */
   verificationEvidence?: LessonVerificationEvidence[];
+  /** Intermediate tool ops after the error (recovery path) for provisional pairs. */
+  operationEvidence?: LessonOperationEvidence[];
+  /** Optional external terminator (harness reward=1), same distill fallback. */
+  verification?: VerificationKind;
+  finalSummary?: string;
 }
 
 export interface LessonVerificationEvidence {
   toolCallId: string;
   toolName: string;
   exitCode: number;
+  completedAt: string;
+}
+
+export interface LessonOperationEvidence {
+  toolName: string;
   completedAt: string;
 }
 
@@ -62,9 +77,16 @@ export class LessonsManager {
     signals: Signal[],
     options: Pick<
       ObserveRecentSignalsOptions,
-      'taskId' | 'sessionRef' | 'verificationEvidence'
+      | 'taskId'
+      | 'sessionRef'
+      | 'verificationEvidence'
+      | 'operationEvidence'
+      | 'verification'
+      | 'finalSummary'
     >,
   ): Promise<LessonCandidate[]> {
+    if (signals.length === 0) return [];
+
     const existing = [
       ...await this.getAll(),
       ...await this.getEphemeral(),
@@ -79,6 +101,79 @@ export class LessonsManager {
     }
 
     return candidates;
+  }
+
+  /** Distill product → main via same findCausalPair gate as distillRunEvents (no provisional). */
+  async admitDistilled(options: {
+    events: Array<Record<string, unknown> | { line?: number; data: Record<string, unknown> }>;
+    verification?: VerificationKind;
+    lesson: string;
+    sourceSignalId: string;
+    taskId: string;
+    sessionRef: string;
+  }): Promise<LessonCandidate | null> {
+    const pair = findCausalPair(options.events, { verification: options.verification });
+    if (!pair?.verification) return null;
+    const now = new Date().toISOString();
+    const candidate: LessonCandidate = {
+      id: `lesson_${randomUUID()}`,
+      sourceSignalId: options.sourceSignalId,
+      lesson: options.lesson,
+      trigger: { signalKinds: ['tool_error'], paths: [] },
+      applicableWhen: [options.lesson],
+      doNotApplyWhen: [],
+      evidenceRefs: [options.sourceSignalId],
+      severity: 'medium',
+      quality: 'high',
+      confidence: pair.streamVerified ? 'verified' : 'candidate',
+      status: 'observed',
+      provenance: {
+        taskId: options.taskId,
+        sessionRef: options.sessionRef,
+        signalId: options.sourceSignalId,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.append(candidate);
+    return candidate;
+  }
+
+  /**
+   * After harness reward: promote this run's candidate lessons → verified.
+   * reward≠1 keeps candidates in place (no delete).
+   */
+  async promoteCandidatesForRun(options: {
+    sessionRef: string;
+    reward: number;
+    promotedAt?: string;
+  }): Promise<{ promoted: number }> {
+    return WriteQueue.getInstance().enqueue(async () => {
+      const lessons = await this.getAll();
+      const now = options.promotedAt ?? new Date().toISOString();
+      let promoted = 0;
+      const updated = lessons.map((lesson) => {
+        if (lesson.confidence !== 'candidate') return lesson;
+        if (lesson.provenance.sessionRef !== options.sessionRef) return lesson;
+        if (options.reward !== 1) return lesson;
+        promoted += 1;
+        return {
+          ...lesson,
+          confidence: 'verified' as const,
+          promotedAt: now,
+          updatedAt: now,
+        };
+      });
+      if (promoted > 0) {
+        await mkdir(dirname(this.filePath), { recursive: true });
+        await writeFile(
+          this.filePath,
+          `${updated.map((lesson) => JSON.stringify(lesson)).join('\n')}\n`,
+          'utf-8',
+        );
+      }
+      return { promoted };
+    });
   }
 
   async updateStatus(lessonId: string, status: LessonCandidateStatus): Promise<void> {
@@ -112,13 +207,18 @@ function signalToLessonCandidate(
   signal: Signal,
   options: Pick<
     ObserveRecentSignalsOptions,
-    'taskId' | 'sessionRef' | 'verificationEvidence'
+    | 'taskId'
+    | 'sessionRef'
+    | 'verificationEvidence'
+    | 'operationEvidence'
+    | 'verification'
+    | 'finalSummary'
   >,
 ): LessonCandidate {
   const now = new Date().toISOString();
   const path = signal.path ? [signal.path] : [];
   const evidenceRefs = [signal.evidenceRef, signal.toolCallId].filter((value): value is string => Boolean(value));
-  const verification = findVerification(signal, options.verificationEvidence ?? []);
+  const admission = admitSignalCausalPair(signal, options);
 
   return {
     id: `lesson_${randomUUID()}`,
@@ -134,8 +234,10 @@ function signalToLessonCandidate(
     doNotApplyWhen: doNotApplyWhen(signal),
     evidenceRefs,
     severity: signal.severity,
-    quality: verification ? 'high' : 'low',
-    verification,
+    // unpaired → ephemeral; paired → lessons/ (verified if stream, else candidate)
+    quality: admission.paired ? 'high' : 'low',
+    confidence: admission.confidence,
+    verification: admission.verification,
     status: 'observed',
     provenance: {
       taskId: options.taskId,
@@ -147,28 +249,85 @@ function signalToLessonCandidate(
   };
 }
 
-function findVerification(
+/** Shared findCausalPair (+ harness fallback + provisional). */
+function admitSignalCausalPair(
+  signal: Signal,
+  options: Pick<
+    ObserveRecentSignalsOptions,
+    'verificationEvidence' | 'operationEvidence' | 'verification'
+  >,
+): {
+  paired: boolean;
+  confidence?: LessonConfidence;
+  verification?: LessonCandidate['verification'];
+} {
+  const evidence = options.verificationEvidence ?? [];
+  // Process-noise signals (hashline/import/toolguard) must not enter the main
+  // library via provisional recovery or unrelated bash exit-0. Only harness
+  // external verification (options.verification) may admit them later.
+  if (isProcessNoiseSignal(signal) && !options.verification) {
+    return { paired: false };
+  }
+
+  const events = buildCausalEventsFromSignal(
+    signal,
+    evidence,
+    options.operationEvidence ?? [],
+  );
+  const pair = findCausalPair(events, {
+    verification: options.verification,
+    allowProvisional: true,
+  });
+  if (!pair) return { paired: false };
+
+  // 流内有证 → verified; 无流内证但 pair 成立（含 harness/provisional）→ candidate
+  const confidence: LessonConfidence = pair.streamVerified ? 'verified' : 'candidate';
+  const successful = evidence
+    .filter((item) => item.exitCode === 0)
+    .sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt))
+    .at(0);
+
+  return {
+    paired: true,
+    confidence,
+    verification: signal.toolCallId && successful
+      ? {
+        sourceToolCallId: signal.toolCallId,
+        successfulToolCallId: successful.toolCallId,
+        toolName: successful.toolName,
+        exitCode: 0,
+        completedAt: successful.completedAt,
+      }
+      : undefined,
+  };
+}
+
+function buildCausalEventsFromSignal(
   signal: Signal,
   evidence: LessonVerificationEvidence[],
-): LessonCandidate['verification'] {
-  if (!signal.toolCallId) return undefined;
-  const signalTime = Date.parse(signal.createdAt);
-  const successful = evidence.find((item) => {
-    if (item.exitCode !== 0) return false;
-    const completedAt = Date.parse(item.completedAt);
-    return Number.isFinite(signalTime)
-      && Number.isFinite(completedAt)
-      && completedAt >= signalTime;
-  });
-  return successful
-    ? {
-      sourceToolCallId: signal.toolCallId,
-      successfulToolCallId: successful.toolCallId,
-      toolName: successful.toolName,
-      exitCode: 0,
-      completedAt: successful.completedAt,
-    }
-    : undefined;
+  operations: LessonOperationEvidence[],
+): Record<string, unknown>[] {
+  const t0 = Date.parse(signal.createdAt);
+  const after = (iso: string) => Number.isFinite(t0) && Number.isFinite(Date.parse(iso))
+    && Date.parse(iso) >= t0;
+  const isErr = signal.kind === 'tool_error' || signal.kind.includes('error');
+  const events: Record<string, unknown>[] = [{
+    kind: isErr ? 'tool_error' : signal.kind,
+    toolName: signal.toolName,
+    summary: signal.summary,
+    isError: isErr,
+  }];
+  for (const op of operations.filter((item) => after(item.completedAt))
+    .sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt))) {
+    events.push({ kind: 'tool_call', toolName: op.toolName, name: op.toolName });
+  }
+  for (const item of evidence.filter((item) => after(item.completedAt) && item.exitCode === 0)
+    .sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt))) {
+    events.push({ kind: 'tool_call', toolName: item.toolName, name: item.toolName });
+    events.push({ kind: 'verification', exitCode: 0 });
+    break;
+  }
+  return events;
 }
 
 async function readLessons(path: string): Promise<LessonCandidate[]> {
@@ -185,6 +344,26 @@ async function readLessons(path: string): Promise<LessonCandidate[]> {
     if (isNodeError(err) && err.code === 'ENOENT') return [];
     throw err;
   }
+}
+
+/** Hashline / import / toolguard noise — not verified-fix material. */
+export function isProcessNoiseSignal(signal: Signal): boolean {
+  if (
+    signal.kind === 'toolguard_block'
+    || signal.kind === 'hashline_rejection'
+    || signal.kind === 'fileguard_block'
+  ) {
+    return true;
+  }
+  const summary = signal.summary.toLowerCase();
+  return (
+    summary.includes('hashline')
+    || summary.includes('modulenotfounderror')
+    || summary.includes('no module named')
+    || summary.includes('traceback (most recent call last)')
+    || summary.includes('import error')
+    || summary.startsWith('sed:')
+  );
 }
 
 function lessonText(signal: Signal): string {

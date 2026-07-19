@@ -1,0 +1,32 @@
+[
+  {
+    "instanceId": "astropy__astropy-6938",
+    "sessionRef": "run_1784388318631",
+    "before_symptom": "confirmed.",
+    "before_fix": "to assign the result of `replace` back to `output_field`:The fix is in place.",
+    "after_symptom": "Possible bug in io.fits related to D exponents",
+    "after_fix": "to assign the result of `replace` back to `output_field`:The fix is in place.",
+    "confirmed_gone": true,
+    "after_fix_ends_sentence": true
+  },
+  {
+    "instanceId": "astropy__astropy-12907",
+    "sessionRef": "run_1784388508942",
+    "before_symptom": "In `_cstack`, when `right` is an ndarray (i.e., already a computed coord_matrix from a nested CompoundModel), the code does: ```python cright[-right.…",
+    "before_fix": "The fix copies the actual computed matrix `right` into the correct position, preserving the separability structure of nested CompoundModels.",
+    "after_symptom": "Modeling's `separability_matrix` does not compute separability correctly for nested CompoundModels",
+    "after_fix": "The fix copies the actual computed matrix `right` into the correct position, preserving the separability structure of nested CompoundModels.",
+    "confirmed_gone": true,
+    "after_fix_ends_sentence": true
+  },
+  {
+    "instanceId": "astropy__astropy-14995",
+    "sessionRef": "run_1784388855001",
+    "before_symptom": "In the `_arithmetic_mask` method (line 525-527), when both operands are present (`else` branch), it calls `handle_mask(self.mask, operand.mask, **kwd…",
+    "before_fix": "**Fix:** Added an `elif operand.mask is None` branch that returns `deepcopy(self.mask)`, consistent with the documented behavior: \"If only one mask w…",
+    "after_symptom": "In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask",
+    "after_fix": "**Fix:** Added an `elif operand.mask is None` branch that returns `deepcopy(self.mask)`, consistent with the documented behavior: \"If only one mask was present this mask is returned.",
+    "confirmed_gone": true,
+    "after_fix_ends_sentence": true
+  }
+]

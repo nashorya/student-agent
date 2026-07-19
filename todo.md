@@ -1,5 +1,11 @@
 # Done
 
+## ✅ ADR-008 Measured Harness Evolution（2026-07-19，纯文书）
+- 落档 `docs/adr/ADR-008-measured-harness-evolution.md`：定位声明，无代码改动
+- 图关系：clarifies→ADR-001；motivates→injection-effect-experiment；defers→chronicle:P3/P4
+- INDEX 时间轴已登记；`npm run chronicle:build` 验收上图
+- 不改 README、不动 ADR-001 原文
+
 ## ✅ UIState 四通道隔离
 - `state.ts` 已将 AppState 严格分为 messages / currentStatus / inputValue / debugLogs 四通道
 - `bridge.ts` 确保各通道互不污染

@@ -67,12 +67,61 @@ describe('createContextAssemblyHook', () => {
     expect(prompt).toContain('Respect repository conventions.');
     expect(prompt).toContain('文件修改规则');
     expect(prompt).toContain('Context Assembly');
-    expect(prompt).toContain('Tier: standard');
     expect(prompt).toContain('### taskSpec');
     expect(prompt).toContain('Goal: Assemble L1 prompt from working memory');
     expect(prompt).toContain('### workingMemory');
     expect(prompt).toContain('PI CONTRACT');
     expect(prompt).not.toContain('FULL PI SCHEMA');
+    // Instrument-only diagnostics must not enter the subject prompt.
+    expect(prompt).not.toContain('context_assembly_diagnostics');
+    expect(prompt).not.toContain('Tier: standard');
+    // C-2: cache breakpoint after static prefix; dynamic taskSpec after it.
+    expect(prompt).toContain('cache_prefix_breakpoint');
+    const breakAt = prompt.indexOf('cache_prefix_breakpoint');
+    const taskSpecAt = prompt.indexOf('### taskSpec');
+    const piAt = prompt.indexOf('PI CONTRACT');
+    expect(breakAt).toBeGreaterThan(-1);
+    expect(taskSpecAt).toBeGreaterThan(breakAt);
+    expect(piAt).toBeGreaterThan(-1);
+    expect(piAt).toBeLessThan(breakAt);
+  });
+
+  it('keeps real static prefix byte-stable across two full renders (C-2)', async () => {
+    await writeProjectRules(tmpDir, 'Respect repository conventions.');
+    await TasksManager.getInstance(tmpDir).createTask('Stable prefix task', ['Build'], {
+      workflowStatus: 'executing',
+      workingMemory: {
+        goal: 'Byte-stable static prefix',
+        phase: 'executing',
+        currentStep: 'Render twice',
+        hardConstraints: 'Only edit src/target.ts',
+        todos: [{
+          id: 'todo_1',
+          content: 'Keep dynamic todo',
+          status: 'pending',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }],
+      },
+    });
+    const hook = createContextAssemblyHook({
+      memoryDir: tmpDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+    });
+    const a = await hook();
+    const b = await hook();
+    const prefix = (prompt: string) => {
+      const i = prompt.indexOf('cache_prefix_breakpoint');
+      expect(i).toBeGreaterThan(-1);
+      return prompt.slice(0, i);
+    };
+    // Real hardcoded + static builder sections (not synthetic pad).
+    expect(prefix(a)).toContain('文件修改规则');
+    expect(prefix(a)).toContain('Hashline');
+    expect(prefix(a)).toContain('EVAL AUTONOMY RULE');
+    expect(prefix(a)).toContain('PI CONTRACT');
+    expect(prefix(a)).not.toContain('### taskSpec');
+    expect(prefix(a)).toBe(prefix(b));
   });
 
   it('records L0-L3 context assembly trace when a recorder is provided', async () => {
@@ -173,18 +222,26 @@ describe('createContextAssemblyHook', () => {
       },
     });
 
+    const traces: Array<{ sections?: Array<{ id?: string; content?: string }> }> = [];
     const prompt = await createContextAssemblyHook({
       memoryDir: tmpDir,
       useNewPipeline: true,
       runMode: 'eval',
       piSchemaRenderMode: 'summary',
+      onTrace: (trace) => traces.push(trace),
     })();
 
     expect(prompt).toContain('EVAL AUTONOMY RULE');
     expect(prompt).toContain('PI CONTRACT');
     expect(prompt).not.toContain('FULL PI SCHEMA');
-    expect(prompt).toContain('Pi schema render mode: summary');
-    expect(prompt).toContain('Eval autonomy rule enabled: true');
+    // Instrument diagnostics must not enter the subject prompt (cache + isolation).
+    expect(prompt).not.toContain('context_assembly_diagnostics');
+    expect(prompt).not.toContain('Pi schema render mode: summary');
+    expect(prompt).not.toContain('Eval autonomy rule enabled: true');
+    // Still recorded on the trace side (metadata section id; content is length-only).
+    const diag = traces.flatMap((t) => t.sections ?? []).find((s) => s.id === 'contextAssemblyDiagnostics');
+    expect(diag).toBeTruthy();
+    expect((diag?.estimatedTokens ?? 0) > 0).toBe(true);
   });
 
   it('renders hard constraints in the prompt and records them as L1 trace', async () => {

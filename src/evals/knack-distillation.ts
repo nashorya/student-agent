@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import {
+  findCausalPair,
+  type VerificationKind,
+} from './causal-pair.js';
 
 export interface DistillationEvent {
   line: number;
@@ -18,7 +22,7 @@ export interface CandidateKnack {
   evidence_task: string;
   evidence_turns: [number, number];
   compression_level: 'knack';
-  confidence: 'verified';
+  confidence: 'verified' | 'candidate';
   reuse_count: 0;
   injected_count: 0;
   last_succeeded_task: null;
@@ -30,14 +34,16 @@ export interface DistillRunInput {
   events: DistillationEvent[];
   evidenceTask: string;
   repo: string;
-  verification?: 'exit 0' | 'verifier reward=1';
+  verification?: VerificationKind;
   finalSummary?: string;
+  /** SWE issue body / task instruction — preferred symptom source (fidelity v2). */
+  taskInstruction?: string;
 }
 
 interface VerificationEvidence {
   memoryDirName: string;
   instanceId: string;
-  verification: 'exit 0' | 'verifier reward=1';
+  verification: VerificationKind;
 }
 
 export function parseJsonLines(content: string): DistillationEvent[] {
@@ -57,29 +63,13 @@ export function parseJsonLines(content: string): DistillationEvent[] {
 }
 
 export function distillRunEvents(input: DistillRunInput): CandidateKnack | null {
-  const errorIndex = input.events.findIndex(({ data }) => isErrorEvent(data));
-  if (errorIndex < 0) return null;
+  const pair = findCausalPair(input.events, { verification: input.verification });
+  if (!pair || !pair.verification) return null;
 
-  const eventVerificationIndex = input.events.findIndex(
-    ({ data }, index) => index > errorIndex && detectVerification(data) !== undefined,
-  );
-  const eventVerification = eventVerificationIndex >= 0
-    ? detectVerification(input.events[eventVerificationIndex].data)
-    : undefined;
-  const verification = eventVerification ?? input.verification;
-  if (!verification) return null;
-
-  const sequenceEnd = eventVerificationIndex >= 0
-    ? eventVerificationIndex
-    : input.events.length;
-  const operations = input.events
-    .slice(errorIndex + 1, sequenceEnd)
-    .filter(({ data }) => isToolCall(data));
-  if (operations.length === 0) return null;
-
-  const error = input.events[errorIndex];
+  const error = input.events[pair.errorIndex];
+  const operations = pair.operationIndices.map((index) => input.events[index]);
   const lastOperation = operations.at(-1);
-  if (!lastOperation) return null;
+  if (!error || !lastOperation) return null;
 
   const actionSequence = operations
     .map(({ data }) => stringValue(data.toolName) ?? stringValue(data.name) ?? 'tool')
@@ -88,16 +78,24 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     ? ` ${summarizeText(input.finalSummary, 600)}`
     : '';
   const verifiedFix = `Tool sequence: ${actionSequence}.${summary}`.trim();
-  const symptom = extractSymptom(
+  const symptom = extractSymptom({
     verifiedFix,
-    stringValue(error.data.summary) ?? 'Unknown tool error',
+    fallback: stringValue(error.data.summary) ?? 'Unknown tool error',
+    events: input.events,
+    taskInstruction: input.taskInstruction,
+  });
+  const { fix_summary: fixSummary, confidence } = extractFixSummary(
+    verifiedFix,
+    input.finalSummary,
   );
-  const fixSummary = extractFixSummary(verifiedFix);
   const dedupKey = buildDedupKey(input.repo, symptom);
   const hash = createHash('sha256')
     .update(`${input.repo}\n${input.evidenceTask}\n${symptom}\n${verifiedFix}`)
     .digest('hex')
     .slice(0, 12);
+  const verificationNote = pair.verification === 'exit 0'
+    ? 'Verified by exit 0.'
+    : 'Verified by verifier reward=1.';
 
   return {
     id: `knack-${slug(input.repo)}-${hash}`,
@@ -110,40 +108,132 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     evidence_task: input.evidenceTask,
     evidence_turns: [error.line, lastOperation.line],
     compression_level: 'knack',
-    confidence: 'verified',
+    confidence,
     reuse_count: 0,
     injected_count: 0,
     last_succeeded_task: null,
     last_injected_task: null,
-    unit_test: verification === 'exit 0'
-      ? 'Verified by exit 0.'
-      : 'Verified by verifier reward=1.',
+    unit_test: fixSummary
+      ? verificationNote
+      : `${verificationNote} Fix not extracted.`,
   };
 }
 
-function extractFixSummary(verifiedFix: string): string {
+/** Marker hit → verified; else last code-bearing finalSummary sentence; else empty + candidate. */
+export function extractFixSummary(
+  verifiedFix: string,
+  finalSummary?: string,
+): { fix_summary: string; confidence: 'verified' | 'candidate' } {
   for (const marker of [
     /(?:^|[.!?\n])(?:\s|\*)*The fix is\s*[:\s]\s*(.+)$/i,
     /(?:^|[\s\n])\*{0,2}Fix\*{0,2}\s*:\s*(.+)$/i,
     /(?:^|[.!?\n])(?:\s|\*)*The solution is\s*[:\s]\s*(.+)$/i,
   ]) {
     const markedText = verifiedFix.match(marker)?.[1]?.trim();
-    if (markedText) return summarizeText(firstSentence(markedText), 150);
+    if (markedText) {
+      return {
+        fix_summary: softSummarize(firstSentence(markedText)),
+        confidence: 'verified',
+      };
+    }
   }
-  return summarizeText(firstSentence(verifiedFix), 150);
+  const codeSentence = lastCodeBearingSentence(finalSummary);
+  if (codeSentence) {
+    return {
+      fix_summary: softSummarize(codeSentence),
+      confidence: 'verified',
+    };
+  }
+  // Never fall back to "Tool sequence: …" audit prose.
+  return { fix_summary: '', confidence: 'candidate' };
 }
 
-function extractSymptom(verifiedFix: string, fallback: string): string {
-  const exactMarkerText = verifiedFix.match(
-    /(?:The bug is|Root cause:|The issue is)\s*(.+)$/i,
-  )?.[1]
-    ?.replace(/^clear\s*(?:[.:]\s*)/i, '')
-    .trim();
-  const conversationalMarkerText = verifiedFix.match(
-    /(?:I can see the bug|I can see the issue|I understand the issue)[.!:]\s*(.+)$/i,
-  )?.[1]?.trim();
-  const markedText = exactMarkerText || conversationalMarkerText;
-  return summarizeText(markedText ? meaningfulRootCause(markedText) : fallback, 150);
+function lastCodeBearingSentence(text: string | undefined): string | undefined {
+  if (!text?.trim()) return undefined;
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (let index = sentences.length - 1; index >= 0; index -= 1) {
+    const sentence = sentences[index];
+    if (hasCodeSymbols(sentence)) return sentence;
+  }
+  return undefined;
+}
+
+function hasCodeSymbols(sentence: string): boolean {
+  if (/`[^`]+`/.test(sentence)) return true;
+  if (/\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b/.test(sentence)) return true;
+  if (/\b[A-Za-z_][A-Za-z0-9_]*\s*\(/.test(sentence)) return true;
+  return false;
+}
+
+/** Fidelity v2: issue surface → substantial tool error → agent narrative; reject fluff. */
+export function extractSymptom(input: {
+  verifiedFix: string;
+  fallback: string;
+  events?: DistillationEvent[];
+  taskInstruction?: string;
+}): string {
+  const pick = (value?: string) => (value && isInformativeSymptom(value) ? softSummarize(value) : undefined);
+  const afterInst = input.taskInstruction?.split(/Instance:\s*\S+\s*/i)[1] ?? input.taskInstruction;
+  const issueLine = afterInst?.split(/\n/).map((l) => l.trim()).filter(Boolean)
+    .find((l) => !/^(Resolve this|Edit only|Do not edit|When finished|Instance:)/i.test(l));
+  const fromIssue = pick(issueLine);
+  if (fromIssue) return fromIssue;
+  for (const event of input.events ?? []) {
+    const d = event.data;
+    const kind = stringValue(d.kind) ?? stringValue(d.type) ?? '';
+    if (!(kind.includes('error') || d.isError === true)) continue;
+    const summary = stringValue(d.summary) ?? '';
+    if (!isSubstantialToolError(summary)) continue;
+    const line = pick(summary.split(/\n/)[0]?.trim());
+    if (line) return line;
+  }
+  const agentRaw = input.verifiedFix.match(/(?:The bug is|Root cause:|The issue is)\s*(.+)$/i)?.[1]
+    ?.replace(/^clear\s*(?:[.:]\s*)/i, '').trim()
+    ?? input.verifiedFix.match(/(?:I can see the bug|I can see the issue|I understand the issue)[.!:]\s*(.+)$/i)?.[1]?.trim();
+  const fromAgent = agentRaw ? pick(meaningfulRootCause(agentRaw)) : undefined;
+  if (fromAgent) return fromAgent;
+  return softSummarize(isSubstantialToolError(input.fallback) ? input.fallback : (input.fallback || 'Unknown tool error'));
+}
+
+function isProcessNoiseErrorSummary(summary: string): boolean {
+  const s = summary.toLowerCase();
+  return s.includes('hashline') || s.includes('modulenotfounderror') || s.includes('no module named')
+    || s.includes('import error') || s.startsWith('sed:');
+}
+
+function isSubstantialToolError(summary: string): boolean {
+  if (!summary.trim() || isProcessNoiseErrorSummary(summary) || !isInformativeSymptom(summary)) return false;
+  if (hasCodeSymbols(summary)) return true;
+  if (/\b(Error|Exception|AssertionError|Traceback|TypeError|ValueError|AttributeError)\b/i.test(summary)) return true;
+  return summary.trim().length >= 50;
+}
+
+/** Reject "confirmed." / clear-only fluff without code symbols. */
+export function isInformativeSymptom(text: string): boolean {
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return false;
+  const bare = trimmed.replace(/[.!?]+$/g, '').trim();
+  if (/^(confirmed|clear|ok|done|yes|the issue is clear|the bug is clear)$/i.test(bare)) return false;
+  return !(bare.length < 25 && !hasCodeSymbols(trimmed));
+}
+
+/** Soft 150 / hard 300; end on sentence boundary — no mid-clause chop at 150. */
+export function softSummarize(text: string, softLimit = 150, hardLimit = 300): string {
+  const n = text.replace(/\s+/g, ' ').trim();
+  if (n.length <= softLimit) return n;
+  const win = n.slice(0, softLimit);
+  const endSoft = Math.max(win.lastIndexOf('. '), win.lastIndexOf('! '), win.lastIndexOf('? '));
+  if (endSoft >= Math.floor(softLimit * 0.4)) return n.slice(0, endSoft + 1).trim();
+  const m = n.slice(softLimit, hardLimit).match(/[.!?](?=\s|$)/);
+  if (m?.index !== undefined) return n.slice(0, softLimit + m.index + 1).trim();
+  if (n.length <= hardLimit) return n;
+  const hard = n.slice(0, hardLimit);
+  const lastDot = Math.max(hard.lastIndexOf('. '), hard.lastIndexOf('.'));
+  if (lastDot >= Math.floor(hardLimit * 0.5)) return hard.slice(0, lastDot + 1).trim();
+  return hard.replace(/\s+\S*$/, '').trim();
 }
 
 export async function distillResults(
@@ -346,33 +436,6 @@ function inferRepo(evidenceTask: string): string {
     return `${owner}/${repositoryWithIssue.replace(/-\d+$/, '')}`;
   }
   return evidenceTask.split(/[-/]/)[0] || 'unknown';
-}
-
-function detectVerification(event: Record<string, unknown>): VerificationEvidence['verification'] | undefined {
-  if (numberValue(event.exitCode) === 0 || numberValue(event.exit_code) === 0) {
-    return 'exit 0';
-  }
-  if (numberValue(event.reward) === 1 || numberValue(event.correctnessScore) === 1) {
-    return 'verifier reward=1';
-  }
-  const verifier = isRecord(event.verifier) ? event.verifier : undefined;
-  if (verifier && (numberValue(verifier.reward) === 1 || numberValue(verifier.correctnessScore) === 1)) {
-    return 'verifier reward=1';
-  }
-  if (verifier && (numberValue(verifier.exitCode) === 0 || numberValue(verifier.exit_code) === 0)) {
-    return 'exit 0';
-  }
-  return undefined;
-}
-
-function isErrorEvent(event: Record<string, unknown>): boolean {
-  const kind = stringValue(event.kind) ?? stringValue(event.type) ?? '';
-  return kind.includes('error') || event.isError === true;
-}
-
-function isToolCall(event: Record<string, unknown>): boolean {
-  const kind = stringValue(event.kind) ?? stringValue(event.type) ?? '';
-  return kind === 'tool_call' || kind === 'tool-call';
 }
 
 function summarizeText(value: string, maxChars: number): string {

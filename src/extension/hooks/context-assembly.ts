@@ -1,5 +1,12 @@
 import { buildHardcodedSections, buildPreferencesSection, legacyMemoryHook, renderMemoryPrompt } from './memory.js';
-import { ANTHROPIC_EXECUTION_OVERRIDE, ContextBuilder, EVAL_AUTONOMY_RULE, PI_CONTRACT_SUMMARY } from '../../memory/recall/context-builder.js';
+import {
+  ANTHROPIC_EXECUTION_OVERRIDE,
+  CACHE_PREFIX_BREAKPOINT,
+  ContextBuilder,
+  EVAL_AUTONOMY_RULE,
+  partitionContextSections,
+  PI_CONTRACT_SUMMARY,
+} from '../../memory/recall/context-builder.js';
 import { JsonlMemoryStore } from '../../memory/recall/jsonl-memory-store.js';
 import { RecallRouter } from '../../memory/recall/recall-router.js';
 import { RECALL_LIMITS, selectL1Tier } from '../../memory/recall/tier-selector.js';
@@ -195,16 +202,18 @@ export async function newPipelineHook(
   return prompt;
 }
 
-function renderBuiltContext(context: BuiltContext, tierReason?: string): string {
-  const sections = context.sections.map(renderContextSection);
-  const diagnostics = buildBuiltContextDiagnostics(context, tierReason);
+function renderBuiltContext(context: BuiltContext, _tierReason?: string): string {
+  // Diagnostics stay on the trace side only — do not inject into the subject prompt.
+  // Physical order: static prefix → cache breakpoint → dynamic suffix (content unchanged).
+  const { staticSections, dynamicSections } = partitionContextSections(context.sections);
   return [
     '## Context Assembly（新记忆管线，按优先级组装）',
     '',
-    ...sections,
+    ...staticSections.map(renderContextSection),
     '',
-    '### context_assembly_diagnostics',
-    diagnostics,
+    CACHE_PREFIX_BREAKPOINT,
+    '',
+    ...dynamicSections.map(renderContextSection),
   ].join('\n');
 }
 

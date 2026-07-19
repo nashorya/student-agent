@@ -8,6 +8,8 @@ import {
   ContextBuilder,
   EVAL_AUTONOMY_RULE,
   FULL_PI_SCHEMA,
+  isStaticContextSection,
+  partitionContextSections,
   PI_CONTRACT_SUMMARY,
 } from '../context-builder.js';
 import type { RecallBundle, RecallScore, RecalledItem } from '../types.js';
@@ -420,6 +422,56 @@ describe('ContextBuilder', () => {
     expect(context.totalEstimatedTokens).toBeLessThanOrEqual(60);
     expect(context.truncated).toContain('recentSignals');
     expect(context.truncated).toContain('knacks');
+  });
+
+  it('partitions static prefix before dynamic without dropping sections (C-2)', () => {
+    const context = new ContextBuilder().build({
+      workingMemory: workingMemory({
+        hardConstraints: 'Only edit target.ts',
+      }),
+      recallBundle: recallBundle({
+        knacks: [recalled('knack_1', 'knack', 'Fresh read before edit')],
+      }),
+      runMode: 'eval',
+    });
+    const names = context.sections.map((section) => section.name);
+    const { staticSections, dynamicSections } = partitionContextSections(context.sections);
+    // a) no section lost — partition is a split, not a filter drop
+    expect([...staticSections, ...dynamicSections].map((s) => s.name).sort())
+      .toEqual([...names].sort());
+    expect(staticSections.every((s) => isStaticContextSection(s.name))).toBe(true);
+    expect(dynamicSections.every((s) => !isStaticContextSection(s.name))).toBe(true);
+    // b) eval protected sections still present with own budgets
+    expect(names).toContain('taskSpec');
+    expect(names).toContain('hardConstraints');
+    expect(names).toContain('evalAutonomyRule');
+    // static group precedes dynamic group in priority order
+    const lastStatic = Math.max(
+      ...staticSections.map((s) => names.indexOf(s.name)),
+    );
+    const firstDynamic = Math.min(
+      ...dynamicSections.map((s) => names.indexOf(s.name)),
+    );
+    expect(lastStatic).toBeLessThan(firstDynamic);
+  });
+
+  it('renders static section content byte-stable across two builds (C-2)', () => {
+    const input = {
+      workingMemory: workingMemory({ hardConstraints: 'Keep constraints pinned.' }),
+      recallBundle: recallBundle({
+        knacks: [recalled('knack_1', 'knack', 'dynamic knack text')],
+      }),
+      runMode: 'eval' as const,
+      tier: 'standard' as const,
+    };
+    const a = new ContextBuilder().build(input);
+    const b = new ContextBuilder().build(input);
+    const staticA = partitionContextSections(a.sections).staticSections
+      .map((s) => s.content).join('\0');
+    const staticB = partitionContextSections(b.sections).staticSections
+      .map((s) => s.content).join('\0');
+    expect(staticA).toBe(staticB);
+    expect(staticA.length).toBeGreaterThan(0);
   });
 });
 

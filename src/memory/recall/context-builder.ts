@@ -13,13 +13,19 @@ import { TIER_BUDGETS } from './tier-selector.js';
 
 const DEFAULT_TOKEN_BUDGET = 2000;
 const TOKEN_CHAR_RATIO = 3.5;
-const SECTION_ORDER = [
+
+/** Cross-turn stable prefix (safety/contracts/schema). Physical cache prefix. */
+export const STATIC_CONTEXT_SECTION_NAMES = [
   'evalAutonomyRule',
   'anthropicExecutionOverride',
   'piContractSummary',
   'piSchemaFull',
   'systemRules',
   'toolRules',
+] as const;
+
+/** Per-turn / per-task mutable suffix — must sit after the cache breakpoint. */
+export const DYNAMIC_CONTEXT_SECTION_NAMES = [
   'taskSpec',
   'hardConstraints',
   'taskLedger',
@@ -34,6 +40,31 @@ const SECTION_ORDER = [
   'runArchiveRefs',
   'currentUserMessage',
 ] as const;
+
+/** Priority/truncation order: static first, then dynamic (order within each group fixed). */
+const SECTION_ORDER = [
+  ...STATIC_CONTEXT_SECTION_NAMES,
+  ...DYNAMIC_CONTEXT_SECTION_NAMES,
+] as const;
+
+/** Render-only marker: static prefix ends; not a budgeted section. */
+export const CACHE_PREFIX_BREAKPOINT =
+  '### cache_prefix_breakpoint\n# Static prefix ends; dynamic task context follows.';
+
+export function isStaticContextSection(name: string): boolean {
+  return (STATIC_CONTEXT_SECTION_NAMES as readonly string[]).includes(name);
+}
+
+/** Split already-built sections into static prefix / dynamic suffix (relative order kept). */
+export function partitionContextSections(sections: ContextSection[]): {
+  staticSections: ContextSection[];
+  dynamicSections: ContextSection[];
+} {
+  return {
+    staticSections: sections.filter((section) => isStaticContextSection(section.name)),
+    dynamicSections: sections.filter((section) => !isStaticContextSection(section.name)),
+  };
+}
 
 export const PI_CONTRACT_SUMMARY = `
 PI CONTRACT:

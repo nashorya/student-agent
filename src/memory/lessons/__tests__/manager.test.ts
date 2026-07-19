@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { appendSignal } from '../../signals/index.js';
 import { LessonsManager } from '../manager.js';
 
-describe('LessonsManager', () => {
+describe('LessonsManager delayed promotion admission (P1 patch)', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
@@ -17,12 +17,187 @@ describe('LessonsManager', () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('routes an unverified process-error lesson to ephemeral storage', async () => {
-    await appendSignal({
-      id: 'sig_1',
+  it('streams exit-0 evidence into lessons/ as verified', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const created = await mgr.observeSignals([{
+      id: 'sig_stream',
       kind: 'tool_error',
       severity: 'medium',
-      summary: 'pytest failed before the fix was verified',
+      summary: 'targeted test failed',
+      toolName: 'bash',
+      toolCallId: 'call_failed',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1',
+      sessionRef: 'run_1',
+      verificationEvidence: [{
+        toolCallId: 'call_passed',
+        toolName: 'bash',
+        exitCode: 0,
+        completedAt: '2026-01-01T00:01:00.000Z',
+      }],
+    });
+
+    expect(created[0]).toMatchObject({
+      quality: 'high',
+      confidence: 'verified',
+      verification: {
+        sourceToolCallId: 'call_failed',
+        successfulToolCallId: 'call_passed',
+        exitCode: 0,
+      },
+    });
+    expect(await mgr.getAll()).toHaveLength(1);
+    expect(await mgr.getEphemeral()).toHaveLength(0);
+  });
+
+  it('admits provisional pairs without stream verify as candidate for non-noise errors', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const created = await mgr.observeSignals([{
+      id: 'sig_provisional',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'assertion failed: expected matrix copy',
+      toolName: 'bash',
+      toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1',
+      sessionRef: 'run_1',
+      // recovery tools only — no exit-0 verification
+      operationEvidence: [{
+        toolName: 'read',
+        completedAt: '2026-01-01T00:00:30.000Z',
+      }, {
+        toolName: 'edit',
+        completedAt: '2026-01-01T00:01:00.000Z',
+      }],
+    });
+
+    expect(created[0]).toMatchObject({
+      quality: 'high',
+      confidence: 'candidate',
+    });
+    expect(await mgr.getAll()).toHaveLength(1);
+    expect(await mgr.getEphemeral()).toHaveLength(0);
+  });
+
+  it('keeps process-noise tool_errors ephemeral even with recovery ops', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const created = await mgr.observeSignals([{
+      id: 'sig_hashline_noise',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'Hashline: file has changed since last read',
+      toolName: 'edit',
+      toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1',
+      sessionRef: 'run_1',
+      operationEvidence: [{ toolName: 'read', completedAt: '2026-01-01T00:01:00.000Z' }],
+    });
+    expect(created[0].quality).toBe('low');
+    expect(await mgr.getAll()).toHaveLength(0);
+    expect(await mgr.getEphemeral()).toHaveLength(1);
+  });
+
+  it('promotes candidate lessons to verified when harness reward=1', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    await mgr.observeSignals([{
+      id: 'sig_promo',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'matrix shape mismatch on compound model',
+      toolName: 'bash',
+      toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1',
+      sessionRef: 'run_promo',
+      operationEvidence: [{ toolName: 'bash', completedAt: '2026-01-01T00:01:00.000Z' }],
+    });
+    expect((await mgr.getAll())[0].confidence).toBe('candidate');
+
+    const result = await mgr.promoteCandidatesForRun({ sessionRef: 'run_promo', reward: 1 });
+    expect(result.promoted).toBe(1);
+    const lessons = await mgr.getAll();
+    expect(lessons[0]).toMatchObject({
+      confidence: 'verified',
+    });
+    expect(lessons[0].promotedAt).toBeTruthy();
+  });
+
+  it('does not promote candidates when harness reward≠1', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    await mgr.observeSignals([{
+      id: 'sig_keep',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'separability matrix filled with ones',
+      toolName: 'bash',
+      toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1',
+      sessionRef: 'run_fail',
+      operationEvidence: [{ toolName: 'edit', completedAt: '2026-01-01T00:01:00.000Z' }],
+    });
+
+    const result = await mgr.promoteCandidatesForRun({ sessionRef: 'run_fail', reward: 0 });
+    expect(result.promoted).toBe(0);
+    expect((await mgr.getAll())[0]).toMatchObject({
+      confidence: 'candidate',
+    });
+    expect((await mgr.getAll())[0].promotedAt).toBeUndefined();
+  });
+
+  it('admits distilled products only when findCausalPair has verification', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const events = [
+      { kind: 'tool_error', summary: 'matrix copy wrong', toolName: 'bash', isError: true },
+      { kind: 'tool_call', toolName: 'edit', name: 'edit' },
+      { kind: 'tool_call', toolName: 'bash', name: 'bash' },
+    ];
+    const rejected = await mgr.admitDistilled({
+      events,
+      lesson: 'Symptom: matrix Fix: assign copy',
+      sourceSignalId: 'distill:test-no-verify',
+      taskId: 'task_d',
+      sessionRef: 'run_d',
+    });
+    expect(rejected).toBeNull();
+    expect(await mgr.getAll()).toHaveLength(0);
+
+    const admitted = await mgr.admitDistilled({
+      events,
+      verification: 'verifier reward=1',
+      lesson: 'Symptom: matrix Fix: assign copy',
+      sourceSignalId: 'distill:test-harness',
+      taskId: 'task_d',
+      sessionRef: 'run_d',
+    });
+    expect(admitted?.quality).toBe('high');
+    expect(admitted?.confidence).toBe('candidate');
+    expect(await mgr.getAll()).toHaveLength(1);
+
+    const promo = await mgr.promoteCandidatesForRun({
+      sessionRef: 'run_d',
+      reward: 1,
+      promotedAt: '2026-07-19T03:57:36.479Z',
+    });
+    expect(promo.promoted).toBe(1);
+    const [lesson] = await mgr.getAll();
+    expect(lesson.confidence).toBe('verified');
+    expect(lesson.promotedAt).toBe('2026-07-19T03:57:36.479Z');
+  });
+
+  it('routes unpaired process noise to ephemeral', async () => {
+    await appendSignal({
+      id: 'sig_noise',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'pytest failed before any recovery',
       toolName: 'bash',
       toolCallId: 'call_failed',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -35,63 +210,22 @@ describe('LessonsManager', () => {
       limit: 5,
     });
 
-    expect(created).toHaveLength(1);
     expect(created[0]).toMatchObject({
-      sourceSignalId: 'sig_1',
       quality: 'low',
       status: 'observed',
     });
+    expect(created[0].confidence).toBeUndefined();
     expect(await mgr.getAll()).toHaveLength(0);
     expect(await mgr.getEphemeral()).toHaveLength(1);
   });
 
-  it('stores a lesson in the main library when tool evidence is followed by exit 0', async () => {
+  it('writes nothing for an empty trajectory', async () => {
     const mgr = LessonsManager.getInstance(tmpDir);
-    const created = await mgr.observeSignals([{
-      id: 'sig_verified',
-      kind: 'tool_error',
-      severity: 'medium',
-      summary: 'targeted test failed',
-      toolName: 'bash',
-      toolCallId: 'call_failed',
-      createdAt: '2026-01-01T00:00:00.000Z',
-    }], {
-      taskId: 'task_1',
-      sessionRef: 'session_1',
-      verificationEvidence: [{
-        toolCallId: 'call_passed',
-        toolName: 'bash',
-        exitCode: 0,
-        completedAt: '2026-01-01T00:01:00.000Z',
-      }],
-    });
-
-    expect(created[0]).toMatchObject({
-      quality: 'high',
-      verification: {
-        sourceToolCallId: 'call_failed',
-        successfulToolCallId: 'call_passed',
-        exitCode: 0,
-      },
-    });
-    expect(await mgr.getAll()).toHaveLength(1);
+    expect(await mgr.observeSignals([], {
+      taskId: 'task_empty',
+      sessionRef: 'session_empty',
+    })).toEqual([]);
+    expect(await mgr.getAll()).toHaveLength(0);
     expect(await mgr.getEphemeral()).toHaveLength(0);
-  });
-
-  it('deduplicates candidates by source signal', async () => {
-    await appendSignal({
-      id: 'sig_dupe',
-      kind: 'tool_error',
-      severity: 'medium',
-      summary: 'oldText must match exactly',
-      createdAt: '2026-01-01T00:00:00.000Z',
-    }, tmpDir);
-    const mgr = LessonsManager.getInstance(tmpDir);
-
-    await mgr.observeRecentSignals({ taskId: 'task_1', sessionRef: 's1', limit: 5 });
-    await mgr.observeRecentSignals({ taskId: 'task_1', sessionRef: 's1', limit: 5 });
-
-    expect(await mgr.getAll()).toHaveLength(0);
-    expect(await mgr.getEphemeral()).toHaveLength(1);
   });
 });
