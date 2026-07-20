@@ -15,6 +15,7 @@ import {
   summarizePiToolSchema,
   getActiveWorkingMemorySnapshot,
   buildPredeclaredPhasePrompt,
+  readFrozenSamplingFromEnv,
   shouldAbortForModelCallBudget,
 } from '../agent-runner.js';
 import { beginEvalLearningRun } from '../eval-learning-lifecycle.js';
@@ -134,6 +135,16 @@ describe('AssistantTextCollector', () => {
         },
       },
     ]);
+  });
+});
+
+describe('frozen eval sampling', () => {
+  it('requires a complete numeric preregistration payload', () => {
+    const sampling = {
+      model: 'glm-5.2', thinking: 'enabled', temperature: 0, topP: 0.95, maxTokens: 16384,
+    };
+    expect(readFrozenSamplingFromEnv(JSON.stringify(sampling))).toEqual(sampling);
+    expect(() => readFrozenSamplingFromEnv('{"model":"glm-5.2"}')).toThrow('is invalid');
   });
 });
 

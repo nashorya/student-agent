@@ -23,6 +23,15 @@ interface FetchTarget {
 
 interface EvalProviderRequestPolicyOptions {
   usageTimelinePath?: string;
+  frozenSampling?: EvalFrozenSampling;
+}
+
+export interface EvalFrozenSampling {
+  model: string;
+  thinking: string;
+  temperature: number;
+  topP: number;
+  maxTokens: number;
 }
 
 /**
@@ -66,14 +75,21 @@ export function installEvalProviderRequestPolicy(
 
     const originalBody = await requestBodyOf(input, init);
     const body = parseJsonObject(originalBody, requestUrl);
-    body.thinking = { type: 'enabled' };
-    body.temperature = 0;
+    const sampling = options.frozenSampling;
+    body.thinking = { type: sampling?.thinking ?? 'enabled' };
+    body.temperature = sampling?.temperature ?? 0;
     body.do_sample = false;
+    if (sampling) {
+      body.max_tokens = sampling.maxTokens;
+      // The frozen table records the provider default but explicitly says the
+      // runner does not send top_p; do_sample=false makes it non-operative.
+      delete body.top_p;
+    }
     if (pendingPromptBoundary !== undefined) {
       postCompactionPrompts[pendingPromptBoundary] = renderProviderPrompt(body);
       pendingPromptBoundary = undefined;
     }
-    const error = requestPolicyError(body, model.id);
+    const error = requestPolicyError(body, sampling?.model ?? model.id, sampling);
 
     const auditEntry: EvalProviderRequestAuditEntry = {
       index: audit.length + 1,
@@ -307,15 +323,23 @@ function parseJsonObject(body: string, requestUrl: string): Record<string, unkno
   return parsed as Record<string, unknown>;
 }
 
-function requestPolicyError(body: Record<string, unknown>, expectedModel: string): string | undefined {
+function requestPolicyError(
+  body: Record<string, unknown>,
+  expectedModel: string,
+  sampling?: EvalFrozenSampling,
+): string | undefined {
   const thinking = body.thinking;
-  const thinkingEnabled = !!thinking && typeof thinking === 'object' &&
-    !Array.isArray(thinking) && (thinking as { type?: unknown }).type === 'enabled';
+  const expectedThinking = sampling?.thinking ?? 'enabled';
+  const thinkingMatches = !!thinking && typeof thinking === 'object' &&
+    !Array.isArray(thinking) && (thinking as { type?: unknown }).type === expectedThinking;
   if (body.model !== expectedModel) {
     return `Eval provider policy expected model ${expectedModel}, received ${String(body.model)}`;
   }
-  if (!thinkingEnabled || body.temperature !== 0 || body.do_sample !== false) {
+  if (!thinkingMatches || body.temperature !== (sampling?.temperature ?? 0) || body.do_sample !== false) {
     return 'Eval provider request does not match pinned thinking/temperature/do_sample policy';
+  }
+  if (sampling && (body.max_tokens !== sampling.maxTokens || body.top_p !== undefined)) {
+    return 'Eval provider request does not match frozen max_tokens/top_p policy';
   }
   return undefined;
 }
