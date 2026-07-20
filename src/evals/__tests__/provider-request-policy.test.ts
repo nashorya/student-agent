@@ -15,6 +15,32 @@ function glmModel(): Model<Api> {
 }
 
 describe('eval provider request policy', () => {
+  it('takes formal-run sampling from the frozen document payload', async () => {
+    let sentBody = '';
+    const target = {
+      fetch: vi.fn(async (_input, init) => {
+        sentBody = String(init?.body ?? '');
+        return new Response('{"choices":[]}');
+      }) as typeof globalThis.fetch,
+    };
+    const handle = installEvalProviderRequestPolicy(glmModel(), target, {
+      frozenSampling: {
+        model: 'glm-5.2', thinking: 'enabled', temperature: 0, topP: 0.95, maxTokens: 16384,
+      },
+    });
+
+    await target.fetch('https://open.bigmodel.cn/api/coding/paas/v4/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ model: 'glm-5.2', temperature: 1, top_p: 0.1, max_tokens: 99 }),
+    });
+    const body = JSON.parse(sentBody) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      model: 'glm-5.2', thinking: { type: 'enabled' }, temperature: 0, max_tokens: 16384,
+    });
+    expect(body).not.toHaveProperty('top_p');
+    handle.restore();
+  });
+
   it('injects and audits the final GLM request body at the configured provider path', async () => {
     let sentBody = '';
     const realFetch = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {

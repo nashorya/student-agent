@@ -223,6 +223,7 @@ describe('SWE-bench patch producer helpers', () => {
     const prompt = await context.buildMemoryPrompt();
     expect(prompt).toContain('[resident:lesson_1] audit generated imports before returning a migration reference');
     expect(prompt).toContain('[resident:lesson_2] preserve the complete qualified name');
+    expect(prompt.indexOf('[resident:lesson_1]')).toBeGreaterThan(prompt.indexOf('cache_prefix_breakpoint'));
     expect(context.buildMemoryPrompt.contextAssemblyTraces?.[0]?.sections)
       .toContainEqual(expect.objectContaining({ id: 'fullResidentLessons' }));
     expect(context.buildMemoryPrompt.contextAssemblyTraces?.[0]?.recall?.items ?? []).toEqual([]);

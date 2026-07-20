@@ -42,6 +42,7 @@ import { ForcedCompactionController } from './forced-compaction-controller.js';
 import { buildContextTokenEffect } from './context-breakdown.js';
 import {
   installEvalProviderRequestPolicy,
+  type EvalFrozenSampling,
   type EvalProviderRequestPolicyHandle,
 } from './provider-request-policy.js';
 import {
@@ -97,6 +98,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     }
     const config = await loadEvalConfig(options.sandboxDir);
     const model = buildModel(config);
+    const frozenSampling = readFrozenSamplingFromEnv(process.env.STUDENT_AGENT_EVAL_FROZEN_SAMPLING);
     const costRates: CostRates = {
       input: model.cost?.input ?? 0,
       output: model.cost?.output ?? 0,
@@ -107,6 +109,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     modelTrace = summarizeEvalModel(model);
     providerPolicy = installEvalProviderRequestPolicy(model, globalThis, {
       usageTimelinePath: options.providerUsageTimelinePath,
+      frozenSampling,
     });
     normalizeProviderApiKeyEnv(config.model.provider);
     const apiKeyEnvName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
@@ -153,7 +156,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       projectArchive: config.features.projectArchive,
       llm: {
         timeoutMs: config.llm.requestTimeoutMs,
-        maxTokens: config.llm.maxOutputTokens,
+        maxTokens: frozenSampling?.maxTokens ?? config.llm.maxOutputTokens,
         maxRetries: config.llm.maxRetries,
         maxRetryDelayMs: config.llm.maxRetryDelayMs,
         apiKey,
@@ -273,6 +276,17 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     failureEscalationEvents,
     learningRun,
   };
+}
+
+export function readFrozenSamplingFromEnv(value: string | undefined): EvalFrozenSampling | undefined {
+  if (!value) return undefined;
+  const parsed = JSON.parse(value) as Partial<EvalFrozenSampling>;
+  if (typeof parsed.model !== 'string' || typeof parsed.thinking !== 'string'
+    || !Number.isFinite(parsed.temperature) || !Number.isFinite(parsed.topP)
+    || !Number.isInteger(parsed.maxTokens) || (parsed.maxTokens ?? 0) <= 0) {
+    throw new Error('STUDENT_AGENT_EVAL_FROZEN_SAMPLING is invalid');
+  }
+  return parsed as EvalFrozenSampling;
 }
 
 export function summarizeEvalModel(model: Model<Api>): EvalModelTrace {

@@ -40,6 +40,16 @@ describe('injection experiment runner', () => {
     expect(resolveInjectionArm('C')).toEqual({ variant: 'context_runtime', injectionMode: 'full' });
   });
 
+  it('ships exactly the nine frozen formal and backup instances', async () => {
+    const lines = (await readFile(resolve('evals/inputs/injection-effect-frozen-instances.jsonl'), 'utf8'))
+      .trim().split('\n').map((line) => JSON.parse(line) as { instance_id: string });
+    expect(lines.map((row) => row.instance_id)).toEqual([
+      'django__django-12125', 'django__django-14580', 'django__django-17087',
+      'sympy__sympy-20442', 'sympy__sympy-24066', 'sympy__sympy-24213',
+      'django__django-14667', 'django__django-15814', 'django__django-16910',
+    ]);
+  });
+
   it('clears the arm-family memory root and runs the frozen order serially', async () => {
     const root = await mkdtemp(join(tmpdir(), 'injection-runner-'));
     roots.push(root);
@@ -78,6 +88,10 @@ describe('injection experiment runner', () => {
     expect(calls.every((call) => call.studentMemoryDir === memoryDir)).toBe(true);
     expect(calls.every((call) => call.studentLearningLifecycle === true)).toBe(true);
     expect(calls.every((call) => call.studentInjectionMode === 'recall')).toBe(true);
+    expect(JSON.parse(process.env.STUDENT_AGENT_EVAL_FROZEN_SAMPLING ?? '{}')).toEqual({
+      model: 'glm-5.2', profile: 'zhipu-glm-5.2', thinking: 'enabled',
+      temperature: 0, topP: 0.95, maxTokens: 16384,
+    });
     expect(await readFile(join(result.runDirs[0], 'injection.txt'), 'utf8')).toBe('snapshot-1');
     expect(await readFile(join(result.runDirs[0], 'events.jsonl'), 'utf8')).toContain('tool_call');
   });
@@ -96,5 +110,28 @@ describe('injection experiment runner', () => {
       resultsDir: root,
       preregPath: resolve('docs/proposals/injection-effect-experiment-prereg-v0.md'),
     }, produce as never)).rejects.toThrow('Missing required audit artifacts');
+  });
+
+  it('stops the family after persisting artifacts for a failed run', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'injection-runner-'));
+    roots.push(root);
+    const memoryDir = join(root, 'memory', 'B', 'F-DJ-MIGRATION-REFERENCE');
+    const produce = vi.fn(async () => {
+      await mkdir(join(memoryDir, 'runs', 'failed_run'), { recursive: true });
+      await writeFile(join(memoryDir, 'runs', 'failed_run', 'events.jsonl'), '{"kind":"tool_error"}\n');
+      return { records: [{
+        status: 'failed', errorMessage: 'rate limited', injectionSnapshot: 'off',
+        trace: { learningRun: { runId: 'failed_run' }, failureEscalationEvents: [] },
+      }] };
+    });
+
+    await expect(runInjectionFamily({
+      familyId: 'F-DJ-MIGRATION-REFERENCE', arm: 'B',
+      instancesPath: join(root, 'instances.jsonl'), resultsDir: root,
+      preregPath: resolve('docs/proposals/injection-effect-experiment-prereg-v0.md'),
+    }, produce as never)).rejects.toThrow('rate limited');
+    expect(produce).toHaveBeenCalledOnce();
+    expect(await readFile(join(root, 'B', 'F-DJ-MIGRATION-REFERENCE',
+      '1-django__django-12125', 'events.jsonl'), 'utf8')).toContain('tool_error');
   });
 });

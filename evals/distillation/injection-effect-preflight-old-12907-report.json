@@ -1,0 +1,15 @@
+{
+  "dataset_commit": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "test_arrow_sha256": "b77fa3036c06219715a35e8088fee13b0b87bc957052546c3270caf38a325627",
+  "harness_version": "4.1.0",
+  "docker_version": "29.5.3",
+  "run_id": "injection-preflight-old-12907-20260720",
+  "prediction_source": "p1prom-20260718-zenmux-harness",
+  "instance_id": "astropy__astropy-12907",
+  "completed_instances": 1,
+  "resolved_instances": 1,
+  "unresolved_instances": 0,
+  "error_instances": 0,
+  "duration_seconds": 149.39,
+  "model_calls": 0
+}

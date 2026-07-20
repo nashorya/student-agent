@@ -82,7 +82,7 @@ export async function runInjectionFamily(options: RunOptions, produce: Producer 
   await rm(memoryDir, { recursive: true, force: true });
   await mkdir(memoryDir, { recursive: true });
   process.env.STUDENT_AGENT_PROVIDER_PROFILE = spec.sampling.profile;
-  process.env.STUDENT_AGENT_LLM_MAX_OUTPUT_TOKENS = String(spec.sampling.maxTokens);
+  process.env.STUDENT_AGENT_EVAL_FROZEN_SAMPLING = JSON.stringify(spec.sampling);
   const runDirs: string[] = [];
   for (const [index, instanceId] of instances.entries()) {
     const runDir = join(batchDir, `${index + 1}-${instanceId}`);
@@ -112,6 +112,7 @@ export async function runInjectionFamily(options: RunOptions, produce: Producer 
       writeFile(join(runDir, 'events.jsonl'), events),
       writeFile(join(runDir, 'injection.txt'), record.injectionSnapshot),
     ]);
+    if (record.status === 'failed') throw new Error(`Run failed for ${instanceId}: ${record.errorMessage ?? 'unknown error'}`);
     runDirs.push(runDir);
   }
   await writeFile(join(batchDir, 'batch.json'), JSON.stringify({ ...manifest, dryRun: false, runDirs }, null, 2));
@@ -127,7 +128,7 @@ function cli(args: string[]): RunOptions {
   return {
     familyId: required('--family'),
     arm: arm as InjectionArm,
-    instancesPath: resolve(required('--instances-path')),
+    instancesPath: resolve(values.get('--instances-path') ?? 'evals/inputs/injection-effect-frozen-instances.jsonl'),
     resultsDir: resolve(values.get('--results-dir') ?? join('evals/results/injection-experiment', new Date().toISOString().replace(/[:.]/gu, '-'))),
     preregPath: resolve(values.get('--prereg') ?? 'docs/proposals/injection-effect-experiment-prereg-v0.md'),
     keepWorktrees: args.includes('--keep-worktrees'),
