@@ -1,6 +1,6 @@
 # 预注册:注入效果实验（finding:injection-effect-experiment）
 
-状态: **已冻结（2026-07-20，PR #6 合并生效）**
+状态: **已作废重开（2026-07-20；冻结设计不再执行，结果不得并入）**
 
 | 字段 | 值 |
 |------|-----|
@@ -8,6 +8,8 @@
 | 关联 | [ADR-008](../adr/ADR-008-measured-harness-evolution.md)（本实验先于 chronicle 产品化） |
 | 版本 | **v0.1.1** · 2026-07-19 |
 | 冻结规则 | **合并 PR 即冻结**；题库附录（作者选族后补入）一并冻结。未冻结前禁止合入 main |
+| 作废后继 | [v0.2 四臂纯记忆迁移预注册](./injection-effect-experiment-prereg-v0.2.md) |
+| 作废证据 | [2026-07-20 点火中止记录](./injection-effect-experiment-v0.1.1-incident-2026-07-20.md) |
 
 ---
 
@@ -132,7 +134,7 @@
 
 - 作者批准合并（冻结）：☑ 2026-07-20 / PR #6
 - 陪审知悉：☑ 2026-07-20
-- 作废重开：□ 理由 ____ / 新版路径 ____
+- 作废重开：☑ 2026-07-20 / 理由：点火后发现烟测以人工 validated knack 证明注入可达，未证明自然 lesson 能进入下一题；A2 被人工中断，整批无效且未判分 / 新版路径 `docs/proposals/injection-effect-experiment-prereg-v0.2.md`
 
 ---
 
