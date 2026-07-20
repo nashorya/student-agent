@@ -46,6 +46,9 @@ function cli(args: string[]): InjectionFamilyRunOptions {
     }),
     keepWorktrees: args.includes('--keep-worktrees'),
     dryRun,
+    ...(values.has('--resume-from-task')
+      ? { resumeFromTask: Number(values.get('--resume-from-task')) }
+      : {}),
   };
 }
 
