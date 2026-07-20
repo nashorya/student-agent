@@ -34,6 +34,8 @@ export interface ReflectInput {
   totalTaskCount: number;
   lessonVerificationEvidence?: LessonVerificationEvidence[];
   lessonOperationEvidence?: LessonOperationEvidence[];
+  deferKnackPromotion?: boolean;
+  eligibleLessonRunIds?: string[];
 }
 
 export interface ReflectResult {
@@ -90,8 +92,8 @@ export class ReflectAgent {
       }
 
       // 4. 将重复出现的 lesson candidate 升格为 knack
-      if (this.lessonsManager && this.knacksManager) {
-        result.knacksPromoted = await this.tryPromoteLessonsToKnacks(input);
+      if (this.lessonsManager && this.knacksManager && !input.deferKnackPromotion) {
+        result.knacksPromoted = await this.promoteLessonsToKnacks(input);
       }
 
       // 5. 升级判定
@@ -111,12 +113,18 @@ export class ReflectAgent {
     return result;
   }
 
-  private async tryPromoteLessonsToKnacks(input: ReflectInput): Promise<number> {
+  async promoteLessonsToKnacks(
+    input: Pick<ReflectInput, 'totalTaskCount' | 'eligibleLessonRunIds'>,
+  ): Promise<number> {
     if (!this.lessonsManager || !this.knacksManager) return 0;
 
     this.boundedBreaker?.resetBudget();
     const signalKindCounts = new Map<SignalKind, number>();
-    const lessons = await this.lessonsManager.getAll();
+    const eligibleRuns = input.eligibleLessonRunIds
+      ? new Set(input.eligibleLessonRunIds)
+      : undefined;
+    const lessons = (await this.lessonsManager.getAll())
+      .filter((lesson) => !eligibleRuns || eligibleRuns.has(lesson.provenance.sessionRef));
     for (const lesson of lessons) {
       for (const kind of lesson.trigger.signalKinds) {
         signalKindCounts.set(kind, (signalKindCounts.get(kind) ?? 0) + 1);

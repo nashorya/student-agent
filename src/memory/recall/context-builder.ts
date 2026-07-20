@@ -33,6 +33,7 @@ export const DYNAMIC_CONTEXT_SECTION_NAMES = [
   'recentErrors',
   'recentSignals',
   'recentTasks',
+  'lessons',
   'knacks',
   'fullResidentLessons',
   'preferences',
@@ -104,9 +105,9 @@ CLAUDE EXECUTION OVERRIDE:
 
 export const RECALL_CITATION_RULE = `
 RECALL CITATION RULE:
-- Recalled knacks below have stable IDs.
-- Only when a recalled knack materially informs a diagnosis, edit, or validation action, emit [[used_recall:<id>]] in that assistant message.
-- Do not cite a knack merely because it was shown.
+- Recalled memory items below have stable IDs.
+- Only when a recalled item materially informs a diagnosis, edit, or validation action, emit [[used_recall:<id>]] in that assistant message.
+- Do not cite an item merely because it was shown.
 `.trim();
 
 export const FULL_PI_SCHEMA = `
@@ -213,6 +214,7 @@ function buildSections(input: ContextBuilderInput, policy: ContextPolicy): Conte
         `[resident:${lesson.id}] ${lesson.summary}`).join('\n') || '[resident:empty]',
     ));
   } else {
+    addRecalledSection(sections, 'lessons', input.recallBundle.lessons ?? [], policy);
     addRecalledSection(sections, 'knacks', input.recallBundle.knacks, policy);
   }
   addRecalledSection(sections, 'preferences', input.recallBundle.preferences, policy);
@@ -230,7 +232,7 @@ function addRecalledSection(
   policy: ContextPolicy,
 ): void {
   if (items.length === 0) return;
-  const citationEnabled = name === 'knacks' && policy.runMode === 'eval';
+  const citationEnabled = (name === 'lessons' || name === 'knacks') && policy.runMode === 'eval';
   const lines = items.map((item) => citationEnabled
     ? `- [recall:${item.id}] ${item.summary}`
     : `- ${item.summary}`);
@@ -397,5 +399,6 @@ function getSectionBudget(name: string, budgets: L1SectionBudget): number {
     return budgets.historicalTaskSnapshots ?? budgets.runArchiveRefs;
   }
   if (name === 'fullResidentLessons') return budgets.knacks;
+  if (name === 'lessons') return budgets.knacks;
   return budgets[name as keyof L1SectionBudget] ?? 0;
 }

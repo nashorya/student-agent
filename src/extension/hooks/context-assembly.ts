@@ -24,6 +24,7 @@ import type {
   L1TierInput,
   PiSchemaRenderMode,
   RecallBundle,
+  RecallableMemoryKind,
   RecallRouterInput,
 } from '../../memory/recall/types.js';
 import type { SignalKind } from '../../memory/signals/types.js';
@@ -40,6 +41,10 @@ export interface ContextAssemblyOptions {
   piSchemaRenderMode?: PiSchemaRenderMode;
   onTrace?: (trace: EvalContextAssemblyTrace) => void;
   fullResidentLessons?: () => Promise<Array<{ id: string; summary: string }>>;
+  recallKinds?: RecallableMemoryKind[];
+  eligibleRunIds?: string[];
+  includeHistoricalTaskSnapshots?: boolean;
+  forceTier?: L1Tier;
 }
 
 const SIGNAL_KINDS = new Set<SignalKind>([
@@ -80,6 +85,10 @@ export function createContextAssemblyHook(options: ContextAssemblyOptions): Cont
       piSchemaRenderMode: options.piSchemaRenderMode,
       onTrace: emitTrace,
       fullResidentLessons: options.fullResidentLessons,
+      recallKinds: options.recallKinds,
+      eligibleRunIds: options.eligibleRunIds,
+      includeHistoricalTaskSnapshots: options.includeHistoricalTaskSnapshots,
+      forceTier: options.forceTier,
     });
   };
   hook.contextAssemblyTraces = contextAssemblyTraces;
@@ -91,6 +100,10 @@ interface NewPipelineOptions {
   piSchemaRenderMode?: PiSchemaRenderMode;
   onTrace?: (trace: EvalContextAssemblyTrace) => void;
   fullResidentLessons?: () => Promise<Array<{ id: string; summary: string }>>;
+  recallKinds?: RecallableMemoryKind[];
+  eligibleRunIds?: string[];
+  includeHistoricalTaskSnapshots?: boolean;
+  forceTier?: L1Tier;
 }
 
 export async function newPipelineHook(
@@ -134,10 +147,16 @@ export async function newPipelineHook(
   }
 
   const tierInput = buildL1TierInput(task.working_memory);
-  const tierDecision = selectL1Tier(tierInput);
+  const tierDecision = options.forceTier
+    ? { tier: options.forceTier, reason: `forced_${options.forceTier}` }
+    : selectL1Tier(tierInput);
   const taskLedger = await new TaskLedgerManager(memoryDir, task.id).toLedgerInput();
 
-  const recallStore = new JsonlMemoryStore({ memoryDir });
+  const recallStore = new JsonlMemoryStore({
+    memoryDir,
+    kinds: options.recallKinds,
+    eligibleRunIds: options.eligibleRunIds,
+  });
   const recallInput = {
     taskId: task.id,
     currentTaskId: task.id,
@@ -160,7 +179,9 @@ export async function newPipelineHook(
     recentRawTurns: [],
   } satisfies RecallRouterInput;
   const fullResidentLessons = await options.fullResidentLessons?.();
-  const recallBundle = await new RecallRouter(recallStore).recall(recallInput);
+  const recallBundle = await new RecallRouter(recallStore, {
+    includeHistoricalTaskSnapshots: options.includeHistoricalTaskSnapshots,
+  }).recall(recallInput);
   const limitedRecallBundle = applyRecallLimits(recallBundle, tierDecision.tier);
   if (fullResidentLessons !== undefined) {
     limitedRecallBundle.knacks = [];
@@ -295,6 +316,7 @@ function buildAssemblyTrace(options: {
 
 function buildRecallTrace(bundle: RecallBundle): NonNullable<EvalContextAssemblyTrace['recall']> {
   const items = [
+    ...(bundle.lessons ?? []),
     ...bundle.knacks,
     ...bundle.preferences,
     ...bundle.docFindings,
@@ -390,6 +412,7 @@ function applyRecallLimits(bundle: RecallBundle, tier: L1Tier): RecallBundle {
   const limits = RECALL_LIMITS[tier];
   return {
     ...bundle,
+    lessons: (bundle.lessons ?? []).slice(0, limits.knacks),
     knacks: bundle.knacks.slice(0, limits.knacks),
     preferences: bundle.preferences.slice(0, limits.preferences),
     docFindings: bundle.docFindings.slice(0, limits.docFindings),

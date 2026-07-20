@@ -11,9 +11,16 @@ import { scoreEvalRun } from './scorer.js';
 import { reconcileRecallCredit } from './recall-credit-reconciler.js';
 import { loadEvalTasks } from './task-loader.js';
 import type { EvalRunRecord, EvalTaskDefinition } from './types.js';
+import { readEligibleInjectionRunIds } from './injection-admission.js';
 
 export type ContextRuntimeEvalVariant = 'plain' | 'context_runtime';
-export type StudentInjectionMode = 'off' | 'recall' | 'full';
+export type StudentInjectionMode =
+  | 'off'
+  | 'recall'
+  | 'full'
+  | 'lesson-recall'
+  | 'knack-recall'
+  | 'lesson-full';
 export type InjectionPromptHook = (() => Promise<string>) & {
   injectionSnapshots: string[];
   contextAssemblyTraces?: ContextAssemblyHook['contextAssemblyTraces'];
@@ -204,27 +211,38 @@ export function createContextRuntimeBuildMemoryPrompt(
   });
 }
 
-export function createInjectionBuildMemoryPrompt(
+export async function createInjectionBuildMemoryPrompt(
   mode: StudentInjectionMode,
   memoryDir: string,
-): InjectionPromptHook {
-  const base = mode === 'off'
-    ? async () => EVAL_PLAIN_MEMORY_PROMPT
-    : createContextAssemblyHook({
-      memoryDir,
-      useNewPipeline: true,
-      runMode: 'eval',
-      piSchemaRenderMode: 'summary',
-      ...(mode === 'full' ? {
-        fullResidentLessons: async () => {
-          LessonsManager.resetInstance();
-          return (await LessonsManager.getInstance(memoryDir).getAll()).map((lesson) => ({
-            id: lesson.id,
-            summary: lesson.lesson,
-          }));
-        },
-      } : {}),
-    });
+): Promise<InjectionPromptHook> {
+  const harnessGated = mode === 'lesson-recall' || mode === 'knack-recall' || mode === 'lesson-full';
+  const eligibleRunIds = harnessGated ? await readEligibleInjectionRunIds(memoryDir) : undefined;
+  const eligible = eligibleRunIds ? new Set(eligibleRunIds) : undefined;
+  const isFull = mode === 'full' || mode === 'lesson-full';
+  const recallKinds = isFull || mode === 'off'
+    ? []
+    : mode === 'lesson-recall'
+      ? ['lesson' as const]
+      : ['knack' as const];
+  const base = createContextAssemblyHook({
+    memoryDir,
+    useNewPipeline: true,
+    runMode: 'eval',
+    piSchemaRenderMode: 'summary',
+    recallKinds,
+    eligibleRunIds,
+    includeHistoricalTaskSnapshots: false,
+    forceTier: 'standard',
+    ...(isFull ? {
+      fullResidentLessons: async () => {
+        LessonsManager.resetInstance();
+        return (await LessonsManager.getInstance(memoryDir).getAll())
+          .filter((lesson) => !harnessGated || (lesson.quality === 'high' && lesson.status !== 'archived'))
+          .filter((lesson) => !eligible || eligible.has(lesson.provenance.sessionRef))
+          .map((lesson) => ({ id: lesson.id, summary: lesson.lesson }));
+      },
+    } : {}),
+  });
   const injectionSnapshots: string[] = [];
   const hook = async (): Promise<string> => {
     const prompt = await base();

@@ -189,7 +189,7 @@ describe('SWE-bench patch producer helpers', () => {
     expect(context.buildMemoryPrompt?.contextAssemblyTraces[0]?.layers.L1.sectionCount).toBeGreaterThan(0);
   });
 
-  it('keeps the learning task active when injection is off', async () => {
+  it('keeps the common context while leaving memory injection off', async () => {
     const memoryDir = join(tmpDir, 'off-memory');
     const context = await resolveSweBenchStudentContext({
       variant: 'plain',
@@ -199,7 +199,10 @@ describe('SWE-bench patch producer helpers', () => {
       instruction: 'Fix the bug.',
     });
 
-    expect(await context.buildMemoryPrompt()).not.toContain('### taskSpec');
+    const prompt = await context.buildMemoryPrompt();
+    expect(prompt).toContain('### taskSpec');
+    expect(prompt).not.toContain('[recall:');
+    expect(prompt).not.toContain('[resident:');
     expect(await import('../../memory/tasks/manager.js').then(({ TasksManager }) =>
       TasksManager.getInstance(memoryDir).getActive())).not.toBeNull();
   });

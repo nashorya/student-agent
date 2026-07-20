@@ -50,6 +50,7 @@ export async function finalizeEvalLearningRun(options: {
   recallAudit?: RecallCitationAudit;
   verificationStatus?: 'pending' | 'passed' | 'failed';
   verificationEvidenceRef?: string;
+  deferKnackPromotion?: boolean;
 }): Promise<EvalLearningSummary> {
   const tasks = TasksManager.getInstance(options.memoryDir);
   const task = await tasks.getTask(options.run.taskId);
@@ -106,6 +107,7 @@ export async function finalizeEvalLearningRun(options: {
     totalTaskCount: options.totalTaskCount,
     lessonVerificationEvidence: buildLessonVerificationEvidence(toolCalls),
     lessonOperationEvidence: buildLessonOperationEvidence(toolCalls),
+    deferKnackPromotion: options.deferKnackPromotion,
   });
 
   await tasks.completePhase(options.run.taskId);
@@ -117,6 +119,25 @@ export async function finalizeEvalLearningRun(options: {
     knacksPromoted: reflect.knacksPromoted,
     usedRecallIds: options.recallAudit?.used_recall_ids ?? [],
   };
+}
+
+export async function promoteHarnessEligibleLessons(options: {
+  memoryDir: string;
+  eligibleRunIds: string[];
+  totalTaskCount: number;
+}): Promise<number> {
+  resetReflectManagers();
+  return new ReflectAgent(
+    PreferenceCandidatesManager.getInstance(options.memoryDir),
+    PreferencesManager.getInstance(options.memoryDir),
+    undefined,
+    new BreakerLogManager(options.memoryDir),
+    LessonsManager.getInstance(options.memoryDir),
+    KnacksManager.getInstance(options.memoryDir),
+  ).promoteLessonsToKnacks({
+    totalTaskCount: options.totalTaskCount,
+    eligibleLessonRunIds: options.eligibleRunIds,
+  });
 }
 
 export function buildLessonVerificationEvidence(
