@@ -1,7 +1,9 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createContextAssemblyHook } from '../extension/hooks/context-assembly.js';
+import type { ContextAssemblyHook } from '../extension/hooks/context-assembly.js';
 import { EVAL_AUTONOMY_RULE } from '../memory/recall/context-builder.js';
+import { LessonsManager } from '../memory/lessons/index.js';
 import { TasksManager } from '../memory/tasks/manager.js';
 import { createEvalSandbox, diffSnapshots, readChangedFileContents, runVerifier, snapshotFiles } from './sandbox.js';
 import { runStudentAgentEval } from './agent-runner.js';
@@ -11,6 +13,11 @@ import { loadEvalTasks } from './task-loader.js';
 import type { EvalRunRecord, EvalTaskDefinition } from './types.js';
 
 export type ContextRuntimeEvalVariant = 'plain' | 'context_runtime';
+export type StudentInjectionMode = 'off' | 'recall' | 'full';
+export type InjectionPromptHook = (() => Promise<string>) & {
+  injectionSnapshots: string[];
+  contextAssemblyTraces?: ContextAssemblyHook['contextAssemblyTraces'];
+};
 
 export interface ContextRuntimeEvalOptions {
   tasksRoot?: string;
@@ -195,6 +202,39 @@ export function createContextRuntimeBuildMemoryPrompt(
     runMode: 'eval',
     piSchemaRenderMode: 'summary',
   });
+}
+
+export function createInjectionBuildMemoryPrompt(
+  mode: StudentInjectionMode,
+  memoryDir: string,
+): InjectionPromptHook {
+  const base = mode === 'off'
+    ? async () => EVAL_PLAIN_MEMORY_PROMPT
+    : createContextAssemblyHook({
+      memoryDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+      piSchemaRenderMode: 'summary',
+      ...(mode === 'full' ? {
+        fullResidentLessons: async () => {
+          LessonsManager.resetInstance();
+          return (await LessonsManager.getInstance(memoryDir).getAll()).map((lesson) => ({
+            id: lesson.id,
+            summary: lesson.lesson,
+          }));
+        },
+      } : {}),
+    });
+  const injectionSnapshots: string[] = [];
+  const hook = async (): Promise<string> => {
+    const prompt = await base();
+    injectionSnapshots.push(prompt);
+    return prompt;
+  };
+  hook.injectionSnapshots = injectionSnapshots;
+  const tracedBase = base as Partial<ContextAssemblyHook>;
+  if (tracedBase.contextAssemblyTraces) hook.contextAssemblyTraces = tracedBase.contextAssemblyTraces;
+  return hook;
 }
 
 export function summarizeContextRuntimeRecords(

@@ -138,6 +138,7 @@ describe('SWE-bench patch producer helpers', () => {
       agent: 'student-agent',
       modelNameOrPath: 'anthropic/claude-sonnet-4.6',
       studentVariant: 'context_runtime',
+      studentInjectionMode: 'recall',
       studentMemoryDir: '/tmp/tier-b-memory',
       studentLearningLifecycle: true,
       studentLearningTaskOffset: 0,
@@ -153,6 +154,7 @@ describe('SWE-bench patch producer helpers', () => {
       agent: 'student-agent',
       modelNameOrPath: 'anthropic/claude-sonnet-4.6',
       studentVariant: 'context_runtime',
+      studentInjectionMode: 'recall',
       studentMemoryDir: '/tmp/tier-b-memory',
       studentLearningLifecycle: true,
       networkRoute: 'proxy:127.0.0.1:6518',
@@ -185,6 +187,45 @@ describe('SWE-bench patch producer helpers', () => {
     expect(prompt).toContain('### taskSpec');
     expect(prompt).toContain('EVAL AUTONOMY RULE');
     expect(context.buildMemoryPrompt?.contextAssemblyTraces[0]?.layers.L1.sectionCount).toBeGreaterThan(0);
+  });
+
+  it('keeps the learning task active when injection is off', async () => {
+    const memoryDir = join(tmpDir, 'off-memory');
+    const context = await resolveSweBenchStudentContext({
+      variant: 'plain',
+      injectionMode: 'off',
+      memoryDir,
+      task: sweTask(tmpDir),
+      instruction: 'Fix the bug.',
+    });
+
+    expect(await context.buildMemoryPrompt()).not.toContain('### taskSpec');
+    expect(await import('../../memory/tasks/manager.js').then(({ TasksManager }) =>
+      TasksManager.getInstance(memoryDir).getActive())).not.toBeNull();
+  });
+
+  it('renders every accumulated lesson in the full-resident arm', async () => {
+    const memoryDir = join(tmpDir, 'full-memory');
+    await import('node:fs/promises').then(({ mkdir }) => mkdir(memoryDir, { recursive: true }));
+    await writeFile(join(memoryDir, 'lessons.jsonl'), [
+      JSON.stringify({ id: 'lesson_1', lesson: 'audit generated imports before returning a migration reference' }),
+      JSON.stringify({ id: 'lesson_2', lesson: 'preserve the complete qualified name' }),
+      '',
+    ].join('\n'), 'utf8');
+    const context = await resolveSweBenchStudentContext({
+      variant: 'context_runtime',
+      injectionMode: 'full',
+      memoryDir,
+      task: sweTask(tmpDir),
+      instruction: 'Fix the bug.',
+    });
+
+    const prompt = await context.buildMemoryPrompt();
+    expect(prompt).toContain('[resident:lesson_1] audit generated imports before returning a migration reference');
+    expect(prompt).toContain('[resident:lesson_2] preserve the complete qualified name');
+    expect(context.buildMemoryPrompt.contextAssemblyTraces?.[0]?.sections)
+      .toContainEqual(expect.objectContaining({ id: 'fullResidentLessons' }));
+    expect(context.buildMemoryPrompt.contextAssemblyTraces?.[0]?.recall?.items ?? []).toEqual([]);
   });
 
   it('keeps context variant metadata out of the official prediction schema', () => {
@@ -253,6 +294,21 @@ function instance(instanceId: string): SweBenchInstance {
     repo: 'owner/project',
     base_commit: 'abc123',
     problem_statement: 'Fix the bug.',
+  };
+}
+
+function sweTask(root: string) {
+  return {
+    id: 'repo__project-1',
+    title: 'repo__project-1',
+    mode: 'direct' as const,
+    tags: ['swe-bench'],
+    timeoutSeconds: 300,
+    expectedFiles: [],
+    taskDir: root,
+    instructionPath: join(root, 'instruction.md'),
+    environmentDir: root,
+    testScriptPath: '',
   };
 }
 

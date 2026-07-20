@@ -34,6 +34,7 @@ export const DYNAMIC_CONTEXT_SECTION_NAMES = [
   'recentSignals',
   'recentTasks',
   'knacks',
+  'fullResidentLessons',
   'preferences',
   'docFindings',
   'artifactRefs',
@@ -205,7 +206,15 @@ function buildSections(input: ContextBuilderInput, policy: ContextPolicy): Conte
   }
 
   addRecalledSection(sections, 'recentTasks', input.recallBundle.historicalTaskSnapshots ?? [], policy);
-  addRecalledSection(sections, 'knacks', input.recallBundle.knacks, policy);
+  if (input.fullResidentLessons !== undefined) {
+    sections.push(section(
+      'fullResidentLessons',
+      input.fullResidentLessons.map((lesson) =>
+        `[resident:${lesson.id}] ${lesson.summary}`).join('\n') || '[resident:empty]',
+    ));
+  } else {
+    addRecalledSection(sections, 'knacks', input.recallBundle.knacks, policy);
+  }
   addRecalledSection(sections, 'preferences', input.recallBundle.preferences, policy);
   addRecalledSection(sections, 'docFindings', input.recallBundle.docFindings, policy);
   addRecalledSection(sections, 'artifactRefs', input.recallBundle.artifactRefs ?? [], policy);
@@ -359,7 +368,8 @@ function truncateToTokenBudget(content: string, tokenBudget: number): string {
 }
 
 function isEvalProtectedSection(name: string, policy: ContextPolicy): boolean {
-  return policy.runMode === 'eval' && (name === 'hardConstraints' || name === 'taskSpec');
+  return policy.runMode === 'eval'
+    && (name === 'hardConstraints' || name === 'taskSpec' || name === 'fullResidentLessons');
 }
 
 function section(name: string, content: string): ContextSection {
@@ -386,5 +396,6 @@ function getSectionBudget(name: string, budgets: L1SectionBudget): number {
   if (name === 'recentTasks') {
     return budgets.historicalTaskSnapshots ?? budgets.runArchiveRefs;
   }
+  if (name === 'fullResidentLessons') return budgets.knacks;
   return budgets[name as keyof L1SectionBudget] ?? 0;
 }

@@ -49,6 +49,13 @@ export interface FailureEscalationOptions {
   getLastSnapshotId?: (toolCallId?: string) => string | null;
   /** 回滚到指定快照的回调 */
   restoreSnapshot?: (cwd: string, snapshotId: string) => Promise<void>;
+  onTrigger?: (event: FailureEscalationEvent) => void;
+}
+
+export interface FailureEscalationEvent {
+  level: 1 | 2 | 3;
+  count: number;
+  timestamp: string;
 }
 
 /**
@@ -65,12 +72,14 @@ export class FailureEscalationContext {
   private readonly memoryDir: string;
   private readonly getLastSnapshotId: (toolCallId?: string) => string | null;
   private readonly restoreSnapshotFn: (cwd: string, snapshotId: string) => Promise<void>;
+  private readonly onTrigger?: (event: FailureEscalationEvent) => void;
 
   constructor(options: FailureEscalationOptions = {}) {
     this.context7Client = options.context7Client;
     this.memoryDir = options.memoryDir ?? getProjectMemoryDir();
     this.getLastSnapshotId = options.getLastSnapshotId ?? (() => null);
     this.restoreSnapshotFn = options.restoreSnapshot ?? (async () => {});
+    this.onTrigger = options.onTrigger;
   }
 
   /** 每次新任务开始时调用，重置连续失败计数和尝试记录。 */
@@ -116,6 +125,11 @@ export class FailureEscalationContext {
       }
 
       this.consecutiveFailures++;
+      this.onTrigger?.({
+        level: Math.min(this.consecutiveFailures, 3) as 1 | 2 | 3,
+        count: this.consecutiveFailures,
+        timestamp: new Date().toISOString(),
+      });
 
       const classified = classifyError(
         new Error(ctx.resultText),

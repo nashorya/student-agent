@@ -281,6 +281,8 @@ export interface StudentAgentEvalTrace {
   protectedEvents?: ProtectedEvalEvent[];
   /** Protected ToolGuard events grouped by rule name. */
   guardRuleCounts?: Record<string, number>;
+  /** Failure-escalation ladder triggers; the experiment's count source. */
+  failureEscalationEvents?: import('../extension/hooks/failure-escalation.js').FailureEscalationEvent[];
   /** Active run-archive identity when eval learning lifecycle is enabled. */
   learningRun?: {
     taskId: string;

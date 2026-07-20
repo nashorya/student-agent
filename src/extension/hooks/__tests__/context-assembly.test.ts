@@ -212,6 +212,38 @@ describe('createContextAssemblyHook', () => {
     }));
   });
 
+  it('keeps non-lesson recall when full-resident lessons replace filtered lessons', async () => {
+    await PreferencesManager.getInstance(tmpDir).addExplicit({
+      rule: 'Prefer concise Chinese answers',
+      scope: 'communication',
+      taskId: 'task_previous',
+      sessionRef: 'session_previous',
+    });
+    await TasksManager.getInstance(tmpDir).createTask('Full resident context', ['Build context'], {
+      workflowStatus: 'executing',
+      workingMemory: {
+        goal: 'Prefer concise Chinese answers while fixing code',
+        phase: 'executing',
+        currentStep: 'Render full resident lessons',
+      },
+    });
+
+    const hook = createContextAssemblyHook({
+      memoryDir: tmpDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+      fullResidentLessons: async () => [{ id: 'lesson_1', summary: 'Keep the complete qualified name' }],
+    });
+    const prompt = await hook();
+
+    expect(prompt).toContain('[resident:lesson_1] Keep the complete qualified name');
+    expect(prompt).toContain('Prefer concise Chinese answers');
+    expect(hook.contextAssemblyTraces[0]?.recall?.items).toContainEqual(expect.objectContaining({
+      kind: 'preference',
+      summary: 'Prefer concise Chinese answers',
+    }));
+  });
+
   it('injects eval autonomy rule and summary-only pi contract in eval mode', async () => {
     await TasksManager.getInstance(tmpDir).createTask('Eval context task', ['Build eval context'], {
       workflowStatus: 'executing',

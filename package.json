@@ -20,6 +20,8 @@
     "eval:terminal-bench": "npx tsx scripts/eval-terminal-bench.ts",
     "eval:swebench": "npx tsx scripts/eval-swebench.ts",
     "eval:swebench:produce": "npx tsx scripts/eval-swebench-produce.ts",
+    "eval:injection": "npx tsx scripts/eval-injection-experiment.ts",
+    "eval:injection:score": "npx tsx scripts/eval-injection-score.ts",
     "eval:recall:reconcile": "npx tsx scripts/reconcile-recall-credit.ts",
     "chronicle:build": "npx tsx scripts/build-chronicle-graph.ts",
     "import:locobench-agent": "npx tsx scripts/import-locobench-agent.ts",

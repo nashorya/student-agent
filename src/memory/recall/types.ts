@@ -193,6 +193,7 @@ export interface RecallBundle {
 export interface ContextBuilderInput {
   workingMemory: TaskWorkingMemory;
   recallBundle: RecallBundle;
+  fullResidentLessons?: Array<{ id: string; summary: string }>;
   taskLedger?: RecallRouterInput['taskLedger'];
   maxTokenBudget?: number;
   tier?: L1Tier;

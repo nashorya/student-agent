@@ -11,6 +11,7 @@ import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/
 import { drainProtectedEvents } from '../core/hashline/index.js';
 import { createToolGuardHook } from '../extension/hooks/tool-guard.js';
 import { FailureEscalationContext } from '../extension/hooks/failure-escalation.js';
+import type { FailureEscalationEvent } from '../extension/hooks/failure-escalation.js';
 import { Context7Client } from '../knowledge/context7-client.js';
 import { createSignalPipeline } from '../memory/signals/index.js';
 import { RunArchiveWriter } from '../memory/run-archive/index.js';
@@ -87,6 +88,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   let providerPolicy: EvalProviderRequestPolicyHandle | undefined;
   let skillManifest: import('./types.js').EvalSkillManifest | undefined;
   const protectedEventsDuringRun: import('./types.js').ProtectedEvalEvent[] = [];
+  const failureEscalationEvents: FailureEscalationEvent[] = [];
 
   try {
     if (options.memoryDir) {
@@ -138,6 +140,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
         taskDescription: instruction,
         cwd: options.sandboxDir,
       },
+      onFailureEscalationEvent: (event) => failureEscalationEvents.push(event),
     });
     if (options.buildMemoryPrompt) {
       hooks.buildMemoryPrompt = options.buildMemoryPrompt;
@@ -267,6 +270,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     postCompactionPrompts: providerPolicy?.postCompactionPrompts,
     protectedEvents,
     guardRuleCounts: countGuardRules(protectedEvents),
+    failureEscalationEvents,
     learningRun,
   };
 }
@@ -656,6 +660,7 @@ export function createEvalTracingHooks(
     memoryDir?: string;
     learningRun?: EvalLearningRunRef;
     onProtectedEvents?: (events: import('./types.js').ProtectedEvalEvent[]) => void;
+    onFailureEscalationEvent?: (event: FailureEscalationEvent) => void;
     failureEscalation?: {
       context7Client?: Pick<Context7Client, 'query'>;
       taskDescription: string;
@@ -679,6 +684,7 @@ export function createEvalTracingHooks(
     ? new FailureEscalationContext({
       context7Client: options.failureEscalation.context7Client,
       memoryDir: options.memoryDir,
+      onTrigger: options.onFailureEscalationEvent,
     })
     : undefined;
   failureEscalation?.initTask(

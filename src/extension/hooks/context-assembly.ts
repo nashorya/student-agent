@@ -39,6 +39,7 @@ export interface ContextAssemblyOptions {
   runMode?: ContextRunMode;
   piSchemaRenderMode?: PiSchemaRenderMode;
   onTrace?: (trace: EvalContextAssemblyTrace) => void;
+  fullResidentLessons?: () => Promise<Array<{ id: string; summary: string }>>;
 }
 
 const SIGNAL_KINDS = new Set<SignalKind>([
@@ -78,6 +79,7 @@ export function createContextAssemblyHook(options: ContextAssemblyOptions): Cont
       runMode: options.runMode,
       piSchemaRenderMode: options.piSchemaRenderMode,
       onTrace: emitTrace,
+      fullResidentLessons: options.fullResidentLessons,
     });
   };
   hook.contextAssemblyTraces = contextAssemblyTraces;
@@ -88,6 +90,7 @@ interface NewPipelineOptions {
   runMode?: ContextRunMode;
   piSchemaRenderMode?: PiSchemaRenderMode;
   onTrace?: (trace: EvalContextAssemblyTrace) => void;
+  fullResidentLessons?: () => Promise<Array<{ id: string; summary: string }>>;
 }
 
 export async function newPipelineHook(
@@ -135,7 +138,7 @@ export async function newPipelineHook(
   const taskLedger = await new TaskLedgerManager(memoryDir, task.id).toLedgerInput();
 
   const recallStore = new JsonlMemoryStore({ memoryDir });
-  const recallBundle = await new RecallRouter(recallStore).recall({
+  const recallInput = {
     taskId: task.id,
     currentTaskId: task.id,
     currentRunId: task.working_memory.runId,
@@ -155,14 +158,19 @@ export async function newPipelineHook(
     }),
     taskLedger,
     recentRawTurns: [],
-  } satisfies RecallRouterInput);
-
+  } satisfies RecallRouterInput;
+  const fullResidentLessons = await options.fullResidentLessons?.();
+  const recallBundle = await new RecallRouter(recallStore).recall(recallInput);
   const limitedRecallBundle = applyRecallLimits(recallBundle, tierDecision.tier);
-  await recallStore.recordKnackInjections({
-    knackIds: limitedRecallBundle.knacks.map((knack) => knack.id),
-    taskId: task.id,
-    runId: task.working_memory.runId,
-  });
+  if (fullResidentLessons !== undefined) {
+    limitedRecallBundle.knacks = [];
+  } else {
+    await recallStore.recordKnackInjections({
+      knackIds: limitedRecallBundle.knacks.map((knack) => knack.id),
+      taskId: task.id,
+      runId: task.working_memory.runId,
+    });
+  }
   const built = new ContextBuilder().build({
     workingMemory: task.working_memory,
     recallBundle: limitedRecallBundle,
@@ -170,6 +178,7 @@ export async function newPipelineHook(
     tier: tierDecision.tier,
     runMode,
     piSchemaRenderMode,
+    fullResidentLessons,
   });
 
   const builtContextText = renderBuiltContext(built, tierDecision.reason);

@@ -435,11 +435,11 @@ export function renderKnowledgeDashboardHtml(graph: ChronicleGraph, projectTitle
     return n ? cardHtml(n) : `<article class="issue"><div class="issue-title">${escapeHtml(id)}</div></article>`;
   }).join('\n') || '<div class="empty">（空）</div>';
 
-  const answers = [
+  const answers = ([
     ['a) BUG-011', graph.answers.bug011],
     ['b) J-space 墓碑', graph.answers.jspaceTombstone],
     ['c) 注入实验缺前提', graph.answers.injectionMissing],
-  ].map(([t, v]) => `<div class="ans">
+  ] as const).map(([t, v]) => `<div class="ans">
       <div class="ans-k">${escapeHtml(t)}</div>
       <div class="ans-v">${escapeHtml(v || '')}</div>
     </div>`).join('\n');

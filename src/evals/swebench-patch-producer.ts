@@ -5,9 +5,11 @@ import { basename, join, resolve } from 'node:path';
 import { runStudentAgentEval } from './agent-runner.js';
 import { runClaudeCodeTask } from './claude-code-runner.js';
 import {
-  createContextRuntimeBuildMemoryPrompt,
+  createInjectionBuildMemoryPrompt,
   seedContextRuntimeEvalMemory,
   type ContextRuntimeEvalVariant,
+  type InjectionPromptHook,
+  type StudentInjectionMode,
 } from './context-runtime-runner.js';
 import { defaultExternalBenchmarkOutputDir } from './external-benchmarks.js';
 import type { EvalTaskDefinition, StudentAgentEvalTrace } from './types.js';
@@ -44,6 +46,7 @@ export interface SweBenchPatchProducerRecord {
   trace?: StudentAgentEvalTrace;
   learningSummary?: EvalLearningSummary;
   learningFinalizationError?: string;
+  injectionSnapshot?: string;
   errorMessage?: string;
   durationMs: number;
   worktreePath?: string;
@@ -73,6 +76,7 @@ export interface SweBenchProductionPlan {
   studentMemoryDir?: string;
   studentLearningLifecycle: boolean;
   studentLearningTaskOffset: number;
+  studentInjectionMode?: StudentInjectionMode;
   instances: Array<{ instance_id: string }>;
 }
 
@@ -94,6 +98,7 @@ export interface ProduceSweBenchPatchesOptions {
   studentMemoryDir?: string;
   studentLearningLifecycle?: boolean;
   studentLearningTaskOffset?: number;
+  studentInjectionMode?: StudentInjectionMode;
 }
 
 export async function loadSweBenchInstances(path: string): Promise<SweBenchInstance[]> {
@@ -171,6 +176,7 @@ export async function produceSweBenchPatches(
         studentMemoryDir: options.studentMemoryDir,
         studentLearningLifecycle: options.studentLearningLifecycle ?? false,
         learningTaskIndex: (options.studentLearningTaskOffset ?? 0) + index + 1,
+        studentInjectionMode: options.studentInjectionMode,
       });
       records.push(record);
       if (record.learningFinalizationError) break;
@@ -195,6 +201,7 @@ export async function produceSweBenchPatches(
     agent: options.agent,
     modelNameOrPath: options.modelNameOrPath ?? defaultModelName(options.agent),
     studentVariant: options.studentVariant ?? 'context_runtime',
+    studentInjectionMode: options.studentInjectionMode,
     studentMemoryDir: options.studentMemoryDir ? resolve(options.studentMemoryDir) : undefined,
     studentLearningLifecycle: options.studentLearningLifecycle ?? false,
     studentLearningTaskOffset: options.studentLearningTaskOffset ?? 0,
@@ -225,6 +232,7 @@ export async function createSweBenchProductionPlan(
     ...(options.studentMemoryDir ? { studentMemoryDir: resolve(options.studentMemoryDir) } : {}),
     studentLearningLifecycle: options.studentLearningLifecycle ?? false,
     studentLearningTaskOffset: options.studentLearningTaskOffset ?? 0,
+    ...(options.studentInjectionMode ? { studentInjectionMode: options.studentInjectionMode } : {}),
     instances: instances.map((instance) => ({ instance_id: instance.instance_id })),
   };
 }
@@ -234,6 +242,7 @@ export function buildSweBenchProducerMetadata(options: {
   agent: SweBenchAgent;
   modelNameOrPath: string;
   studentVariant: ContextRuntimeEvalVariant;
+  studentInjectionMode?: StudentInjectionMode;
   studentMemoryDir?: string;
   studentLearningLifecycle: boolean;
   studentLearningTaskOffset: number;
@@ -249,6 +258,7 @@ export function buildSweBenchProducerMetadata(options: {
     agent: options.agent,
     modelNameOrPath: options.modelNameOrPath,
     studentVariant: options.studentVariant,
+    ...(options.studentInjectionMode ? { studentInjectionMode: options.studentInjectionMode } : {}),
     ...(options.studentMemoryDir ? { studentMemoryDir: options.studentMemoryDir } : {}),
     studentLearningLifecycle: options.studentLearningLifecycle,
     studentLearningTaskOffset: options.studentLearningTaskOffset,
@@ -312,6 +322,7 @@ async function runSweBenchInstance(options: {
   studentMemoryDir?: string;
   studentLearningLifecycle: boolean;
   learningTaskIndex: number;
+  studentInjectionMode?: StudentInjectionMode;
 }): Promise<SweBenchPatchProducerRecord> {
   const started = Date.now();
   const worktreePath = join(options.workRoot, safePathSegment(options.instance.instance_id));
@@ -319,6 +330,7 @@ async function runSweBenchInstance(options: {
   let learningSummary: EvalLearningSummary | undefined;
   let learningFinalizationError: string | undefined;
   let errorMessage: string | undefined;
+  let injectionSnapshot: string | undefined;
   try {
     await checkoutInstance(options.instance, worktreePath);
     await verifyCleanInitialWorktree(worktreePath);
@@ -335,6 +347,7 @@ async function runSweBenchInstance(options: {
         }),
         task,
         instruction,
+        injectionMode: options.studentInjectionMode,
       });
       trace = await runStudentAgentEval({
         task,
@@ -344,6 +357,7 @@ async function runSweBenchInstance(options: {
         buildMemoryPrompt: studentContext.buildMemoryPrompt,
         learningLifecycle: options.studentLearningLifecycle,
       });
+      injectionSnapshot = studentContext.buildMemoryPrompt.injectionSnapshots[0];
     } else {
       trace = await runClaudeCodeTask({
         task,
@@ -419,6 +433,7 @@ async function runSweBenchInstance(options: {
     errorMessage,
     durationMs,
     worktreePath: options.keepWorktrees ? worktreePath : undefined,
+    injectionSnapshot,
   };
 }
 
@@ -434,24 +449,21 @@ export function resolveSweBenchStudentMemoryDir(options: {
 
 export async function resolveSweBenchStudentContext(options: {
   variant: ContextRuntimeEvalVariant;
+  injectionMode?: StudentInjectionMode;
   memoryDir: string;
   task: EvalTaskDefinition;
   instruction: string;
 }): Promise<{
   memoryDir: string;
-  buildMemoryPrompt: NonNullable<ReturnType<typeof createContextRuntimeBuildMemoryPrompt>>;
+  buildMemoryPrompt: InjectionPromptHook;
 }> {
-  if (options.variant === 'context_runtime') {
-    await seedContextRuntimeEvalMemory({
-      memoryDir: options.memoryDir,
-      task: options.task,
-      instruction: options.instruction,
-    });
-  }
-  const buildMemoryPrompt = createContextRuntimeBuildMemoryPrompt(options.variant, options.memoryDir);
-  if (!buildMemoryPrompt) {
-    throw new Error(`Unable to create context prompt for SWE variant ${options.variant}`);
-  }
+  await seedContextRuntimeEvalMemory({
+    memoryDir: options.memoryDir,
+    task: options.task,
+    instruction: options.instruction,
+  });
+  const mode = options.injectionMode ?? (options.variant === 'plain' ? 'off' : 'recall');
+  const buildMemoryPrompt = createInjectionBuildMemoryPrompt(mode, options.memoryDir);
   return {
     memoryDir: options.memoryDir,
     buildMemoryPrompt,

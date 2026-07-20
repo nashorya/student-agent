@@ -84,6 +84,8 @@ describe('AssistantTextCollector', () => {
       cacheReadTokens: 10,
       cacheWriteTokens: 5,
       totalTokens: 225,
+      costAuthority: 'local_estimate',
+      generationId: undefined,
       costUsd: {
         input: 0.0015,
         output: 0.003,
@@ -101,6 +103,8 @@ describe('AssistantTextCollector', () => {
           cacheReadTokens: 10,
           cacheWriteTokens: 5,
           totalTokens: 155,
+          costAuthority: 'local_estimate',
+          generationId: undefined,
           costUsd: {
             input: 0.001,
             output: 0.002,
@@ -118,6 +122,8 @@ describe('AssistantTextCollector', () => {
           cacheReadTokens: 0,
           cacheWriteTokens: 0,
           totalTokens: 70,
+          costAuthority: 'local_estimate',
+          generationId: undefined,
           costUsd: {
             input: 0.0005,
             output: 0.001,
@@ -332,6 +338,34 @@ describe('eval model metadata', () => {
 });
 
 describe('eval tracing hooks', () => {
+  it('records each failure-escalation trigger with level, count, and timestamp', async () => {
+    const events: Array<{ level: number; count: number; timestamp: string }> = [];
+    const hooks = createEvalTracingHooks([], {
+      onFailureEscalationEvent: (event) => events.push(event),
+      failureEscalation: {
+        taskDescription: 'Fix three consecutive build failures',
+        cwd: '/tmp/eval-sandbox',
+      },
+    });
+
+    for (const count of [1, 2, 3]) {
+      await hooks.onAfterToolCall?.({
+        toolName: 'bash',
+        toolCallId: `compile_${count}`,
+        args: { command: 'npm run build' },
+        isError: true,
+        resultText: 'src/index.ts(1,1): error TS2307: Cannot find module x',
+      });
+    }
+
+    expect(events.map(({ level, count }) => ({ level, count }))).toEqual([
+      { level: 1, count: 1 },
+      { level: 2, count: 2 },
+      { level: 3, count: 3 },
+    ]);
+    expect(events.every((event) => !Number.isNaN(Date.parse(event.timestamp)))).toBe(true);
+  });
+
   it('queries Context7 on the second eligible failure when the eval client is present', async () => {
     const query = vi.fn().mockResolvedValue({
       libraryId: '/microsoft/typescript',
