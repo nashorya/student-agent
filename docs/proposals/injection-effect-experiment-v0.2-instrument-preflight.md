@@ -1,7 +1,7 @@
 # 注入实验 v0.2 · 仪器复检
 
 日期：2026-07-20
-状态：**仪器全绿；v0.2 已于 PR #10 冻结；仍待仪器合并后复检与作者另行点火**
+状态：**仪器 PR #11 已合并；冻结状态夹具修正后全量复检全绿；等待作者另行点火**
 
 ## 四臂与纯记忆边界
 
@@ -32,13 +32,14 @@
 
 - `npm run build`：通过。
 - 全量测试：164 files passed、1122 tests passed；另有 1 个既有 OpenTUI spike test skipped。
+- 合并提交首次复检发现 2 条 runner 测试仍把真实预注册当作未冻结草案；仅将拒跑测试改用临时 draft fixture，未改 runner 或设计，修正后全量复检通过。
 - 正式 CLI runner：56 行；编排细节下沉至可单测模块。
 - 覆盖：四臂映射、未冻结拒跑、独立 root、unresolved 继续、缺产物/失败停批、双题自然蒸馏、ephemeral/历史记忆防泄漏、harness SHA fail-closed、lesson/knack citation，以及四臂全灭才启用替补的中期判定。
 
 ## 点火门
 
 1. ✅ 作者已批准并合并 PR #10，v0.2 已正式冻结。
-2. 仪器 PR 合并后，以合并 commit 重新跑 build、全量测试、四臂 dry-run；若 commit 变化不涉及仪器行为，可复用本次旧 prediction 判分烟测。
+2. ✅ 仪器 PR #11 已合并；合并提交加上述 test-only fixture 修正后，build、全量测试和 Django 四臂 dry-run 复验通过。仪器行为未变，复用旧 prediction 判分烟测。
 3. 作者另行明确回复“点火”后，才可从全新结果目录运行 Django 12 run。
 
 任何限流、provider 格式异常、harness 报告歧义或审计产物缺失均停跑报告；禁止现场改设计。

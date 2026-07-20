@@ -18,9 +18,9 @@ describe('injection experiment v0.2 runner', () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
   });
 
-  it('reads the four-arm draft, sampling, snapshot, and frozen family order', async () => {
+  it('reads the frozen four-arm sampling, snapshot, and family order', async () => {
     const spec = await readFrozenInjectionSpec(resolve('docs/proposals/injection-effect-experiment-prereg-v0.2.md'));
-    expect(spec.frozen).toBe(false);
+    expect(spec.frozen).toBe(true);
     expect(spec.sampling).toEqual({
       model: 'glm-5.2', profile: 'zhipu-glm-5.2', thinking: 'enabled',
       temperature: 0, topP: 0.95, maxTokens: 16384,
@@ -40,7 +40,7 @@ describe('injection experiment v0.2 runner', () => {
 
   it('refuses model execution while v0.2 is not frozen', async () => {
     const root = await fixtureRoot();
-    await expect(runInjectionFamily(runOptions(root, resolve('docs/proposals/injection-effect-experiment-prereg-v0.2.md')), {
+    await expect(runInjectionFamily(runOptions(root, await draftPrereg(root)), {
       produce: vi.fn(), score: vi.fn(),
     })).rejects.toThrow('not frozen');
   });
@@ -175,6 +175,13 @@ describe('injection experiment v0.2 runner', () => {
     const target = join(root, 'prereg.md');
     const source = await readFile(resolve('docs/proposals/injection-effect-experiment-prereg-v0.2.md'), 'utf8');
     await writeFile(target, source.replace(/^状态：.*$/mu, '状态：**已冻结（test fixture）**'));
+    return target;
+  }
+
+  async function draftPrereg(root: string): Promise<string> {
+    const target = join(root, 'draft-prereg.md');
+    const source = await readFile(resolve('docs/proposals/injection-effect-experiment-prereg-v0.2.md'), 'utf8');
+    await writeFile(target, source.replace(/^状态：.*$/mu, '状态：**待作者批准冻结（test fixture）**'));
     return target;
   }
 
