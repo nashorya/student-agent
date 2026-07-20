@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "9affa2a5ff0fed1b",
+  "contentHash": "e0d7ce90fdbd608f",
   "nodes": [
     {
       "id": "ADR-001",
@@ -611,6 +611,25 @@
       "sourceLine": 51
     },
     {
+      "id": "campaign:index-052",
+      "kind": "campaign",
+      "title": "注入效果实验预注册 **v0.1**（finding:injection-effect-experiment）：被试 GLM coding plan 直连；三臂 A/B/C；H1/H2 写死判读；零现金 + $25 备用换口废族；前置烟测三",
+      "status": "RECORDED",
+      "summary": "注入效果实验预注册 **v0.1**（finding:injection-effect-experiment）：被试 GLM coding plan 直连；三臂 A/B/C；H1/H2 写死判读；零现金 + $25 备用换口废族；前置烟测三门；**未冻结禁止合并**",
+      "date": "2026-07-19",
+      "sourcePath": "docs/INDEX.md",
+      "sourceLine": 52
+    },
+    {
+      "id": "campaign:injection-effect-prereg-v0",
+      "kind": "campaign",
+      "title": "预注册:注入效果实验 v0",
+      "status": "DRAFT",
+      "summary": "H1/H2 three-arm injection effect preregistration (draft until author freeze)",
+      "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
+      "sourceLine": 1
+    },
+    {
       "id": "campaign:p0-assay-candidates.json",
       "kind": "campaign",
       "title": "p0-assay-candidates.json",
@@ -845,11 +864,11 @@
     {
       "id": "finding:injection-effect-experiment",
       "kind": "finding",
-      "title": "finding:injection-effect-experiment",
-      "status": "DEFINED",
-      "summary": "finding:injection-effect-experiment",
-      "sourcePath": "docs/adr/ADR-008-measured-harness-evolution.md",
-      "sourceLine": 34
+      "title": "注入效果实验（lesson 注入改善后续任务）",
+      "status": "PREREG-DRAFT",
+      "summary": "预注册草案 v0.1 已落档（未冻结/禁止合并）；coding plan 直连 + 前置烟测三门。见 docs/proposals/injection-effect-experiment-prereg-v0.md",
+      "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
+      "sourceLine": 1
     },
     {
       "id": "finding:jspace-external",
@@ -1645,18 +1664,18 @@
       "kind": "requires",
       "from": "finding:injection-effect-experiment",
       "to": "phase:P1",
-      "label": "needs closed supply path",
-      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 207,
+      "label": "requires",
+      "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
+      "sourceLine": 138,
       "id": "requires:finding:injection-effect-experiment->phase:P1"
     },
     {
       "kind": "requires",
       "from": "finding:injection-effect-experiment",
       "to": "phase:P3",
-      "label": "needs citation observability for utilization",
-      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
-      "sourceLine": 232,
+      "label": "requires",
+      "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
+      "sourceLine": 139,
       "id": "requires:finding:injection-effect-experiment->phase:P3"
     },
     {
@@ -1945,6 +1964,15 @@
       "sourcePath": "evals/distillation/todo-distill-fidelity-v2.md",
       "sourceLine": 1,
       "id": "verifies:campaign:todo-distill-fidelity-v2.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "finding:injection-effect-experiment",
+      "to": "campaign:injection-effect-prereg-v0",
+      "label": "verifies",
+      "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
+      "sourceLine": 136,
+      "id": "verifies:finding:injection-effect-experiment->campaign:injection-effect-prereg-v0"
     }
   ],
   "nextActions": [
@@ -2171,6 +2199,6 @@
   "answers": {
     "bug011": "BUG-011 为何而生: 正式运行；关死状态: CLOSED（修复后 C 组 3/3 valid 且 verifier 满分，追平 plain 3/3）. 实档同类关案范例 BUG-004: 生于「Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了…」，被 CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件； 收束。",
     "jspaceTombstone": "J-space 压缩恢复线 NO-GO 成墓碑: J-space 压缩恢复线 NO-GO (status=已采纳（NO-GO）)",
-    "injectionMissing": "finding:injection-effect-experiment: finding:injection-effect-experiment | 前提清单: phase:P1 status=CLOSED✓; phase:P3 status=PLANNED✗未满足"
+    "injectionMissing": "注入效果实验（lesson 注入改善后续任务）: 预注册草案 v0.1 已落档（未冻结/禁止合并）；coding plan 直连 + 前置烟测三门。见 docs/proposals/injection-effect-experiment-prereg-v0.md | 前提清单: phase:P1 status=CLOSED✓; phase:P3 status=PLANNED✗未满足"
   }
 }
