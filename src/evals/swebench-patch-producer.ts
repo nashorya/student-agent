@@ -49,6 +49,8 @@ export interface SweBenchPatchProducerRecord {
   injectionSnapshot?: string;
   errorMessage?: string;
   durationMs: number;
+  initialHead?: string;
+  expectedBaseCommit?: string;
   worktreePath?: string;
 }
 
@@ -77,6 +79,7 @@ export interface SweBenchProductionPlan {
   studentLearningLifecycle: boolean;
   studentLearningTaskOffset: number;
   studentInjectionMode?: StudentInjectionMode;
+  studentDeferKnackPromotion?: boolean;
   instances: Array<{ instance_id: string }>;
 }
 
@@ -99,6 +102,7 @@ export interface ProduceSweBenchPatchesOptions {
   studentLearningLifecycle?: boolean;
   studentLearningTaskOffset?: number;
   studentInjectionMode?: StudentInjectionMode;
+  studentDeferKnackPromotion?: boolean;
 }
 
 export async function loadSweBenchInstances(path: string): Promise<SweBenchInstance[]> {
@@ -177,6 +181,7 @@ export async function produceSweBenchPatches(
         studentLearningLifecycle: options.studentLearningLifecycle ?? false,
         learningTaskIndex: (options.studentLearningTaskOffset ?? 0) + index + 1,
         studentInjectionMode: options.studentInjectionMode,
+        studentDeferKnackPromotion: options.studentDeferKnackPromotion,
       });
       records.push(record);
       if (record.learningFinalizationError) break;
@@ -205,6 +210,7 @@ export async function produceSweBenchPatches(
     studentMemoryDir: options.studentMemoryDir ? resolve(options.studentMemoryDir) : undefined,
     studentLearningLifecycle: options.studentLearningLifecycle ?? false,
     studentLearningTaskOffset: options.studentLearningTaskOffset ?? 0,
+    ...(options.studentDeferKnackPromotion ? { studentDeferKnackPromotion: true } : {}),
     records,
     env: process.env,
     dirtyPaths: statusResult.stdout.split(/\r?\n/u).filter(Boolean),
@@ -233,6 +239,7 @@ export async function createSweBenchProductionPlan(
     studentLearningLifecycle: options.studentLearningLifecycle ?? false,
     studentLearningTaskOffset: options.studentLearningTaskOffset ?? 0,
     ...(options.studentInjectionMode ? { studentInjectionMode: options.studentInjectionMode } : {}),
+    ...(options.studentDeferKnackPromotion ? { studentDeferKnackPromotion: true } : {}),
     instances: instances.map((instance) => ({ instance_id: instance.instance_id })),
   };
 }
@@ -246,6 +253,7 @@ export function buildSweBenchProducerMetadata(options: {
   studentMemoryDir?: string;
   studentLearningLifecycle: boolean;
   studentLearningTaskOffset: number;
+  studentDeferKnackPromotion?: boolean;
   records: SweBenchPatchProducerRecord[];
   env?: NodeJS.ProcessEnv;
   dirtyPaths?: string[];
@@ -262,6 +270,7 @@ export function buildSweBenchProducerMetadata(options: {
     ...(options.studentMemoryDir ? { studentMemoryDir: options.studentMemoryDir } : {}),
     studentLearningLifecycle: options.studentLearningLifecycle,
     studentLearningTaskOffset: options.studentLearningTaskOffset,
+    studentDeferKnackPromotion: options.studentDeferKnackPromotion ?? false,
     networkRoute: describeNetworkRoute(env),
     ...(runtimeModel ? { runtimeModel } : {}),
     workingTreeDirty: (options.dirtyPaths?.length ?? 0) > 0,
@@ -323,6 +332,7 @@ async function runSweBenchInstance(options: {
   studentLearningLifecycle: boolean;
   learningTaskIndex: number;
   studentInjectionMode?: StudentInjectionMode;
+  studentDeferKnackPromotion?: boolean;
 }): Promise<SweBenchPatchProducerRecord> {
   const started = Date.now();
   const worktreePath = join(options.workRoot, safePathSegment(options.instance.instance_id));
@@ -331,9 +341,14 @@ async function runSweBenchInstance(options: {
   let learningFinalizationError: string | undefined;
   let errorMessage: string | undefined;
   let injectionSnapshot: string | undefined;
+  let initialHead: string | undefined;
   try {
     await checkoutInstance(options.instance, worktreePath);
     await verifyCleanInitialWorktree(worktreePath);
+    initialHead = (await runProcess('git', ['rev-parse', 'HEAD'], worktreePath, 30, false)).stdout.trim();
+    if (initialHead !== options.instance.base_commit) {
+      throw new Error(`SWE-bench initial HEAD ${initialHead} does not match base_commit ${options.instance.base_commit}`);
+    }
     const task = buildSyntheticTask(options.instance, worktreePath, options.timeoutSeconds);
     const instruction = buildSweBenchInstruction(options.instance);
     await writeFile(task.instructionPath, instruction, 'utf-8');
@@ -402,6 +417,7 @@ async function runSweBenchInstance(options: {
         toolCalls: trace.toolCalls,
         recallAudit: trace.recallAudit,
         verificationStatus: 'pending',
+        deferKnackPromotion: options.studentDeferKnackPromotion,
       });
     } catch (err) {
       learningFinalizationError = err instanceof Error ? err.message : String(err);
@@ -432,6 +448,8 @@ async function runSweBenchInstance(options: {
     learningFinalizationError,
     errorMessage,
     durationMs,
+    ...(initialHead ? { initialHead } : {}),
+    ...(options.instance.base_commit ? { expectedBaseCommit: options.instance.base_commit } : {}),
     worktreePath: options.keepWorktrees ? worktreePath : undefined,
     injectionSnapshot,
   };
@@ -463,7 +481,7 @@ export async function resolveSweBenchStudentContext(options: {
     instruction: options.instruction,
   });
   const mode = options.injectionMode ?? (options.variant === 'plain' ? 'off' : 'recall');
-  const buildMemoryPrompt = createInjectionBuildMemoryPrompt(mode, options.memoryDir);
+  const buildMemoryPrompt = await createInjectionBuildMemoryPrompt(mode, options.memoryDir);
   return {
     memoryDir: options.memoryDir,
     buildMemoryPrompt,

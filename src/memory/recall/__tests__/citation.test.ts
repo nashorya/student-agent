@@ -44,6 +44,18 @@ describe('buildRecallCitationAudit', () => {
     expect(result.audit.citation_events[0].cited_ids).toEqual(['knack_1']);
   });
 
+  it('accepts lesson citations while rejecting non-injected memory kinds', () => {
+    const result = buildRecallCitationAudit({
+      messages: ['Use it [[used_recall:lesson_1]] [[used_recall:preference_1]]'],
+      contexts: [{ items: [
+        { id: 'lesson_1', kind: 'lesson' },
+        { id: 'preference_1', kind: 'preference' },
+      ] }],
+    });
+    expect(result.audit.used_recall_ids).toEqual(['lesson_1']);
+    expect(result.audit.invalid_recall_ids).toEqual(['preference_1']);
+  });
+
   it('fails closed when a message has no aligned context trace', () => {
     const result = buildRecallCitationAudit({
       messages: ['[[used_recall:knack_1]]'],

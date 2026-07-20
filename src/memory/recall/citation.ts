@@ -32,7 +32,7 @@ export function buildRecallCitationAudit(input: {
     const citedIds = unique([...message.matchAll(USED_RECALL_MARKER_RE)].map((match) => match[1]));
     const context = input.contexts[index];
     const injectedIds = context
-      ? unique(context.items.filter((item) => item.kind === 'knack').map((item) => item.id))
+      ? unique(context.items.filter(isCitableRecallItem).map((item) => item.id))
       : [];
     const allowlist = new Set(injectedIds);
     const usedIds = citedIds.filter((id) => allowlist.has(id));
@@ -52,7 +52,7 @@ export function buildRecallCitationAudit(input: {
   });
 
   const injected = unique(input.contexts.flatMap((context) =>
-    context.items.filter((item) => item.kind === 'knack').map((item) => item.id),
+    context.items.filter(isCitableRecallItem).map((item) => item.id),
   )).sort();
   const cited = unique(events.flatMap((event) => event.cited_ids)).sort();
   const used = unique(events.flatMap((event) => event.used_ids)).sort();
@@ -69,6 +69,10 @@ export function buildRecallCitationAudit(input: {
       utilization_rate: injected.length === 0 ? 0 : clamp(used.length / injected.length),
     },
   };
+}
+
+function isCitableRecallItem(item: { kind: string }): boolean {
+  return item.kind === 'lesson' || item.kind === 'knack';
 }
 
 export function cleanCitationMarkers(text: string): string {

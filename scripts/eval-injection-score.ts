@@ -1,12 +1,12 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, writeFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildSweBenchEvaluationCommand, type ExternalCommand } from '../src/evals/external-benchmarks.js';
-import { readFrozenInjectionSpec } from './eval-injection-experiment.js';
+import { readFrozenInjectionSpec } from '../src/evals/injection-family-runner.js';
 
-interface ScoreOptions {
+export interface ScoreOptions {
   pythonCommand: string;
   manifestPath: string;
   predictionsPath: string;
@@ -14,6 +14,13 @@ interface ScoreOptions {
   runId: string;
   preregPath: string;
   dryRun?: boolean;
+}
+
+export interface PinnedScoringResult {
+  resolved: boolean;
+  summaryPath: string;
+  instanceReportPath: string;
+  summary: Record<string, unknown>;
 }
 
 type HashFile = (path: string) => Promise<string>;
@@ -57,8 +64,48 @@ export async function buildPinnedScoringCommand(
     predictionsPath: options.predictionsPath,
     maxWorkers: 1,
     runId: options.runId,
-    extraArgs: ['--instance_ids', ...options.instanceIds],
+    extraArgs: ['--split', 'test', '--instance_ids', ...options.instanceIds],
   });
+}
+
+export async function runPinnedScoring(
+  options: ScoreOptions & { cwd: string },
+): Promise<PinnedScoringResult> {
+  if (options.instanceIds.length !== 1) {
+    throw new Error('Per-task injection scoring requires exactly one instance');
+  }
+  const command = await buildPinnedScoringCommand(options);
+  const exitCode = await run(command, options.cwd);
+  if (exitCode !== 0) throw new Error(`Official SWE-bench harness exited with code ${exitCode}`);
+
+  const predictions = (await readFile(options.predictionsPath, 'utf8')).trim().split(/\r?\n/u)
+    .filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>);
+  const prediction = predictions.find((item) => item.instance_id === options.instanceIds[0]);
+  const model = typeof prediction?.model_name_or_path === 'string' ? prediction.model_name_or_path : '';
+  if (!model) throw new Error('Prediction is missing model_name_or_path');
+  const modelDir = model.replaceAll('/', '__');
+  const summaryPath = join(options.cwd, `${modelDir}.${options.runId}.json`);
+  const instanceReportPath = join(
+    options.cwd,
+    'logs',
+    'run_evaluation',
+    options.runId,
+    modelDir,
+    options.instanceIds[0]!,
+    'report.json',
+  );
+  const summary = JSON.parse(await readFile(summaryPath, 'utf8')) as Record<string, unknown>;
+  const instanceReport = JSON.parse(await readFile(instanceReportPath, 'utf8')) as Record<string, unknown>;
+  const resolvedIds = stringArray(summary.resolved_ids);
+  const unresolvedIds = stringArray(summary.unresolved_ids);
+  const errorIds = stringArray(summary.error_ids);
+  const instanceId = options.instanceIds[0]!;
+  if (errorIds.includes(instanceId) || (!resolvedIds.includes(instanceId) && !unresolvedIds.includes(instanceId))) {
+    throw new Error(`Official harness report is incomplete or ambiguous for ${instanceId}`);
+  }
+  await writeFile(join(options.cwd, 'harness-summary.json'), JSON.stringify(summary, null, 2));
+  await writeFile(join(options.cwd, 'harness-instance-report.json'), JSON.stringify(instanceReport, null, 2));
+  return { resolved: resolvedIds.includes(instanceId), summaryPath, instanceReportPath, summary };
 }
 
 async function sha256File(path: string): Promise<string> {
@@ -86,12 +133,16 @@ function parseArgs(args: string[]): ScoreOptions {
   };
 }
 
-function run(command: ExternalCommand): Promise<number> {
+function run(command: ExternalCommand, cwd?: string): Promise<number> {
   return new Promise((done) => {
-    const child = spawn(command.command, command.args, { stdio: 'inherit', env: process.env });
+    const child = spawn(command.command, command.args, { cwd, stdio: 'inherit', env: process.env });
     child.on('error', () => done(1));
     child.on('close', (code, signal) => done(signal ? 124 : code ?? 1));
   });
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

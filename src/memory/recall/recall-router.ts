@@ -27,7 +27,10 @@ const HISTORICAL_TASK_LIMITS: Record<L1Tier, number> = {
 export class RecallRouter {
   constructor(
     private readonly store: SearchableMemoryStore,
-    private readonly options: { similarityProvider?: RecallSimilarityProvider } = {},
+    private readonly options: {
+      similarityProvider?: RecallSimilarityProvider;
+      includeHistoricalTaskSnapshots?: boolean;
+    } = {},
   ) {}
 
   async recall(input: RecallRouterInput): Promise<RecallBundle> {
@@ -41,6 +44,7 @@ export class RecallRouter {
     const dropped: Array<{ id: string; reason: string }> = [];
     const penalties: RecallBundle['diagnostics']['penalties'] = [];
     const bundle: RecallBundle = {
+      lessons: [],
       knacks: [],
       preferences: [],
       docFindings: [],
@@ -96,6 +100,9 @@ export class RecallRouter {
     ]) {
       const recalled = toRecalledItem(result);
       switch (result.item.kind) {
+        case 'lesson':
+          bundle.lessons?.push(recalled);
+          break;
         case 'knack':
           bundle.knacks.push(recalled);
           break;
@@ -135,6 +142,7 @@ export class RecallRouter {
     dropped: Array<{ id: string; reason: string }>,
     penalties: RecallBundle['diagnostics']['penalties'],
   ): Promise<RecalledItem[]> {
+    if (this.options.includeHistoricalTaskSnapshots === false) return [];
     const tier = input.tier ?? 'standard';
     const limit = HISTORICAL_TASK_LIMITS[tier];
     if (limit <= 0 || !this.store.loadTaskSnapshots) return [];

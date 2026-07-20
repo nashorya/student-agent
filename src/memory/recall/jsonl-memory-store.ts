@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { getProjectMemoryDir } from '../../core/paths.js';
 import { WriteQueue } from '../../core/write-queue.js';
 import type { Knack } from '../knacks/index.js';
+import type { LessonCandidate } from '../lessons/types.js';
 import type { PreferenceEntry, PreferencesFile } from '../preferences/types.js';
 import type { TaskOutcome, WorkingMemorySnapshot } from '../run-archive/types.js';
 import type {
@@ -21,6 +22,8 @@ import { scoreRecallItem, type ScoringContext } from './scoring.js';
 export interface JsonlMemoryStoreOptions {
   memoryDir?: string;
   readOnly?: boolean;
+  kinds?: RecallableMemoryItem['kind'][];
+  eligibleRunIds?: string[];
 }
 
 export const DEFAULT_CANDIDATE_POOL_LIMIT = 64;
@@ -29,11 +32,15 @@ export class JsonlMemoryStore implements MemoryStore {
   private readonly memoryDir: string;
   private readonly indexPath: string;
   private readonly readOnly: boolean;
+  private readonly kinds?: Set<RecallableMemoryItem['kind']>;
+  private readonly eligibleRunIds?: Set<string>;
 
   constructor(options: JsonlMemoryStoreOptions = {}) {
     this.memoryDir = options.memoryDir ?? getProjectMemoryDir();
     this.indexPath = join(this.memoryDir, 'recall-index.json');
     this.readOnly = options.readOnly ?? false;
+    this.kinds = options.kinds ? new Set(options.kinds) : undefined;
+    this.eligibleRunIds = options.eligibleRunIds ? new Set(options.eligibleRunIds) : undefined;
   }
 
   async refreshIndex(): Promise<RecallIndex> {
@@ -68,7 +75,9 @@ export class JsonlMemoryStore implements MemoryStore {
         score: scoreRecallItem(item, query, context),
       }))
       .filter((result) => result.score.total > 0 || hasActiveFilter(query))
-      .sort((a, b) => b.score.total - a.score.total)
+      .sort((a, b) => b.score.total - a.score.total
+        || timestampOf(b.item.metadata.updatedAt ?? '') - timestampOf(a.item.metadata.updatedAt ?? '')
+        || a.item.id.localeCompare(b.item.id))
       .slice(0, query.limit ?? DEFAULT_CANDIDATE_POOL_LIMIT);
   }
 
@@ -128,17 +137,61 @@ export class JsonlMemoryStore implements MemoryStore {
   }
 
   private async loadItems(): Promise<RecallableMemoryItem[]> {
-    const [knacks, preferences, docFindings] = await Promise.all([
-      this.loadKnacks(),
-      this.loadPreferences(),
-      this.loadDocFindings(),
+    const [lessons, knacks, preferences, docFindings] = await Promise.all([
+      this.includes('lesson') ? this.loadLessons() : [],
+      this.includes('knack') ? this.loadKnacks() : [],
+      this.includes('preference') ? this.loadPreferences() : [],
+      this.includes('doc_finding') ? this.loadDocFindings() : [],
     ]);
-    return [...knacks, ...preferences, ...docFindings];
+    return [...lessons, ...knacks, ...preferences, ...docFindings];
+  }
+
+  private includes(kind: RecallableMemoryItem['kind']): boolean {
+    if (this.kinds) return this.kinds.has(kind);
+    return kind === 'knack' || kind === 'preference' || kind === 'doc_finding';
+  }
+
+  private async loadLessons(): Promise<RecallableMemoryItem[]> {
+    const lessons = await readJsonl<LessonCandidate>(join(this.memoryDir, 'lessons.jsonl'));
+    return lessons
+      .filter((lesson) => lesson.quality === 'high' && lesson.status !== 'archived')
+      .filter((lesson) => !this.eligibleRunIds || this.eligibleRunIds.has(lesson.provenance.sessionRef))
+      .map((lesson) => ({
+        id: lesson.id,
+        kind: 'lesson' as const,
+        summary: lesson.lesson,
+        recall: {
+          trigger: lesson.trigger,
+          applicableWhen: lesson.applicableWhen,
+          doNotApplyWhen: lesson.doNotApplyWhen,
+          sourceRefs: lesson.evidenceRefs,
+          updatedAt: lesson.updatedAt,
+        },
+        metadata: {
+          status: lesson.status,
+          taskId: lesson.provenance.taskId,
+          runId: lesson.provenance.sessionRef,
+          createdAt: lesson.createdAt,
+          updatedAt: lesson.updatedAt,
+          evidenceRefs: lesson.evidenceRefs,
+        },
+        payload: lesson,
+      }));
   }
 
   private async loadKnacks(): Promise<RecallableMemoryItem[]> {
     const knacks = await readJsonl<Knack>(join(this.memoryDir, 'knacks.jsonl'));
-    return knacks.map((knack) => ({
+    const eligibleLessonIds = this.eligibleRunIds
+      ? new Set((await readJsonl<LessonCandidate>(join(this.memoryDir, 'lessons.jsonl')))
+        .filter((lesson) => lesson.quality === 'high' && lesson.status !== 'archived')
+        .filter((lesson) => this.eligibleRunIds?.has(lesson.provenance.sessionRef))
+        .map((lesson) => lesson.id))
+      : undefined;
+    return knacks
+      .filter((knack) => !eligibleLessonIds || eligibleLessonIds.has(knack.lessonCandidateId))
+      .filter((knack) => !this.eligibleRunIds
+        || (knack.allowPromptInjection && (knack.status === 'candidate' || knack.status === 'validated')))
+      .map((knack) => ({
       id: knack.id,
       kind: 'knack',
       summary: knack.summary,
@@ -269,6 +322,8 @@ function makeIndex(items: RecallableMemoryItem[], memoryDir: string): RecallInde
 
 function sourcePathFor(kind: RecallableMemoryItem['kind'], memoryDir: string): string {
   switch (kind) {
+    case 'lesson':
+      return join(memoryDir, 'lessons.jsonl');
     case 'knack':
       return join(memoryDir, 'knacks.jsonl');
     case 'preference':

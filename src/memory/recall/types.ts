@@ -4,6 +4,7 @@ import type { TaskWorkingMemory } from '../tasks/types.js';
 import type { ScoringContext } from './scoring.js';
 
 export type RecallableMemoryKind =
+  | 'lesson'
   | 'knack'
   | 'preference'
   | 'doc_finding'
@@ -162,6 +163,7 @@ export interface RecalledItem {
 }
 
 export interface RecallBundle {
+  lessons?: RecalledItem[];
   knacks: RecalledItem[];
   preferences: RecalledItem[];
   docFindings: RecalledItem[];
