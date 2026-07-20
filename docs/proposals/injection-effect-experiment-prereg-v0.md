@@ -116,7 +116,7 @@
 | 物 | 状态 |
 |----|------|
 | 本预注册正文（假设 / 设计 / 指标 / 预算 / 烟测门） | **草案 v0.1.1 · 未冻结**；**禁止合并**；**合并即冻结** |
-| 题库附录（作者选族后补入） | 选定后 push，与正文一并冻结 |
+| 题库附录（作者选族后补入） | **已选定并写入，待作者批准冻结**；与正文一并冻结 |
 | 采样配置数值表 | 随冻结合并记录（三臂同一组数） |
 | 结果与判读 | 事后入档；不得回改本设计条款 |
 
@@ -128,24 +128,36 @@
 
 ---
 
-## 附录 A · 题库清单（待选，未冻结）
+## 附录 A · 题库清单（已选，待冻结）
 
 > 选定前可改；选定并随冻结合并后不可改。
 
+**数据快照（冻结输入）**：`SWE-bench/SWE-bench_Lite` `test` split；数据仓库 commit SHA `69611d31007e1c6731db8bd5b5c3f2d33f5bab6e`；本地解码后的 test Arrow SHA-256 `b77fa3036c06219715a35e8088fee13b0b87bc957052546c3270caf38a325627`。族内题序按该快照的 `created_at`（关联 PR 创建时间）升序固定。
+
 | 族 | 题序 | 题 ID / 来源 | 依赖说明 | 作者选定 |
 |----|------|--------------|----------|----------|
-| 族1 | 1 | _TBD_ | 首题，本臂本族自然产 lesson | □ |
-| 族1 | 2 | _TBD_ | 携带本臂本族 lesson | □ |
-| 族1 | 3 | _TBD_ | 携带本臂本族 lesson | □ |
-| 族2 | 1 | _TBD_ | 首题，本臂本族自然产 lesson | □ |
-| 族2 | 2 | _TBD_ | 携带本臂本族 lesson | □ |
-| 族2 | 3 | _TBD_ | 携带本臂本族 lesson | □ |
+| 族1 · `F-DJ-MIGRATION-REFERENCE` | 1 | `django__django-12125` · `django/db/migrations/serializer.py` | `created_at=2019-11-22T12:55:45Z`；首题，本臂本族自然产 lesson | ☑ 已选 |
+| 族1 · `F-DJ-MIGRATION-REFERENCE` | 2 | `django__django-14580` · `django/db/migrations/serializer.py` | `created_at=2021-07-01T07:38:03Z`；携带本臂本族 lesson | ☑ 已选 |
+| 族1 · `F-DJ-MIGRATION-REFERENCE` | 3 | `django__django-17087` · `django/db/migrations/serializer.py` | `created_at=2023-07-17T20:28:41Z`；携带本臂本族 lesson | ☑ 已选 |
+| 族2 · `F-SY-UNIT-EQUIVALENCE` | 1 | `sympy__sympy-20442` · `sympy/physics/units/util.py` | `created_at=2020-11-17T22:23:42Z`；首题，本臂本族自然产 lesson | ☑ 已选 |
+| 族2 · `F-SY-UNIT-EQUIVALENCE` | 2 | `sympy__sympy-24066` · `sympy/physics/units/unitsystem.py` | `created_at=2022-09-16T22:58:15Z`；携带本臂本族 lesson | ☑ 已选 |
+| 族2 · `F-SY-UNIT-EQUIVALENCE` | 3 | `sympy__sympy-24213` · `sympy/physics/units/unitsystem.py` | `created_at=2022-11-03T14:00:09Z`；携带本臂本族 lesson | ☑ 已选 |
+
+**替补族（仅在判读规则“题库过难”触发换族时启用；未触发则不进入正式 18 run）**：
+
+| 替补族 | 题序 | 题 ID / 来源 | 固定时序 |
+|--------|------|--------------|----------|
+| `F-DJ-SELECT-MASK` | 1 | `django__django-14667` · `django/db/models/sql/query.py` | `created_at=2021-07-19T21:08:03Z` |
+| `F-DJ-SELECT-MASK` | 2 | `django__django-15814` · `django/db/models/sql/query.py` | `created_at=2022-07-03T19:10:56Z` |
+| `F-DJ-SELECT-MASK` | 3 | `django__django-16910` · `django/db/models/sql/query.py` | `created_at=2023-05-31T22:28:10Z` |
 
 **近似度评估表**（候选筛查 → 作者选族）：
 
 | 候选 ID | 仓库/模块 | 与锚点题关系 | 依赖时序是否可排 | **排除核查**（非 p1prom 六题/非直接邻接） | 备注 |
 |---------|-----------|--------------|------------------|------------------------------------------|------|
-| | | | | □ 已排除 6938/7746/12907/14182/14365/14995 及邻接 | |
+| `F-DJ-MIGRATION-REFERENCE` | `django/django` · `django/db/migrations/serializer.py` | 同文件；均为生成迁移时 Python 引用不完整 | 是；2019 → 2021 → 2023 | ☑ 通过；非 Astropy，无同 issue/PR/函数邻接 | **正式族1** |
+| `F-SY-UNIT-EQUIVALENCE` | `sympy/sympy` · `sympy/physics/units/` | 同模块；均为结构判断代替量纲语义等价 | 是；2020 → 2022-09 → 2022-11 | ☑ 通过；非 Astropy，无同 issue/PR/函数邻接 | **正式族2** |
+| `F-DJ-SELECT-MASK` | `django/django` · `django/db/models/sql/query.py` | 同文件；均为字段选择掩码未归一化 | 是；2021 → 2022 → 2023 | ☑ 通过；非 Astropy，无同 issue/PR/函数邻接 | **替补族** |
 
 **p1prom 黑名单（硬排除）**：`astropy__astropy-6938`、`7746`、`12907`、`14182`、`14365`、`14995` 及同 PR/同 issue 直接邻接项。
 
@@ -169,3 +181,4 @@ finding:injection-effect-experiment --requires--> phase:P3
 | v0 | 2026-07-19 | 初稿：ZenMux 被试、烟测未单列 |
 | v0.1 | 2026-07-19 | coding plan 直连；备用换口废族；前置烟测三门；禁止合并 |
 | **v0.1.1** | 2026-07-19 | **记忆隔离**（独立 root / 族前空库 / 主库封存）；**污染排除** p1prom 六题+邻接；**C 臂细则**（断点后全量常驻、写入同 A）；**采样三臂一致**锁仪器 |
+| **v0.1.1 + 附录 A** | 2026-07-20 | 作者选定 `F-DJ-MIGRATION-REFERENCE` + `F-SY-UNIT-EQUIVALENCE`；`F-DJ-SELECT-MASK` 为替补；记录固定题序与数据快照 SHA；仍待批准冻结 |
