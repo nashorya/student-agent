@@ -1,0 +1,48 @@
+{
+  "instance_id": "astropy__astropy-14995",
+  "base_commit": "b16c7d12ccbc7b2d20364b89fb44285bcbfede54",
+  "source": {
+    "run_id": "run_1784388855001",
+    "task_id": "task_1784388855001",
+    "batch": "p1prom-20260718-zenmux",
+    "resolved": true,
+    "harness_summary_sha256": "a836249ed3629d5a8db76c06c5519048dfc9bb30e5a241c6384652f059b7eb41",
+    "fidelity_v2_supply_sha256": "11abcdff5cb246de283bf63876b329c3383d510ca770cd5a143f89c90dbfab64"
+  },
+  "knack": {
+    "id": "knack-astropy-astropy-cd70659d7b27",
+    "lessonCandidateId": "lesson_8dd51228-5c2e-4ab4-a0bb-8be74d806a7c",
+    "status": "candidate",
+    "summary": "Symptom: In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask Fix: **Fix:** Added an `elif operand.mask is None` branch that returns `deepcopy(self.mask)`, consistent with the documented behavior: \"If only one mask was present this mask is returned.",
+    "trigger": {
+      "signalKinds": [
+        "tool_error"
+      ],
+      "paths": []
+    },
+    "recall": {
+      "trigger": {
+        "signalKinds": [
+          "tool_error"
+        ],
+        "paths": []
+      },
+      "applicableWhen": [
+        "In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask."
+      ],
+      "doNotApplyWhen": []
+    },
+    "evidenceRefs": [
+      "distill:knack-astropy-astropy-cd70659d7b27"
+    ],
+    "counterexamples": [],
+    "allowPromptInjection": true,
+    "writesHardToolRule": false,
+    "breakerReport": null,
+    "repo": "astropy/astropy",
+    "symptom": "In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask",
+    "fixSummary": "**Fix:** Added an `elif operand.mask is None` branch that returns `deepcopy(self.mask)`, consistent with the documented behavior: \"If only one mask was present this mask is returned.",
+    "createdAt": "2026-07-19T03:57:36.479Z",
+    "updatedAt": "2026-07-19T03:57:36.479Z"
+  }
+}

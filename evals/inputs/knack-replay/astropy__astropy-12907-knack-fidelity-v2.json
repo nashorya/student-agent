@@ -1,0 +1,49 @@
+{
+  "instance_id": "astropy__astropy-12907",
+  "base_commit": "d16bfe05a744909de4b27f5875fe0d4ed41ce607",
+  "source": {
+    "run_id": "run_1784388508942",
+    "task_id": "task_1784388508942",
+    "batch": "p1prom-20260718-zenmux",
+    "resolved": true,
+    "harness_summary_sha256": "a836249ed3629d5a8db76c06c5519048dfc9bb30e5a241c6384652f059b7eb41",
+    "fidelity_v2_supply_sha256": "11abcdff5cb246de283bf63876b329c3383d510ca770cd5a143f89c90dbfab64"
+  },
+  "knack": {
+    "id": "knack-astropy-astropy-d1783fe64a63",
+    "lessonCandidateId": "lesson_a04bb961-f831-4f1c-b515-d91e746d1a5b",
+    "status": "candidate",
+    "summary": "Symptom: Modeling's `separability_matrix` does not compute separability correctly for nested CompoundModels Fix: The fix copies the actual computed matrix `right` into the correct position, preserving the separability structure of nested CompoundModels.",
+    "trigger": {
+      "signalKinds": [
+        "tool_error"
+      ],
+      "paths": []
+    },
+    "recall": {
+      "trigger": {
+        "signalKinds": [
+          "tool_error"
+        ],
+        "paths": []
+      },
+      "applicableWhen": [
+        "Modeling's `separability_matrix` does not compute separability correctly for nested CompoundModels."
+      ],
+      "doNotApplyWhen": []
+    },
+    "evidenceRefs": [
+      "distill:knack-astropy-astropy-d1783fe64a63"
+    ],
+    "counterexamples": [],
+    "allowPromptInjection": true,
+    "writesHardToolRule": false,
+    "breakerReport": null,
+    "repo": "astropy/astropy",
+    "symptom": "Modeling's `separability_matrix` does not compute separability correctly for nested CompoundModels",
+    "fixSummary": "The fix copies the actual computed matrix `right` into the correct position, preserving the separability structure of nested CompoundModels.",
+    "createdAt": "2026-07-19T03:57:36.479Z",
+    "updatedAt": "2026-07-19T03:57:36.479Z"
+  }
+}
+
