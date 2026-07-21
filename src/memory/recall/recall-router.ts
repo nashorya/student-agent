@@ -80,6 +80,12 @@ export class RecallRouter {
         repository: resolveRepositoryIdentity({
           repository: input.repository,
           taskId: input.currentTaskId ?? input.taskId,
+          hints: [
+            ...(input.repositoryHints ?? []),
+            input.goal,
+            input.currentStep,
+            input.hardConstraints,
+          ],
         }),
         queryText: buildKnackQueryText(input, query.text ?? ''),
         currentTaskId: input.currentTaskId ?? input.taskId,
@@ -203,7 +209,9 @@ export function buildRecallQuery(input: RecallRouterInput): RecallQuery {
     .join('\n');
   const trigger = buildRecallTrigger(input);
   return {
-    text: [input.goal, input.currentStep, recentRawText].filter(Boolean).join('\n'),
+    text: [input.goal, input.currentStep, input.hardConstraints, recentRawText]
+      .filter(Boolean)
+      .join('\n'),
     trigger,
   };
 }

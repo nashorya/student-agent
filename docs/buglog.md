@@ -5,6 +5,24 @@
 
 ---
 
+## BUG-012 · SWE 召回 repository gate 误杀 + P3 citation 同 ordinal 失效
+
+- **时间**：2026-07-21，发现者：knack 出厂自检探针（`docs/probes/knack-birth-self-check-2026-07-21.md`）
+- **症状**：
+  1. schema-v1 knack（`repo=astropy/astropy`）在 SWE 跑被标 `knack_eligibility_failed`；探针曾用临时「删 repo/symptom/fixSummary 放行」绕过，非身份修复。
+  2. 14995 注入跑 citation 已写出，但 `used_recall_ids=[]`、`invalid_recall_ids=[knack-…]`（单 context × 多 assistant message）。
+- **根因**：
+  1. 活跃任务 ID 为内部 `task_*`，召回未传 `repository` / 未用 hardConstraints 作 hints，`resolveRepositoryIdentity` 落到仪器仓 cwd。
+  2. `buildRecallCitationAudit` 按 message index 对齐 context；仅 1 条 context 时末条 citation unmatched。
+- **修复/处置**（身份来源修复，**不是**删字段放行）：
+  - `repository-identity`：hints 恢复 SWE `owner__repo-N`；SWE producer 传 `instance.repo`；assembly 传 hardConstraints/hints。
+  - `citation`：向前沿用最近一次注入 allowlist。
+  - 回归：`knack-eligibility-instrument.test.ts`（同 repo eligible / 异 repo ineligible / task_* 不误杀）；`citation-14995-replay.test.ts`（探针 fixture 回放 `[]`→`[knack-astropy-astropy-cd70659d7b27]`）。
+- **状态**：FIXED（待本分支 push/PR 后视为远端存在）
+- **不改**：v0.2 冻结条款；不重跑正式 Django/SymPy 题。
+
+---
+
 ## NOTE · Chronicle Dashboard 第 0 步 triage（archive 三红）
 
 - **时间**：2026-07-19

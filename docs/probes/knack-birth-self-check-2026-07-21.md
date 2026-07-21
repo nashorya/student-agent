@@ -79,5 +79,5 @@
 ## 后续分诊清单（2026-07-21 补记）
 
 1. [x] **先回查 v0.2 各臂的轮次、时长、等价成本和阶梯，不只看 resolved。** [补审结果](./injection-effect-v0.2-efficiency-reaudit-2026-07-21.md)：Django 的 A-L 与 B 虽然 resolved `2:2`，但阶梯 `3:6`，已满足预注册“少至少 30%”的 H1 方向支持规则；额外效率指标整体为小幅、分题异质，不能写成稳定翻案。SymPy 尚未运行，v0.2 总结论未完成。
-2. [ ] 修复 repository identity gate 与 P3 context/citation 对齐，使“实际召回”和“实际使用”都可由原生审计链验证。
+2. [x] **修复 repository identity gate 与 P3 context/citation 对齐**（2026-07-21 仪器修复）：`resolveRepositoryIdentity` 可从 goal/hardConstraints 等 hints 恢复 SWE `owner__repo-N` 身份，不再在 `task_*` 下误用仪器仓 cwd；context assembly 把 `hardConstraints` 与 repository hints 传入召回；SWE producer 显式传 `instance.repo`。P3 citation 对缺失同 ordinal context 的后续 assistant message **向前沿用最近一次注入 allowlist**，使末条 `[[used_recall:]]` 可记入 `used_recall_ids`。回归：`repository-identity` / `citation` / `recall-router` / `context-assembly` / `recall-citation.eval`。不回改 v0.2 冻结条款，不重跑正式题。
 3. [ ] 若另开后续实验，把轮次、agent/producer 时长、等价成本预注册为正式 outcome，并增加同题重复；不得回改 v0.2 冻结条款或用事后阈值包装现有单次轨迹。

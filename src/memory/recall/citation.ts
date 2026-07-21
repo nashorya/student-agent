@@ -28,9 +28,18 @@ export function buildRecallCitationAudit(input: {
   contexts: RecallCitationContext[];
 }): { cleanedMessages: string[]; audit: RecallCitationAudit } {
   const events: RecallCitationEvent[] = [];
+  let lastContext: RecallCitationContext | undefined;
+  let lastContextIndex: number | null = null;
   const cleanedMessages = input.messages.map((message, index) => {
+    if (input.contexts[index]) {
+      lastContext = input.contexts[index];
+      lastContextIndex = index;
+    }
+    const context = input.contexts[index] ?? lastContext;
+    const contextTraceIndex = input.contexts[index]
+      ? index
+      : (context ? lastContextIndex : null);
     const citedIds = unique([...message.matchAll(USED_RECALL_MARKER_RE)].map((match) => match[1]));
-    const context = input.contexts[index];
     const injectedIds = context
       ? unique(context.items.filter(isCitableRecallItem).map((item) => item.id))
       : [];
@@ -40,7 +49,7 @@ export function buildRecallCitationAudit(input: {
     if (citedIds.length > 0 || !context) {
       events.push({
         message_index: index,
-        context_trace_index: context ? index : null,
+        context_trace_index: contextTraceIndex,
         injected_ids: injectedIds,
         cited_ids: citedIds,
         used_ids: usedIds,

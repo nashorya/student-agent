@@ -67,4 +67,26 @@ describe('buildRecallCitationAudit', () => {
     expect(result.audit.citation_events[0].alignment_status).toBe('unmatched');
     expect(result.audit.utilization_rate).toBe(0);
   });
+
+  it('carries the latest context allowlist forward across later assistant messages', () => {
+    const result = buildRecallCitationAudit({
+      messages: [
+        'Planning the edit',
+        'Applying the recalled fix. [[used_recall:knack_1]]',
+      ],
+      contexts: [
+        { items: [{ id: 'knack_1', kind: 'knack' }] },
+      ],
+    });
+
+    expect(result.audit.used_recall_ids).toEqual(['knack_1']);
+    expect(result.audit.invalid_recall_ids).toEqual([]);
+    expect(result.audit.citation_events).toContainEqual(expect.objectContaining({
+      message_index: 1,
+      context_trace_index: 0,
+      used_ids: ['knack_1'],
+      alignment_status: 'matched',
+    }));
+    expect(result.audit.utilization_rate).toBe(1);
+  });
 });

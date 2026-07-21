@@ -364,6 +364,70 @@ describe('createContextAssemblyHook', () => {
     expect(prompt).toContain('Prefer concise Chinese answers');
     expect(prompt).not.toContain('Context Assembly');
   });
+
+  it('recalls schema-v1 knacks for SWE runs seeded with internal task_* ids', async () => {
+    const knackId = 'knack-astropy-astropy-cd70659d7b27';
+    await writeFile(join(tmpDir, 'knacks.jsonl'), `${JSON.stringify({
+      id: knackId,
+      lessonCandidateId: 'lesson_14995',
+      status: 'validated',
+      summary: 'In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask',
+      trigger: { signalKinds: [], paths: [], toolNames: [] },
+      recall: {
+        trigger: { signalKinds: [], paths: [], toolNames: [] },
+        applicableWhen: ['NDDataRef mask propagation fails'],
+        doNotApplyWhen: [],
+        tags: ['astropy'],
+      },
+      evidenceRefs: [],
+      counterexamples: [],
+      allowPromptInjection: true,
+      writesHardToolRule: false,
+      breakerReport: null,
+      repo: 'astropy/astropy',
+      symptom: 'NDDataRef mask propagation fails when one operand has no mask',
+      fixSummary: 'In _arithmetic_mask add elif operand.mask is None: return deepcopy(self.mask)',
+      reuseCount: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })}\n`, 'utf8');
+
+    await TasksManager.getInstance(tmpDir).createTask(
+      'Eval task: SWE-bench astropy__astropy-14995',
+      ['Execute eval task astropy__astropy-14995'],
+      {
+        workflowStatus: 'executing',
+        workingMemory: {
+          goal: 'Eval task: SWE-bench astropy__astropy-14995',
+          hardConstraints: [
+            'Resolve this SWE-bench issue in the current repository.',
+            'Instance: astropy__astropy-14995',
+            'NDDataRef mask propagation fails when one of the operand does not have a mask',
+          ].join('\n'),
+          phase: 'executing',
+          currentStep: 'Execute eval task astropy__astropy-14995',
+        },
+      },
+    );
+
+    const hook = createContextAssemblyHook({
+      memoryDir: tmpDir,
+      useNewPipeline: true,
+      runMode: 'eval',
+      recallKinds: ['knack'],
+      includeHistoricalTaskSnapshots: false,
+    });
+    const prompt = await hook();
+
+    expect(prompt).toContain(`[recall:${knackId}]`);
+    expect(hook.contextAssemblyTraces[0]?.recall?.items).toContainEqual(expect.objectContaining({
+      id: knackId,
+      kind: 'knack',
+    }));
+    expect(hook.contextAssemblyTraces[0]?.recall?.diagnostics?.dropped ?? []).not.toContainEqual(
+      expect.objectContaining({ id: knackId, reason: 'knack_eligibility_failed' }),
+    );
+  });
 });
 
 async function writeProjectRules(memoryDir: string, content: string): Promise<void> {

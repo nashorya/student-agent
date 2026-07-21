@@ -1,0 +1,51 @@
+{
+  "source": "evals/results/diagnostic-knack-birth-probe-20260721/runs/14995-knack/records.json",
+  "instanceId": "astropy__astropy-14995",
+  "condition": "own-knack",
+  "knackId": "knack-astropy-astropy-cd70659d7b27",
+  "before": {
+    "used_recall_ids": [],
+    "invalid_recall_ids": [
+      "knack-astropy-astropy-cd70659d7b27"
+    ],
+    "cited_recall_ids": [
+      "knack-astropy-astropy-cd70659d7b27"
+    ],
+    "injected_recall_ids": [
+      "knack-astropy-astropy-cd70659d7b27"
+    ],
+    "citation_message_index": 17,
+    "context_trace_count": 1,
+    "message_count": 18
+  },
+  "contexts": [
+    {
+      "items": [
+        {
+          "id": "knack-astropy-astropy-cd70659d7b27",
+          "kind": "knack"
+        }
+      ]
+    }
+  ],
+  "messages": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Applying the recalled fix. [[used_recall:knack-astropy-astropy-cd70659d7b27]]"
+  ]
+}
