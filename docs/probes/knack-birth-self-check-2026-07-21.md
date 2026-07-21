@@ -40,10 +40,15 @@
 - `Hashline 重试数`：`trace.protectedEvents` 中 `source=hashline,type=stale_rejection` 的条数；用 tool error 复核但不双计。
 - 等价标价：保留 trace token 用量；本地价格字段为 0 时，按运行时记录的 GLM-5.2 公开等价单价另算并标记“等价估算”，不冒充账单实扣。
 
+## 零模型注入预检记录（仍在点火前）
+
+2026-07-21 的注入快照预检发现：现行 SWE context-runtime 给 active task 分配内部 `task_*` ID，而 knack schema-v1 的 repository ranking 从这个 ID 推断仓库，因而把真实 `repo=astropy/astropy` 与当前仪器仓库误判为不匹配；同时 recall query 只含内部任务名，不含 issue 文本。两条目标 knack 均以 `knack_eligibility_failed` 被丢弃，若直接开跑会变成“名义注入、实际空召回”。
+
+本探针测的是**已注入 knack 的机制下限**，不是 repository gate。因此跑前固定一个仅作用于临时 memory 的适配：冻结 fixture 保持完整，临时 runtime copy 只删除不会渲染进 prompt 的 `repo`、`symptom`、`fixSummary` 三个 schema-v1 排序字段；`id`、主 `summary`、准入 run、证据和其余字段不变。注入快照必须证明唯一出现预声明的 `[recall:<knack-id>]`，且其正文与 fidelity v2 主 lesson 逐字一致。这个适配不写回主库，也不用于 v0.2。
+
 ## 冻结输入证据
 
 - p1prom 官方 harness 汇总 SHA-256：`a836249ed3629d5a8db76c06c5519048dfc9bb30e5a241c6384652f059b7eb41`。
 - fidelity v2 supply report SHA-256：`11abcdff5cb246de283bf63876b329c3383d510ca770cd5a143f89c90dbfab64`。
 - `12907` base commit：`d16bfe05a744909de4b27f5875fe0d4ed41ce607`；病灶文件 `astropy/modeling/separable.py`。
 - `14995` base commit：`b16c7d12ccbc7b2d20364b89fb44285bcbfede54`；病灶文件 `astropy/nddata/mixins/ndarithmetic.py`。
-
