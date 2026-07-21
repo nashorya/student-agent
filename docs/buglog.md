@@ -18,7 +18,7 @@
   - `repository-identity`：hints 恢复 SWE `owner__repo-N`；SWE producer 传 `instance.repo`；assembly 传 hardConstraints/hints。
   - `citation`：向前沿用最近一次注入 allowlist。
   - 回归：`knack-eligibility-instrument.test.ts`（同 repo eligible / 异 repo ineligible / task_* 不误杀）；`citation-14995-replay.test.ts`（探针 fixture 回放 `[]`→`[knack-astropy-astropy-cd70659d7b27]`）。
-- **状态**：FIXED（待本分支 push/PR 后视为远端存在）
+- **状态**：FIXED（远端：`e18b22dd` @ `codex/knack-birth-probe`；PR https://github.com/nashorya/student-agent/pull/13 ；未合入 main）
 - **不改**：v0.2 冻结条款；不重跑正式 Django/SymPy 题。
 
 ---
