@@ -1,6 +1,6 @@
 # Knack 出厂自检探针（2026-07-21）
 
-状态：**跑前预声明已冻结；探针，非验证性结论**。
+状态：**探针完成；跑前预声明保持冻结；探针，非验证性结论**。
 
 本探针只回答一个机制下限问题：同一题自产、经 p1prom 官方 harness 验证且按 fidelity v2 修复保真度的 knack，能否帮助 GLM-5.2 再做该出生题。它不是 v0.2 预注册实验的一部分，不能与 v0.2 的 Django/SymPy 结果合并或替代其结论。
 
@@ -52,3 +52,26 @@
 - fidelity v2 supply report SHA-256：`11abcdff5cb246de283bf63876b329c3383d510ca770cd5a143f89c90dbfab64`。
 - `12907` base commit：`d16bfe05a744909de4b27f5875fe0d4ed41ce607`；病灶文件 `astropy/modeling/separable.py`。
 - `14995` base commit：`b16c7d12ccbc7b2d20364b89fb44285bcbfede54`；病灶文件 `astropy/nddata/mixins/ndarithmetic.py`。
+
+## 探针结果
+
+四跑均从表中 base commit 的全新干净 worktree 启动，48/48、18/18、45/45、22/22 个 provider 请求全部符合冻结采样；四个 prediction 均为非空 production-only patch，官方 harness 均判 `resolved=true`。完整 trace 留在独立的本地目录 `evals/results/diagnostic-knack-birth-probe-20260721/`，不进入 v0.2 结果目录；紧凑机器账见 `evals/distillation/knack-birth-self-check-probe-20260721.json`。
+
+| 题 / 条件 | resolved | 阶梯触发 | 定位轮数 | Hashline 重试 | agent 轮次 | agent 时长 | 等价标价 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `14995` / 无注入 | 1 | 5（L1×5） | 1 | 2 | 48 | 636.381s | ¥3.051908 |
+| `14995` / 自产 knack | 1 | 2（L1×2） | 1 | 0 | 18 | 191.286s | ¥0.966872 |
+| `12907` / 无注入 | 1 | 8（L1×6、L2×2） | 1 | 3 | 45 | 330.288s | ¥2.333512 |
+| `12907` / 自产 knack | 1 | 5（L1×4、L2×1） | 2 | 3 | 22 | 180.415s | ¥0.760520 |
+
+标价使用仓库现行 GLM-5.2 公开等价单价：未缓存输入 ¥8/M、缓存输入 ¥2/M、输出 ¥28/M。四跑合计 **¥7.112812**；按仅为汇报换算的固定 `¥7.20/USD` 约 **$0.9879**。实际走 Coding Plan 配额，不能把该等价值写成逐 run 实扣账单。
+
+### 对照预声明
+
+- **14995 主探针：命中预声明的机制下限阳性条件。** 两跑都 resolved，因此没有正确率提升空间；注入跑定位仍是第 1 轮，未优于基线，但 Hashline `2→0`、阶梯 `5→2`，轮次 `48→18`（-62.5%），时长 -69.9%，等价成本 -68.3%。预声明的“注入跑第 1 轮触达、Hashline=0”均实现。
+- **12907 阴性对照：环境弯路保留，但 Hashline 预期未实现。** 注入跑仍遇到 Astropy 源码检出无法直接 import/build 的环境失败，说明 knack 没消除环境水土不服；Hashline 为 `3→3`，没有改善。定位轮数反而 `1→2`。不过轮次 `45→22`、阶梯 `8→5`、时长 -45.4%、等价成本 -67.4%，所以“总体效率下降”不能只解释为 14995 特有的定位帮助，更像同题答案记忆普遍压缩了搜索/验证链。
+- **准确性结论是天花板，不是无效。** 两题基线已 2/2 resolved；本探针只能提供效率与弯路的方向信号，不能证明 knack 提升 resolved。
+- **操纵成立，但 uptake 埋点不成立。** 两个注入快照都只含预声明的唯一 knack，B 快照为空；模型末条消息也写出了对应 citation。但当前 P3 按 message index 对齐 context，而每个 run 只有 1 条 context trace，末条 citation 被记为 `invalid`，故 `used_recall_ids=[]`。因此本报告只声称“提示词实际暴露 + 行为差异”，不把 `used_recall` 当作摄取证据。
+- **端到端召回另有前置缺陷。** 不加临时适配时，两条 schema-v1 knack 会因 SWE active task 使用内部 `task_*` ID 而被 repository gate 误杀。本探针按跑前记录删除了临时 copy 的三个非渲染排序字段，测的是强制注入后的机制下限，不证明当前自然召回链可用。
+
+结论：**14995 按预声明出现机制下限阳性信号，但仅是诊断性、非验证性结论。** 值得继续的不是再跑同题刷 resolved，而是先修 repository identity 与 P3 context/citation 对齐，再用不直接泄露整题答案、且有重复样本的迁移探针判断效果是否稳定。

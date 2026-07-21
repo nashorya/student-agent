@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "label": "probe, non-validating conclusion",
+  "status": "complete",
+  "instrumentCommit": "3571fb5ed902eed0bf5036d34b282f229d41ab7f",
+  "report": "docs/probes/knack-birth-self-check-2026-07-21.md",
+  "localArtifactRoot": "evals/results/diagnostic-knack-birth-probe-20260721",
+  "sampling": {
+    "model": "glm-5.2",
+    "profile": "zhipu-glm-5.2",
+    "thinking": "enabled",
+    "temperature": 0,
+    "topP": 0.95,
+    "doSample": false,
+    "maxTokens": 16384
+  },
+  "dataset": {
+    "commit": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "arrowSha256": "b77fa3036c06219715a35e8088fee13b0b87bc957052546c3270caf38a325627"
+  },
+  "pricingEquivalent": {
+    "currency": "CNY",
+    "perMillionTokens": {
+      "uncachedPrompt": 8,
+      "cachedPrompt": 2,
+      "completion": 28
+    },
+    "totalCny": 7.112812,
+    "reportingUsdRateCnyPerUsd": 7.2,
+    "totalUsdAtReportingRate": 0.9879,
+    "billingNote": "Coding Plan subscription; these are public pay-as-you-go list-price equivalents, not per-run charges."
+  },
+  "runs": [
+    {
+      "instanceId": "astropy__astropy-14995",
+      "condition": "off",
+      "baseCommit": "b16c7d12ccbc7b2d20364b89fb44285bcbfede54",
+      "injectedRecallIds": [],
+      "resolved": true,
+      "patchBytes": 645,
+      "turns": 48,
+      "toolCalls": 48,
+      "durationMs": 636381,
+      "localizationRound": 1,
+      "localizationToolCall": 1,
+      "failureEscalations": {
+        "total": 5,
+        "byLevel": { "1": 5, "2": 0, "3": 0 }
+      },
+      "hashlineRetries": 2,
+      "environmentErrorTools": 2,
+      "providerUsage": {
+        "promptTokens": 1111778,
+        "cachedPromptTokens": 1065536,
+        "uncachedPromptTokens": 46242,
+        "completionTokens": 19675,
+        "reasoningTokens": 12376,
+        "listPriceEquivalentCny": 3.051908
+      },
+      "requestAudit": { "count": 48, "allSamplingCompliant": true },
+      "sha256": {
+        "records": "88a0d7643a237949643b37174217c82bd2e973579d80a3f9686528ecbccb332a",
+        "prediction": "e100f857b4b1b8a6b544acb7b300e86e1c119683dfcaec7cb4df5a9986d12d7f",
+        "injection": "d9333a065298faf1e522c175570e0b5fa05f2a7e145fa151c2291ef9bc26f19b",
+        "harnessSummary": "aa7acabb58a15685d151f577a8e2289fbfcc3367a4fed4f67ab9403b13eed5a0",
+        "harnessInstanceReport": "76fa6d30aa4953fe63195cdd7607c6b638a996686be63575a204faf8f1417f8b"
+      }
+    },
+    {
+      "instanceId": "astropy__astropy-14995",
+      "condition": "own-knack",
+      "baseCommit": "b16c7d12ccbc7b2d20364b89fb44285bcbfede54",
+      "injectedRecallIds": ["knack-astropy-astropy-cd70659d7b27"],
+      "resolved": true,
+      "patchBytes": 712,
+      "turns": 18,
+      "toolCalls": 19,
+      "durationMs": 191286,
+      "localizationRound": 1,
+      "localizationToolCall": 2,
+      "failureEscalations": {
+        "total": 2,
+        "byLevel": { "1": 2, "2": 0, "3": 0 }
+      },
+      "hashlineRetries": 0,
+      "environmentErrorTools": 2,
+      "providerUsage": {
+        "promptTokens": 317200,
+        "cachedPromptTokens": 292672,
+        "uncachedPromptTokens": 24528,
+        "completionTokens": 6618,
+        "reasoningTokens": 2239,
+        "listPriceEquivalentCny": 0.966872
+      },
+      "requestAudit": { "count": 18, "allSamplingCompliant": true },
+      "recallCitationAudit": {
+        "injected": true,
+        "cited": true,
+        "usedRecallIds": [],
+        "invalidBecauseContextAlignmentMissing": true
+      },
+      "sha256": {
+        "records": "876a5f7b3a131037fe2822a65a93f9746dcbc3b289de4991a678ccd3303d9f04",
+        "prediction": "327fd78566a950b2d8727ad1fd363f4a0f25c4b3f3b24a4a5bbf28be58f9be1b",
+        "injection": "016a4933ec915f2694038b7cd21df521c288d070d9b7f5c59314566cbe5e8e3b",
+        "harnessSummary": "aa7acabb58a15685d151f577a8e2289fbfcc3367a4fed4f67ab9403b13eed5a0",
+        "harnessInstanceReport": "76fa6d30aa4953fe63195cdd7607c6b638a996686be63575a204faf8f1417f8b"
+      }
+    },
+    {
+      "instanceId": "astropy__astropy-12907",
+      "condition": "off",
+      "baseCommit": "d16bfe05a744909de4b27f5875fe0d4ed41ce607",
+      "injectedRecallIds": [],
+      "resolved": true,
+      "patchBytes": 504,
+      "turns": 45,
+      "toolCalls": 44,
+      "durationMs": 330288,
+      "localizationRound": 1,
+      "localizationToolCall": 1,
+      "failureEscalations": {
+        "total": 8,
+        "byLevel": { "1": 6, "2": 2, "3": 0 }
+      },
+      "hashlineRetries": 3,
+      "environmentErrorTools": 2,
+      "providerUsage": {
+        "promptTokens": 830180,
+        "cachedPromptTokens": 796416,
+        "uncachedPromptTokens": 33764,
+        "completionTokens": 16806,
+        "reasoningTokens": 7806,
+        "listPriceEquivalentCny": 2.333512
+      },
+      "requestAudit": { "count": 45, "allSamplingCompliant": true },
+      "sha256": {
+        "records": "4d665d849ef47666759d0fdfd6b7ab6c9e6e64c0d1bfebbfb658bbce86af47a3",
+        "prediction": "9d8015705a1c1f97011e0f43fb1ba20724646299560a4a520e9f64cfd67dd292",
+        "injection": "4dd73a8d3df80e3547b83b8913bc8dc6960256da00b89e9b2d174bf9d9bc7464",
+        "harnessSummary": "a57c7dc5e766500bc3bf70075de209166c8fd4877c187856e0e79d7fb9ce9c4d",
+        "harnessInstanceReport": "7072e2fca4264f7933643474b2463b5646abd582425f0858f4e10edf16ddf251"
+      }
+    },
+    {
+      "instanceId": "astropy__astropy-12907",
+      "condition": "own-knack",
+      "baseCommit": "d16bfe05a744909de4b27f5875fe0d4ed41ce607",
+      "injectedRecallIds": ["knack-astropy-astropy-d1783fe64a63"],
+      "resolved": true,
+      "patchBytes": 504,
+      "turns": 22,
+      "toolCalls": 21,
+      "durationMs": 180415,
+      "localizationRound": 2,
+      "localizationToolCall": 2,
+      "failureEscalations": {
+        "total": 5,
+        "byLevel": { "1": 4, "2": 1, "3": 0 }
+      },
+      "hashlineRetries": 3,
+      "environmentErrorTools": 1,
+      "providerUsage": {
+        "promptTokens": 234959,
+        "cachedPromptTokens": 219136,
+        "uncachedPromptTokens": 15823,
+        "completionTokens": 6988,
+        "reasoningTokens": 4413,
+        "listPriceEquivalentCny": 0.76052
+      },
+      "requestAudit": { "count": 22, "allSamplingCompliant": true },
+      "recallCitationAudit": {
+        "injected": true,
+        "cited": true,
+        "usedRecallIds": [],
+        "invalidBecauseContextAlignmentMissing": true
+      },
+      "sha256": {
+        "records": "e764aeec8139caeefc6e8559b99a9e7643ff3c4bbf036cfcf464a00924773641",
+        "prediction": "9d8015705a1c1f97011e0f43fb1ba20724646299560a4a520e9f64cfd67dd292",
+        "injection": "3112b3f30f1b2a90683ac95d6e2a9d6a2962a9107edecc1a01decb30f9a6f1d4",
+        "harnessSummary": "a57c7dc5e766500bc3bf70075de209166c8fd4877c187856e0e79d7fb9ce9c4d",
+        "harnessInstanceReport": "7072e2fca4264f7933643474b2463b5646abd582425f0858f4e10edf16ddf251"
+      }
+    }
+  ],
+  "comparisons": {
+    "astropy__astropy-14995": {
+      "resolvedDelta": 0,
+      "localizationRoundDelta": 0,
+      "failureEscalationDelta": -3,
+      "hashlineRetryDelta": -2,
+      "turnReductionPercent": 62.5,
+      "durationReductionPercent": 69.9,
+      "equivalentCostReductionPercent": 68.3,
+      "predeclaredMechanismSignal": "positive"
+    },
+    "astropy__astropy-12907": {
+      "resolvedDelta": 0,
+      "localizationRoundDelta": 1,
+      "failureEscalationDelta": -3,
+      "hashlineRetryDelta": 0,
+      "turnReductionPercent": 51.1,
+      "durationReductionPercent": 45.4,
+      "equivalentCostReductionPercent": 67.4,
+      "environmentDetourPersisted": true,
+      "predeclaredNegativeControl": "partially_matched"
+    }
+  },
+  "limitations": [
+    "n=1 per condition and no accuracy headroom because both off baselines resolved",
+    "same-task knack contains the exact fix and tests a forced-injection lower bound, not transfer",
+    "temporary probe-only adapter removed three non-rendered schema-v1 ranking fields after natural recall failed repository identity gating",
+    "P3 citation alignment had one context trace but many assistant messages, so final citations were invalid and used_recall could not confirm uptake",
+    "raw result directories are intentionally separate from v0.2 and are not validation evidence"
+  ],
+  "conclusion": "14995 meets the predeclared diagnostic mechanism-signal rule through fewer Hashline retries and escalation events, but this is not a validating claim and does not show a resolved-rate lift."
+}
