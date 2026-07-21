@@ -74,4 +74,10 @@
 - **操纵成立，但 uptake 埋点不成立。** 两个注入快照都只含预声明的唯一 knack，B 快照为空；模型末条消息也写出了对应 citation。但当前 P3 按 message index 对齐 context，而每个 run 只有 1 条 context trace，末条 citation 被记为 `invalid`，故 `used_recall_ids=[]`。因此本报告只声称“提示词实际暴露 + 行为差异”，不把 `used_recall` 当作摄取证据。
 - **端到端召回另有前置缺陷。** 不加临时适配时，两条 schema-v1 knack 会因 SWE active task 使用内部 `task_*` ID 而被 repository gate 误杀。本探针按跑前记录删除了临时 copy 的三个非渲染排序字段，测的是强制注入后的机制下限，不证明当前自然召回链可用。
 
-结论：**14995 按预声明出现机制下限阳性信号，但仅是诊断性、非验证性结论。** 值得继续的不是再跑同题刷 resolved，而是先修 repository identity 与 P3 context/citation 对齐，再用不直接泄露整题答案、且有重复样本的迁移探针判断效果是否稳定。
+结论：**14995 按预声明出现机制下限阳性信号，但仅是诊断性、非验证性结论。** 值得继续的不是再跑同题刷 resolved，而是检查既有实验是否也存在“判分打平、过程效率分离”，再修召回链并用有重复样本的迁移探针判断效果是否稳定。
+
+## 后续分诊清单（2026-07-21 补记）
+
+1. [x] **先回查 v0.2 各臂的轮次、时长、等价成本和阶梯，不只看 resolved。** [补审结果](./injection-effect-v0.2-efficiency-reaudit-2026-07-21.md)：Django 的 A-L 与 B 虽然 resolved `2:2`，但阶梯 `3:6`，已满足预注册“少至少 30%”的 H1 方向支持规则；额外效率指标整体为小幅、分题异质，不能写成稳定翻案。SymPy 尚未运行，v0.2 总结论未完成。
+2. [ ] 修复 repository identity gate 与 P3 context/citation 对齐，使“实际召回”和“实际使用”都可由原生审计链验证。
+3. [ ] 若另开后续实验，把轮次、agent/producer 时长、等价成本预注册为正式 outcome，并增加同题重复；不得回改 v0.2 冻结条款或用事后阈值包装现有单次轨迹。
