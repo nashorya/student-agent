@@ -1,0 +1,58 @@
+{
+  "instance_id": "django__django-14580",
+  "base_commit": "36fa071d6ebd18a61c4d7f1b5c9d17106134bd44",
+  "source": {
+    "run_id": "run_1784559762608",
+    "task_id": "task_1784559762608",
+    "arm": "A-K",
+    "resolved": true,
+    "harness_summary_sha256": "af76f85d6118fa2370d9d4abf4a1bc73acd66406c28afe46eb5603881da507fe"
+  },
+  "knack": {
+    "id": "knack_3924ec44-3328-45cb-99d2-9b8b5588fd18",
+    "lessonCandidateId": "lesson_25e51594-ff09-438e-bd2c-40627eb964aa",
+    "status": "candidate",
+    "summary": "Symptom: Missing import statement in generated migration (NameError: name 'models' is not defined) Fix: - Before/after reproduction confirmed the generated migration now includes `from django.db import migrations, models` (previously missing `models`).",
+    "trigger": {
+      "signalKinds": [
+        "tool_error"
+      ],
+      "paths": []
+    },
+    "recall": {
+      "trigger": {
+        "signalKinds": [
+          "tool_error"
+        ],
+        "paths": []
+      },
+      "applicableWhen": [
+        "Symptom: Missing import statement in generated migration (NameError: name 'models' is not defined) Fix: - Before/after reproduction confirmed the generated migration now includes `from django.db import migrations, models` (previously missing `models`)."
+      ],
+      "doNotApplyWhen": []
+    },
+    "evidenceRefs": [
+      "distill:knack-django-django-52afc62d7128"
+    ],
+    "counterexamples": [],
+    "allowPromptInjection": true,
+    "writesHardToolRule": false,
+    "breakerReport": {
+      "id": "breaker_1784560071769_2",
+      "strategy_version": "2026-05-v0.31",
+      "confidence_level": "high",
+      "breakers_applied": [
+        "extreme-value-test",
+        "context-adversarial-test"
+      ],
+      "known_failure_context": [],
+      "unknown_risk_zones": [],
+      "recommendation": "promote",
+      "created_at": "2026-07-20T15:07:51.769Z"
+    },
+    "createdAt": "2026-07-20T15:07:51.769Z",
+    "updatedAt": "2026-07-20T15:08:40.112Z",
+    "injectedCount": 1,
+    "lastInjectedTask": "task_1784560114188"
+  }
+}

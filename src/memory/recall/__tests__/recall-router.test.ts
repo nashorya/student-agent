@@ -221,6 +221,48 @@ describe('RecallRouter', () => {
       multiplier: 0.6,
     }]);
   });
+
+  it('keeps schema-v1 knacks eligible when SWE identity is recovered from hints under task_* ids', async () => {
+    const knack = memoryItem(
+      'knack-astropy-astropy-cd70659d7b27',
+      'knack',
+      'In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask',
+    );
+    knack.payload = {
+      id: knack.id,
+      repo: 'astropy/astropy',
+      symptom: 'NDDataRef mask propagation fails when one operand has no mask',
+      fixSummary: 'In _arithmetic_mask add elif operand.mask is None: return deepcopy(self.mask)',
+      status: 'validated',
+    };
+    knack.metadata = { status: 'validated' };
+    const search = vi.fn<[(RecallQuery)], Promise<MemoryRecallResult[]>>().mockResolvedValue([
+      result(knack, { keyword: 1 }),
+    ]);
+    const router = new RecallRouter({ search });
+
+    const bundle = await router.recall(input({
+      taskId: 'task_1784388855001',
+      currentTaskId: 'task_1784388855001',
+      goal: 'Eval task: SWE-bench astropy__astropy-14995',
+      currentStep: 'Execute eval task astropy__astropy-14995',
+      hardConstraints: [
+        'Resolve this SWE-bench issue in the current repository.',
+        'Instance: astropy__astropy-14995',
+        'NDDataRef mask propagation fails when one of the operand does not have a mask',
+      ].join('\n'),
+      recentErrors: [],
+      recentSignals: [],
+      recentRawTurns: [],
+    }));
+
+    expect(bundle.knacks.map((item) => item.id)).toEqual([knack.id]);
+    expect(bundle.diagnostics.dropped).toEqual([]);
+    expect(bundle.knacks[0].ranking).toMatchObject({
+      repoMatch: true,
+      eligible: true,
+    });
+  });
 });
 
 function input(overrides: Partial<RecallRouterInput> = {}): RecallRouterInput {

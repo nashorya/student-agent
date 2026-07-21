@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "diagnostic-efficiency-reaudit",
+  "date": "2026-07-21",
+  "status": "diagnostic only; no preregistration change and no model rerun",
+  "sourceResultsDir": "evals/results/injection-experiment-v0.2/django-family1-20260720T221854-cst-proxy7897",
+  "coverage": {
+    "family": "F-DJ-MIGRATION-REFERENCE",
+    "formalRuns": 12,
+    "transferTasks": [2, 3],
+    "sympyFamilyStarted": false
+  },
+  "metricSources": {
+    "resolved": "admission.json#admission.resolved",
+    "turns": "trace.json#turnCount",
+    "agentDurationMs": "trace.json#durationMs",
+    "producerDurationMs": "records.json#records[0].durationMs",
+    "failureEscalations": "trace.json#failureEscalationEvents.length",
+    "tokenUsage": "trace.json#tokenUsage"
+  },
+  "equivalentPricingCnyPerMillionTokens": {
+    "uncachedInput": 8,
+    "cachedInput": 2,
+    "output": 28,
+    "billingNote": "Coding Plan subscription; these are public list-price equivalents, not per-run charges."
+  },
+  "runs": [
+    {"arm":"A-L","task":2,"instanceId":"django__django-14580","resolved":true,"injectedCount":3,"injectedType":"lesson","turns":16,"agentDurationMs":158878,"producerDurationMs":219334,"equivalentCostCny":0.767424,"failureEscalations":2},
+    {"arm":"A-L","task":3,"instanceId":"django__django-17087","resolved":true,"injectedCount":3,"injectedType":"lesson","turns":26,"agentDurationMs":140852,"producerDurationMs":200215,"equivalentCostCny":0.931076,"failureEscalations":1},
+    {"arm":"A-K","task":2,"instanceId":"django__django-14580","resolved":true,"injectedCount":2,"injectedType":"knack","turns":25,"agentDurationMs":205206,"producerDurationMs":252289,"equivalentCostCny":1.111536,"failureEscalations":4},
+    {"arm":"A-K","task":3,"instanceId":"django__django-17087","resolved":false,"injectedCount":3,"injectedType":"knack","turns":8,"agentDurationMs":70670,"producerDurationMs":113114,"equivalentCostCny":0.213548,"failureEscalations":4,"caveat":"empty patch; lower effort is an early unresolved exit, not an efficiency gain"},
+    {"arm":"B","task":2,"instanceId":"django__django-14580","resolved":true,"injectedCount":0,"injectedType":"none","turns":23,"agentDurationMs":190350,"producerDurationMs":226428,"equivalentCostCny":1.013280,"failureEscalations":4},
+    {"arm":"B","task":3,"instanceId":"django__django-17087","resolved":true,"injectedCount":0,"injectedType":"none","turns":22,"agentDurationMs":143789,"producerDurationMs":183031,"equivalentCostCny":0.729848,"failureEscalations":2},
+    {"arm":"C","task":2,"instanceId":"django__django-14580","resolved":true,"injectedCount":0,"injectedType":"none","turns":29,"agentDurationMs":185445,"producerDurationMs":224332,"equivalentCostCny":1.102616,"failureEscalations":3,"caveat":"C1 was unresolved, so no resident lesson was eligible yet"},
+    {"arm":"C","task":3,"instanceId":"django__django-17087","resolved":true,"injectedCount":2,"injectedType":"lesson","turns":15,"agentDurationMs":89538,"producerDurationMs":127984,"equivalentCostCny":0.438372,"failureEscalations":2}
+  ],
+  "noHistoryTask1NoiseCheck": [
+    {"arm":"A-L","resolved":true,"injectedCount":0,"turns":48,"agentDurationMs":452794,"producerDurationMs":533399,"equivalentCostCny":2.613332,"failureEscalations":6},
+    {"arm":"A-K","resolved":true,"injectedCount":0,"turns":49,"agentDurationMs":955402,"producerDurationMs":994611,"equivalentCostCny":6.449616,"failureEscalations":5},
+    {"arm":"B","resolved":true,"injectedCount":0,"turns":63,"agentDurationMs":697871,"producerDurationMs":738733,"equivalentCostCny":4.524636,"failureEscalations":9},
+    {"arm":"C","resolved":false,"injectedCount":0,"turns":16,"agentDurationMs":128249,"producerDurationMs":167884,"equivalentCostCny":0.532196,"failureEscalations":5}
+  ],
+  "transferTaskAggregates": {
+    "A-L": {"resolved":2,"turns":42,"agentDurationMs":299730,"producerDurationMs":419549,"equivalentCostCny":1.698500,"failureEscalations":3},
+    "A-K": {"resolved":1,"turns":33,"agentDurationMs":275876,"producerDurationMs":365403,"equivalentCostCny":1.325084,"failureEscalations":8,"caveat":"task 3 ended unresolved with an empty patch"},
+    "B": {"resolved":2,"turns":45,"agentDurationMs":334139,"producerDurationMs":409459,"equivalentCostCny":1.743128,"failureEscalations":6},
+    "C": {"resolved":2,"turns":44,"agentDurationMs":274983,"producerDurationMs":352316,"equivalentCostCny":1.540988,"failureEscalations":5,"caveat":"only task 3 had actual resident lesson injection"}
+  },
+  "comparisons": {
+    "A-L_vs_B": {"resolvedDelta":0,"turnDeltaPercent":-6.7,"agentDurationDeltaPercent":-10.3,"producerDurationDeltaPercent":2.5,"equivalentCostDeltaPercent":-2.6,"failureEscalationDeltaPercent":-50.0,"preregisteredH1DirectionalSupport":true},
+    "A-K_vs_B": {"resolvedDelta":-1,"failureEscalationDeltaPercent":33.3,"lowerAggregateEffortInterpretableAsBenefit":false},
+    "C_vs_A-L": {"resolvedDelta":0,"turnDeltaPercent":4.8,"agentDurationDeltaPercent":-8.3,"producerDurationDeltaPercent":-16.0,"equivalentCostDeltaPercent":-9.3,"preregisteredHigherCostConditionMet":false},
+    "C_task3_vs_B_task3": {"resolvedDelta":0,"turnDeltaPercent":-31.8,"agentDurationDeltaPercent":-37.7,"equivalentCostDeltaPercent":-39.9,"caveat":"single task, single run per arm"}
+  },
+  "interpretation": "The Django resolved comparison A-L versus B is tied, but the preregistered escalation rule directionally supports H1 (3 versus 6, a 50% reduction). Added efficiency metrics are heterogeneous by task rather than a stable across-task win. A-K shows no benefit, and its lower aggregate effort is contaminated by an unresolved early exit. The overall v0.2 conclusion remains incomplete because the SymPy family was not run."
+}

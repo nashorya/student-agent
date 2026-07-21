@@ -214,6 +214,7 @@ export function createContextRuntimeBuildMemoryPrompt(
 export async function createInjectionBuildMemoryPrompt(
   mode: StudentInjectionMode,
   memoryDir: string,
+  options: { repository?: string } = {},
 ): Promise<InjectionPromptHook> {
   const harnessGated = mode === 'lesson-recall' || mode === 'knack-recall' || mode === 'lesson-full';
   const eligibleRunIds = harnessGated ? await readEligibleInjectionRunIds(memoryDir) : undefined;
@@ -233,6 +234,7 @@ export async function createInjectionBuildMemoryPrompt(
     eligibleRunIds,
     includeHistoricalTaskSnapshots: false,
     forceTier: 'standard',
+    repository: options.repository,
     ...(isFull ? {
       fullResidentLessons: async () => {
         LessonsManager.resetInstance();

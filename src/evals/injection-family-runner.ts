@@ -43,6 +43,8 @@ export interface InjectionFamilyRunOptions {
   snapshotManifest?: string;
   keepWorktrees?: boolean;
   dryRun?: boolean;
+  /** 1-based recovery point. Earlier completed empty-patch runs are retained. */
+  resumeFromTask?: number;
 }
 
 export interface InjectionFamilyDependencies {
@@ -111,13 +113,35 @@ export async function runInjectionFamily(
     return { memoryDir, batchDir, runDirs: [] as string[] };
   }
 
-  await rm(memoryDir, { recursive: true, force: true });
-  await mkdir(memoryDir, { recursive: true });
+  const resumeFromTask = options.resumeFromTask ?? 1;
+  if (!Number.isInteger(resumeFromTask) || resumeFromTask < 1 || resumeFromTask > instanceIds.length) {
+    throw new Error(`resumeFromTask must be between 1 and ${instanceIds.length}`);
+  }
+  if (resumeFromTask === 1) {
+    await rm(memoryDir, { recursive: true, force: true });
+    await mkdir(memoryDir, { recursive: true });
+  } else {
+    await mkdir(memoryDir, { recursive: false }).catch((error) => {
+      if (!isNodeError(error) || error.code !== 'EEXIST') throw error;
+    });
+  }
   process.env.STUDENT_AGENT_PROVIDER_PROFILE = spec.sampling.profile;
   process.env.STUDENT_AGENT_EVAL_FROZEN_SAMPLING = JSON.stringify(spec.sampling);
   const produce = dependencies.produce ?? produceSweBenchPatches;
   const runDirs: string[] = [];
+  for (let index = 0; index < resumeFromTask - 1; index++) {
+    const instanceId = instanceIds[index]!;
+    const runDir = join(batchDir, `${index + 1}-${instanceId}`);
+    const record = await readPersistedRecord(runDir, instanceId);
+    if (!isContinuableEmptyPatch(record)) {
+      throw new Error(`Cannot resume past ${instanceId}: prior run is not an auditable empty patch`);
+    }
+    await finalizeEmptyPatchRun({ memoryDir, runDir, instanceId, index, record,
+      beforeInventory: index === 0 ? emptyInventory() : await buildInjectionMemoryInventory(memoryDir) });
+    runDirs.push(runDir);
+  }
   for (const [index, instanceId] of instanceIds.entries()) {
+    if (index < resumeFromTask - 1) continue;
     const instance = instanceById.get(instanceId);
     if (!instance) throw new Error(`Frozen input is missing ${instanceId}`);
     const runDir = join(batchDir, `${index + 1}-${instanceId}`);
@@ -138,6 +162,12 @@ export async function runInjectionFamily(
       throw new Error(`Missing required audit artifacts for ${instanceId}`);
     }
     await persistAgentArtifacts(runDir, memoryDir, runId, record);
+    if (isContinuableEmptyPatch(record)) {
+      await finalizeEmptyPatchRun({ memoryDir, runDir, instanceId, index, record, beforeInventory });
+      runDirs.push(runDir);
+      await writeFile(join(batchDir, 'batch.json'), JSON.stringify({ ...manifest, dryRun: false, runDirs }, null, 2));
+      continue;
+    }
     if (record.status === 'failed') throw new Error(`Run failed for ${instanceId}: ${record.errorMessage ?? 'unknown error'}`);
 
     const harness = await dependencies.score({
@@ -173,6 +203,67 @@ export async function runInjectionFamily(
   return { memoryDir, batchDir, runDirs };
 }
 
+function isContinuableEmptyPatch(record: SweBenchPatchProducerResult['records'][number]): boolean {
+  return record.status === 'failed'
+    && record.emptyPatch === true
+    && record.errorMessage === 'Agent produced an empty patch'
+    && record.trace?.status === 'success';
+}
+
+async function finalizeEmptyPatchRun(options: {
+  memoryDir: string;
+  runDir: string;
+  instanceId: string;
+  index: number;
+  record: SweBenchPatchProducerResult['records'][number];
+  beforeInventory: Awaited<ReturnType<typeof buildInjectionMemoryInventory>>;
+}): Promise<void> {
+  const runId = options.record.trace?.learningRun?.runId;
+  const taskId = options.record.trace?.learningRun?.taskId;
+  if (!runId || !taskId) throw new Error(`Missing learning identity for empty patch ${options.instanceId}`);
+  await new RunArchiveWriter({ memoryDir: options.memoryDir }).updateVerification(runId, {
+    status: 'failed', evidenceRef: join(options.runDir, 'predictions.jsonl'),
+  });
+  const admission = await recordInjectionAdmission(options.memoryDir, {
+    runId, taskId, instanceId: options.instanceId, resolved: false,
+  });
+  const eligibleRunIds = await readEligibleInjectionRunIds(options.memoryDir);
+  const knacksPromoted = await promoteHarnessEligibleLessons({
+    memoryDir: options.memoryDir, eligibleRunIds, totalTaskCount: options.index + 1,
+  });
+  const afterInventory = await buildInjectionMemoryInventory(options.memoryDir);
+  await Promise.all([
+    writeFile(join(options.runDir, 'admission.json'), JSON.stringify({
+      admission,
+      harness: null,
+      harnessSkipped: { reason: 'empty_patch_counted_unresolved', resolved: false },
+      distillation: { distilled: [], admitted: [], promoted: 0,
+        skipped: [{ instanceId: options.instanceId, reason: 'empty_patch_not_admitted' }] },
+      knacksPromoted,
+    }, null, 2)),
+    writeFile(join(options.runDir, 'memory-inventory.json'), JSON.stringify({
+      before: options.beforeInventory, after: afterInventory,
+    }, null, 2)),
+  ]);
+}
+
+async function readPersistedRecord(
+  runDir: string,
+  instanceId: string,
+): Promise<SweBenchPatchProducerResult['records'][number]> {
+  const parsed = JSON.parse(await readFile(join(runDir, 'records.json'), 'utf8')) as SweBenchPatchProducerResult;
+  const record = parsed.records?.find((item) => item.instanceId === instanceId);
+  if (!record) throw new Error(`Missing persisted record for ${instanceId}`);
+  return record;
+}
+
+function emptyInventory(): Awaited<ReturnType<typeof buildInjectionMemoryInventory>> {
+  return {
+    admittedRunIds: [], rejectedRunIds: [], mainLessonIds: [], eligibleLessonIds: [],
+    ephemeralLessonIds: [], knackIds: [], eligibleKnackIds: [],
+  };
+}
+
 function parseFamilies(text: string): Record<string, string[]> {
   const appendix = text.split('## 附录 A')[1] ?? '';
   const families: Record<string, string[]> = {};
@@ -201,3 +292,7 @@ async function currentCommit(): Promise<string> {
 }
 
 function safeRunId(value: string): string { return value.replace(/[^A-Za-z0-9_.-]+/gu, '-').slice(0, 180); }
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
+}

@@ -45,6 +45,7 @@ export interface ContextAssemblyOptions {
   eligibleRunIds?: string[];
   includeHistoricalTaskSnapshots?: boolean;
   forceTier?: L1Tier;
+  repository?: string;
 }
 
 const SIGNAL_KINDS = new Set<SignalKind>([
@@ -89,6 +90,7 @@ export function createContextAssemblyHook(options: ContextAssemblyOptions): Cont
       eligibleRunIds: options.eligibleRunIds,
       includeHistoricalTaskSnapshots: options.includeHistoricalTaskSnapshots,
       forceTier: options.forceTier,
+      repository: options.repository,
     });
   };
   hook.contextAssemblyTraces = contextAssemblyTraces;
@@ -104,6 +106,7 @@ interface NewPipelineOptions {
   eligibleRunIds?: string[];
   includeHistoricalTaskSnapshots?: boolean;
   forceTier?: L1Tier;
+  repository?: string;
 }
 
 export async function newPipelineHook(
@@ -161,6 +164,14 @@ export async function newPipelineHook(
     taskId: task.id,
     currentTaskId: task.id,
     currentRunId: task.working_memory.runId,
+    repository: options.repository,
+    repositoryHints: [
+      task.name,
+      task.working_memory.goal,
+      task.working_memory.currentStep,
+      task.working_memory.hardConstraints,
+    ],
+    hardConstraints: task.working_memory.hardConstraints,
     excludeTaskIds: [task.id],
     excludeRunIds: [task.working_memory.runId],
     tier: tierDecision.tier,

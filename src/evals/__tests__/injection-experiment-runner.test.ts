@@ -161,6 +161,39 @@ describe('injection experiment v0.2 runner', () => {
       '1-django__django-12125', 'events.jsonl'), 'utf8')).toContain('tool_error');
   });
 
+  it('counts a clean agent empty patch as unresolved and continues without scoring it', async () => {
+    const root = await fixtureRoot();
+    const memoryDir = join(root, 'memory', 'A-L', 'F-DJ-MIGRATION-REFERENCE');
+    let call = 0;
+    const produce = vi.fn(async () => {
+      call += 1;
+      const runId = `empty_or_run_${call}`;
+      const taskId = `task_${call}`;
+      await mkdir(join(memoryDir, 'runs', runId), { recursive: true });
+      await writeFile(join(memoryDir, 'runs', runId, 'events.jsonl'), '{"kind":"tool_call"}\n');
+      return { records: [{
+        status: call === 1 ? 'failed' : 'success',
+        emptyPatch: call === 1,
+        ...(call === 1 ? { errorMessage: 'Agent produced an empty patch' } : {}),
+        injectionSnapshot: '',
+        trace: { status: 'success', learningRun: { runId, taskId }, failureEscalationEvents: [] },
+      }] };
+    });
+    const score = vi.fn(async () => ({ resolved: false, summaryPath: 'summary', instanceReportPath: 'report',
+      summary: { resolved_ids: [], unresolved_ids: ['x'] } }));
+
+    const result = await runInjectionFamily(runOptions(root, await frozenPrereg(root)), {
+      produce: produce as never, score,
+    });
+
+    expect(produce).toHaveBeenCalledTimes(3);
+    expect(score).toHaveBeenCalledTimes(2);
+    const first = JSON.parse(await readFile(join(result.runDirs[0]!, 'admission.json'), 'utf8'));
+    expect(first.admission.resolved).toBe(false);
+    expect(first.harness).toBeNull();
+    expect(first.harnessSkipped.reason).toBe('empty_patch_counted_unresolved');
+  });
+
   async function fixtureRoot(): Promise<string> {
     const root = await mkdtemp(join(tmpdir(), 'injection-v02-runner-'));
     roots.push(root);

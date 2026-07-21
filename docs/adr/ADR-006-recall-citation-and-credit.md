@@ -32,6 +32,14 @@ collector 按 assistant message 解析 marker，并与同 ordinal context trace 
 knack ID 对账。未知 ID、非 knack ID、无匹配 trace 的 citation 均标 invalid，永不 credit。
 marker 从最终用户输出中清除。
 
+> **状态注 · context allowlist 向前沿用（2026-07-21，不改上文原文）**
+>
+> 实测 SWE/eval 多轮 run 常只有 1 条 context assembly，而 citation 出现在末条
+> assistant message。同 ordinal 严格对齐会把合法 citation 标为 unmatched。
+> 实现改为：若 message `i` 无独立 context，则沿用最近一次 `j < i` 的注入
+> allowlist，并在 `citation_events.context_trace_index` 记录来源 j；整段无
+> context 时仍 fail-closed。lesson 与 knack 均属可引用 kind（v0.2 四臂）。
+
 ### Audit artifact
 
 run-level `recallAudit` 包含：

@@ -11,4 +11,22 @@ describe('repository identity', () => {
     expect(resolveRepositoryIdentity({ taskId: 'astropy__astropy-12907' })).toBe('astropy/astropy');
     expect(resolveRepositoryIdentity({ taskId: 'scikit-learn__scikit-learn-1234' })).toBe('scikit-learn/scikit-learn');
   });
+
+  it('recovers SWE-bench identity from hints when the active task id is internal', () => {
+    expect(resolveRepositoryIdentity({
+      taskId: 'task_1784388855001',
+      hints: [
+        'Eval task: SWE-bench astropy__astropy-14995',
+        'Instance: astropy__astropy-14995\n\nNDDataRef mask propagation fails',
+      ],
+      cwd: '/Users/dev/student-agent-injection-instrument',
+    })).toBe('astropy/astropy');
+  });
+
+  it('does not invent a repository from bare task_* ids', () => {
+    expect(resolveRepositoryIdentity({
+      taskId: 'task_1784388855001',
+      cwd: '/tmp/workspaces/owner/my-repo',
+    })).toBe('owner/my-repo');
+  });
 });

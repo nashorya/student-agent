@@ -363,6 +363,7 @@ async function runSweBenchInstance(options: {
         task,
         instruction,
         injectionMode: options.studentInjectionMode,
+        repository: options.instance.repo,
       });
       trace = await runStudentAgentEval({
         task,
@@ -471,6 +472,7 @@ export async function resolveSweBenchStudentContext(options: {
   memoryDir: string;
   task: EvalTaskDefinition;
   instruction: string;
+  repository?: string;
 }): Promise<{
   memoryDir: string;
   buildMemoryPrompt: InjectionPromptHook;
@@ -481,7 +483,9 @@ export async function resolveSweBenchStudentContext(options: {
     instruction: options.instruction,
   });
   const mode = options.injectionMode ?? (options.variant === 'plain' ? 'off' : 'recall');
-  const buildMemoryPrompt = await createInjectionBuildMemoryPrompt(mode, options.memoryDir);
+  const buildMemoryPrompt = await createInjectionBuildMemoryPrompt(mode, options.memoryDir, {
+    repository: options.repository,
+  });
   return {
     memoryDir: options.memoryDir,
     buildMemoryPrompt,

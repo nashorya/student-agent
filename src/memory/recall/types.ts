@@ -62,6 +62,8 @@ export interface RecallRouterInput {
   currentTaskId?: string;
   currentRunId?: string;
   repository?: string;
+  repositoryHints?: Array<string | undefined | null>;
+  hardConstraints?: string;
   excludeRunIds?: string[];
   excludeTaskIds?: string[];
   tier?: L1Tier;
