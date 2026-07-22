@@ -1,0 +1,50 @@
+{
+  "version": "v0.2",
+  "instrumentCommit": "b79a90f8c4fe1b9dd7b65000c4b9f58f292285c9",
+  "familyId": "F-SY-UNIT-EQUIVALENCE",
+  "arm": "A-L",
+  "variant": "context_runtime",
+  "injectionMode": "lesson-recall",
+  "memoryDir": "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/memory/A-L/F-SY-UNIT-EQUIVALENCE",
+  "instances": [
+    "sympy__sympy-20442",
+    "sympy__sympy-24066",
+    "sympy__sympy-24213"
+  ],
+  "frozen": true,
+  "sampling": {
+    "model": "glm-5.2",
+    "profile": "zhipu-glm-5.2",
+    "thinking": "enabled",
+    "temperature": 0,
+    "topP": 0.95,
+    "maxTokens": 16384
+  },
+  "dataset": {
+    "commit": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "arrowSha256": "b77fa3036c06219715a35e8088fee13b0b87bc957052546c3270caf38a325627"
+  },
+  "families": {
+    "F-DJ-MIGRATION-REFERENCE": [
+      "django__django-12125",
+      "django__django-14580",
+      "django__django-17087"
+    ],
+    "F-SY-UNIT-EQUIVALENCE": [
+      "sympy__sympy-20442",
+      "sympy__sympy-24066",
+      "sympy__sympy-24213"
+    ],
+    "F-DJ-SELECT-MASK": [
+      "django__django-14667",
+      "django__django-15814",
+      "django__django-16910"
+    ]
+  },
+  "dryRun": false,
+  "runDirs": [
+    "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/A-L/F-SY-UNIT-EQUIVALENCE/1-sympy__sympy-20442",
+    "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/A-L/F-SY-UNIT-EQUIVALENCE/2-sympy__sympy-24066",
+    "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/A-L/F-SY-UNIT-EQUIVALENCE/3-sympy__sympy-24213"
+  ]
+}

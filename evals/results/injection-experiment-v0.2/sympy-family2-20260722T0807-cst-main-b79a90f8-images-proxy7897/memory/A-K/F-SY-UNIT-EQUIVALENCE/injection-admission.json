@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "runId": "run_1784679410216",
+      "taskId": "task_1784679410216",
+      "instanceId": "sympy__sympy-20442",
+      "resolved": true,
+      "recordedAt": "2026-07-22T00:21:57.834Z"
+    },
+    {
+      "runId": "run_1784679720475",
+      "taskId": "task_1784679720475",
+      "instanceId": "sympy__sympy-24066",
+      "resolved": true,
+      "recordedAt": "2026-07-22T00:28:39.191Z"
+    },
+    {
+      "runId": "run_1784680121204",
+      "taskId": "task_1784680121204",
+      "instanceId": "sympy__sympy-24213",
+      "resolved": true,
+      "recordedAt": "2026-07-22T00:32:18.953Z"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-22T00:28:41.214Z",
+  "entries": [
+    {
+      "id": "knack_7d08bed6-561f-46f3-951d-b726f773f360",
+      "kind": "knack",
+      "summary": "Symptom: convert_to seems to combine orthogonal units Fix: - Doctests for `sympy.physics.units.util` pass.",
+      "sourcePath": "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/memory/A-K/F-SY-UNIT-EQUIVALENCE/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": []
+        },
+        "applicableWhen": [
+          "Symptom: convert_to seems to combine orthogonal units Fix: - Doctests for `sympy.physics.units.util` pass."
+        ],
+        "doNotApplyWhen": []
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-07-22T00:28:39.201Z",
+        "updatedAt": "2026-07-22T00:28:39.201Z",
+        "evidenceRefs": [
+          "distill:knack-sympy-sympy-8bfe8bca702e"
+        ]
+      }
+    },
+    {
+      "id": "knack_70f818d7-a4ed-4384-a70b-5224e2966e8c",
+      "kind": "knack",
+      "summary": "Symptom: SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless Fix: ## Fix Changed one line in the `Function` case to normalize dimensionless argument dimensions to `Dimension(1)`, using the same `is_dimensionless()` check pattern already used in the `Pow` case: ```python # Before: *(d[1] for d in fds) # After: *(Dimension(1) if self.get_dimension_system().",
+      "sourcePath": "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/memory/A-K/F-SY-UNIT-EQUIVALENCE/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": []
+        },
+        "applicableWhen": [
+          "Symptom: SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless Fix: ## Fix Changed one line in the `Function` case to normalize dimensionless argument dimensions to `Dimension(1)`, using the same `is_dimensionless()` check pattern already used in the `Pow` case: ```python # Before: *(d[1] for d in fds) # After: *(Dimension(1) if self.get_dimension_system()."
+        ],
+        "doNotApplyWhen": []
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-07-22T00:28:39.202Z",
+        "updatedAt": "2026-07-22T00:28:39.202Z",
+        "evidenceRefs": [
+          "distill:knack-sympy-sympy-c59425446eb0"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "admission": {
+    "runId": "run_1784679720475",
+    "taskId": "task_1784679720475",
+    "instanceId": "sympy__sympy-24066",
+    "resolved": true,
+    "recordedAt": "2026-07-22T00:28:39.191Z"
+  },
+  "harness": {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 1,
+    "unresolved_instances": 0,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "completed_ids": [
+      "sympy__sympy-24066"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [],
+    "submitted_ids": [
+      "sympy__sympy-24066"
+    ],
+    "resolved_ids": [
+      "sympy__sympy-24066"
+    ],
+    "unresolved_ids": [],
+    "error_ids": [],
+    "schema_version": 2
+  },
+  "distillation": {
+    "distilled": [
+      {
+        "id": "knack-sympy-sympy-c59425446eb0",
+        "dedup_key": "sympy-sympy:034dd71b568b",
+        "repo": "sympy/sympy",
+        "symptom": "SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless",
+        "fix_summary": "## Fix Changed one line in the `Function` case to normalize dimensionless argument dimensions to `Dimension(1)`, using the same `is_dimensionless()` check pattern already used in the `Pow` case: ```python # Before: *(d[1] for d in fds) # After: *(Dimension(1) if self.get_dimension_system().",
+        "verified_fix": "Tool sequence: read -> edit -> bash -> apply_patch -> read -> bash -> bash -> bash -> bash -> bash -> bash -> bash -> bash. I'll start by locating the relevant code for `_collect_factor_and_dimension`.Let me read the relevant method in `unitsystem.py`.Now let me look at the test file to understand expected behavior.Let me understand the dimension checking system better.Let me reproduce the issue first.Let me check if there's an existing test for this issue and look at the full `_collect_factor_and_dimension` method more carefully.Now I understand the bug. Let me trace through the issue: 1. `exp(expr)` where `expr` has dimension `Dimension(time/(capacitance*impedance))` (which IS dimensionless) 2. The `Function` ca…",
+        "evidence_task": "sympy__sympy-24066",
+        "evidence_turns": [
+          12,
+          28
+        ],
+        "compression_level": "knack",
+        "confidence": "verified",
+        "reuse_count": 0,
+        "injected_count": 0,
+        "last_succeeded_task": null,
+        "last_injected_task": null,
+        "unit_test": "Verified by verifier reward=1."
+      }
+    ],
+    "admitted": [
+      {
+        "lessonId": "lesson_cdb76cd6-ba60-43b9-aed2-b83b12c008c1",
+        "instanceId": "sympy__sympy-24066",
+        "runId": "run_1784679720475",
+        "confidence": "candidate"
+      }
+    ],
+    "promoted": 1,
+    "skipped": []
+  },
+  "knacksPromoted": 2
+}

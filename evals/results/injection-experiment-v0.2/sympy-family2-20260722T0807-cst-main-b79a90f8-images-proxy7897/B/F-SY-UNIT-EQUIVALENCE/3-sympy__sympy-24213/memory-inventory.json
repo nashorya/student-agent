@@ -1,0 +1,45 @@
+{
+  "before": {
+    "admittedRunIds": [
+      "run_1784680381910",
+      "run_1784680541110"
+    ],
+    "rejectedRunIds": [],
+    "mainLessonIds": [
+      "lesson_8048563c-77ef-4658-b630-414335e5855f"
+    ],
+    "eligibleLessonIds": [
+      "lesson_8048563c-77ef-4658-b630-414335e5855f"
+    ],
+    "ephemeralLessonIds": [
+      "lesson_0d026a9c-56e8-4139-8e70-d7d1daf6b1bb",
+      "lesson_10c5b5a5-e789-472e-aee5-34c0ca517e59",
+      "lesson_6516cb57-c00b-4429-a554-5e5bb2ad2e26",
+      "lesson_c3fa1355-8a11-4c32-8ce0-f81fa9f901fc"
+    ],
+    "knackIds": [],
+    "eligibleKnackIds": []
+  },
+  "after": {
+    "admittedRunIds": [
+      "run_1784680381910",
+      "run_1784680541110",
+      "run_1784680748883"
+    ],
+    "rejectedRunIds": [],
+    "mainLessonIds": [
+      "lesson_8048563c-77ef-4658-b630-414335e5855f"
+    ],
+    "eligibleLessonIds": [
+      "lesson_8048563c-77ef-4658-b630-414335e5855f"
+    ],
+    "ephemeralLessonIds": [
+      "lesson_0d026a9c-56e8-4139-8e70-d7d1daf6b1bb",
+      "lesson_10c5b5a5-e789-472e-aee5-34c0ca517e59",
+      "lesson_6516cb57-c00b-4429-a554-5e5bb2ad2e26",
+      "lesson_c3fa1355-8a11-4c32-8ce0-f81fa9f901fc"
+    ],
+    "knackIds": [],
+    "eligibleKnackIds": []
+  }
+}

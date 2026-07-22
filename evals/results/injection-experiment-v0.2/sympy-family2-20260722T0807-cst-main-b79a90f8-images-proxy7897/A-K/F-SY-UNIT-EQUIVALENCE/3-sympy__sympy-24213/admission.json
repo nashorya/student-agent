@@ -1,0 +1,67 @@
+{
+  "admission": {
+    "runId": "run_1784680121204",
+    "taskId": "task_1784680121204",
+    "instanceId": "sympy__sympy-24213",
+    "resolved": true,
+    "recordedAt": "2026-07-22T00:32:18.953Z"
+  },
+  "harness": {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 1,
+    "unresolved_instances": 0,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "completed_ids": [
+      "sympy__sympy-24213"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [],
+    "submitted_ids": [
+      "sympy__sympy-24213"
+    ],
+    "resolved_ids": [
+      "sympy__sympy-24213"
+    ],
+    "unresolved_ids": [],
+    "error_ids": [],
+    "schema_version": 2
+  },
+  "distillation": {
+    "distilled": [
+      {
+        "id": "knack-sympy-sympy-0cf5d78b86db",
+        "dedup_key": "sympy-sympy:fdd162103aca",
+        "repo": "sympy/sympy",
+        "symptom": "collect_factor_and_dimension does not detect equivalent dimensions in addition",
+        "fix_summary": "## Changed file - `sympy/physics/units/unitsystem.py` — single 2-line change in the `Add` case of `_collect_factor_and_dimension`.",
+        "verified_fix": "Tool sequence: bash -> search_files -> read -> read -> edit -> read -> edit -> bash -> apply_patch -> bash -> bash -> read -> edit -> bash -> bash -> bash -> bash -> bash -> bash -> bash -> bash. I'll start by locating and reading the relevant file to understand the issue.Now I understand the issue. In the `Add` case, the comparison `dim != addend_dim` does a direct structural comparison, but `Dimension(velocity)` and `Dimension(acceleration*time)` are equivalent yet structurally different. Let me investigate the Dimension system to find the right way to check equivalence.The `equivalent_dims` method is exactly what's needed. Let me verify the `get_dimension_system` method exists and reproduce the issue first.Confirmed the issue. Now let me verify `equivalent_dims` works for these two…",
+        "evidence_task": "sympy__sympy-24213",
+        "evidence_turns": [
+          8,
+          35
+        ],
+        "compression_level": "knack",
+        "confidence": "verified",
+        "reuse_count": 0,
+        "injected_count": 0,
+        "last_succeeded_task": null,
+        "last_injected_task": null,
+        "unit_test": "Verified by verifier reward=1."
+      }
+    ],
+    "admitted": [
+      {
+        "lessonId": "lesson_93d10978-26a4-482f-a6c5-eabc68c66305",
+        "instanceId": "sympy__sympy-24213",
+        "runId": "run_1784680121204",
+        "confidence": "candidate"
+      }
+    ],
+    "promoted": 1,
+    "skipped": []
+  },
+  "knacksPromoted": 3
+}

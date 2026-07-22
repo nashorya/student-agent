@@ -1,0 +1,59 @@
+2026-07-22 08:09:50,068 - INFO - Creating container for sympy__sympy-20442...
+2026-07-22 08:09:50,096 - INFO - Container for sympy__sympy-20442 created: 8019bf76976ecb2e239bc7913708d67d6536a174f975d3e0fe7e71499ace6070
+2026-07-22 08:09:50,188 - INFO - Container for sympy__sympy-20442 started: 8019bf76976ecb2e239bc7913708d67d6536a174f975d3e0fe7e71499ace6070
+2026-07-22 08:09:50,188 - INFO - Intermediate patch for sympy__sympy-20442 written to logs/run_evaluation/F-SY-UNIT-EQUIVALENCE-A-L-1-sympy__sympy-20442/glm-5.2/sympy__sympy-20442/patch.diff, now applying to container...
+2026-07-22 08:09:50,373 - INFO - >>>>> Applied Patch:
+Checking patch sympy/physics/units/util.py...
+Applied patch sympy/physics/units/util.py cleanly.
+
+2026-07-22 08:09:50,792 - INFO - Git diff before:
+diff --git a/sympy/physics/units/util.py b/sympy/physics/units/util.py
+index b03ed4cd88..c82606bb74 100644
+--- a/sympy/physics/units/util.py
++++ b/sympy/physics/units/util.py
+@@ -31,6 +31,17 @@ def _get_conversion_matrix_for_expr(expr, target_units, unit_system):
+     exprmat = Matrix([dim_dependencies.get(k, 0) for k in canon_dim_units])
+ 
+     res_exponents = camat.solve_least_squares(exprmat, method=None)
++
++    # Any possible solution should be represented in base dimensions.
++    # This means that if we are solving a least squares problem to find
++    # the target unit exponents, the matrix times the exponents should
++    # be exactly the base dimension representation of the original
++    # expression. If this is not the case, there is no exact conversion
++    # to the target units and the original expression should be returned
++    # unchanged.
++    if camat*res_exponents != exprmat:
++        return None
++
+     return res_exponents
+2026-07-22 08:09:50,793 - INFO - Eval script for sympy__sympy-20442 written to logs/run_evaluation/F-SY-UNIT-EQUIVALENCE-A-L-1-sympy__sympy-20442/glm-5.2/sympy__sympy-20442/eval.sh; copying to container...
+2026-07-22 08:09:57,374 - INFO - Test runtime: 6.51 seconds
+2026-07-22 08:09:57,374 - INFO - Test output for sympy__sympy-20442 written to logs/run_evaluation/F-SY-UNIT-EQUIVALENCE-A-L-1-sympy__sympy-20442/glm-5.2/sympy__sympy-20442/test_output.txt
+2026-07-22 08:09:57,462 - INFO - Git diff after:
+diff --git a/sympy/physics/units/util.py b/sympy/physics/units/util.py
+index b03ed4cd88..c82606bb74 100644
+--- a/sympy/physics/units/util.py
++++ b/sympy/physics/units/util.py
+@@ -31,6 +31,17 @@ def _get_conversion_matrix_for_expr(expr, target_units, unit_system):
+     exprmat = Matrix([dim_dependencies.get(k, 0) for k in canon_dim_units])
+ 
+     res_exponents = camat.solve_least_squares(exprmat, method=None)
++
++    # Any possible solution should be represented in base dimensions.
++    # This means that if we are solving a least squares problem to find
++    # the target unit exponents, the matrix times the exponents should
++    # be exactly the base dimension representation of the original
++    # expression. If this is not the case, there is no exact conversion
++    # to the target units and the original expression should be returned
++    # unchanged.
++    if camat*res_exponents != exprmat:
++        return None
++
+     return res_exponents
+2026-07-22 08:09:57,462 - INFO - Grading answer for sympy__sympy-20442...
+2026-07-22 08:09:57,462 - INFO - report: {'sympy__sympy-20442': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['test_convert_to'], 'failure': []}, 'PASS_TO_PASS': {'success': ['test_str_repr', 'test_eq', 'test_Quantity_definition', 'test_abbrev', 'test_print', 'test_Quantity_eq', 'test_add_sub', 'test_quantity_abs', 'test_check_unit_consistency', 'test_mul_div', 'test_units', 'test_issue_quart', 'test_issue_5565', 'test_find_unit', 'test_Quantity_derivative', 'test_quantity_postprocessing', 'test_factor_and_dimension', 'test_dimensional_expr_of_derivative', 'test_get_dimensional_expr_with_function', 'test_binary_information', 'test_conversion_with_2_nonstandard_dimensions', 'test_eval_subs', 'test_issue_14932', 'test_issue_14547'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for sympy__sympy-20442: resolved: True
+2026-07-22 08:09:57,462 - INFO - Attempting to stop container sweb.eval.sympy__sympy-20442.F-SY-UNIT-EQUIVALENCE-A-L-1-sympy__sympy-20442...
+2026-07-22 08:10:12,585 - INFO - Attempting to remove container sweb.eval.sympy__sympy-20442.F-SY-UNIT-EQUIVALENCE-A-L-1-sympy__sympy-20442...
+2026-07-22 08:10:12,598 - INFO - Container sweb.eval.sympy__sympy-20442.F-SY-UNIT-EQUIVALENCE-A-L-1-sympy__sympy-20442 removed.

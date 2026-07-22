@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-22T00:14:28.377Z",
+  "entries": [
+    {
+      "id": "lesson_961cecc6-33c6-46ea-a4a2-7714e505df0f",
+      "kind": "lesson",
+      "summary": "Symptom: convert_to seems to combine orthogonal units Fix: to verify the solution is exact; if not, return `None` so `convert…",
+      "sourcePath": "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/memory/A-L/F-SY-UNIT-EQUIVALENCE/lessons.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": []
+        },
+        "applicableWhen": [
+          "Symptom: convert_to seems to combine orthogonal units Fix: to verify the solution is exact; if not, return `None` so `convert…"
+        ],
+        "doNotApplyWhen": [],
+        "sourceRefs": [
+          "distill:knack-sympy-sympy-a43a55ee1d3e"
+        ],
+        "updatedAt": "2026-07-22T00:14:26.670Z"
+      },
+      "metadata": {
+        "status": "promoted",
+        "taskId": "task_1784678872145",
+        "runId": "run_1784678872145",
+        "createdAt": "2026-07-22T00:10:13.218Z",
+        "updatedAt": "2026-07-22T00:14:26.670Z",
+        "evidenceRefs": [
+          "distill:knack-sympy-sympy-a43a55ee1d3e"
+        ]
+      }
+    },
+    {
+      "id": "lesson_c526c57c-92e8-48b1-b91d-7ca0205349d9",
+      "kind": "lesson",
+      "summary": "Symptom: SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless Fix: - Full `sympy/physics/units/tests/` suite: 70 passed, 1 xfailed (pre-existing).",
+      "sourcePath": "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/memory/A-L/F-SY-UNIT-EQUIVALENCE/lessons.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": []
+        },
+        "applicableWhen": [
+          "Symptom: SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless Fix: - Full `sympy/physics/units/tests/` suite: 70 passed, 1 xfailed (pre-existing)."
+        ],
+        "doNotApplyWhen": [],
+        "sourceRefs": [
+          "distill:knack-sympy-sympy-b3f248e31ec5"
+        ],
+        "updatedAt": "2026-07-22T00:14:26.671Z"
+      },
+      "metadata": {
+        "status": "promoted",
+        "taskId": "task_1784679015498",
+        "runId": "run_1784679015498",
+        "createdAt": "2026-07-22T00:14:26.669Z",
+        "updatedAt": "2026-07-22T00:14:26.671Z",
+        "evidenceRefs": [
+          "distill:knack-sympy-sympy-b3f248e31ec5"
+        ]
+      }
+    }
+  ]
+}

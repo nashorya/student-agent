@@ -1,0 +1,84 @@
+{
+  "taskId": "task_1784680541110",
+  "runId": "run_1784680541110",
+  "status": "success",
+  "userCorrectionCount": 0,
+  "toolErrorCount": 2,
+  "hashlineRejectionCount": 0,
+  "hashlineRecoveryCount": 0,
+  "repeatedToolCallCount": 6,
+  "lostnessTriggerCount": 0,
+  "finalSummary": "I'll investigate this issue. Let me first find the relevant code for `_collect_factor_and_dimension`.Let me read the full method in `unitsystem.py`:Now let me look at the test file to understand the existing test cases:Let me reproduce the bug first and run the relevant existing test:I've reproduced the bug. Now let me check the existing `exp(pH)` test case to make sure my fix doesn't break it:Let me trace the intermediate steps to fully understand the dimension flow:Now I understand the bug fully. Let me analyze:\n\n1. `exp(second/(ohm*farad))` goes through the `Function` branch, which just propagates the argument's dimension `Dimension(time/(capacitance*impedance))` without checking if it's actually dimensionless.\n2. While `is_dimensionless()` correctly identifies it as dimensionless, the `Add` branch later compares `Dimension(1) != Dimension(time/(capacitance*impedance))` literally and fails.\n\nNote: the `exp(-log(cH))` test works because sympy auto-simplifies it to `1/cH` (a `Pow`), bypassing the `Function` branch.\n\nThe fix is in the `Function` branch: when an argument's dimension is dimensionless (per `is_dimensionless`), it should be normalized to `Dimension(1)`.Let me re-read the file:The file keeps getting flagged as changed. Let me check its current state directly and use apply_patch which doesn't rely on the tag:There are two `Function` branches (lines 143 and 192). Let me read the full method:The fix needed is in `_collect_factor_and_dimension`'s `Function` branch (line 192). Note that the sibling method `get_dimensional_expr` (line 143) already handles dimensionless normalization, but `_collect_factor_and_dimension` does not. Let me use apply_patch:Now let me verify the fix works against the reproduction:The fix works. Now let me run the existing tests to make sure nothing is broken:All tests pass. Let me also run the broader units test suite to ensure no regressions:All 70 tests pass. Let me review the final diff:The fix is complete and minimal. Let me provide a summary.\n\n## Summary\n\n### Problem\n`SI._collect_factor_and_dimension()` failed to detect that an exponent was dimensionless. For an expression like `100 + exp(second/(ohm*farad))`, where `second/(ohm*farad)` is dimensionless, the method raised:\n```\nValueError: Dimension of \"exp(second/(farad*ohm))\" is Dimension(time/(capacitance*impedance)), but it should be Dimension(1)\n```\n\n### Root Cause\nThe `Function` branch of `_collect_factor_and_dimension` (in `sympy/physics/units/unitsystem.py`) blindly propagated the argument's raw dimension without checking whether it was actually dimensionless:\n\n```python\nreturn (expr.func(*(f[0] for f in fds)),\n        *(d[1] for d in fds))\n```\n\nWhile `is_dimensionless()` correctly identifies `Dimension(time/(capacitance*impedance))` as dimensionless, the literal `Dimension` object did not equal `Dimension(1)`. This caused the subsequent `Add` branch to fail its strict `dim != addend_dim` comparison when combining a dimensionless term (`100` → `Dimension(1)`) with `exp(...)`.\n\n### Fix\nNormalize dimensionless dimensions to `Dimension(1)` in the `Function` branch, mirroring logic already present in the sibling `get_dimensional_expr` method (which returns `S.One` when all argument dimensions are dimensionless):\n\n```python\nreturn (expr.func(*(f[0] for f in fds)),\n        *(Dimension(1) if self.get_dimension_system()\n          .is_dimensionless(d[1]) else d[1] for d in fds))\n```\n\n### Validation\n- The reproduction from the issue now succeeds, returning `(E + 100, Dimension(1))`.\n- All 70 tests in `sympy/physics/units/tests/` pass (including the existing `exp(-log(cH))` and `test_issue_22819` cases, which exercise dimensionless exponents via `Pow` simplification).\n\n### Changed file\n- `sympy/physics/units/unitsystem.py` (one block, 2 lines changed)",
+  "evidenceRefs": [
+    "call_83f1e31f48434c58b497fdc7",
+    "call_4c598913c81a4934b5f91266",
+    "call_4da29253206243a5bc5d6934",
+    "call_12b1a7c839334612b15c77f1",
+    "call_9da1d198368f4cdbb4ad3d3c",
+    "call_95414155a0794d7f8c5d105d",
+    "call_f14e8c45409f4ff69ed0b48e",
+    "call_1fd00b829ea746ce95ba66d4",
+    "call_cec8ee767a0e46c7a69bd0bb",
+    "call_679e3fb6abdc4134b582b98a",
+    "call_14565fcca26b41a0b7dc2e5e",
+    "call_6a8546d5084c44c5bd7dfeea",
+    "call_9aa4818a2e42403595212b49",
+    "call_72cb38528b9244bfa443af07",
+    "call_76aec313ec9a4916a24107da",
+    "call_4ce2590b815742478565d7f7"
+  ],
+  "recallAudit": {
+    "injected_recall_ids": [],
+    "cited_recall_ids": [],
+    "used_recall_ids": [],
+    "invalid_recall_ids": [],
+    "citation_events": [],
+    "utilization_rate": 0
+  },
+  "verificationStatus": "passed",
+  "wmSnapshot": {
+    "taskId": "task_1784680541110",
+    "runId": "run_1784680541110",
+    "goal": "Eval task: SWE-bench sympy__sympy-24066",
+    "phase": "executing",
+    "finalStep": "Execute eval task sympy__sympy-24066",
+    "completedTodos": [],
+    "completedTodoCount": 0,
+    "readFiles": [
+      "sympy/physics/units/unitsystem.py",
+      "sympy/physics/units/tests/test_quantities.py"
+    ],
+    "writtenFiles": [
+      "sympy/physics/units/unitsystem.py"
+    ],
+    "keyFiles": [
+      {
+        "path": "sympy/physics/units/unitsystem.py",
+        "role": "read_and_written"
+      },
+      {
+        "path": "sympy/physics/units/tests/test_quantities.py",
+        "role": "read"
+      }
+    ],
+    "keySignalSummaries": [
+      "Hashline: sympy/physics/units/unitsystem.py has changed since last read (tag 4D0A is stale, current is 7982). Re-read the file before editing.",
+      "Hashline stale rejection: sympy/physics/units/unitsystem.py",
+      "Hashline: sympy/physics/units/unitsystem.py has changed since last read (tag BF5E is stale, current is 7982). Re-read the file before editing.",
+      "Hashline stale rejection: sympy/physics/units/unitsystem.py"
+    ],
+    "errorPatterns": [
+      "Hashline: sympy/physics/units/unitsystem.py has changed since last read (tag 4D0A is stale, current ",
+      "Hashline stale rejection: sympy/physics/units/unitsystem.py",
+      "Hashline: sympy/physics/units/unitsystem.py has changed since last read (tag BF5E is stale, current is 7982). Re-read the file before editing.",
+      "Hashline: sympy/physics/units/unitsystem.py has changed since last read (tag BF5E is stale, current "
+    ],
+    "evidenceRefs": [
+      "runs/run_1784680541110/events.jsonl",
+      "runs/run_1784680541110/outcome.json"
+    ],
+    "createdAt": "2026-07-22T00:38:41.420Z"
+  },
+  "createdAt": "2026-07-22T00:38:41.421Z",
+  "verificationEvidenceRef": "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/B/F-SY-UNIT-EQUIVALENCE/2-sympy__sympy-24066/harness-instance-report.json"
+}

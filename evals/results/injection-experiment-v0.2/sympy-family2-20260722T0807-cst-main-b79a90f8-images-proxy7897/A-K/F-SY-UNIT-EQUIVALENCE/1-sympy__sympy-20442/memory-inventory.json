@@ -1,0 +1,34 @@
+{
+  "before": {
+    "admittedRunIds": [],
+    "rejectedRunIds": [],
+    "mainLessonIds": [],
+    "eligibleLessonIds": [],
+    "ephemeralLessonIds": [],
+    "knackIds": [],
+    "eligibleKnackIds": []
+  },
+  "after": {
+    "admittedRunIds": [
+      "run_1784679410216"
+    ],
+    "rejectedRunIds": [],
+    "mainLessonIds": [
+      "lesson_a38befd9-7dab-481e-bd80-2290fc3cb8a8"
+    ],
+    "eligibleLessonIds": [
+      "lesson_a38befd9-7dab-481e-bd80-2290fc3cb8a8"
+    ],
+    "ephemeralLessonIds": [
+      "lesson_3e06fb60-b6d4-46e7-b08d-fea7ff5527b6",
+      "lesson_5c75bf38-e8ca-4f37-ac33-dd188f28b70a",
+      "lesson_6080e0b2-2607-4e31-8d39-552a4494ec14",
+      "lesson_70b71fba-4856-4cdb-8b54-3ef046089bd9",
+      "lesson_78550ff8-59fa-4229-b625-7782677426e9",
+      "lesson_90091027-0f01-4dbe-99f5-8f538906391d",
+      "lesson_e493fae3-66a0-494c-895e-0e079d9dabf2"
+    ],
+    "knackIds": [],
+    "eligibleKnackIds": []
+  }
+}

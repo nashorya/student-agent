@@ -1,0 +1,22 @@
+{
+  "before": {
+    "admittedRunIds": [],
+    "rejectedRunIds": [],
+    "mainLessonIds": [],
+    "eligibleLessonIds": [],
+    "ephemeralLessonIds": [],
+    "knackIds": [],
+    "eligibleKnackIds": []
+  },
+  "after": {
+    "admittedRunIds": [
+      "run_1784680381910"
+    ],
+    "rejectedRunIds": [],
+    "mainLessonIds": [],
+    "eligibleLessonIds": [],
+    "ephemeralLessonIds": [],
+    "knackIds": [],
+    "eligibleKnackIds": []
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "entries": [
+    {
+      "id": "project_kb_88fdc236-3151-4fe7-88b7-5bf5732e7ed6",
+      "source_url": "context7:/sympy/sympy#network-unreachable",
+      "title": "/sympy/sympy / network-unreachable",
+      "content": "### Handle equations with no closed-form solution\n\nSource: https://github.com/sympy/sympy/blob/master/doc/src/guides/solving/solve-equation-algebraically.md\n\nIllustrates how SymPy raises a NotImplementedError when encountering transcendental equations that lack implemented solving algorithms.\n\n```python\nfrom sympy import cos, solve\nfrom sympy.abc import x\ntry:\n    solve(cos(x) - x, x, dict=True)\nexcept NotImplementedError as e:\n    print(e)\n```\n\n--------------------------------\n\n### Handle Unsolvable Inversion\n\nSource: https://github.com/sympy/sympy/wiki/GSoC-2019-Solvers-Progress\n\nReturns an unsolved result if the _invert_modular function fails to invert the equation.\n\n```Python\nif f_x is modterm and g_n is rhs:\n        return unsolved_result\n```\n\n--------------------------------\n\n### Handle Unsolvable Diophantine Equations\n\nSource: https://github.com/sympy/sympy/blob/master/doc/src/guides/solving/solve-diophantine-equation.md\n\nIllustrates that the diophantine function returns an empty set when no integer solutions exist for a given equation.\n\n```python\nfrom sympy.solvers.diophantine import diophantine\nfrom sympy import symbols\nx, y = symbols(\"x, y\", integer=True)\ndiophantine(2*x + 4*y - 3, syms=(x, y))\n```\n\n--------------------------------\n\n### Handling Unsolvable Equations with nsolve\n\nSource: https://github.com/sympy/sympy/blob/master/doc/src/guides/solving/solving-guidance.md\n\nDemonstrates how to handle equations that cannot be solved symbolically by using the nsolve function for numerical approximation. This is necessary when SymPy raises a NotImplementedError for complex transcendental equations.\n\n```python\nfrom sympy import nsolve, cos\nfrom sympy.abc import x\n# Solve cos(x) - x = 0 numerically starting at x=2\nresult = nsolve(cos(x) - x, x, 2)\nprint(result)\n```\n\n--------------------------------\n\n### Unification of Domains\n\nSource: https://github.com/sympy/sympy/wiki/release-notes-for-1.13.0\n\nUnification of disparate domains (e.g., GF(p) with ZZ) now results in a UnificationFailed error, rather than silently unifying to ZZ. For instance, GF(2).unify(GF(3)) will now raise this error, preventing unexpected behavior.\n\n```python\nfrom sympy.polys.domains import GF, ZZ\n\n# Previously unified to ZZ\n# ZZ.unify(GF(3))\n\n# Now raises UnificationFailed\ntry:\n    ZZ.unify(GF(3))\nexcept Exception as e:\n    print(f'Unification failed as expected: {e}')\n\ntry:\n    GF(2).unify(GF(3))\nexcept Exception as e:\n    print(f'Unification failed as expected: {e}')\n```",
+      "retrieved_at": "2026-07-22T00:29:30.796Z",
+      "version_hint": "/sympy/sympy",
+      "ttl_days": 14,
+      "trust_status": "cached"
+    }
+  ]
+}

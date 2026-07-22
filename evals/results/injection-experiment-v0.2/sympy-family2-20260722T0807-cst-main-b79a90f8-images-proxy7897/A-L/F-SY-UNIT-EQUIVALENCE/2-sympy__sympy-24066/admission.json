@@ -1,0 +1,67 @@
+{
+  "admission": {
+    "runId": "run_1784679015498",
+    "taskId": "task_1784679015498",
+    "instanceId": "sympy__sympy-24066",
+    "resolved": true,
+    "recordedAt": "2026-07-22T00:14:26.662Z"
+  },
+  "harness": {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 1,
+    "unresolved_instances": 0,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "completed_ids": [
+      "sympy__sympy-24066"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [],
+    "submitted_ids": [
+      "sympy__sympy-24066"
+    ],
+    "resolved_ids": [
+      "sympy__sympy-24066"
+    ],
+    "unresolved_ids": [],
+    "error_ids": [],
+    "schema_version": 2
+  },
+  "distillation": {
+    "distilled": [
+      {
+        "id": "knack-sympy-sympy-b3f248e31ec5",
+        "dedup_key": "sympy-sympy:034dd71b568b",
+        "repo": "sympy/sympy",
+        "symptom": "SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless",
+        "fix_summary": "- Full `sympy/physics/units/tests/` suite: 70 passed, 1 xfailed (pre-existing).",
+        "verified_fix": "Tool sequence: read -> edit -> read -> edit -> read -> bash -> apply_patch -> bash -> read -> apply_patch -> bash -> bash -> bash -> bash -> bash. The bug is confirmed. The `dim of expr` is `Dimension(time/(capacitance*impedance))` which `is_dimensionless` reports as True, but the `Function` branch passes that raw dimension through unchanged, so `Add` then fails comparing `Dimension(1)` against `Dimension(time/(capacitance*impedance))`. Let me look at the `Function` branch and the imports at the top of the file to apply a clean fix.Now I'll apply the fix to the `Function` branch so it detects when the argument(s) are dimensionless and returns `Dimension(1)` instead of passing the raw dimension through.Let me re-read the relevant section…",
+        "evidence_task": "sympy__sympy-24066",
+        "evidence_turns": [
+          6,
+          24
+        ],
+        "compression_level": "knack",
+        "confidence": "verified",
+        "reuse_count": 0,
+        "injected_count": 0,
+        "last_succeeded_task": null,
+        "last_injected_task": null,
+        "unit_test": "Verified by verifier reward=1."
+      }
+    ],
+    "admitted": [
+      {
+        "lessonId": "lesson_c526c57c-92e8-48b1-b91d-7ca0205349d9",
+        "instanceId": "sympy__sympy-24066",
+        "runId": "run_1784679015498",
+        "confidence": "candidate"
+      }
+    ],
+    "promoted": 1,
+    "skipped": []
+  },
+  "knacksPromoted": 2
+}

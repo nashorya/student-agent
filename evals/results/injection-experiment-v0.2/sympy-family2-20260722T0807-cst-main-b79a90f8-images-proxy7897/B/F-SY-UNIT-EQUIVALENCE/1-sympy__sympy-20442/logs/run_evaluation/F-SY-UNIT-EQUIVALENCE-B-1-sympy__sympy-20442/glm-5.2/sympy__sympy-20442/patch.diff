@@ -1,0 +1,21 @@
+diff --git a/sympy/physics/units/util.py b/sympy/physics/units/util.py
+index b03ed4cd88..d4b1430c3f 100644
+--- a/sympy/physics/units/util.py
++++ b/sympy/physics/units/util.py
+@@ -31,6 +31,16 @@ def _get_conversion_matrix_for_expr(expr, target_units, unit_system):
+     exprmat = Matrix([dim_dependencies.get(k, 0) for k in canon_dim_units])
+ 
+     res_exponents = camat.solve_least_squares(exprmat, method=None)
++
++    # The conversion is only valid when the solved exponents reproduce the
++    # dimension of the original expression exactly. ``solve_least_squares``
++    # returns a best-fit solution even for an over-determined, inconsistent
++    # system (e.g. converting ``joule*second`` to ``joule``), which would
++    # otherwise combine orthogonal units. Verify consistency and bail out
++    # when the target units cannot represent ``expr``.
++    if camat * res_exponents != exprmat:
++        return None
++
+     return res_exponents
+ 
+ 

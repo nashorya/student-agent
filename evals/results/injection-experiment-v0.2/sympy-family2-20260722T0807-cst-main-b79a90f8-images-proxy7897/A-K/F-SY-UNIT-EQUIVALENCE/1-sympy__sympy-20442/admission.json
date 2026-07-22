@@ -1,0 +1,67 @@
+{
+  "admission": {
+    "runId": "run_1784679410216",
+    "taskId": "task_1784679410216",
+    "instanceId": "sympy__sympy-20442",
+    "resolved": true,
+    "recordedAt": "2026-07-22T00:21:57.834Z"
+  },
+  "harness": {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 1,
+    "unresolved_instances": 0,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "completed_ids": [
+      "sympy__sympy-20442"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [],
+    "submitted_ids": [
+      "sympy__sympy-20442"
+    ],
+    "resolved_ids": [
+      "sympy__sympy-20442"
+    ],
+    "unresolved_ids": [],
+    "error_ids": [],
+    "schema_version": 2
+  },
+  "distillation": {
+    "distilled": [
+      {
+        "id": "knack-sympy-sympy-8bfe8bca702e",
+        "dedup_key": "sympy-sympy:92362fcb5923",
+        "repo": "sympy/sympy",
+        "symptom": "convert_to seems to combine orthogonal units",
+        "fix_summary": "- Doctests for `sympy.physics.units.util` pass.",
+        "verified_fix": "Tool sequence: bash -> bash -> bash -> read -> read -> edit -> read -> edit -> read -> edit -> apply_patch -> read -> bash -> bash -> bash -> bash -> bash -> bash -> bash. I've reproduced the bug. Now I understand the issue: `_get_conversion_matrix_for_expr` uses `solve_least_squares` which finds a \"best fit\" even when the target units can't exactly represent the expression's dimensions. Let me apply the fix.Let me verify the behavior of `gauss_jordan_solve` for both consistent and inconsistent systems.`gauss_jordan_solve` raises a `ValueError` for inconsistent systems. Let me check the consistent case and decide on the cleanest approach.Both approaches are viable. Let me check the existing tests to understand expected behaviors and avoid regressions.Let me che…",
+        "evidence_task": "sympy__sympy-20442",
+        "evidence_turns": [
+          8,
+          30
+        ],
+        "compression_level": "knack",
+        "confidence": "verified",
+        "reuse_count": 0,
+        "injected_count": 0,
+        "last_succeeded_task": null,
+        "last_injected_task": null,
+        "unit_test": "Verified by verifier reward=1."
+      }
+    ],
+    "admitted": [
+      {
+        "lessonId": "lesson_a38befd9-7dab-481e-bd80-2290fc3cb8a8",
+        "instanceId": "sympy__sympy-20442",
+        "runId": "run_1784679410216",
+        "confidence": "candidate"
+      }
+    ],
+    "promoted": 1,
+    "skipped": []
+  },
+  "knacksPromoted": 0
+}

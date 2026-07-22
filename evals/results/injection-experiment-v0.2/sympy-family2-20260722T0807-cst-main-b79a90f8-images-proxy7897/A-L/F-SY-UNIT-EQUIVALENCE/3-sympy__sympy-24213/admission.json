@@ -1,0 +1,67 @@
+{
+  "admission": {
+    "runId": "run_1784679268373",
+    "taskId": "task_1784679268373",
+    "instanceId": "sympy__sympy-24213",
+    "resolved": true,
+    "recordedAt": "2026-07-22T00:16:15.003Z"
+  },
+  "harness": {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 1,
+    "unresolved_instances": 0,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "completed_ids": [
+      "sympy__sympy-24213"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [],
+    "submitted_ids": [
+      "sympy__sympy-24213"
+    ],
+    "resolved_ids": [
+      "sympy__sympy-24213"
+    ],
+    "unresolved_ids": [],
+    "error_ids": [],
+    "schema_version": 2
+  },
+  "distillation": {
+    "distilled": [
+      {
+        "id": "knack-sympy-sympy-c3006c63c645",
+        "dedup_key": "sympy-sympy:fdd162103aca",
+        "repo": "sympy/sympy",
+        "symptom": "collect_factor_and_dimension does not detect equivalent dimensions in addition",
+        "fix_summary": "**Files changed:** `sympy/physics/units/unitsystem.py` (one 2-line change).",
+        "verified_fix": "Tool sequence: bash -> bash -> bash -> bash -> edit -> bash -> bash -> bash -> bash. I'll start by examining the relevant file that contains the `_collect_factor_and_dimension` method.Now let me look at the `Dimension` class to understand how dimensions work and how to check for equivalence.Now I understand the issue. In the `Add` branch of `_collect_factor_and_dimension`, dimensions are compared using strict inequality (`dim != addend_dim`), which fails to detect that `velocity` and `acceleration*time` are equivalent dimensions. The `DimensionSystem` class has an `equivalent_dims` method that properly checks equivalence by comparing dimensional dependencies. Let me first rep…",
+        "evidence_task": "sympy__sympy-24213",
+        "evidence_turns": [
+          4,
+          15
+        ],
+        "compression_level": "knack",
+        "confidence": "verified",
+        "reuse_count": 0,
+        "injected_count": 0,
+        "last_succeeded_task": null,
+        "last_injected_task": null,
+        "unit_test": "Verified by verifier reward=1."
+      }
+    ],
+    "admitted": [
+      {
+        "lessonId": "lesson_decaf096-fceb-41b0-98c2-639e1604d9bb",
+        "instanceId": "sympy__sympy-24213",
+        "runId": "run_1784679268373",
+        "confidence": "candidate"
+      }
+    ],
+    "promoted": 1,
+    "skipped": []
+  },
+  "knacksPromoted": 1
+}

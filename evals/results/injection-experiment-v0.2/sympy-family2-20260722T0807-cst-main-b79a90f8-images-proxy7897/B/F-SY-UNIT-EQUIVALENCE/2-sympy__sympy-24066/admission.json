@@ -1,0 +1,67 @@
+{
+  "admission": {
+    "runId": "run_1784680541110",
+    "taskId": "task_1784680541110",
+    "instanceId": "sympy__sympy-24066",
+    "resolved": true,
+    "recordedAt": "2026-07-22T00:39:06.765Z"
+  },
+  "harness": {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 1,
+    "unresolved_instances": 0,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "completed_ids": [
+      "sympy__sympy-24066"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [],
+    "submitted_ids": [
+      "sympy__sympy-24066"
+    ],
+    "resolved_ids": [
+      "sympy__sympy-24066"
+    ],
+    "unresolved_ids": [],
+    "error_ids": [],
+    "schema_version": 2
+  },
+  "distillation": {
+    "distilled": [
+      {
+        "id": "knack-sympy-sympy-2580ff7589c7",
+        "dedup_key": "sympy-sympy:034dd71b568b",
+        "repo": "sympy/sympy",
+        "symptom": "SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless",
+        "fix_summary": "### Changed file - `sympy/physics/units/unitsystem.py` (one block, 2 lines changed)",
+        "verified_fix": "Tool sequence: read -> edit -> bash -> read -> apply_patch -> bash -> bash -> bash -> bash. I'll investigate this issue. Let me first find the relevant code for `_collect_factor_and_dimension`.Let me read the full method in `unitsystem.py`:Now let me look at the test file to understand the existing test cases:Let me reproduce the bug first and run the relevant existing test:I've reproduced the bug. Now let me check the existing `exp(pH)` test case to make sure my fix doesn't break it:Let me trace the intermediate steps to fully understand the dimension flow:Now I understand the bug fully. Let me analyze: 1. `exp(second/(ohm*farad))` goes through the `Function` branch, which just pro…",
+        "evidence_task": "sympy__sympy-24066",
+        "evidence_turns": [
+          8,
+          18
+        ],
+        "compression_level": "knack",
+        "confidence": "verified",
+        "reuse_count": 0,
+        "injected_count": 0,
+        "last_succeeded_task": null,
+        "last_injected_task": null,
+        "unit_test": "Verified by verifier reward=1."
+      }
+    ],
+    "admitted": [
+      {
+        "lessonId": "lesson_8048563c-77ef-4658-b630-414335e5855f",
+        "instanceId": "sympy__sympy-24066",
+        "runId": "run_1784680541110",
+        "confidence": "candidate"
+      }
+    ],
+    "promoted": 1,
+    "skipped": []
+  },
+  "knacksPromoted": 0
+}
