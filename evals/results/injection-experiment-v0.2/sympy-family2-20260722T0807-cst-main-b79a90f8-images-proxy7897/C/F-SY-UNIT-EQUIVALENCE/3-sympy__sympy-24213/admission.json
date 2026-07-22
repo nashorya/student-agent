@@ -1,0 +1,67 @@
+{
+  "admission": {
+    "runId": "run_1784681844556",
+    "taskId": "task_1784681844556",
+    "instanceId": "sympy__sympy-24213",
+    "resolved": true,
+    "recordedAt": "2026-07-22T00:59:09.748Z"
+  },
+  "harness": {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 1,
+    "unresolved_instances": 0,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "completed_ids": [
+      "sympy__sympy-24213"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [],
+    "submitted_ids": [
+      "sympy__sympy-24213"
+    ],
+    "resolved_ids": [
+      "sympy__sympy-24213"
+    ],
+    "unresolved_ids": [],
+    "error_ids": [],
+    "schema_version": 2
+  },
+  "distillation": {
+    "distilled": [
+      {
+        "id": "knack-sympy-sympy-3998dc54081e",
+        "dedup_key": "sympy-sympy:fdd162103aca",
+        "repo": "sympy/sympy",
+        "symptom": "collect_factor_and_dimension does not detect equivalent dimensions in addition",
+        "fix_summary": "- Genuinely incompatible dimensions (e.g., `time + velocity`) still correctly raise `ValueError`.",
+        "verified_fix": "Tool sequence: read -> edit -> read -> edit -> apply_patch -> read -> edit -> bash -> read -> bash -> bash -> bash -> bash. I'll start by examining the file where the error occurs.Now let me look at the `Dimension` class to understand dimension comparison.I now understand the issue. In the `Add` branch of `_collect_factor_and_dimension`, the comparison `if dim != addend_dim:` uses strict equality. For `a1*t1 + v1`, the dimensions `acceleration*time` and `velocity` are physically equivalent but not literally equal as `Dimension` objects. The `DimensionSystem` class already has an `equivalent_dims` method that compares via dimensional dependencies. Let me first reproduce the issue, then apply the fix.Reproduced. Now…",
+        "evidence_task": "sympy__sympy-24213",
+        "evidence_turns": [
+          5,
+          22
+        ],
+        "compression_level": "knack",
+        "confidence": "verified",
+        "reuse_count": 0,
+        "injected_count": 0,
+        "last_succeeded_task": null,
+        "last_injected_task": null,
+        "unit_test": "Verified by verifier reward=1."
+      }
+    ],
+    "admitted": [
+      {
+        "lessonId": "lesson_818b639a-6aeb-460e-befd-aea0f5fc613a",
+        "instanceId": "sympy__sympy-24213",
+        "runId": "run_1784681844556",
+        "confidence": "candidate"
+      }
+    ],
+    "promoted": 1,
+    "skipped": []
+  },
+  "knacksPromoted": 3
+}

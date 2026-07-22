@@ -1,0 +1,44 @@
+{
+  "admission": {
+    "runId": "run_1784681440094",
+    "taskId": "task_1784681440094",
+    "instanceId": "sympy__sympy-20442",
+    "resolved": true,
+    "recordedAt": "2026-07-22T00:53:23.092Z"
+  },
+  "harness": {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 1,
+    "unresolved_instances": 0,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "completed_ids": [
+      "sympy__sympy-20442"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [],
+    "submitted_ids": [
+      "sympy__sympy-20442"
+    ],
+    "resolved_ids": [
+      "sympy__sympy-20442"
+    ],
+    "unresolved_ids": [],
+    "error_ids": [],
+    "schema_version": 2
+  },
+  "distillation": {
+    "distilled": [],
+    "admitted": [],
+    "promoted": 0,
+    "skipped": [
+      {
+        "instanceId": "sympy__sympy-20442",
+        "reason": "distill_null_with_harness"
+      }
+    ]
+  },
+  "knacksPromoted": 0
+}

@@ -1,0 +1,54 @@
+{
+  "commit": "b79a90f8c4fe1b9dd7b65000c4b9f58f292285c9",
+  "generatedAt": "2026-07-22T00:56:55.346Z",
+  "agent": "student-agent",
+  "modelNameOrPath": "glm-5.2",
+  "studentVariant": "context_runtime",
+  "studentInjectionMode": "lesson-full",
+  "studentMemoryDir": "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897/memory/C/F-SY-UNIT-EQUIVALENCE",
+  "studentLearningLifecycle": true,
+  "studentLearningTaskOffset": 1,
+  "studentDeferKnackPromotion": true,
+  "networkRoute": "proxy:127.0.0.1:7897",
+  "runtimeModel": {
+    "id": "glm-5.2",
+    "provider": "zhipu",
+    "api": "openai-completions",
+    "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+    "pricingUsdPerMillionTokens": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0
+    },
+    "thinking": {
+      "initialLevel": "off",
+      "supportsThinking": false,
+      "availableLevels": [
+        "off"
+      ],
+      "changes": []
+    }
+  },
+  "workingTreeDirty": false,
+  "dirtyPaths": [],
+  "instances": [
+    {
+      "instanceId": "sympy__sympy-24066",
+      "status": "success",
+      "costUsd": 0,
+      "inputTokens": 20641,
+      "totalTokens": 421641,
+      "turns": 23,
+      "cacheReadTokens": 385856,
+      "learning": {
+        "taskId": "task_1784681605606",
+        "runId": "run_1784681605606",
+        "patternsExtracted": 0,
+        "lessonsExtracted": 9,
+        "knacksPromoted": 0,
+        "usedRecallIds": []
+      }
+    }
+  ]
+}

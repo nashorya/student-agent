@@ -1,0 +1,67 @@
+{
+  "admission": {
+    "runId": "run_1784681605606",
+    "taskId": "task_1784681605606",
+    "instanceId": "sympy__sympy-24066",
+    "resolved": true,
+    "recordedAt": "2026-07-22T00:57:22.170Z"
+  },
+  "harness": {
+    "total_instances": 1,
+    "submitted_instances": 1,
+    "completed_instances": 1,
+    "resolved_instances": 1,
+    "unresolved_instances": 0,
+    "empty_patch_instances": 0,
+    "error_instances": 0,
+    "completed_ids": [
+      "sympy__sympy-24066"
+    ],
+    "incomplete_ids": [],
+    "empty_patch_ids": [],
+    "submitted_ids": [
+      "sympy__sympy-24066"
+    ],
+    "resolved_ids": [
+      "sympy__sympy-24066"
+    ],
+    "unresolved_ids": [],
+    "error_ids": [],
+    "schema_version": 2
+  },
+  "distillation": {
+    "distilled": [
+      {
+        "id": "knack-sympy-sympy-9b6f9576ddbb",
+        "dedup_key": "sympy-sympy:034dd71b568b",
+        "repo": "sympy/sympy",
+        "symptom": "SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless",
+        "fix_summary": "**Validation:** All 70 existing tests in `sympy/physics/units/tests/` pass, and the issue's reproduction case now correctly returns `(E + 100, Dimension(1))` without raising a `ValueError`.",
+        "verified_fix": "Tool sequence: read -> edit -> apply_patch -> read -> bash -> bash -> bash -> read -> edit -> bash -> read -> bash -> bash -> bash -> bash. I'll start by exploring the repository structure and understanding the issue.Now let me look at the test file to understand expected behavior better:Let me look at the full `get_dimensional_expr` method:Now I understand the bug. Let me look at the imports at the top of the file:Now I understand the issue. The `Function` branch in `_collect_factor_and_dimension` returns the raw dimension of the function's argument without checking if it's dimensionless. When the argument has a dimension like `Dimension(time/(capacitance*impedance))` which is dimensionless but not trivially `1`, it returns this…",
+        "evidence_task": "sympy__sympy-24066",
+        "evidence_turns": [
+          8,
+          28
+        ],
+        "compression_level": "knack",
+        "confidence": "verified",
+        "reuse_count": 0,
+        "injected_count": 0,
+        "last_succeeded_task": null,
+        "last_injected_task": null,
+        "unit_test": "Verified by verifier reward=1."
+      }
+    ],
+    "admitted": [
+      {
+        "lessonId": "lesson_e8c0d20d-a7ee-48da-83b0-ce1c826d1978",
+        "instanceId": "sympy__sympy-24066",
+        "runId": "run_1784681605606",
+        "confidence": "candidate"
+      }
+    ],
+    "promoted": 1,
+    "skipped": []
+  },
+  "knacksPromoted": 4
+}

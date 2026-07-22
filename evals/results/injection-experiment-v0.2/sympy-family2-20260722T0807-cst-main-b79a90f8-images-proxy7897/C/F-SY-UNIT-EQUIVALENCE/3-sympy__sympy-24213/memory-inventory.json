@@ -1,0 +1,99 @@
+{
+  "before": {
+    "admittedRunIds": [
+      "run_1784681440094",
+      "run_1784681605606"
+    ],
+    "rejectedRunIds": [],
+    "mainLessonIds": [
+      "lesson_3df9a626-16d6-41df-9327-8d73c591e5bc",
+      "lesson_c4ed0ca0-66d8-4de1-8bf3-43d25bf1f926",
+      "lesson_e8c0d20d-a7ee-48da-83b0-ce1c826d1978",
+      "lesson_fc525447-12a0-4982-b2ef-98a4bade8b57"
+    ],
+    "eligibleLessonIds": [
+      "lesson_3df9a626-16d6-41df-9327-8d73c591e5bc",
+      "lesson_c4ed0ca0-66d8-4de1-8bf3-43d25bf1f926",
+      "lesson_e8c0d20d-a7ee-48da-83b0-ce1c826d1978",
+      "lesson_fc525447-12a0-4982-b2ef-98a4bade8b57"
+    ],
+    "ephemeralLessonIds": [
+      "lesson_242ba03d-7597-4143-9dbd-c023924ce044",
+      "lesson_6cc00d22-b7a8-49a0-b5ac-70ea92ebaaac",
+      "lesson_762c916a-cd13-4758-86a0-773f765b18c0",
+      "lesson_a20efc65-4c9d-457c-928b-68babecaf871",
+      "lesson_a379abc1-0243-4943-8a19-9cf78c9d4bb6",
+      "lesson_e4f7b072-d921-4165-a9e5-80b7a662ab9f"
+    ],
+    "knackIds": [
+      "knack_014ed4f4-fad2-45ed-bec2-d918c2591963",
+      "knack_1bb549e3-b625-41d6-8f2c-105abfdb6d8c",
+      "knack_df4396a9-9e19-48e3-83ab-03dd57a21f40",
+      "knack_f7472b53-3e7e-492c-8055-ba79da2fdb4e"
+    ],
+    "eligibleKnackIds": [
+      "knack_014ed4f4-fad2-45ed-bec2-d918c2591963",
+      "knack_1bb549e3-b625-41d6-8f2c-105abfdb6d8c",
+      "knack_df4396a9-9e19-48e3-83ab-03dd57a21f40",
+      "knack_f7472b53-3e7e-492c-8055-ba79da2fdb4e"
+    ]
+  },
+  "after": {
+    "admittedRunIds": [
+      "run_1784681440094",
+      "run_1784681605606",
+      "run_1784681844556"
+    ],
+    "rejectedRunIds": [],
+    "mainLessonIds": [
+      "lesson_3df9a626-16d6-41df-9327-8d73c591e5bc",
+      "lesson_818b639a-6aeb-460e-befd-aea0f5fc613a",
+      "lesson_c4ed0ca0-66d8-4de1-8bf3-43d25bf1f926",
+      "lesson_e4c68189-b085-4898-86db-9d8aa8210b5f",
+      "lesson_e8c0d20d-a7ee-48da-83b0-ce1c826d1978",
+      "lesson_f3a38527-fe75-423e-967a-a493ab5967c2",
+      "lesson_fc525447-12a0-4982-b2ef-98a4bade8b57"
+    ],
+    "eligibleLessonIds": [
+      "lesson_3df9a626-16d6-41df-9327-8d73c591e5bc",
+      "lesson_818b639a-6aeb-460e-befd-aea0f5fc613a",
+      "lesson_c4ed0ca0-66d8-4de1-8bf3-43d25bf1f926",
+      "lesson_e4c68189-b085-4898-86db-9d8aa8210b5f",
+      "lesson_e8c0d20d-a7ee-48da-83b0-ce1c826d1978",
+      "lesson_f3a38527-fe75-423e-967a-a493ab5967c2",
+      "lesson_fc525447-12a0-4982-b2ef-98a4bade8b57"
+    ],
+    "ephemeralLessonIds": [
+      "lesson_0936f17c-a491-4802-a468-672d30083df9",
+      "lesson_242ba03d-7597-4143-9dbd-c023924ce044",
+      "lesson_2ff6a989-60bf-451b-8cb3-6818da5811f9",
+      "lesson_691f6bac-7f9e-4338-ac51-1bfb44bbfaac",
+      "lesson_6cc00d22-b7a8-49a0-b5ac-70ea92ebaaac",
+      "lesson_762c916a-cd13-4758-86a0-773f765b18c0",
+      "lesson_79dd20d0-924a-4816-bd6c-27a563feeeb1",
+      "lesson_92506ba6-4b03-4b02-97e6-0e200495a8bf",
+      "lesson_a20efc65-4c9d-457c-928b-68babecaf871",
+      "lesson_a379abc1-0243-4943-8a19-9cf78c9d4bb6",
+      "lesson_c35c445a-3dd5-4cc6-9e66-1c00c8d77513",
+      "lesson_e4f7b072-d921-4165-a9e5-80b7a662ab9f"
+    ],
+    "knackIds": [
+      "knack_014ed4f4-fad2-45ed-bec2-d918c2591963",
+      "knack_1bb549e3-b625-41d6-8f2c-105abfdb6d8c",
+      "knack_43c9ca3f-4500-4645-92f3-cc2d544b7e39",
+      "knack_8132b464-fd9c-4dc5-8f22-7e1e620492f4",
+      "knack_a9bbebe7-8f8d-4634-9a85-ec92195313bd",
+      "knack_df4396a9-9e19-48e3-83ab-03dd57a21f40",
+      "knack_f7472b53-3e7e-492c-8055-ba79da2fdb4e"
+    ],
+    "eligibleKnackIds": [
+      "knack_014ed4f4-fad2-45ed-bec2-d918c2591963",
+      "knack_1bb549e3-b625-41d6-8f2c-105abfdb6d8c",
+      "knack_43c9ca3f-4500-4645-92f3-cc2d544b7e39",
+      "knack_8132b464-fd9c-4dc5-8f22-7e1e620492f4",
+      "knack_a9bbebe7-8f8d-4634-9a85-ec92195313bd",
+      "knack_df4396a9-9e19-48e3-83ab-03dd57a21f40",
+      "knack_f7472b53-3e7e-492c-8055-ba79da2fdb4e"
+    ]
+  }
+}

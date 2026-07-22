@@ -1,0 +1,37 @@
+{
+  "familyId": "F-SY-UNIT-EQUIVALENCE",
+  "complete": true,
+  "arms": [
+    {
+      "arm": "A-L",
+      "resolvedTask23": 2,
+      "totalTokensTask23": 404345,
+      "escalationTriggersTask23": 7,
+      "usedRecallRunsTask23": 0
+    },
+    {
+      "arm": "A-K",
+      "resolvedTask23": 2,
+      "totalTokensTask23": 868900,
+      "escalationTriggersTask23": 11,
+      "usedRecallRunsTask23": 1
+    },
+    {
+      "arm": "B",
+      "resolvedTask23": 2,
+      "totalTokensTask23": 334547,
+      "escalationTriggersTask23": 2,
+      "usedRecallRunsTask23": 0
+    },
+    {
+      "arm": "C",
+      "resolvedTask23": 2,
+      "totalTokensTask23": 644525,
+      "escalationTriggersTask23": 9,
+      "usedRecallRunsTask23": 0
+    }
+  ],
+  "allFourArmsExtinct": false,
+  "replacementFamily": null,
+  "generatedAt": "2026-07-22T01:00:13.721Z"
+}

@@ -1,0 +1,24 @@
+{
+  "candidates": [
+    {
+      "id": "pref_cand_0bf6658c-8f25-4b0a-9abc-3f3c186c3597",
+      "pattern": "用户偏好英文沟通",
+      "scope": "communication",
+      "observations": 1,
+      "first_observed": "2026-07-22T00:52:58.972Z",
+      "last_observed": "2026-07-22T00:52:58.972Z",
+      "contradictions": 0,
+      "status": "observed",
+      "trigger_context": "用户任务描述以英文为主",
+      "breaker_report": null,
+      "provenance": [
+        {
+          "source_type": "reflect-agent",
+          "task_id": "task_1784681440094",
+          "session_ref": "run_1784681440094",
+          "trust_status": "unverified"
+        }
+      ]
+    }
+  ]
+}
