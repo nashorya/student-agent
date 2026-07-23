@@ -71,6 +71,7 @@ export interface RunStudentAgentEvalOptions {
   maxModelCallsPerPhase?: number;
   maxWallClockMsPerPhase?: number;
   providerUsageTimelinePath?: string;
+  providerResponseArchivePath?: string;
 }
 
 export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): Promise<StudentAgentEvalTrace> {
@@ -109,6 +110,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     modelTrace = summarizeEvalModel(model);
     providerPolicy = installEvalProviderRequestPolicy(model, globalThis, {
       usageTimelinePath: options.providerUsageTimelinePath,
+      responseArchivePath: options.providerResponseArchivePath,
       frozenSampling,
     });
     normalizeProviderApiKeyEnv(config.model.provider);

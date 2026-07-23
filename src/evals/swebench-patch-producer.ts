@@ -103,6 +103,7 @@ export interface ProduceSweBenchPatchesOptions {
   studentLearningTaskOffset?: number;
   studentInjectionMode?: StudentInjectionMode;
   studentDeferKnackPromotion?: boolean;
+  providerResponseArchivePath?: string;
 }
 
 export async function loadSweBenchInstances(path: string): Promise<SweBenchInstance[]> {
@@ -182,6 +183,7 @@ export async function produceSweBenchPatches(
         learningTaskIndex: (options.studentLearningTaskOffset ?? 0) + index + 1,
         studentInjectionMode: options.studentInjectionMode,
         studentDeferKnackPromotion: options.studentDeferKnackPromotion,
+        providerResponseArchivePath: options.providerResponseArchivePath,
       });
       records.push(record);
       if (record.learningFinalizationError) break;
@@ -333,6 +335,7 @@ async function runSweBenchInstance(options: {
   learningTaskIndex: number;
   studentInjectionMode?: StudentInjectionMode;
   studentDeferKnackPromotion?: boolean;
+  providerResponseArchivePath?: string;
 }): Promise<SweBenchPatchProducerRecord> {
   const started = Date.now();
   const worktreePath = join(options.workRoot, safePathSegment(options.instance.instance_id));
@@ -372,6 +375,7 @@ async function runSweBenchInstance(options: {
         memoryDir: studentContext.memoryDir,
         buildMemoryPrompt: studentContext.buildMemoryPrompt,
         learningLifecycle: options.studentLearningLifecycle,
+        providerResponseArchivePath: options.providerResponseArchivePath,
       });
       injectionSnapshot = studentContext.buildMemoryPrompt.injectionSnapshots[0];
     } else {

@@ -154,6 +154,7 @@ export async function runInjectionFamily(
       studentInjectionMode: arm.injectionMode, studentMemoryDir: memoryDir,
       studentLearningLifecycle: true, studentLearningTaskOffset: index,
       studentDeferKnackPromotion: true,
+      providerResponseArchivePath: join(runDir, 'provider-responses-redacted.jsonl'),
     });
     const record = result.records[0];
     const runId = record?.trace?.learningRun?.runId;

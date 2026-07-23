@@ -135,6 +135,41 @@ describe('eval provider request policy', () => {
     }
   });
 
+  it('archives each provider response body with thinking intact and secrets redacted', async () => {
+    const outputDir = await mkdtemp(join(tmpdir(), 'provider-response-archive-'));
+    const responseArchivePath = join(outputDir, 'provider-responses-redacted.jsonl');
+    const rawBody = JSON.stringify({
+      choices: [{ message: { reasoning_content: 'private reasoning', content: 'answer' } }],
+      api_key: 'sk-secret-value-123456789',
+    });
+    const target = {
+      fetch: vi.fn(async () => new Response(rawBody, {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof globalThis.fetch,
+    };
+
+    try {
+      const handle = installEvalProviderRequestPolicy(glmModel(), target, { responseArchivePath });
+      const response = await target.fetch('https://open.bigmodel.cn/api/coding/paas/v4/chat/completions', {
+        method: 'POST',
+        body: JSON.stringify({ model: 'glm-5.2', messages: [] }),
+      });
+      await handle.flush();
+
+      expect(await response.text()).toBe(rawBody);
+      const archived = JSON.parse((await readFile(responseArchivePath, 'utf8')).trim());
+      expect(archived).toMatchObject({ seq: 1, httpStatus: 200, contentType: 'application/json' });
+      expect(archived.body).toContain('"reasoning_content":"private reasoning"');
+      expect(archived.body).toContain('"content":"answer"');
+      expect(archived.body).toContain('"api_key":"[REDACTED]"');
+      expect(archived.body).not.toContain('sk-secret-value-123456789');
+      handle.restore();
+    } finally {
+      await rm(outputDir, { recursive: true, force: true });
+    }
+  });
+
   it('preserves missing provider usage as null instead of a successful zero-token response', async () => {
     const outputDir = await mkdtemp(join(tmpdir(), 'provider-missing-usage-'));
     const usageTimelinePath = join(outputDir, 'usage-timeline.jsonl');

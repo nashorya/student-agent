@@ -90,6 +90,9 @@ describe('injection experiment v0.2 runner', () => {
     expect(calls.every((call) => call.studentMemoryDir === memoryDir)).toBe(true);
     expect(calls.every((call) => call.studentInjectionMode === 'lesson-recall')).toBe(true);
     expect(calls.every((call) => call.studentDeferKnackPromotion === true)).toBe(true);
+    expect(calls.map((call) => call.providerResponseArchivePath)).toEqual(result.runDirs.map(
+      (runDir) => join(runDir, 'provider-responses-redacted.jsonl'),
+    ));
     expect(score).toHaveBeenCalledTimes(3);
     expect(JSON.parse(await readFile(join(result.runDirs[0]!, 'admission.json'), 'utf8')).admission.resolved).toBe(false);
   });

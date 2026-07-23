@@ -1,5 +1,6 @@
 import type { Api, Model } from '@mariozechner/pi-ai';
-import { appendFile } from 'node:fs/promises';
+import { appendFile, mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import type {
   EvalProviderRequestAuditEntry,
   EvalProviderUsageTimelineEntry,
@@ -23,6 +24,7 @@ interface FetchTarget {
 
 interface EvalProviderRequestPolicyOptions {
   usageTimelinePath?: string;
+  responseArchivePath?: string;
   frozenSampling?: EvalFrozenSampling;
 }
 
@@ -124,15 +126,24 @@ export function installEvalProviderRequestPolicy(
     const responseReceivedAt = new Date().toISOString();
 
     const inspection = inspectProviderResponse(response.clone())
-      .then(async (evidence) => {
+      .then(async ({ evidence, body: responseBody, contentType }) => {
         auditEntry.response = evidence;
-        await appendUsageTimeline(
-          options.usageTimelinePath,
-          usageTimeline,
-          auditEntry.index,
-          responseReceivedAt,
-          evidence,
-        );
+        await Promise.all([
+          appendUsageTimeline(
+            options.usageTimelinePath,
+            usageTimeline,
+            auditEntry.index,
+            responseReceivedAt,
+            evidence,
+          ),
+          appendProviderResponse(options.responseArchivePath, {
+            seq: auditEntry.index,
+            ts: responseReceivedAt,
+            httpStatus: response.status,
+            contentType,
+            body: redactProviderResponse(responseBody),
+          }),
+        ]);
       })
       .catch(async (inspectionError) => {
         const evidence = {
@@ -150,6 +161,11 @@ export function installEvalProviderRequestPolicy(
           responseReceivedAt,
           evidence,
         );
+        if (options.responseArchivePath) {
+          throw new Error(`Provider response archive failed: ${
+            inspectionError instanceof Error ? inspectionError.message : String(inspectionError)
+          }`);
+        }
       });
     pendingInspections.add(inspection);
     void inspection.then(
@@ -200,9 +216,14 @@ async function appendUsageTimeline(
 
 async function inspectProviderResponse(
   response: Response,
-): Promise<NonNullable<EvalProviderRequestAuditEntry['response']>> {
+): Promise<{
+  evidence: NonNullable<EvalProviderRequestAuditEntry['response']>;
+  body: string;
+  contentType: string | null;
+}> {
   const text = await response.text();
-  const payloads = providerPayloads(text, response.headers.get('content-type'));
+  const contentType = response.headers.get('content-type');
+  const payloads = providerPayloads(text, contentType);
   let reasoningChars = 0;
   let promptTokens: number | undefined;
   let cachedPromptTokens: number | undefined;
@@ -240,16 +261,39 @@ async function inspectProviderResponse(
     }
   }
   return {
-    httpStatus: response.status,
-    inspected: true,
-    hasReasoningContent: reasoningChars > 0 || (reasoningTokens ?? 0) > 0,
-    reasoningChars,
-    ...(promptTokens === undefined ? {} : { promptTokens }),
-    ...(cachedPromptTokens === undefined ? {} : { cachedPromptTokens }),
-    ...(completionTokens === undefined ? {} : { completionTokens }),
-    ...(totalTokens === undefined ? {} : { totalTokens }),
-    ...(reasoningTokens === undefined ? {} : { reasoningTokens }),
+    body: text,
+    contentType,
+    evidence: {
+      httpStatus: response.status,
+      inspected: true,
+      hasReasoningContent: reasoningChars > 0 || (reasoningTokens ?? 0) > 0,
+      reasoningChars,
+      ...(promptTokens === undefined ? {} : { promptTokens }),
+      ...(cachedPromptTokens === undefined ? {} : { cachedPromptTokens }),
+      ...(completionTokens === undefined ? {} : { completionTokens }),
+      ...(totalTokens === undefined ? {} : { totalTokens }),
+      ...(reasoningTokens === undefined ? {} : { reasoningTokens }),
+    },
   };
+}
+
+async function appendProviderResponse(
+  path: string | undefined,
+  record: { seq: number; ts: string; httpStatus: number; contentType: string | null; body: string },
+): Promise<void> {
+  if (!path) return;
+  await mkdir(dirname(path), { recursive: true });
+  await appendFile(path, `${JSON.stringify(record)}\n`, 'utf8');
+}
+
+function redactProviderResponse(text: string): string {
+  return text
+    .replace(
+      /("(?:api[_-]?key|authorization|access_token|refresh_token)"\s*:\s*)"(?:\\.|[^"\\])*"/giu,
+      '$1"[REDACTED]"',
+    )
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/giu, 'Bearer [REDACTED]')
+    .replace(/\bsk-[A-Za-z0-9_-]{12,}\b/gu, '[REDACTED]');
 }
 
 function maxObservedNumber(current: number | undefined, value: unknown): number | undefined {
