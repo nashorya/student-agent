@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "5069393d5c9c2354",
+  "contentHash": "d80f81805248fe96",
   "nodes": [
     {
       "id": "ADR-001",
@@ -90,7 +90,7 @@
       "status": "CLOSED（Tier A/B 实跑 trace 已持续记录 task lifecycle、",
       "summary": "SWE 对比 run 的 trace 中 `layers.L1/L2/L3.sectionCount = 0`、",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 328
+      "sourceLine": 339
     },
     {
       "id": "BUG-002",
@@ -99,7 +99,7 @@
       "status": "CLOSED（OpenRouter Sonnet cache_control 透传与 usage 采集实测正常；",
       "summary": "cc（经代理跑 gpt-5.5）的 `cacheReadTokens` 恒为 0",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 345
+      "sourceLine": 356
     },
     {
       "id": "BUG-003",
@@ -108,7 +108,7 @@
       "status": "CLOSED",
       "summary": "git log 最后的版本化提交停在 v0.36，v0.4 成果埋在",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 369
+      "sourceLine": 380
     },
     {
       "id": "BUG-004",
@@ -117,7 +117,7 @@
       "status": "CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件；",
       "summary": "Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 383
+      "sourceLine": 394
     },
     {
       "id": "BUG-005",
@@ -126,7 +126,7 @@
       "status": "CLOSED",
       "summary": "`p2-overfull-hard-constraints-20260611` reward=0 看似红灯，",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 479
+      "sourceLine": 490
     },
     {
       "id": "BUG-006",
@@ -135,7 +135,7 @@
       "status": "CLOSED（verifier 依赖与 invalid_run 哨兵已实测生效；后续",
       "summary": "overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 498
+      "sourceLine": 509
     },
     {
       "id": "BUG-007",
@@ -144,7 +144,7 @@
       "status": "CLOSED（相关凭据仍建议轮换）",
       "summary": "`scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 543
+      "sourceLine": 554
     },
     {
       "id": "BUG-008",
@@ -153,7 +153,7 @@
       "status": "CLOSED",
       "summary": "README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 309
+      "sourceLine": 320
     },
     {
       "id": "BUG-009",
@@ -162,7 +162,7 @@
       "status": "CLOSED",
       "summary": "`npm run eval:validate` 报",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 297
+      "sourceLine": 308
     },
     {
       "id": "BUG-010",
@@ -171,7 +171,7 @@
       "status": "CLOSED",
       "summary": "`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 288
+      "sourceLine": 299
     },
     {
       "id": "BUG-011",
@@ -180,7 +180,7 @@
       "status": "CLOSED（修复后 C 组 3/3 valid 且 verifier 满分，追平 plain 3/3）",
       "summary": "正式运行",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 229
+      "sourceLine": 240
     },
     {
       "id": "BUG-012",
@@ -189,22 +189,22 @@
       "status": "DONE（判分入档）；P1 合页仍否（盲审/主库门槛）。",
       "summary": "P1-E #1 symptom=`confirmed.` 口水话；fix 半句截断风险。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 81
+      "sourceLine": 92
     },
     {
       "id": "BUG-013",
       "kind": "bug",
-      "title": "萃取保真度 v3（结构 + φ_exec + 黑白名单）· FIXED-待作者确认",
+      "title": "萃取保真度 v3（结构 + φ_exec + 黑白名单）· REOPENED",
       "status": "VERIFIED（文书确认；未改 runner 代码）",
       "summary": "第三型失真——fix 栏装测试汇报（`70 passed`）或半句截断；注入臂付阅读税。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 30
+      "sourceLine": 36
     },
     {
       "id": "BUG-014",
       "kind": "bug",
       "title": "正式 SymPy run 未申报 recall citation",
-      "status": "**OPEN（TRIAGED；本单仅诊断，未修复）**",
+      "status": "**OPEN（UPGRADED；used_recall 不得作为唯一归因依据）**",
       "summary": "sympy-v4-rematch 的 A-L 题 2/题 3 均确认注入 lesson，",
       "sourcePath": "docs/buglog.md",
       "sourceLine": 8
@@ -216,7 +216,7 @@
       "status": "FIXED（门控收紧 + 库清理）；P1 验收重开。",
       "summary": "盲审 0/5；13 条主库全是 `Treat tool error as a retry pattern` 过程噪声。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 218
+      "sourceLine": 229
     },
     {
       "id": "BUG-UNNUMBERED-561c42ed",
@@ -225,7 +225,7 @@
       "status": "FIXED-部分（计价重算路径 + 入档）；generationId 落盘后续增强。",
       "summary": "ZenMux campaign 本地合计 $0.74 vs 控制台 **$2.41（≈3.3×）**。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 208
+      "sourceLine": 219
     },
     {
       "id": "campaign:c2-cache-prefix-smoke-proxy7897.json",
@@ -862,11 +862,20 @@
       "sourceLine": 1
     },
     {
+      "id": "campaign:sympy-v4-b-arm-prereg.md",
+      "kind": "campaign",
+      "title": "sympy-v4-b-arm-prereg.md",
+      "status": "RECORDED",
+      "summary": "> **B 臂补跑判读规则(2026-07-23 公证,跑前作出)** > > **一、H1 判读**(引 v0.2 冻结条款原文,逐字对照,禁止凭印象概括): > 「A-L 相比 B,resolved 多至少 1 题 **或** 升级阶梯少至少 30% > → 方向支持 H1。」主分析口径:第 2、3 题聚合。 > n 小,结论一律标「方向性证据,非统计显著」。 > > **二、citation",
+      "sourcePath": "evals/distillation/sympy-v4-b-arm-prereg.md",
+      "sourceLine": 1
+    },
+    {
       "id": "campaign:sympy-v4-rematch-report.md",
       "kind": "campaign",
       "title": "sympy-v4-rematch-report.md",
       "status": "RECORDED",
-      "summary": "**性质：本批是冻结后的诊断性重跑，不是 v0.2 的正式结论。** # SymPy 族 fidelity v4 弹药正赛 · A-L 中期停批报告 - 日期：2026-07-23 - 状态：**STOPPED AT A-L CHECKPOINT** - 计划：A-L ×3 + 同批 B ×3 - 实际：A-L ×3；B ×0 - 停批依据：A-L 的 `used_recall_ids` 全空",
+      "summary": "**性质：本批是冻结后的诊断性重跑，不是 v0.2 的正式结论。** # SymPy 族 fidelity v4 · A-L ×3 + B ×3 完整诊断报告 - 日期：2026-07-23 - 状态：**COMPLETE（6/6 run；官方 harness 全部 resolved）** - 题序：`20442 → 24066 → 24213` - 原始现场（`.gitignore` 内）：",
       "sourcePath": "evals/distillation/sympy-v4-rematch-report.md",
       "sourceLine": 1
     },
@@ -931,7 +940,7 @@
       "status": "DEFINED",
       "summary": "finding:distill-blind-spot",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 60
+      "sourceLine": 71
     },
     {
       "id": "finding:external-agent-misattribution",
@@ -986,7 +995,7 @@
       "status": "DEFINED",
       "summary": "正式 provider 多轮运行未稳定申报 recall citation",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 24
+      "sourceLine": 30
     },
     {
       "id": "finding:references-folder",
@@ -1215,7 +1224,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:Trace2Skill",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 61
+      "sourceLine": 72
     },
     {
       "id": "phase:P0",
@@ -1224,7 +1233,7 @@
       "status": "CLOSED",
       "summary": "化验工具链可复现依赖",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 295
+      "sourceLine": 306
     },
     {
       "id": "phase:P1",
@@ -1233,7 +1242,7 @@
       "status": "CLOSED",
       "summary": "成本对账是 P1 供给可信度的前提",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 216
+      "sourceLine": 227
     },
     {
       "id": "phase:P2",
@@ -1251,7 +1260,7 @@
       "status": "PLANNED",
       "summary": "利用可观测须补正式路径申报可靠性验收",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 25
+      "sourceLine": 31
     },
     {
       "id": "phase:P4",
@@ -1296,7 +1305,7 @@
       "status": "DEFINED",
       "summary": "run:sympy-v4-rematch-24213",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 60
+      "sourceLine": 71
     }
   ],
   "edges": [
@@ -1306,7 +1315,7 @@
       "to": "finding:recall-citation-nondeclaration",
       "label": "exposes",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 24,
+      "sourceLine": 30,
       "id": "exposes:BUG-014->finding:recall-citation-nondeclaration"
     },
     {
@@ -1567,7 +1576,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 324,
+      "sourceLine": 335,
       "id": "motivates:BUG-008->phase:P0"
     },
     {
@@ -1576,7 +1585,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 307,
+      "sourceLine": 318,
       "id": "motivates:BUG-009->phase:P0"
     },
     {
@@ -1585,7 +1594,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 295,
+      "sourceLine": 306,
       "id": "motivates:BUG-010->phase:P0"
     },
     {
@@ -1603,7 +1612,7 @@
       "to": "phase:P3",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 25,
+      "sourceLine": 31,
       "id": "motivates:BUG-014->phase:P3"
     },
     {
@@ -1612,7 +1621,7 @@
       "to": "phase:P1",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 227,
+      "sourceLine": 238,
       "id": "motivates:BUG-UNNUMBERED-205d894e->phase:P1"
     },
     {
@@ -1621,7 +1630,7 @@
       "to": "phase:P1",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 216,
+      "sourceLine": 227,
       "id": "motivates:BUG-UNNUMBERED-561c42ed->phase:P1"
     },
     {
@@ -1792,7 +1801,7 @@
       "to": "paper:Trace2Skill",
       "label": "candidate_fix",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 61,
+      "sourceLine": 72,
       "id": "produces:finding:distill-blind-spot->paper:Trace2Skill"
     },
     {
@@ -1801,7 +1810,7 @@
       "to": "run:sympy-v4-rematch-24213",
       "label": "evidenced_by",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 60,
+      "sourceLine": 71,
       "id": "produces:finding:distill-blind-spot->run:sympy-v4-rematch-24213"
     },
     {
@@ -2362,6 +2371,14 @@
     {
       "kind": "verifies",
       "from": "campaign:sympy-v4-rematch-report.md",
+      "to": "finding:c2-cache-prefix",
+      "sourcePath": "evals/distillation/sympy-v4-rematch-report.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:sympy-v4-rematch-report.md->finding:c2-cache-prefix"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:sympy-v4-rematch-report.md",
       "to": "phase:P1",
       "sourcePath": "evals/distillation/sympy-v4-rematch-report.md",
       "sourceLine": 1,
@@ -2565,7 +2582,7 @@
       {
         "id": "BUG-013",
         "kind": "bug",
-        "title": "萃取保真度 v3（结构 + φ_exec + 黑白名单）· FIXED-待作者确认",
+        "title": "萃取保真度 v3（结构 + φ_exec + 黑白名单）· REOPENED",
         "edgeCount": 1,
         "sourcePath": "docs/buglog.md"
       },

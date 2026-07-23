@@ -17,17 +17,23 @@
 - **与 BUG-012 的差异**：14995 replay fixture 的 assistant
   `message_index=17` 明确写出合法 citation，现有 allowlist 前向沿用路径能
   采集；本批正式消息根本没有标记，故不是 ordinal 对齐故障未竟。
-- **影响**：本批的 0/2 只能解释为“未申报”，不能解释为“未使用记忆”；
-  后续实验必须分列注入/申报/行为差三层。修复与验收另开单，本单不改 prompt
-  或 citation 判据。
-- **证据**：`evals/distillation/citation-triage-20260723.md`。
+- **B 臂补跑后的可靠性判定（2026-07-23）**：按跑前公证明确落
+  **(b) 归因手段不可靠**。第 2、3 题 A-L/B resolved 均为 2/2，但阶梯
+  `3 vs 6`，A-L 少 50%，达到冻结 H1 的 30% 行为刻度；A-L citation
+  仍为 0/2。因此 0 申报不能再作为“未使用”的唯一证据。
+- **影响（升级）**：后续实验以行为差为主、citation 为辅；v0.2 既有
+  Django/SymPy 批次的 citation 数字统一加可信度折扣。仍须分列
+  注入/申报/行为差三层，且不能凭单格 n=1 将行为差直接写成记忆因果效应。
+  修复与验收另开单，本单不改 prompt 或 citation 判据。
+- **证据**：`evals/distillation/citation-triage-20260723.md`；
+  `evals/distillation/sympy-v4-rematch-report.md`。
 - **exposes** → `finding:recall-citation-nondeclaration` · 正式 provider 多轮运行未稳定申报 recall citation
 - **motivates** → `phase:P3` · 利用可观测须补正式路径申报可靠性验收
-- **状态**：**OPEN（TRIAGED；本单仅诊断，未修复）**
+- **状态**：**OPEN（UPGRADED；used_recall 不得作为唯一归因依据）**
 
 ---
 
-## BUG-013 · 萃取保真度 v3（结构 + φ_exec + 黑白名单）· FIXED-待作者确认
+## BUG-013 · 萃取保真度 v3（结构 + φ_exec + 黑白名单）· REOPENED
 
 - **时间**：2026-07-23
 - **症状**：第三型失真——fix 栏装测试汇报（`70 passed`）或半句截断；注入臂付阅读税。
@@ -54,12 +60,17 @@
   三条 fix 均成句且无测试汇报、口水话或变更元信息。ψ=`0.303 / 0.193 / 0.160`，
   与旧混杂候选 `0.747` 共同支持相对质量非单调 finding。完整取证见
   `evals/distillation/sympy-redistill-v3/v4-diff.md`；最终处置待作者按跑前公证判定。
+- **v4 B 正式轨迹复现（2026-07-23）**：SymPy rematch 的 B 题 2
+  `sympy__sympy-24066` resolved 后，管线照常蒸馏出的 candidate
+  `fix_summary` 仍为 `## Files Changed - ...` 变更元信息。该条没有注入
+  被试，不影响本批 A-L/B prompt 操纵；本单只归档复现，不调阈值、门控或
+  萃取器。证据见 `evals/distillation/sympy-v4-rematch-report.md`。
 - **蒸馏盲区登记**：`findCausalPair` 对 resolved 且 0 `tool_error` 的
   “一次做对”轨迹确定性返回 null；证据与候选处置见
   `evals/distillation/todo-distill-blind-spot.md`。本单只登记，不改判据。
   `finding:distill-blind-spot --evidenced_by--> run:sympy-v4-rematch-24213`
   `finding:distill-blind-spot --candidate_fix--> paper:Trace2Skill`
-- **状态**：**FIXED-待作者确认对照表** → 确认后关单。
+- **状态**：**REOPENED（v4 新正式轨迹复现已知第四型；待独立修复单）**
 
 ---
 
