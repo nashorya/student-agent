@@ -16,6 +16,12 @@
   3. 黑白名单兜底；`softSummarize` 软300/硬800。
 - **对照**：`evals/distillation/p1-fidelity-v3-diff.md`；凶案重建
   `evals/distillation/sympy-crime-scene-v3/`（原 SymPy results 本机缺失）。
+- **真实轨迹重蒸验收（此前为重构样本，证据降级已补）**：使用 fidelity v3
+  `a5005ec13441e4a85050f8e4bdc255a93fc8cabe` 对 v0.2 SymPy A-L 三题真实
+  events/records 离线重蒸；题 2 抽出 `is_dimensionless()`，但题 1 仍半句、
+  题 3 仍为 `Files changed…` 元信息且 ψ=`0.072`。证据见
+  `evals/distillation/sympy-redistill-v3/diff.md`；登记 finding：
+  **`φ_exec 尺度不匹配`**，候选改进待另开单，本单未改萃取器。
 - **状态**：**FIXED-待作者确认对照表** → 确认后关单。
 
 ---
