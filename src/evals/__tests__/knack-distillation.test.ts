@@ -7,6 +7,7 @@ import {
   distillResults,
   distillRunEvents,
   extractSymptom,
+  isBlacklistedFix,
   isInformativeSymptom,
   parseJsonLines,
   softSummarize,
@@ -399,6 +400,85 @@ describe('knack distillation', () => {
     expect(fix).toContain('return `None`');
     expect(fix.endsWith('.')).toBe(true);
     expect(fix.includes('…')).toBe(false);
+  });
+
+  it('redistills the real 20442 summary past the upstream 600-character boundary', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"odd convert_to joule**(7/9)"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"edit util.py: check camat * res_exponents == exprmat and return None"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+    const prefix = 'Reproduced the issue and inspected the least-squares solver behavior. '.repeat(10);
+    const fix = distillRunEvents({
+      events,
+      evidenceTask: 'sympy__sympy-20442',
+      repo: 'sympy/sympy',
+      finalSummary: `${prefix}The fix is to verify the solution is exact; if not, return \`None\` so \`convert_to\` returns the original expression unchanged. All conversions work correctly.`,
+    })?.fix_summary ?? '';
+
+    expect(fix).toContain('return `None`');
+    expect(fix).toContain('`convert_to` returns the original expression unchanged');
+    expect(fix.endsWith('.')).toBe(true);
+    expect(fix).not.toContain('…');
+  });
+
+  it('bounds the real 24066 fix and routes diff and validation to evidence fields', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"ValueError: Dimension mismatch"}',
+      '{"kind":"tool_call","toolName":"apply_patch","summary":"apply_patch unitsystem.py: use is_dimensionless(d[1]) and return Dimension(1)"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+    const candidate = distillRunEvents({
+      events,
+      evidenceTask: 'sympy__sympy-24066',
+      repo: 'sympy/sympy',
+      finalSummary: [
+        'The fix is complete and validated.',
+        '## Summary',
+        '**Fix** (production file only — `sympy/physics/units/unitsystem.py`):',
+        '- Added a dimensionless check: call `is_dimensionless()` and return `Dimension(1)`.',
+        '```diff',
+        '+ if all(self.get_dimension_system().is_dimensionless(d[1]) for d in fds):',
+        '+     return expr.func(*(f[0] for f in fds)), Dimension(1)',
+        '```',
+        '**Validation:**',
+        '- Issue reproduction now returns `(E + 100, Dimension(1))` instead of raising.',
+      ].join('\n'),
+    });
+
+    expect(candidate?.fix_summary).toContain('`is_dimensionless()`');
+    expect(candidate?.fix_summary).not.toMatch(/```|Validation/);
+    expect(candidate?.execution_evidence).toMatch(/apply_patch|```diff/);
+    expect(candidate?.verification).toContain('Issue reproduction now returns');
+  });
+
+  it('rejects change metadata and redistills 24213 to equivalent_dims()', () => {
+    for (const metadata of [
+      'Files changed: sympy/physics/units/unitsystem.py.',
+      '2 files changed, 4 insertions(+), 1 deletion(-).',
+      'diff --git a/unitsystem.py b/unitsystem.py',
+      '@@ -181,7 +181,8 @@ class UnitSystem:',
+    ]) {
+      expect(isBlacklistedFix(metadata)).toBe(true);
+    }
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"ValueError: equivalent dimensions rejected"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"edit unitsystem.py: replace strict dim inequality with equivalent_dims(dim, addend_dim)"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+    const candidate = distillRunEvents({
+      events,
+      evidenceTask: 'sympy__sympy-24213',
+      repo: 'sympy/sympy',
+      finalSummary: [
+        '**Fix:** Replaced strict inequality with `equivalent_dims(dim, addend_dim)`.',
+        '**Validation:** Equivalent dimensions now add, while incompatible dimensions still raise.',
+        '**Files changed:** sympy/physics/units/unitsystem.py (one 2-line change).',
+      ].join('\n'),
+    });
+
+    expect(candidate?.fix_summary).toContain('`equivalent_dims(dim, addend_dim)`');
+    expect(candidate?.fix_summary).not.toContain('Files changed');
   });
 
   it('links run archives to their task and resolved harness result', async () => {

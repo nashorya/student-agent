@@ -83,7 +83,7 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     ? ` ${summarizeText(input.finalSummary, 600)}`
     : '';
   const verifiedFix = `Tool sequence: ${actionSequence}.${summary}`.trim();
-  const executionEvidence = extractExecutionEvidence(operations);
+  const executionEvidence = extractExecutionEvidence(operations, input.finalSummary);
   const verificationField = buildVerificationField(pair.verification, input.events, input.finalSummary);
   const symptom = extractSymptom({
     verifiedFix,
@@ -136,15 +136,16 @@ export function extractFixSummary(
   executionEvidence = '',
 ): { fix_summary: string; confidence: 'verified' | 'candidate' } {
   const candidates: string[] = [];
+  const markerCorpus = finalSummary ?? verifiedFix;
   for (const marker of [
     /(?:^|[.!?\n])(?:\s|\*)*The fix is\s*[:\s]\s*(.+)$/ims,
-    /(?:^|[\s\n])\*{0,2}Fix\*{0,2}\s*:\s*(.+)$/ims,
+    /(?:^|[\s\n])\*{0,2}Fix\*{0,2}(?:\s*\([^)\n]*\))?\s*:\*{0,2}\s*(.+)$/ims,
     /(?:^|[.!?\n])(?:\s|\*)*The solution is\s*[:\s]\s*(.+)$/ims,
   ]) {
-    const markedText = verifiedFix.match(marker)?.[1]?.trim();
-    if (markedText) candidates.push(firstSentence(markedText));
+    const markedText = markerCorpus.match(marker)?.[1]?.trim();
+    if (markedText) candidates.push(firstSentence(boundFixText(markedText).replace(/\s+/g, ' ')));
   }
-  for (const sentence of codeBearingSentences(finalSummary)) {
+  for (const sentence of codeBearingSentences(boundFixText(finalSummary ?? ''))) {
     candidates.push(sentence);
   }
   for (const raw of candidates) {
@@ -160,8 +161,9 @@ export function extractFixSummary(
 /** Patch / edit / apply_patch summaries — execution grounding corpus. */
 export function extractExecutionEvidence(
   operations: DistillationEvent[],
+  finalSummary = '',
 ): string {
-  return operations
+  const eventEvidence = operations
     .map(({ data }) => {
       const tool = (stringValue(data.toolName) ?? stringValue(data.name) ?? '').toLowerCase();
       const summary = stringValue(data.summary) ?? '';
@@ -174,6 +176,12 @@ export function extractExecutionEvidence(
     })
     .filter(Boolean)
     .join('\n');
+  const diffAt = finalSummary.search(/(?:^|\n)\s*(?:```(?:diff)?|diff --git\b|\*\*\* Begin Patch|@@.*@@)/im);
+  if (diffAt < 0) return eventEvidence;
+  const diffTail = finalSummary.slice(diffAt);
+  const endAt = diffTail.search(/(?:^|\n)\s*(?:#{1,6}\s*|\*{0,2})(?:Validation|Verification|Testing)\s*:?\*{0,2}/im);
+  const summaryDiff = (endAt > 0 ? diffTail.slice(0, endAt) : diffTail).trim();
+  return [eventEvidence, summaryDiff].filter(Boolean).join('\n');
 }
 
 export function buildVerificationField(
@@ -189,6 +197,10 @@ export function buildVerificationField(
   if (suite) {
     parts.push(`${suite[1]} passed${suite[2] ? `, ${suite[2]} failed/xfailed` : ''}`);
   }
+  const section = finalSummary?.match(
+    /(?:^|\n)\s*(?:#{1,6}\s*|\*{0,2})(?:Validation|Verification|Testing)\s*:?\*{0,2}\s*([\s\S]*)$/im,
+  )?.[1]?.trim();
+  if (section) parts.push(softSummarize(section));
   return parts.join('; ');
 }
 
@@ -196,6 +208,9 @@ export function buildVerificationField(
 export function isBlacklistedFix(text: string): boolean {
   const t = text.replace(/\s+/g, ' ').trim();
   if (/^\s*Tool sequence:/i.test(t)) return true;
+  if (/^(?:\*{0,2})?Files? changed\b/i.test(t)) return true;
+  if (/^(?:diff --git\b|@@.*@@|\*\*\* (?:Begin Patch|Update File))/i.test(t)) return true;
+  if (/\b\d+\s+files?\s+changed\b|\b\d+\s+(?:insertions?|deletions?)(?:\(\+\)|\(-\))?/i.test(t)) return true;
   if (/\b\d+\s+(passed|failed|xfailed)\b/i.test(t)) return true;
   if (/tests?\/[\w./-]+/i.test(t) && /\b\d+\b/.test(t)) return true;
   if (/\b(fix is in place|works now)\b/i.test(t)) return true;
@@ -223,6 +238,13 @@ function codeBearingSentences(text: string | undefined): string[] {
     if (hasCodeSymbols(sentence)) hits.push(sentence);
   }
   return hits;
+}
+
+function boundFixText(text: string): string {
+  const boundary = text.search(
+    /(?:^|\n)\s*(?:```|diff --git\b|\*\*\* (?:Begin Patch|Update File)|@@.*@@|(?:#{1,6}\s*|\*{0,2})(?:Validation|Verification|Testing)\s*:?\*{0,2})/im,
+  );
+  return (boundary >= 0 ? text.slice(0, boundary) : text).trim();
 }
 
 function hasCodeSymbols(sentence: string): boolean {
