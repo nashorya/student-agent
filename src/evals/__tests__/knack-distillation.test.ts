@@ -447,6 +447,7 @@ describe('knack distillation', () => {
     });
 
     expect(candidate?.fix_summary).toContain('`is_dimensionless()`');
+    expect(candidate?.fix_summary.startsWith('-')).toBe(false);
     expect(candidate?.fix_summary).not.toMatch(/```|Validation/);
     expect(candidate?.execution_evidence).toMatch(/apply_patch|```diff/);
     expect(candidate?.verification).toContain('Issue reproduction now returns');

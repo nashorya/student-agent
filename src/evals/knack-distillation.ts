@@ -143,7 +143,7 @@ export function extractFixSummary(
     /(?:^|[.!?\n])(?:\s|\*)*The solution is\s*[:\s]\s*(.+)$/ims,
   ]) {
     const markedText = markerCorpus.match(marker)?.[1]?.trim();
-    if (markedText) candidates.push(firstSentence(boundFixText(markedText).replace(/\s+/g, ' ')));
+    if (markedText) candidates.push(firstSentence(boundFixText(markedText).replace(/\s+/g, ' ')).replace(/^[-*]\s+/, ''));
   }
   for (const sentence of codeBearingSentences(boundFixText(finalSummary ?? ''))) {
     candidates.push(sentence);
@@ -242,7 +242,7 @@ function codeBearingSentences(text: string | undefined): string[] {
 
 function boundFixText(text: string): string {
   const boundary = text.search(
-    /(?:^|\n)\s*(?:```|diff --git\b|\*\*\* (?:Begin Patch|Update File)|@@.*@@|(?:#{1,6}\s*|\*{0,2})(?:Validation|Verification|Testing)\s*:?\*{0,2})/im,
+    /(?:^|\n)\s*(?:```|diff --git\b|\*\*\* (?:Begin Patch|Update File)|@@.*@@|(?:#{1,6}\s*|\*{0,2})(?:Validation|Verification|Testing)\s*:?\*{0,2}|(?:All\s+)?\d+\s+(?:tests?\s+)?(?:passed|failed|xfailed)\b)/im,
   );
   return (boundary >= 0 ? text.slice(0, boundary) : text).trim();
 }
