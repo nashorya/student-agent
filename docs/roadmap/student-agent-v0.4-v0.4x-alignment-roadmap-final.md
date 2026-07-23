@@ -2,19 +2,28 @@
 
 > **Paper-Calibrated Edition**
 >
-> 本文档基于以下 8 篇论文/项目的实际数据校准，不是概念推演：
+> 本文档基于以下论文/项目的实际数据校准，不是概念推演：
 >
-> | 缩写 | 论文 | 核心贡献 | 状态 | 证据链接 |
-> |------|------|----------|------|----------|
-> | **Meta-Harness** | Meta-Harness: End-to-End Optimization of Model Harnesses | full traces >> scores-only（44% 差距） | 已工程化 | Run Archive / trace 溯源纪律（[v0.4 freeze](../v0.4-context-runtime-freeze.zh.md)、events.jsonl 路径） |
-> | **AHE** | Agentic Harness Engineering (复旦/北大) | 三层 observability，组件非可加性，regression blindness | 未验 | — |
-> | **Continual Harness** | Continual Harness: Online Adaptation (普林斯顿) | reset-free 在线自改进，capability floor | 未验 | — |
-> | **LLMs Get Lost** | LLMs Get Lost In Multi-Turn Conversation | 2 轮即退化，unreliability +112%，recap 只恢复 15-20% | 在验 | C 组压缩探针（[probes/jspace-compaction](../probes/jspace-compaction/README.md)）、占位关案叙事 [BUG-011](../buglog.md) / 实档 [BUG-004](../buglog.md) |
-> | **Skill1** | Unified Evolution of Skill-Augmented Agents via RL | selection/utilization/distillation 三路 credit，variation = r(τ) - Û | deferred | 见结账层 v0.4x-C：实战升格 = causal pair + harness（P1-E），variation 方案延后至主库 ≥10 |
-> | **Autogenesis** | Autogenesis: A Self-Evolving Agent Protocol | RSPL/SEPL，evolvability marker，PS-Joint-Evo | 未验 | — |
-> | **GAM** | General Agentic Memory Via Deep Research (智源) | JIT > AOT memory，Researcher 对模型规模敏感 | 未验 | — |
-> | **AEvo** | Harnessing Agentic Evolution (港科大/DeepWisdom) | evolution as environment，meta-editing loop，evaluator 隔离防 reward hacking | 已工程化 | harness 外置判分 / SWE official harness（[ADR-001](../adr/ADR-001-eval-claim-separation.md)、eval runner） |
-> | **GEP/Gene** | From Procedural Skills to Strategy Genes: Towards Experience-Driven Test-Time Evolution（arXiv:2604.15097；EvoMap/Evolver 理论基础） | 文档型 Skill 包控制不稳定、有用信号稀疏；紧凑 Gene 表示为 first-order factor，同预算胜过 Skill 片段；failure history 附着于 gene 更有效（4590 trials / 45 scenarios） | **部分已独立复现** | skill 泄漏见 buglog NOTE（knacks.jsonl 路径 vs lessons 门控）；保真度 v2 `5d0b6be4` / 关单注 `6b86eec5`；[ADR-004](../adr/ADR-004-knack-schema-v1.md) schema。相关结论于引用登记前独立得出，时间线见各证据 commit date。 |
+> | 缩写 | 论文 | 核心贡献 | 状态 | 核验状态 | 证据链接 |
+> |------|------|----------|------|----------|----------|
+> | **Meta-Harness** | Meta-Harness: End-to-End Optimization of Model Harnesses | full traces >> scores-only（44% 差距） | 已工程化 | 一手核验 | Run Archive / trace 溯源纪律（[v0.4 freeze](../v0.4-context-runtime-freeze.zh.md)、events.jsonl 路径）；§9 arXiv:2603.28052 |
+> | **AHE** | Agentic Harness Engineering (复旦/北大) | 三层 observability，组件非可加性，regression blindness | 未验 | 一手核验 | §9 arXiv:2604.25850 |
+> | **Continual Harness** | Continual Harness: Online Adaptation (普林斯顿) | reset-free 在线自改进，capability floor | 未验 | 一手核验 | §9 arXiv:2605.09998 |
+> | **LLMs Get Lost** | LLMs Get Lost In Multi-Turn Conversation | 2 轮即退化，unreliability +112%，recap 只恢复 15-20% | 在验 | 一手核验 | C 组压缩探针（[probes/jspace-compaction](../probes/jspace-compaction/README.md)）、占位关案叙事 [BUG-011](../buglog.md) / 实档 [BUG-004](../buglog.md)；§9 arXiv:2505.06120 |
+> | **Skill1** | Unified Evolution of Skill-Augmented Agents via RL (arXiv:**2605.06130**) | 单策略联合 skill 检索/选择/解题/演化；既有表述：selection/utilization/distillation 三路 credit，variation = r(τ) - Û | deferred(原状) | 二手引用 | **编号更正**：结账层原记编号有误（现以 arXiv:2605.06130 / §9 为准）；另注：外部推荐中出现的 "Skill-Pro / arXiv:2602.01869" 未通过核验，疑为本篇的幻觉变体，**标存疑不收**。实战升格见结账层 v0.4x-C（causal pair + harness；variation 延后至主库 ≥10） |
+> | **Autogenesis** | Autogenesis: A Self-Evolving Agent Protocol | RSPL/SEPL，evolvability marker，PS-Joint-Evo | 未验 | 一手核验 | §9 arXiv:2604.15034 |
+> | **GAM** | General Agentic Memory Via Deep Research (智源) | JIT > AOT memory，Researcher 对模型规模敏感 | 未验 | 一手核验 | §9 arXiv:2511.18423 |
+> | **AEvo** | Harnessing Agentic Evolution (港科大/DeepWisdom) | evolution as environment，meta-editing loop，evaluator 隔离防 reward hacking | 已工程化 | 一手核验 | harness 外置判分 / SWE official harness（[ADR-001](../adr/ADR-001-eval-claim-separation.md)、eval runner）；§9 arXiv:2605.13821 |
+> | **GEP/Gene** | From Procedural Skills to Strategy Genes: Towards Experience-Driven Test-Time Evolution（arXiv:2604.15097；EvoMap/Evolver 理论基础） | 文档型 Skill 包控制不稳定、有用信号稀疏；紧凑 Gene 表示为 first-order factor，同预算胜过 Skill 片段；failure history 附着于 gene 更有效（4590 trials / 45 scenarios） | **部分已独立复现** | 一手核验 | skill 泄漏见 buglog NOTE（knacks.jsonl 路径 vs lessons 门控）；保真度 v2 `5d0b6be4` / 关单注 `6b86eec5`；[ADR-004](../adr/ADR-004-knack-schema-v1.md) schema。相关结论于引用登记前独立得出，时间线见各证据 commit date。 |
+> | **CoT-Evo** | Evolutionary Distillation of Chain-of-Thought (arXiv:2510.13166) | 进化式蒸馏:多轨迹重组 + 反思变异 +滤波(答案正确/长度/知识使用)从可错轨迹提纯 | 参照范式·部分适用 | 一手核验 | **需 gold-CoT 逐步参照,与本项目无标准解题过程的场景不兼容**;其 deletive 删词表已借用于 BUG-013 黑名单 |
+> | **ExpeL** | LLM Agents Are Experiential Learners (arXiv:2308.10144, 清华, AAAI 2024) | 无梯度、仅用成败信号;experience pool + NL insight 萃取(ADD/UPVOTE/DOWNVOTE/EDIT + importance count)+ task-similarity 召回 | **核心先驱·独立同构** | 一手核验 | 2023 年即为 events→蒸馏→召回三段结构。**本项目相对其增量**:①准入门控(其无入池验证);②失真治理(其 ablation 自承 reflection 致幻但未系统治理);③召回筛选+缓存前缀(其 Limitation 明列为未来工作) |
+> | **Survey-Skill** | Agent Skill Evaluation and Evolution: Frameworks and Benchmarks (arXiv:2606.11435, Rutgers) | 四范式分类(执行反馈/轨迹蒸馏/压缩增强/RL)+ 六类基准;指出三大结构性缺口 | 领域地图 | 一手核验 | 见下「领域地图与本项目定位」 |
+> | **SPARK/PDI** | Evidence Over Plans (arXiv:2605.09192, Rutgers) | PDI = z(φ_exec) − z(φ_plan) − z(φ_oss);六块证据 schema(Verification 独立成块);探索 memo 五段结构;**压缩过度与收益负相关**;发散轨迹优于收敛 | **已采纳为方法** | 一手核验 | φ_exec 选为 BUG-013 主判别器;verification 字段来源;截断上限放宽依据 |
+> | **HDSO** | Hypothesis-Driven Skill Optimization (arXiv:2606.22330, 奇富科技) | 候选经验写成可证伪假设 + paired control/treatment 执行验证 + 只合并被支持者;被拒候选留作 negative evidence;curator/executor 均冻结 | 待验·P4 蓝本 | 一手核验 | ALFWorld +6.9(Qwen3-8B);**20% 成败标签随机翻转下仍保 +7.1**。与本项目 knack 出厂自检探针独立同构(预声明 + 有/无注入配对) |
+> | **Honest Lying** | Memory Confabulation in Reflexive Agents (arXiv:2605.29463) | 记忆虚构:agent 存下自信但错误的失败诊断并跨轮沿用;提出 Reflection Repetition Rate;缓解方案=用程序提取轨迹级失败信号替代开放式自诊断 | 待验·P1/P5 | 一手核验 | RRR 0.64→0.10,正确对象提及 0%→86%。**外部 agent 观测(C# BOM 事故)的学名** |
+> | **SWE-Skills-Bench** | do agent skills actually help in real-world SWE? (arXiv:2603.15401) | 565 任务实例 × 49 公开 SWE skill,固定 commit,**paired with/without-skill 评估** | 外部效度参照 | 二手引用 | 与 v0.2 设计同构的公开基准,将来对外发布结果时的可比锚点 |
+> | **Trace2Skill** | distill trajectory-local lessons into transferable agent skills (arXiv:2603.25158) | **跨批次轨迹蒸馏**:从多条成功/失败轨迹生成定向 patch 再合并去冲突 | 远期候选 | 二手引用 | 指出本项目结构性短板:现为单 run 提取。多轨迹对比可从统计上滤除"70 passed"类单次噪声 |
+> | **AutoRefine** | trajectories to reusable expertise (arXiv:2601.22758) | retrieval / utilization / success 三段计数,周期性剪枝与合并 | 远期候选·P4 | 二手引用 | 与 P3 citation 数据结合可实现 lesson 生死簿 |
 >
 > 外部项目依赖：
 >
@@ -25,6 +34,29 @@
 >
 > 术语说明：代码和文档中的 "knack"（窍门）对应论文中的 "strategy gene / skill"。
 > LLM 基础能力靠模型本身，knack 只是从错误中学到的辅助性窍门。
+>
+> ### 领域地图与本项目定位
+>
+> 据 **Survey-Skill**（arXiv:2606.11435）四范式：
+>
+> 1. **执行反馈** — 单 run 步级信号
+> 2. **轨迹蒸馏** — 多 run 序列级
+> 3. **压缩增强** — 库级
+> 4. **RL** — 任务级奖励
+>
+> **本项目主体位于轨迹蒸馏，兼有执行反馈（失败升级阶梯）。**
+>
+> 综述指出的三大结构性缺口，与本项目状态对照：
+>
+> 1. **无任何基准做纵向评估**（是否随多轮反馈变好；现有全是单次快照）
+>    → 本项目「同族序列 / 第三次曲线」设计正对此缺口，v0.2 已实测。
+> 2. **指标压倒性为二值 pass/fail**，忽略 token 成本、延迟、错误类型
+>    → 本项目探针实测 resolved 饱和而效率维度显著（轮次 −62.5%、等价成本 −68.3%、reasoning token −82%），v0.2 效率补审同结论。
+> 3. **生成类基准覆盖窄** → 未涉及。
+>
+> 方法学佐证（BUG-013 动机）：「把失败诊断与重写生成分离的系统，跨任务结果强于直接在原始轨迹上操作的系统」。
+>
+> RL 类路线的已知局限（支持本项目权重不动的选择）：「任务级奖励会把 skill 质量与模型能力混淆，无法判断增益来自 skill 演化还是模型改进」。
 
 ---
 
@@ -2496,6 +2528,17 @@ L2 不走 RAG；L3/L0 通过 Recall Router 召回；summary 只进 prompt，不�
 > [ADR-008](../adr/ADR-008-measured-harness-evolution.md)
 > （工具产品化 chronicle P3/P4 排序于该实验之后）。
 
+> **状态注 · 领域态势（2026-07-23）**：2026 年 2–7 月 `Skill*` 系工作集中涌现
+> （SkillOS / SkillX / SkillNet / SkillReducer / SkillRL / AutoSkill / SkillClaw 等），
+> 竞争集中于 skill 生成与组合；**纵向评估与非二值指标仍是公开缺口**，
+> 本项目主要投入正在此处。
+
+> **状态注 · 引用纪律（2026-07-23）**：账本条目须标核验状态
+> （一手核验 / 二手引用 / 存疑）。未经一手或可信二手核验的编号一律标存疑不收
+> （本轮已剔除 1 例：Skill-Pro / arXiv:2602.01869）。Skill1 正式编号更正为
+> arXiv:2605.06130。假设账本扩容 + 领域地图见文首账本与「领域地图与本项目定位」；
+> 仓库内未另存 PDF 原件，一手核验以作者读过原文/摘要的声明为准，禁止凑绿。
+
 ### §7 Immediate Next Actions — 最低覆盖
 
 #### P0（5 条 · 全 done）
@@ -2603,4 +2646,18 @@ paper:llms-get-lost --motivates--> finding:injection-effect-experiment
 paper:meta-harness --motivates--> phase:P1
 paper:aevo --motivates--> phase:P0
 roadmap:v04-final --motivates--> finding:injection-effect-experiment
+roadmap:v04-final --calibrated_by--> paper:SPARK
+roadmap:v04-final --calibrated_by--> paper:ExpeL
+roadmap:v04-final --calibrated_by--> paper:Survey-Skill
+roadmap:v04-final --calibrated_by--> paper:CoT-Evo
+roadmap:v04-final --calibrated_by--> paper:HDSO
+roadmap:v04-final --calibrated_by--> paper:Honest-Lying
+roadmap:v04-final --calibrated_by--> paper:SWE-Skills-Bench
+roadmap:v04-final --calibrated_by--> paper:Trace2Skill
+roadmap:v04-final --calibrated_by--> paper:AutoRefine
+paper:SPARK --motivates--> BUG-013
+paper:Honest-Lying --explains--> finding:external-agent-misattribution
+paper:Trace2Skill --deferred_candidate--> finding:batch-distillation
+paper:HDSO --independently_congruent_with--> probe:knack-birth-self-check
+probe:knack-birth-self-check --motivates--> BUG-012
 ```

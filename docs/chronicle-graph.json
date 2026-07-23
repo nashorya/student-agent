@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "e0d7ce90fdbd608f",
+  "contentHash": "82d11bb58b3f8080",
   "nodes": [
     {
       "id": "ADR-001",
@@ -90,7 +90,7 @@
       "status": "CLOSED（Tier A/B 实跑 trace 已持续记录 task lifecycle、",
       "summary": "SWE 对比 run 的 trace 中 `layers.L1/L2/L3.sectionCount = 0`、",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 237
+      "sourceLine": 255
     },
     {
       "id": "BUG-002",
@@ -99,7 +99,7 @@
       "status": "CLOSED（OpenRouter Sonnet cache_control 透传与 usage 采集实测正常；",
       "summary": "cc（经代理跑 gpt-5.5）的 `cacheReadTokens` 恒为 0",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 254
+      "sourceLine": 272
     },
     {
       "id": "BUG-003",
@@ -108,7 +108,7 @@
       "status": "CLOSED",
       "summary": "git log 最后的版本化提交停在 v0.36，v0.4 成果埋在",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 278
+      "sourceLine": 296
     },
     {
       "id": "BUG-004",
@@ -117,7 +117,7 @@
       "status": "CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件；",
       "summary": "Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 292
+      "sourceLine": 310
     },
     {
       "id": "BUG-005",
@@ -126,7 +126,7 @@
       "status": "CLOSED",
       "summary": "`p2-overfull-hard-constraints-20260611` reward=0 看似红灯，",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 388
+      "sourceLine": 406
     },
     {
       "id": "BUG-006",
@@ -135,7 +135,7 @@
       "status": "CLOSED（verifier 依赖与 invalid_run 哨兵已实测生效；后续",
       "summary": "overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 407
+      "sourceLine": 425
     },
     {
       "id": "BUG-007",
@@ -144,7 +144,7 @@
       "status": "CLOSED（相关凭据仍建议轮换）",
       "summary": "`scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 452
+      "sourceLine": 470
     },
     {
       "id": "BUG-008",
@@ -153,7 +153,7 @@
       "status": "CLOSED",
       "summary": "README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 218
+      "sourceLine": 236
     },
     {
       "id": "BUG-009",
@@ -162,7 +162,7 @@
       "status": "CLOSED",
       "summary": "`npm run eval:validate` 报",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 206
+      "sourceLine": 224
     },
     {
       "id": "BUG-010",
@@ -171,7 +171,7 @@
       "status": "CLOSED",
       "summary": "`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 197
+      "sourceLine": 215
     },
     {
       "id": "BUG-011",
@@ -180,7 +180,25 @@
       "status": "CLOSED（修复后 C 组 3/3 valid 且 verifier 满分，追平 plain 3/3）",
       "summary": "正式运行",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 138
+      "sourceLine": 156
+    },
+    {
+      "id": "BUG-012",
+      "kind": "bug",
+      "title": "SWE 召回 repository gate 误杀 + P3 citation 同 ordinal 失效",
+      "status": "DONE（判分入档）；P1 合页仍否（盲审/主库门槛）。",
+      "summary": "P1-E #1 symptom=`confirmed.` 口水话；fix 半句截断风险。",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 8
+    },
+    {
+      "id": "BUG-013",
+      "kind": "bug",
+      "title": "BUG-013",
+      "status": "REFERENCED",
+      "summary": "BUG-013",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2658
     },
     {
       "id": "BUG-UNNUMBERED-205d894e",
@@ -189,7 +207,7 @@
       "status": "FIXED（门控收紧 + 库清理）；P1 验收重开。",
       "summary": "盲审 0/5；13 条主库全是 `Treat tool error as a retry pattern` 过程噪声。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 127
+      "sourceLine": 145
     },
     {
       "id": "BUG-UNNUMBERED-561c42ed",
@@ -198,7 +216,7 @@
       "status": "FIXED-部分（计价重算路径 + 入档）；generationId 落盘后续增强。",
       "summary": "ZenMux campaign 本地合计 $0.74 vs 控制台 **$2.41（≈3.3×）**。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 117
+      "sourceLine": 135
     },
     {
       "id": "campaign:c2-cache-prefix-smoke-proxy7897.json",
@@ -613,12 +631,21 @@
     {
       "id": "campaign:index-052",
       "kind": "campaign",
-      "title": "注入效果实验预注册 **v0.1**（finding:injection-effect-experiment）：被试 GLM coding plan 直连；三臂 A/B/C；H1/H2 写死判读；零现金 + $25 备用换口废族；前置烟测三",
+      "title": "注入效果实验预注册 **v0.1.1**（finding:injection-effect-experiment）：coding plan 直连；记忆隔离+主库封存；p1prom 六题黑名单；C 臂断点后全量常驻细则；采样三臂锁定；**未冻",
       "status": "RECORDED",
-      "summary": "注入效果实验预注册 **v0.1**（finding:injection-effect-experiment）：被试 GLM coding plan 直连；三臂 A/B/C；H1/H2 写死判读；零现金 + $25 备用换口废族；前置烟测三门；**未冻结禁止合并**",
+      "summary": "注入效果实验预注册 **v0.1.1**（finding:injection-effect-experiment）：coding plan 直连；记忆隔离+主库封存；p1prom 六题黑名单；C 臂断点后全量常驻细则；采样三臂锁定；**未冻结禁止合并**",
       "date": "2026-07-19",
       "sourcePath": "docs/INDEX.md",
       "sourceLine": 52
+    },
+    {
+      "id": "campaign:injection-effect-preflight-old-12907-report.json",
+      "kind": "campaign",
+      "title": "injection-effect-preflight-old-12907-report.json",
+      "status": "RECORDED",
+      "summary": "{ \"dataset_commit\": \"69611d31007e1c6731db8bd5b5c3f2d33f5bab6e\", \"test_arrow_sha256\": \"b77fa3036c06219715a35e8088fee13b0b87bc957052546c3270caf38a325627\", \"harness_version\": \"4.1.0\", \"docker_ver",
+      "sourcePath": "evals/distillation/injection-effect-preflight-old-12907-report.json",
+      "sourceLine": 1
     },
     {
       "id": "campaign:injection-effect-prereg-v0",
@@ -626,25 +653,25 @@
       "title": "预注册:注入效果实验 v0",
       "status": "DRAFT",
       "summary": "H1/H2 three-arm injection effect preregistration (draft until author freeze)",
-      "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
+      "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.2.md",
       "sourceLine": 1
     },
     {
-      "id": "campaign:p0-assay-candidates.json",
+      "id": "campaign:injection-effect-v0.2-efficiency-reaudit-20260721.json",
       "kind": "campaign",
-      "title": "p0-assay-candidates.json",
+      "title": "injection-effect-v0.2-efficiency-reaudit-20260721.json",
       "status": "RECORDED",
-      "summary": "[ { \"id\": \"knack-astropy-astropy-bda676b58a58\", \"dedup_key\": \"astropy-astropy:899b7d250ac9\", \"repo\": \"astropy/astropy\", \"symptom\": \"`output_field.replace(...)` returns a new array bu",
-      "sourcePath": "evals/distillation/p0-assay-candidates.json",
+      "summary": "{ \"schemaVersion\": 1, \"kind\": \"diagnostic-efficiency-reaudit\", \"date\": \"2026-07-21\", \"status\": \"diagnostic only; no preregistration change and no model rerun\", \"sourceResultsDir\": \"evals/res",
+      "sourcePath": "evals/distillation/injection-effect-v0.2-efficiency-reaudit-20260721.json",
       "sourceLine": 1
     },
     {
-      "id": "campaign:p0-assay-grading.md",
+      "id": "campaign:knack-birth-self-check-probe-20260721.json",
       "kind": "campaign",
-      "title": "p0-assay-grading.md",
-      "status": "CLOSED",
-      "summary": "# P0 离线蒸馏化验 · 判卷表 - **日期**：2026-07-17 - **较真税档位**：内部一次性工具（最低档） - **预算**：模型调用 0 次 / ¥0；仅读硬盘 - **萃取器**：`src/evals/knack-distillation.ts` @ `f78ed974`（schema v1）；入口 `scripts/distill-knacks.ts` @ `0934d4",
-      "sourcePath": "evals/distillation/p0-assay-grading.md",
+      "title": "knack-birth-self-check-probe-20260721.json",
+      "status": "FAILED",
+      "summary": "{ \"schemaVersion\": 1, \"label\": \"probe, non-validating conclusion\", \"status\": \"complete\", \"instrumentCommit\": \"3571fb5ed902eed0bf5036d34b282f229d41ab7f\", \"report\": \"docs/probes/knack-birth-se",
+      "sourcePath": "evals/distillation/knack-birth-self-check-probe-20260721.json",
       "sourceLine": 1
     },
     {
@@ -735,24 +762,6 @@
       "sourceLine": 1
     },
     {
-      "id": "campaign:p1-phase2-blind-key.json",
-      "kind": "campaign",
-      "title": "p1-phase2-blind-key.json",
-      "status": "RECORDED",
-      "summary": "[ { \"source\": \"ephemeral\", \"quality\": \"low\", \"confidence\": null, \"lesson\": \"Treat tool error as a retry pattern: Hashline: astropy/io/fits/fitsrec.py has changed since last read (tag",
-      "sourcePath": "evals/distillation/p1-phase2-blind-key.json",
-      "sourceLine": 1
-    },
-    {
-      "id": "campaign:p1-phase2-blind-review.md",
-      "kind": "campaign",
-      "title": "p1-phase2-blind-review.md",
-      "status": "RECORDED",
-      "summary": "# P1 阶段 2 · 盲审表（作者填） - memory: `evals/results/swebench/openrouter-sonnet-tier-b-on-memory-p1gate-20260718` - main lessons: 0 (verified=0, candidate=0) - ephemeral: 12 - verified 占比（主库）: N/A（主库空） - 验收",
-      "sourcePath": "evals/distillation/p1-phase2-blind-review.md",
-      "sourceLine": 1
-    },
-    {
       "id": "campaign:p1-phase2b-zenmux-admission-report.json",
       "kind": "campaign",
       "title": "p1-phase2b-zenmux-admission-report.json",
@@ -784,15 +793,6 @@
       "vitals": {
         "mentionedCostUsd": "0.74"
       }
-    },
-    {
-      "id": "campaign:p1-phase2b-zenmux-cost-report.json",
-      "kind": "campaign",
-      "title": "p1-phase2b-zenmux-cost-report.json",
-      "status": "RECORDED",
-      "summary": "{ \"note\": \"ZenMux management/generation requires per-call response id. Campaign traces did not persist those IDs, so historical official bill cannot be reconstructed via this API. Local cost is esti",
-      "sourcePath": "evals/distillation/p1-phase2b-zenmux-cost-report.json",
-      "sourceLine": 1
     },
     {
       "id": "campaign:p1-phase2b-zenmux-harness-report.json",
@@ -853,6 +853,15 @@
       "sourceLine": 36
     },
     {
+      "id": "finding:batch-distillation",
+      "kind": "finding",
+      "title": "finding:batch-distillation",
+      "status": "DEFINED",
+      "summary": "finding:batch-distillation",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2660
+    },
+    {
       "id": "finding:c2-cache-prefix",
       "kind": "finding",
       "title": "C-2 缓存前缀重排",
@@ -860,6 +869,15 @@
       "summary": "static→breakpoint→dynamic; 1h TTL; sequence cache read ~75%",
       "sourcePath": "evals/distillation/c2-cache-prefix-smoke.md",
       "sourceLine": 1
+    },
+    {
+      "id": "finding:external-agent-misattribution",
+      "kind": "finding",
+      "title": "finding:external-agent-misattribution",
+      "status": "DEFINED",
+      "summary": "finding:external-agent-misattribution",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2659
     },
     {
       "id": "finding:injection-effect-experiment",
@@ -887,7 +905,7 @@
       "status": "DEFINED",
       "summary": "finding:knack-fidelity-v2",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2601
+      "sourceLine": 2644
     },
     {
       "id": "finding:knack-schema-v1",
@@ -905,7 +923,7 @@
       "status": "DEFINED",
       "summary": "finding:skill-leak-knacks-jsonl",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2600
+      "sourceLine": 2643
     },
     {
       "id": "finding:tombstone-lesson-seed",
@@ -950,83 +968,164 @@
     {
       "id": "paper:aevo",
       "kind": "finding",
-      "title": "AEvo · Harnessing Agentic Evolution (港科大/DeepWisdom)",
-      "status": "已工程化",
-      "summary": "evolution as environment，meta-editing loop，evaluator 隔离防 reward hacking",
+      "title": "aevo",
+      "status": "HYPOTHESIS",
+      "summary": "paper:aevo",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 16
+      "sourceLine": 2640
     },
     {
       "id": "paper:ahe",
       "kind": "finding",
-      "title": "AHE · Agentic Harness Engineering (复旦/北大)",
-      "status": "未验",
-      "summary": "三层 observability，组件非可加性，regression blindness",
+      "title": "ahe",
+      "status": "HYPOTHESIS",
+      "summary": "paper:ahe",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 10
+      "sourceLine": 2634
     },
     {
       "id": "paper:autogenesis",
       "kind": "finding",
-      "title": "Autogenesis · Autogenesis: A Self-Evolving Agent Protocol",
-      "status": "未验",
-      "summary": "RSPL/SEPL，evolvability marker，PS-Joint-Evo",
+      "title": "autogenesis",
+      "status": "HYPOTHESIS",
+      "summary": "paper:autogenesis",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 14
+      "sourceLine": 2638
+    },
+    {
+      "id": "paper:AutoRefine",
+      "kind": "finding",
+      "title": "AutoRefine",
+      "status": "HYPOTHESIS",
+      "summary": "paper:AutoRefine",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2657
     },
     {
       "id": "paper:continual-harness",
       "kind": "finding",
-      "title": "Continual Harness · Continual Harness: Online Adaptation (普林斯顿)",
-      "status": "未验",
-      "summary": "reset-free 在线自改进，capability floor",
+      "title": "continual-harness",
+      "status": "HYPOTHESIS",
+      "summary": "paper:continual-harness",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 11
+      "sourceLine": 2635
+    },
+    {
+      "id": "paper:CoT-Evo",
+      "kind": "finding",
+      "title": "CoT-Evo",
+      "status": "HYPOTHESIS",
+      "summary": "paper:CoT-Evo",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2652
+    },
+    {
+      "id": "paper:ExpeL",
+      "kind": "finding",
+      "title": "ExpeL",
+      "status": "HYPOTHESIS",
+      "summary": "paper:ExpeL",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2650
     },
     {
       "id": "paper:gam",
       "kind": "finding",
-      "title": "GAM · General Agentic Memory Via Deep Research (智源)",
-      "status": "未验",
-      "summary": "JIT > AOT memory，Researcher 对模型规模敏感",
+      "title": "gam",
+      "status": "HYPOTHESIS",
+      "summary": "paper:gam",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 15
+      "sourceLine": 2639
     },
     {
       "id": "paper:gep-gene",
       "kind": "finding",
-      "title": "GEP/Gene · From Procedural Skills to Strategy Genes: Towards Experience-Driven Test-Time Ev",
-      "status": "部分已独立复现",
-      "summary": "文档型 Skill 包控制不稳定、有用信号稀疏；紧凑 Gene 表示为 first-order factor，同预算胜过 Skill 片段；failure history 附着于 gene 更有效（4590 trials / 45 scenarios）",
+      "title": "gep-gene",
+      "status": "HYPOTHESIS",
+      "summary": "paper:gep-gene",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 17
+      "sourceLine": 2641
+    },
+    {
+      "id": "paper:HDSO",
+      "kind": "finding",
+      "title": "HDSO",
+      "status": "HYPOTHESIS",
+      "summary": "paper:HDSO",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2653
+    },
+    {
+      "id": "paper:Honest-Lying",
+      "kind": "finding",
+      "title": "Honest-Lying",
+      "status": "HYPOTHESIS",
+      "summary": "paper:Honest-Lying",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2654
     },
     {
       "id": "paper:llms-get-lost",
       "kind": "finding",
-      "title": "LLMs Get Lost · LLMs Get Lost In Multi-Turn Conversation",
-      "status": "在验",
-      "summary": "2 轮即退化，unreliability +112%，recap 只恢复 15-20%",
+      "title": "llms-get-lost",
+      "status": "HYPOTHESIS",
+      "summary": "paper:llms-get-lost",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 12
+      "sourceLine": 2636
     },
     {
       "id": "paper:meta-harness",
       "kind": "finding",
-      "title": "Meta-Harness · Meta-Harness: End-to-End Optimization of Model Harnesses",
-      "status": "已工程化",
-      "summary": "full traces >> scores-only（44% 差距）",
+      "title": "meta-harness",
+      "status": "HYPOTHESIS",
+      "summary": "paper:meta-harness",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 9
+      "sourceLine": 2633
     },
     {
       "id": "paper:skill1",
       "kind": "finding",
-      "title": "Skill1 · Unified Evolution of Skill-Augmented Agents via RL",
-      "status": "deferred",
-      "summary": "selection/utilization/distillation 三路 credit，variation = r(τ) - Û",
+      "title": "skill1",
+      "status": "HYPOTHESIS",
+      "summary": "paper:skill1",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 13
+      "sourceLine": 2637
+    },
+    {
+      "id": "paper:SPARK",
+      "kind": "finding",
+      "title": "SPARK",
+      "status": "HYPOTHESIS",
+      "summary": "paper:SPARK",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2649
+    },
+    {
+      "id": "paper:Survey-Skill",
+      "kind": "finding",
+      "title": "Survey-Skill",
+      "status": "HYPOTHESIS",
+      "summary": "paper:Survey-Skill",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2651
+    },
+    {
+      "id": "paper:SWE-Skills-Bench",
+      "kind": "finding",
+      "title": "SWE-Skills-Bench",
+      "status": "HYPOTHESIS",
+      "summary": "paper:SWE-Skills-Bench",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2655
+    },
+    {
+      "id": "paper:Trace2Skill",
+      "kind": "finding",
+      "title": "Trace2Skill",
+      "status": "HYPOTHESIS",
+      "summary": "paper:Trace2Skill",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2656
     },
     {
       "id": "phase:P0",
@@ -1035,7 +1134,7 @@
       "status": "CLOSED",
       "summary": "化验工具链可复现依赖",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 204
+      "sourceLine": 222
     },
     {
       "id": "phase:P1",
@@ -1044,7 +1143,7 @@
       "status": "CLOSED",
       "summary": "成本对账是 P1 供给可信度的前提",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 125
+      "sourceLine": 143
     },
     {
       "id": "phase:P2",
@@ -1081,6 +1180,15 @@
       "summary": "\"较真税\"治理（thoroughness budget）",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
       "sourceLine": 244
+    },
+    {
+      "id": "probe:knack-birth-self-check",
+      "kind": "finding",
+      "title": "probe:knack-birth-self-check",
+      "status": "DEFINED",
+      "summary": "probe:knack-birth-self-check",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2661
     },
     {
       "id": "roadmap:v04-final",
@@ -1351,7 +1459,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 233,
+      "sourceLine": 251,
       "id": "motivates:BUG-008->phase:P0"
     },
     {
@@ -1360,7 +1468,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 216,
+      "sourceLine": 234,
       "id": "motivates:BUG-009->phase:P0"
     },
     {
@@ -1369,7 +1477,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 204,
+      "sourceLine": 222,
       "id": "motivates:BUG-010->phase:P0"
     },
     {
@@ -1387,7 +1495,7 @@
       "to": "phase:P1",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 136,
+      "sourceLine": 154,
       "id": "motivates:BUG-UNNUMBERED-205d894e->phase:P1"
     },
     {
@@ -1396,7 +1504,7 @@
       "to": "phase:P1",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 125,
+      "sourceLine": 143,
       "id": "motivates:BUG-UNNUMBERED-561c42ed->phase:P1"
     },
     {
@@ -1405,7 +1513,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2604,
+      "sourceLine": 2647,
       "id": "motivates:paper:aevo->phase:P0"
     },
     {
@@ -1414,7 +1522,7 @@
       "to": "finding:injection-effect-experiment",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2602,
+      "sourceLine": 2645,
       "id": "motivates:paper:llms-get-lost->finding:injection-effect-experiment"
     },
     {
@@ -1423,8 +1531,26 @@
       "to": "phase:P1",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2603,
+      "sourceLine": 2646,
       "id": "motivates:paper:meta-harness->phase:P1"
+    },
+    {
+      "kind": "motivates",
+      "from": "paper:SPARK",
+      "to": "BUG-013",
+      "label": "motivates",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2658,
+      "id": "motivates:paper:SPARK->BUG-013"
+    },
+    {
+      "kind": "motivates",
+      "from": "probe:knack-birth-self-check",
+      "to": "BUG-012",
+      "label": "motivates",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2662,
+      "id": "motivates:probe:knack-birth-self-check->BUG-012"
     },
     {
       "kind": "motivates",
@@ -1432,7 +1558,7 @@
       "to": "finding:injection-effect-experiment",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2605,
+      "sourceLine": 2648,
       "id": "motivates:roadmap:v04-final->finding:injection-effect-experiment"
     },
     {
@@ -1513,7 +1639,7 @@
       "to": "phase:P3",
       "label": "defines",
       "sourcePath": "docs/adr/ADR-006-recall-citation-and-credit.md",
-      "sourceLine": 85,
+      "sourceLine": 93,
       "id": "produces:ADR-006->phase:P3"
     },
     {
@@ -1558,7 +1684,7 @@
       "to": "ADR-004",
       "label": "independently_replicated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2599,
+      "sourceLine": 2642,
       "id": "produces:paper:gep-gene->ADR-004"
     },
     {
@@ -1567,7 +1693,7 @@
       "to": "finding:knack-fidelity-v2",
       "label": "independently_replicated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2601,
+      "sourceLine": 2644,
       "id": "produces:paper:gep-gene->finding:knack-fidelity-v2"
     },
     {
@@ -1576,8 +1702,35 @@
       "to": "finding:skill-leak-knacks-jsonl",
       "label": "independently_replicated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2600,
+      "sourceLine": 2643,
       "id": "produces:paper:gep-gene->finding:skill-leak-knacks-jsonl"
+    },
+    {
+      "kind": "produces",
+      "from": "paper:HDSO",
+      "to": "probe:knack-birth-self-check",
+      "label": "independently_congruent_with",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2661,
+      "id": "produces:paper:HDSO->probe:knack-birth-self-check"
+    },
+    {
+      "kind": "produces",
+      "from": "paper:Honest-Lying",
+      "to": "finding:external-agent-misattribution",
+      "label": "explains",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2659,
+      "id": "produces:paper:Honest-Lying->finding:external-agent-misattribution"
+    },
+    {
+      "kind": "produces",
+      "from": "paper:Trace2Skill",
+      "to": "finding:batch-distillation",
+      "label": "deferred_candidate",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2660,
+      "id": "produces:paper:Trace2Skill->finding:batch-distillation"
     },
     {
       "kind": "produces",
@@ -1585,7 +1738,7 @@
       "to": "paper:aevo",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2597,
+      "sourceLine": 2640,
       "id": "produces:roadmap:v04-final->paper:aevo"
     },
     {
@@ -1594,7 +1747,7 @@
       "to": "paper:ahe",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2591,
+      "sourceLine": 2634,
       "id": "produces:roadmap:v04-final->paper:ahe"
     },
     {
@@ -1603,8 +1756,17 @@
       "to": "paper:autogenesis",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2595,
+      "sourceLine": 2638,
       "id": "produces:roadmap:v04-final->paper:autogenesis"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:AutoRefine",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2657,
+      "id": "produces:roadmap:v04-final->paper:AutoRefine"
     },
     {
       "kind": "produces",
@@ -1612,8 +1774,26 @@
       "to": "paper:continual-harness",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2592,
+      "sourceLine": 2635,
       "id": "produces:roadmap:v04-final->paper:continual-harness"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:CoT-Evo",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2652,
+      "id": "produces:roadmap:v04-final->paper:CoT-Evo"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:ExpeL",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2650,
+      "id": "produces:roadmap:v04-final->paper:ExpeL"
     },
     {
       "kind": "produces",
@@ -1621,7 +1801,7 @@
       "to": "paper:gam",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2596,
+      "sourceLine": 2639,
       "id": "produces:roadmap:v04-final->paper:gam"
     },
     {
@@ -1630,8 +1810,26 @@
       "to": "paper:gep-gene",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2598,
+      "sourceLine": 2641,
       "id": "produces:roadmap:v04-final->paper:gep-gene"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:HDSO",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2653,
+      "id": "produces:roadmap:v04-final->paper:HDSO"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:Honest-Lying",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2654,
+      "id": "produces:roadmap:v04-final->paper:Honest-Lying"
     },
     {
       "kind": "produces",
@@ -1639,7 +1837,7 @@
       "to": "paper:llms-get-lost",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2593,
+      "sourceLine": 2636,
       "id": "produces:roadmap:v04-final->paper:llms-get-lost"
     },
     {
@@ -1648,7 +1846,7 @@
       "to": "paper:meta-harness",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2590,
+      "sourceLine": 2633,
       "id": "produces:roadmap:v04-final->paper:meta-harness"
     },
     {
@@ -1657,8 +1855,44 @@
       "to": "paper:skill1",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2594,
+      "sourceLine": 2637,
       "id": "produces:roadmap:v04-final->paper:skill1"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:SPARK",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2649,
+      "id": "produces:roadmap:v04-final->paper:SPARK"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:Survey-Skill",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2651,
+      "id": "produces:roadmap:v04-final->paper:Survey-Skill"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:SWE-Skills-Bench",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2655,
+      "id": "produces:roadmap:v04-final->paper:SWE-Skills-Bench"
+    },
+    {
+      "kind": "produces",
+      "from": "roadmap:v04-final",
+      "to": "paper:Trace2Skill",
+      "label": "calibrated_by",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2656,
+      "id": "produces:roadmap:v04-final->paper:Trace2Skill"
     },
     {
       "kind": "requires",
@@ -1666,7 +1900,7 @@
       "to": "phase:P1",
       "label": "requires",
       "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
-      "sourceLine": 138,
+      "sourceLine": 181,
       "id": "requires:finding:injection-effect-experiment->phase:P1"
     },
     {
@@ -1675,7 +1909,7 @@
       "to": "phase:P3",
       "label": "requires",
       "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
-      "sourceLine": 139,
+      "sourceLine": 182,
       "id": "requires:finding:injection-effect-experiment->phase:P3"
     },
     {
@@ -1799,11 +2033,35 @@
     },
     {
       "kind": "verifies",
-      "from": "campaign:p0-assay-grading.md",
+      "from": "campaign:injection-effect-preflight-old-12907-report.json",
       "to": "phase:P1",
-      "sourcePath": "evals/distillation/p0-assay-grading.md",
+      "sourcePath": "evals/distillation/injection-effect-preflight-old-12907-report.json",
       "sourceLine": 1,
-      "id": "verifies:campaign:p0-assay-grading.md->phase:P1"
+      "id": "verifies:campaign:injection-effect-preflight-old-12907-report.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:injection-effect-v0.2-efficiency-reaudit-20260721.json",
+      "to": "finding:c2-cache-prefix",
+      "sourcePath": "evals/distillation/injection-effect-v0.2-efficiency-reaudit-20260721.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:injection-effect-v0.2-efficiency-reaudit-20260721.json->finding:c2-cache-prefix"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:injection-effect-v0.2-efficiency-reaudit-20260721.json",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/injection-effect-v0.2-efficiency-reaudit-20260721.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:injection-effect-v0.2-efficiency-reaudit-20260721.json->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:knack-birth-self-check-probe-20260721.json",
+      "to": "finding:c2-cache-prefix",
+      "sourcePath": "evals/distillation/knack-birth-self-check-probe-20260721.json",
+      "sourceLine": 1,
+      "id": "verifies:campaign:knack-birth-self-check-probe-20260721.json->finding:c2-cache-prefix"
     },
     {
       "kind": "verifies",
@@ -1879,22 +2137,6 @@
     },
     {
       "kind": "verifies",
-      "from": "campaign:p1-phase2-blind-key.json",
-      "to": "phase:P1",
-      "sourcePath": "evals/distillation/p1-phase2-blind-key.json",
-      "sourceLine": 1,
-      "id": "verifies:campaign:p1-phase2-blind-key.json->phase:P1"
-    },
-    {
-      "kind": "verifies",
-      "from": "campaign:p1-phase2-blind-review.md",
-      "to": "phase:P1",
-      "sourcePath": "evals/distillation/p1-phase2-blind-review.md",
-      "sourceLine": 1,
-      "id": "verifies:campaign:p1-phase2-blind-review.md->phase:P1"
-    },
-    {
-      "kind": "verifies",
       "from": "campaign:p1-phase2b-zenmux-admission-report.json",
       "to": "finding:c2-cache-prefix",
       "sourcePath": "evals/distillation/p1-phase2b-zenmux-admission-report.json",
@@ -1924,14 +2166,6 @@
       "sourcePath": "evals/distillation/p1-phase2b-zenmux-blind-review.md",
       "sourceLine": 1,
       "id": "verifies:campaign:p1-phase2b-zenmux-blind-review.md->phase:P1"
-    },
-    {
-      "kind": "verifies",
-      "from": "campaign:p1-phase2b-zenmux-cost-report.json",
-      "to": "finding:c2-cache-prefix",
-      "sourcePath": "evals/distillation/p1-phase2b-zenmux-cost-report.json",
-      "sourceLine": 1,
-      "id": "verifies:campaign:p1-phase2b-zenmux-cost-report.json->finding:c2-cache-prefix"
     },
     {
       "kind": "verifies",
@@ -1971,7 +2205,7 @@
       "to": "campaign:injection-effect-prereg-v0",
       "label": "verifies",
       "sourcePath": "docs/proposals/injection-effect-experiment-prereg-v0.md",
-      "sourceLine": 136,
+      "sourceLine": 179,
       "id": "verifies:finding:injection-effect-experiment->campaign:injection-effect-prereg-v0"
     }
   ],
@@ -2138,6 +2372,20 @@
         "sourcePath": "docs/buglog.md"
       },
       {
+        "id": "BUG-012",
+        "kind": "bug",
+        "title": "SWE 召回 repository gate 误杀 + P3 citation 同 ordinal 失效",
+        "edgeCount": 1,
+        "sourcePath": "docs/buglog.md"
+      },
+      {
+        "id": "BUG-013",
+        "kind": "bug",
+        "title": "BUG-013",
+        "edgeCount": 1,
+        "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md"
+      },
+      {
         "id": "BUG-UNNUMBERED-205d894e",
         "kind": "bug",
         "title": "主库写入路径过松（过程噪声进 lessons/）",
@@ -2162,7 +2410,7 @@
         "id": "phase:P1",
         "kind": "phase",
         "title": "P1 · 成本对账是 P1 供给可信度的前提",
-        "edgeCount": 29,
+        "edgeCount": 28,
         "sourcePath": "docs/buglog.md"
       },
       {
