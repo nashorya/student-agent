@@ -49,6 +49,9 @@ function cli(args: string[]): InjectionFamilyRunOptions {
     ...(values.has('--resume-from-task')
       ? { resumeFromTask: Number(values.get('--resume-from-task')) }
       : {}),
+    ...(values.has('--max-equivalent-cost-cny')
+      ? { equivalentCostCnyLimit: Number(values.get('--max-equivalent-cost-cny')) }
+      : {}),
   };
 }
 

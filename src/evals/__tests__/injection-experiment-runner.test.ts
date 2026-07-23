@@ -197,6 +197,41 @@ describe('injection experiment v0.2 runner', () => {
     expect(first.harnessSkipped.reason).toBe('empty_patch_counted_unresolved');
   });
 
+  it('stops before scoring when the equivalent-cost fuse is exceeded', async () => {
+    const root = await fixtureRoot();
+    const memoryDir = join(root, 'memory', 'A-L', 'F-DJ-MIGRATION-REFERENCE');
+    const produce = vi.fn(async () => {
+      await mkdir(join(memoryDir, 'runs', 'costly_run'), { recursive: true });
+      await writeFile(join(memoryDir, 'runs', 'costly_run', 'events.jsonl'), '{"kind":"tool_call"}\n');
+      return { records: [{
+        status: 'success', injectionSnapshot: '',
+        trace: {
+          learningRun: { runId: 'costly_run', taskId: 'costly_task' },
+          failureEscalationEvents: [],
+          tokenUsage: {
+            inputTokens: 200_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+            totalTokens: 200_000,
+            costUsd: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+            costAuthority: 'local_estimate',
+          },
+        },
+      }] };
+    });
+    const score = vi.fn();
+
+    await expect(runInjectionFamily({
+      ...runOptions(root, await frozenPrereg(root)),
+      equivalentCostCnyLimit: 1,
+    }, { produce: produce as never, score })).rejects.toThrow('exceeded limit');
+
+    expect(score).not.toHaveBeenCalled();
+    const stop = JSON.parse(await readFile(join(
+      root, 'A-L', 'F-DJ-MIGRATION-REFERENCE',
+      '1-django__django-12125', 'budget-stop.json',
+    ), 'utf8'));
+    expect(stop).toMatchObject({ reason: 'equivalent_cost_limit_exceeded', limitCny: 1 });
+  });
+
   async function fixtureRoot(): Promise<string> {
     const root = await mkdtemp(join(tmpdir(), 'injection-v02-runner-'));
     roots.push(root);

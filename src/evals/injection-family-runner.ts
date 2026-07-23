@@ -45,6 +45,7 @@ export interface InjectionFamilyRunOptions {
   dryRun?: boolean;
   /** 1-based recovery point. Earlier completed empty-patch runs are retained. */
   resumeFromTask?: number;
+  equivalentCostCnyLimit?: number;
 }
 
 export interface InjectionFamilyDependencies {
@@ -129,6 +130,7 @@ export async function runInjectionFamily(
   process.env.STUDENT_AGENT_EVAL_FROZEN_SAMPLING = JSON.stringify(spec.sampling);
   const produce = dependencies.produce ?? produceSweBenchPatches;
   const runDirs: string[] = [];
+  let equivalentCostCny = 0;
   for (let index = 0; index < resumeFromTask - 1; index++) {
     const instanceId = instanceIds[index]!;
     const runDir = join(batchDir, `${index + 1}-${instanceId}`);
@@ -163,6 +165,26 @@ export async function runInjectionFamily(
       throw new Error(`Missing required audit artifacts for ${instanceId}`);
     }
     await persistAgentArtifacts(runDir, memoryDir, runId, record);
+    equivalentCostCny += equivalentCostCnyOf(record.trace);
+    if (options.equivalentCostCnyLimit !== undefined
+      && equivalentCostCny > options.equivalentCostCnyLimit) {
+      runDirs.push(runDir);
+      const budgetStop = {
+        stopped: true,
+        reason: 'equivalent_cost_limit_exceeded',
+        limitCny: options.equivalentCostCnyLimit,
+        accumulatedCny: Number(equivalentCostCny.toFixed(6)),
+        instanceId,
+      };
+      await Promise.all([
+        writeFile(join(runDir, 'budget-stop.json'), JSON.stringify(budgetStop, null, 2)),
+        writeFile(join(batchDir, 'batch.json'), JSON.stringify({
+          ...manifest, dryRun: false, equivalentCostCnyLimit: options.equivalentCostCnyLimit,
+          equivalentCostCny: budgetStop.accumulatedCny, runDirs,
+        }, null, 2)),
+      ]);
+      throw new Error(`Equivalent cost CNY ${budgetStop.accumulatedCny} exceeded limit ${budgetStop.limitCny}`);
+    }
     if (isContinuableEmptyPatch(record)) {
       await finalizeEmptyPatchRun({ memoryDir, runDir, instanceId, index, record, beforeInventory });
       runDirs.push(runDir);
@@ -263,6 +285,12 @@ function emptyInventory(): Awaited<ReturnType<typeof buildInjectionMemoryInvento
     admittedRunIds: [], rejectedRunIds: [], mainLessonIds: [], eligibleLessonIds: [],
     ephemeralLessonIds: [], knackIds: [], eligibleKnackIds: [],
   };
+}
+
+function equivalentCostCnyOf(trace: SweBenchPatchProducerResult['records'][number]['trace']): number {
+  if (!trace?.tokenUsage) return 0;
+  const usage = trace.tokenUsage;
+  return (usage.inputTokens * 8 + usage.cacheReadTokens * 2 + usage.outputTokens * 28) / 1_000_000;
 }
 
 function parseFamilies(text: string): Record<string, string[]> {
