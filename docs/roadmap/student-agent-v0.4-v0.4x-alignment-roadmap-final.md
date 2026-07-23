@@ -10,7 +10,7 @@
 > | **AHE** | Agentic Harness Engineering (复旦/北大) | 三层 observability，组件非可加性，regression blindness | 未验 | 一手核验 | §9 arXiv:2604.25850 |
 > | **Continual Harness** | Continual Harness: Online Adaptation (普林斯顿) | reset-free 在线自改进，capability floor | 未验 | 一手核验 | §9 arXiv:2605.09998 |
 > | **LLMs Get Lost** | LLMs Get Lost In Multi-Turn Conversation | 2 轮即退化，unreliability +112%，recap 只恢复 15-20% | 在验 | 一手核验 | C 组压缩探针（[probes/jspace-compaction](../probes/jspace-compaction/README.md)）、占位关案叙事 [BUG-011](../buglog.md) / 实档 [BUG-004](../buglog.md)；§9 arXiv:2505.06120 |
-> | **Skill1** | Unified Evolution of Skill-Augmented Agents via RL (arXiv:**2605.06130**) | 单策略联合 skill 检索/选择/解题/演化；既有表述：selection/utilization/distillation 三路 credit，variation = r(τ) - Û | deferred(原状) | 二手引用 | **编号更正**：结账层原记编号有误（现以 arXiv:2605.06130 / §9 为准）；另注：外部推荐中出现的 "Skill-Pro / arXiv:2602.01869" 未通过核验，疑为本篇的幻觉变体，**标存疑不收**。实战升格见结账层 v0.4x-C（causal pair + harness；variation 延后至主库 ≥10） |
+> | **Skill1** | Unified Evolution of Skill-Augmented Agents via RL (arXiv:**2605.06130**) | 单策略联合 skill 检索/选择/解题/演化；既有表述：selection/utilization/distillation 三路 credit，variation = r(τ) - Û | deferred(原状) | 一手核验 | 编号以 arXiv:2605.06130 / §9 为准；本地快照 [`papers/2605.06130.html`](./papers/2605.06130.html)。**Skill-Pro（arXiv:2602.01869）为独立真文，非本篇幻觉**——见下 Skill-Pro 行。实战升格见结账层 v0.4x-C（causal pair + harness；variation 延后至主库 ≥10） |
 > | **Autogenesis** | Autogenesis: A Self-Evolving Agent Protocol | RSPL/SEPL，evolvability marker，PS-Joint-Evo | 未验 | 一手核验 | §9 arXiv:2604.15034 |
 > | **GAM** | General Agentic Memory Via Deep Research (智源) | JIT > AOT memory，Researcher 对模型规模敏感 | 未验 | 一手核验 | §9 arXiv:2511.18423 |
 > | **AEvo** | Harnessing Agentic Evolution (港科大/DeepWisdom) | evolution as environment，meta-editing loop，evaluator 隔离防 reward hacking | 已工程化 | 一手核验 | harness 外置判分 / SWE official harness（[ADR-001](../adr/ADR-001-eval-claim-separation.md)、eval runner）；§9 arXiv:2605.13821 |
@@ -21,9 +21,10 @@
 > | **SPARK/PDI** | Evidence Over Plans (arXiv:2605.09192, Rutgers) | PDI = z(φ_exec) − z(φ_plan) − z(φ_oss);六块证据 schema(Verification 独立成块);探索 memo 五段结构;**压缩过度与收益负相关**;发散轨迹优于收敛 | **已采纳为方法** | 一手核验 | φ_exec 选为 BUG-013 主判别器;verification 字段来源;截断上限放宽依据 |
 > | **HDSO** | Hypothesis-Driven Skill Optimization (arXiv:2606.22330, 奇富科技) | 候选经验写成可证伪假设 + paired control/treatment 执行验证 + 只合并被支持者;被拒候选留作 negative evidence;curator/executor 均冻结 | 待验·P4 蓝本 | 一手核验 | ALFWorld +6.9(Qwen3-8B);**20% 成败标签随机翻转下仍保 +7.1**。与本项目 knack 出厂自检探针独立同构(预声明 + 有/无注入配对) |
 > | **Honest Lying** | Memory Confabulation in Reflexive Agents (arXiv:2605.29463) | 记忆虚构:agent 存下自信但错误的失败诊断并跨轮沿用;提出 Reflection Repetition Rate;缓解方案=用程序提取轨迹级失败信号替代开放式自诊断 | 待验·P1/P5 | 一手核验 | RRR 0.64→0.10,正确对象提及 0%→86%。**外部 agent 观测(C# BOM 事故)的学名** |
-> | **SWE-Skills-Bench** | do agent skills actually help in real-world SWE? (arXiv:2603.15401) | 565 任务实例 × 49 公开 SWE skill,固定 commit,**paired with/without-skill 评估** | 外部效度参照 | 二手引用 | 与 v0.2 设计同构的公开基准,将来对外发布结果时的可比锚点 |
-> | **Trace2Skill** | distill trajectory-local lessons into transferable agent skills (arXiv:2603.25158) | **跨批次轨迹蒸馏**:从多条成功/失败轨迹生成定向 patch 再合并去冲突 | 远期候选 | 二手引用 | 指出本项目结构性短板:现为单 run 提取。多轨迹对比可从统计上滤除"70 passed"类单次噪声 |
-> | **AutoRefine** | trajectories to reusable expertise (arXiv:2601.22758) | retrieval / utilization / success 三段计数,周期性剪枝与合并 | 远期候选·P4 | 二手引用 | 与 P3 citation 数据结合可实现 lesson 生死簿 |
+> | **SWE-Skills-Bench** | do agent skills actually help in real-world SWE? (arXiv:2603.15401) | 565 任务实例 × 49 公开 SWE skill,固定 commit,**paired with/without-skill 评估** | 外部效度参照 | 一手核验 | 与 v0.2 设计同构的公开基准,将来对外发布结果时的可比锚点；本地 [`papers/2603.15401.html`](./papers/2603.15401.html) |
+> | **Trace2Skill** | distill trajectory-local lessons into transferable agent skills (arXiv:2603.25158) | **跨批次轨迹蒸馏**:从多条成功/失败轨迹生成定向 patch 再合并去冲突 | 远期候选 | 一手核验 | 指出本项目结构性短板:现为单 run 提取。多轨迹对比可从统计上滤除"70 passed"类单次噪声；本地 [`papers/2603.25158.html`](./papers/2603.25158.html) |
+> | **AutoRefine** | trajectories to reusable expertise (arXiv:2601.22758) | retrieval / utilization / success 三段计数,周期性剪枝与合并 | 远期候选·P4 | 一手核验 | 与 P3 citation 数据结合可实现 lesson 生死簿；本地 [`papers/2601.22758.html`](./papers/2601.22758.html) |
+> | **Skill-Pro** | Skill-Pro: Learning Reusable Skills from Experience via Non-Parametric PPO for LLM Agents (arXiv:2602.01869, ICML 2026 spotlight) | Skill-MDP + 无参 PPO Gate：从交互轨迹学可执行 procedural Skill（激活/执行/终止），非参数复用、压缩记忆 | 参照·待验 | 一手核验 | **2026-07-23 核验更正**：此前误标「Skill1 幻觉变体 / 存疑不收」——arXiv 上为独立真文，与 Skill1（2605.06130）不同题。本地 [`papers/2602.01869.html`](./papers/2602.01869.html)。暂不升格主链（与 HDSO/ExpeL 对照用） |
 >
 > 外部项目依赖：
 >
@@ -2534,10 +2535,17 @@ L2 不走 RAG；L3/L0 通过 Recall Router 召回；summary 只进 prompt，不�
 > 本项目主要投入正在此处。
 
 > **状态注 · 引用纪律（2026-07-23）**：账本条目须标核验状态
-> （一手核验 / 二手引用 / 存疑）。未经一手或可信二手核验的编号一律标存疑不收
-> （本轮已剔除 1 例：Skill-Pro / arXiv:2602.01869）。Skill1 正式编号更正为
-> arXiv:2605.06130。假设账本扩容 + 领域地图见文首账本与「领域地图与本项目定位」；
-> 仓库内未另存 PDF 原件，一手核验以作者读过原文/摘要的声明为准，禁止凑绿。
+> （一手核验 / 二手引用 / 存疑）。未经一手或可信二手核验的编号一律标存疑不收。
+> Skill1 正式编号为 arXiv:2605.06130。
+
+> **状态注 · Skill-Pro 核验更正 + HTML 归档（2026-07-23）**：
+> 先前「Skill-Pro / arXiv:2602.01869 = Skill1 幻觉变体、存疑不收」**撤销**。
+> arXiv 直连核验：该号为独立真文 *Skill-Pro: Learning Reusable Skills from Experience via Non-Parametric PPO*
+> （ICML 2026 spotlight），与 Skill1 不同题；已入账本「Skill-Pro」行，状态 **参照·待验**。
+> 账本 19 篇均已落本地 HTML（优先 `/html/<id>`，否则 abs 页）于
+> [`docs/roadmap/papers/`](./papers/) + [`MANIFEST.csv`](./papers/MANIFEST.csv)；
+> 原 PDF 尝试已放弃（含 31MB 单文件），嵌套路径垃圾已清。
+> 注：本机声明的 `127.0.0.1:7890` 代理在 WSL 内不可达，本轮用直连完成。
 
 ### §7 Immediate Next Actions — 最低覆盖
 
@@ -2660,4 +2668,6 @@ paper:Honest-Lying --explains--> finding:external-agent-misattribution
 paper:Trace2Skill --deferred_candidate--> finding:batch-distillation
 paper:HDSO --independently_congruent_with--> probe:knack-birth-self-check
 probe:knack-birth-self-check --motivates--> BUG-012
+roadmap:v04-final --calibrated_by--> paper:Skill-Pro
+paper:Skill-Pro --clarifies--> paper:skill1
 ```
