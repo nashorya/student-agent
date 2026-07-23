@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "70fa657a1991493d",
+  "contentHash": "5e337cd4ec0a86d4",
   "nodes": [
     {
       "id": "ADR-001",
@@ -198,7 +198,7 @@
       "status": "REFERENCED",
       "summary": "BUG-013",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2666
+      "sourceLine": 2693
     },
     {
       "id": "BUG-UNNUMBERED-205d894e",
@@ -859,7 +859,7 @@
       "status": "DEFINED",
       "summary": "finding:batch-distillation",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2668
+      "sourceLine": 2695
     },
     {
       "id": "finding:c2-cache-prefix",
@@ -877,7 +877,7 @@
       "status": "DEFINED",
       "summary": "finding:external-agent-misattribution",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2667
+      "sourceLine": 2694
     },
     {
       "id": "finding:injection-effect-experiment",
@@ -905,7 +905,7 @@
       "status": "DEFINED",
       "summary": "finding:knack-fidelity-v2",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2652
+      "sourceLine": 2679
     },
     {
       "id": "finding:knack-schema-v1",
@@ -917,13 +917,22 @@
       "sourceLine": 120
     },
     {
+      "id": "finding:references-folder",
+      "kind": "finding",
+      "title": "finding:references-folder",
+      "status": "DEFINED",
+      "summary": "finding:references-folder",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2698
+    },
+    {
       "id": "finding:skill-leak-knacks-jsonl",
       "kind": "finding",
       "title": "finding:skill-leak-knacks-jsonl",
       "status": "DEFINED",
       "summary": "finding:skill-leak-knacks-jsonl",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2651
+      "sourceLine": 2678
     },
     {
       "id": "finding:tombstone-lesson-seed",
@@ -966,13 +975,22 @@
       "tombstone": true
     },
     {
+      "id": "finding:v032-escalation-ladder",
+      "kind": "finding",
+      "title": "finding:v032-escalation-ladder",
+      "status": "DEFINED",
+      "summary": "finding:v032-escalation-ladder",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2698
+    },
+    {
       "id": "paper:aevo",
       "kind": "finding",
       "title": "aevo",
       "status": "HYPOTHESIS",
       "summary": "paper:aevo",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2648
+      "sourceLine": 2675
     },
     {
       "id": "paper:ahe",
@@ -981,7 +999,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:ahe",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2642
+      "sourceLine": 2669
     },
     {
       "id": "paper:autogenesis",
@@ -990,7 +1008,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:autogenesis",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2646
+      "sourceLine": 2673
     },
     {
       "id": "paper:AutoRefine",
@@ -999,7 +1017,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:AutoRefine",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2665
+      "sourceLine": 2692
     },
     {
       "id": "paper:continual-harness",
@@ -1008,7 +1026,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:continual-harness",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2643
+      "sourceLine": 2670
     },
     {
       "id": "paper:CoT-Evo",
@@ -1017,7 +1035,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:CoT-Evo",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2660
+      "sourceLine": 2687
     },
     {
       "id": "paper:ExpeL",
@@ -1026,7 +1044,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:ExpeL",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2658
+      "sourceLine": 2685
     },
     {
       "id": "paper:gam",
@@ -1035,7 +1053,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:gam",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2647
+      "sourceLine": 2674
     },
     {
       "id": "paper:gep-gene",
@@ -1044,7 +1062,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:gep-gene",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2649
+      "sourceLine": 2676
     },
     {
       "id": "paper:HDSO",
@@ -1053,7 +1071,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:HDSO",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2661
+      "sourceLine": 2688
     },
     {
       "id": "paper:Honest-Lying",
@@ -1062,7 +1080,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:Honest-Lying",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2662
+      "sourceLine": 2689
     },
     {
       "id": "paper:llms-get-lost",
@@ -1071,7 +1089,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:llms-get-lost",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2644
+      "sourceLine": 2671
     },
     {
       "id": "paper:meta-harness",
@@ -1080,16 +1098,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:meta-harness",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2641
-    },
-    {
-      "id": "paper:Skill-Pro",
-      "kind": "finding",
-      "title": "Skill-Pro",
-      "status": "HYPOTHESIS",
-      "summary": "paper:Skill-Pro",
-      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2671
+      "sourceLine": 2668
     },
     {
       "id": "paper:skill1",
@@ -1098,7 +1107,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:skill1",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2645
+      "sourceLine": 2672
     },
     {
       "id": "paper:SPARK",
@@ -1107,7 +1116,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:SPARK",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2657
+      "sourceLine": 2684
     },
     {
       "id": "paper:Survey-Skill",
@@ -1116,7 +1125,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:Survey-Skill",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2659
+      "sourceLine": 2686
     },
     {
       "id": "paper:SWE-Skills-Bench",
@@ -1125,7 +1134,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:SWE-Skills-Bench",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2663
+      "sourceLine": 2690
     },
     {
       "id": "paper:Trace2Skill",
@@ -1134,7 +1143,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:Trace2Skill",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2664
+      "sourceLine": 2691
     },
     {
       "id": "phase:P0",
@@ -1197,7 +1206,7 @@
       "status": "DEFINED",
       "summary": "probe:knack-birth-self-check",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2669
+      "sourceLine": 2696
     },
     {
       "id": "roadmap:v04-final",
@@ -1522,7 +1531,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2655,
+      "sourceLine": 2682,
       "id": "motivates:paper:aevo->phase:P0"
     },
     {
@@ -1531,7 +1540,7 @@
       "to": "finding:injection-effect-experiment",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2653,
+      "sourceLine": 2680,
       "id": "motivates:paper:llms-get-lost->finding:injection-effect-experiment"
     },
     {
@@ -1540,7 +1549,7 @@
       "to": "phase:P1",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2654,
+      "sourceLine": 2681,
       "id": "motivates:paper:meta-harness->phase:P1"
     },
     {
@@ -1549,7 +1558,7 @@
       "to": "BUG-013",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2666,
+      "sourceLine": 2693,
       "id": "motivates:paper:SPARK->BUG-013"
     },
     {
@@ -1558,7 +1567,7 @@
       "to": "BUG-012",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2670,
+      "sourceLine": 2697,
       "id": "motivates:probe:knack-birth-self-check->BUG-012"
     },
     {
@@ -1567,7 +1576,7 @@
       "to": "finding:injection-effect-experiment",
       "label": "motivates",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2656,
+      "sourceLine": 2683,
       "id": "motivates:roadmap:v04-final->finding:injection-effect-experiment"
     },
     {
@@ -1689,11 +1698,20 @@
     },
     {
       "kind": "produces",
+      "from": "finding:references-folder",
+      "to": "finding:v032-escalation-ladder",
+      "label": "traces_to",
+      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
+      "sourceLine": 2698,
+      "id": "produces:finding:references-folder->finding:v032-escalation-ladder"
+    },
+    {
+      "kind": "produces",
       "from": "paper:gep-gene",
       "to": "ADR-004",
       "label": "independently_replicated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2650,
+      "sourceLine": 2677,
       "id": "produces:paper:gep-gene->ADR-004"
     },
     {
@@ -1702,7 +1720,7 @@
       "to": "finding:knack-fidelity-v2",
       "label": "independently_replicated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2652,
+      "sourceLine": 2679,
       "id": "produces:paper:gep-gene->finding:knack-fidelity-v2"
     },
     {
@@ -1711,7 +1729,7 @@
       "to": "finding:skill-leak-knacks-jsonl",
       "label": "independently_replicated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2651,
+      "sourceLine": 2678,
       "id": "produces:paper:gep-gene->finding:skill-leak-knacks-jsonl"
     },
     {
@@ -1720,7 +1738,7 @@
       "to": "probe:knack-birth-self-check",
       "label": "independently_congruent_with",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2669,
+      "sourceLine": 2696,
       "id": "produces:paper:HDSO->probe:knack-birth-self-check"
     },
     {
@@ -1729,17 +1747,8 @@
       "to": "finding:external-agent-misattribution",
       "label": "explains",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2667,
+      "sourceLine": 2694,
       "id": "produces:paper:Honest-Lying->finding:external-agent-misattribution"
-    },
-    {
-      "kind": "produces",
-      "from": "paper:Skill-Pro",
-      "to": "paper:skill1",
-      "label": "clarifies",
-      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2672,
-      "id": "produces:paper:Skill-Pro->paper:skill1"
     },
     {
       "kind": "produces",
@@ -1747,7 +1756,7 @@
       "to": "finding:batch-distillation",
       "label": "deferred_candidate",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2668,
+      "sourceLine": 2695,
       "id": "produces:paper:Trace2Skill->finding:batch-distillation"
     },
     {
@@ -1756,7 +1765,7 @@
       "to": "paper:aevo",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2648,
+      "sourceLine": 2675,
       "id": "produces:roadmap:v04-final->paper:aevo"
     },
     {
@@ -1765,7 +1774,7 @@
       "to": "paper:ahe",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2642,
+      "sourceLine": 2669,
       "id": "produces:roadmap:v04-final->paper:ahe"
     },
     {
@@ -1774,7 +1783,7 @@
       "to": "paper:autogenesis",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2646,
+      "sourceLine": 2673,
       "id": "produces:roadmap:v04-final->paper:autogenesis"
     },
     {
@@ -1783,7 +1792,7 @@
       "to": "paper:AutoRefine",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2665,
+      "sourceLine": 2692,
       "id": "produces:roadmap:v04-final->paper:AutoRefine"
     },
     {
@@ -1792,7 +1801,7 @@
       "to": "paper:continual-harness",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2643,
+      "sourceLine": 2670,
       "id": "produces:roadmap:v04-final->paper:continual-harness"
     },
     {
@@ -1801,7 +1810,7 @@
       "to": "paper:CoT-Evo",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2660,
+      "sourceLine": 2687,
       "id": "produces:roadmap:v04-final->paper:CoT-Evo"
     },
     {
@@ -1810,7 +1819,7 @@
       "to": "paper:ExpeL",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2658,
+      "sourceLine": 2685,
       "id": "produces:roadmap:v04-final->paper:ExpeL"
     },
     {
@@ -1819,7 +1828,7 @@
       "to": "paper:gam",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2647,
+      "sourceLine": 2674,
       "id": "produces:roadmap:v04-final->paper:gam"
     },
     {
@@ -1828,7 +1837,7 @@
       "to": "paper:gep-gene",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2649,
+      "sourceLine": 2676,
       "id": "produces:roadmap:v04-final->paper:gep-gene"
     },
     {
@@ -1837,7 +1846,7 @@
       "to": "paper:HDSO",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2661,
+      "sourceLine": 2688,
       "id": "produces:roadmap:v04-final->paper:HDSO"
     },
     {
@@ -1846,7 +1855,7 @@
       "to": "paper:Honest-Lying",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2662,
+      "sourceLine": 2689,
       "id": "produces:roadmap:v04-final->paper:Honest-Lying"
     },
     {
@@ -1855,7 +1864,7 @@
       "to": "paper:llms-get-lost",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2644,
+      "sourceLine": 2671,
       "id": "produces:roadmap:v04-final->paper:llms-get-lost"
     },
     {
@@ -1864,17 +1873,8 @@
       "to": "paper:meta-harness",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2641,
+      "sourceLine": 2668,
       "id": "produces:roadmap:v04-final->paper:meta-harness"
-    },
-    {
-      "kind": "produces",
-      "from": "roadmap:v04-final",
-      "to": "paper:Skill-Pro",
-      "label": "calibrated_by",
-      "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2671,
-      "id": "produces:roadmap:v04-final->paper:Skill-Pro"
     },
     {
       "kind": "produces",
@@ -1882,7 +1882,7 @@
       "to": "paper:skill1",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2645,
+      "sourceLine": 2672,
       "id": "produces:roadmap:v04-final->paper:skill1"
     },
     {
@@ -1891,7 +1891,7 @@
       "to": "paper:SPARK",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2657,
+      "sourceLine": 2684,
       "id": "produces:roadmap:v04-final->paper:SPARK"
     },
     {
@@ -1900,7 +1900,7 @@
       "to": "paper:Survey-Skill",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2659,
+      "sourceLine": 2686,
       "id": "produces:roadmap:v04-final->paper:Survey-Skill"
     },
     {
@@ -1909,7 +1909,7 @@
       "to": "paper:SWE-Skills-Bench",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2663,
+      "sourceLine": 2690,
       "id": "produces:roadmap:v04-final->paper:SWE-Skills-Bench"
     },
     {
@@ -1918,7 +1918,7 @@
       "to": "paper:Trace2Skill",
       "label": "calibrated_by",
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
-      "sourceLine": 2664,
+      "sourceLine": 2691,
       "id": "produces:roadmap:v04-final->paper:Trace2Skill"
     },
     {

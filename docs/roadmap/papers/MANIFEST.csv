@@ -1,20 +1,20 @@
 id,abbrev,status,bytes,source,title,local_path
-2603.28052,Meta-Harness,OK,385914,html,Meta-Harness: End-to-End Optimization of Model Harnesses,docs/roadmap/papers/2603.28052.html
-2604.25850,AHE,OK,45453,abs,[2604.25850] Agentic Harness Engineering: Observability-Driven Automatic Evolution of Coding-Agent Harnesses,docs/roadmap/papers/2604.25850.html
-2605.09998,Continual-Harness,OK,297463,html,Continual Harness: Online Adaptation for Self-Improving Foundation Agents,docs/roadmap/papers/2605.09998.html
-2505.06120,LLMs-Get-Lost,OK,41812,abs,[2505.06120] LLMs Get Lost In Multi-Turn Conversation,docs/roadmap/papers/2505.06120.html
-2605.06130,Skill1,OK,404369,html,Skill1: Unified Evolution of Skill-Augmented Agents via Reinforcement Learning,docs/roadmap/papers/2605.06130.html
-2604.15034,Autogenesis,OK,43143,abs,[2604.15034] Autogenesis: A Self-Evolving Agent Protocol,docs/roadmap/papers/2604.15034.html
-2511.18423,GAM,OK,190414,html,General Agentic Memory Via Deep Research,docs/roadmap/papers/2511.18423.html
-2605.13821,AEvo,OK,993639,html,Harnessing Agentic Evolution,docs/roadmap/papers/2605.13821.html
-2604.15097,GEP-Gene,OK,376997,html,From Procedural Skills to Strategy Genes: Towards Experience-Driven Test-Time Evolution,docs/roadmap/papers/2604.15097.html
-2510.13166,CoT-Evo,OK,374826,html,CoT-Evo: Evolutionary Distillation of Chain-of-Thought for Scientific Reasoning,docs/roadmap/papers/2510.13166.html
-2308.10144,ExpeL,OK,449376,html,ExpeL: LLM Agents Are Experiential Learners,docs/roadmap/papers/2308.10144.html
-2606.11435,Survey-Skill,OK,377593,html,Agent Skill Evaluation and Evolution: Frameworks and Benchmarks,docs/roadmap/papers/2606.11435.html
-2605.09192,SPARK-PDI,OK,524400,html,Evidence Over Plans: Online Trajectory Verification for Skill Distillation,docs/roadmap/papers/2605.09192.html
-2606.22330,HDSO,OK,326149,html,Hypothesis-Driven Skill Optimization for LLM Agents,docs/roadmap/papers/2606.22330.html
-2605.29463,Honest-Lying,OK,178233,html,Honest Lying: Understanding Memory Confabulation in Reflexive Agents,docs/roadmap/papers/2605.29463.html
-2603.15401,SWE-Skills-Bench,OK,193166,html,SWE-Skills-Bench: Do Agent Skills Actually Help in Real-World Software Engineering?,docs/roadmap/papers/2603.15401.html
-2603.25158,Trace2Skill,OK,616232,html,Trace2Skill: Distill Trajectory-Local Lessons into Transferable Agent Skills,docs/roadmap/papers/2603.25158.html
-2601.22758,AutoRefine,OK,1129234,html,AutoRefine: From Trajectories to Reusable Expertise for Continual LLM Agent Refinement,docs/roadmap/papers/2601.22758.html
-2602.01869,Skill-Pro,OK,416176,html,Skill-Pro: Learning Reusable Skills from Experience via Non-Parametric PPO for LLM Agents,docs/roadmap/papers/2602.01869.html
+2308.10144,ExpeL,OK,110376,md-user-zip,ExpeL: LLM Agents Are Experiential Learners,docs/roadmap/papers/2308.10144.md
+2505.06120,LLMs-Get-Lost,OK,457070,ar5iv→pandoc-gfm,[2505.06120] LLMs Get Lost In Multi-Turn Conversation,docs/roadmap/papers/2505.06120.md
+2510.13166,CoT-Evo,OK,299877,ar5iv→pandoc-gfm,CoT-Evo: Evolutionary Distillation of Chain-of-Thought for Scientific Reasoning,docs/roadmap/papers/2510.13166.md
+2511.18423,GAM,OK,157482,ar5iv→pandoc-gfm,General Agentic Memory Via Deep Research,docs/roadmap/papers/2511.18423.md
+2601.22758,AutoRefine,OK,1293325,ar5iv→pandoc-gfm,AutoRefine: From Trajectories to Reusable Expertise for Continual LLM Agent Refinement,docs/roadmap/papers/2601.22758.md
+2602.01869,Skill-Pro,OK,257212,ar5iv→pandoc-gfm,Skill-Pro: Learning Reusable Skills from Experience via Non-Parametric PPO for LLM Agents,docs/roadmap/papers/2602.01869.md
+2603.15401,SWE-Skills-Bench,OK,140096,ar5iv→pandoc-gfm,SWE-Skills-Bench: Do Agent Skills Actually Help in Real-World Software Engineering?,docs/roadmap/papers/2603.15401.md
+2603.25158,Trace2Skill,OK,215899,ar5iv→pandoc-gfm,Trace2Skill: Distill Trajectory-Local Lessons into Transferable Agent Skills,docs/roadmap/papers/2603.25158.md
+2603.28052,Meta-Harness,OK,343081,ar5iv→pandoc-gfm,Meta-Harness: End-to-End Optimization of Model Harnesses,docs/roadmap/papers/2603.28052.md
+2604.15034,Autogenesis,OK,604198,arxiv-abs→pandoc-gfm,[2604.15034] Autogenesis: A Self-Evolving Agent Protocol,docs/roadmap/papers/2604.15034.md
+2604.15097,GEP-Gene,OK,237075,ar5iv→pandoc-gfm,From Procedural Skills to Strategy Genes: Towards Experience-Driven Test-Time Evolution,docs/roadmap/papers/2604.15097.md
+2604.25850,AHE,OK,2029081,ar5iv→pandoc-gfm,[2604.25850] Agentic Harness Engineering: Observability-Driven Automatic Evolution of Coding-Agent Harnesses,docs/roadmap/papers/2604.25850.md
+2605.06130,Skill1,OK,298042,ar5iv→pandoc-gfm,Skill1: Unified Evolution of Skill-Augmented Agents via Reinforcement Learning,docs/roadmap/papers/2605.06130.md
+2605.09192,SPARK-PDI,OK,370527,ar5iv→pandoc-gfm,Evidence Over Plans: Online Trajectory Verification for Skill Distillation,docs/roadmap/papers/2605.09192.md
+2605.09998,Continual-Harness,OK,214970,ar5iv→pandoc-gfm,Continual Harness: Online Adaptation for Self-Improving Foundation Agents,docs/roadmap/papers/2605.09998.md
+2605.13821,AEvo,OK,928572,ar5iv→pandoc-gfm,Harnessing Agentic Evolution,docs/roadmap/papers/2605.13821.md
+2605.29463,Honest-Lying,OK,134410,ar5iv→pandoc-gfm,Honest Lying: Understanding Memory Confabulation in Reflexive Agents,docs/roadmap/papers/2605.29463.md
+2606.11435,Survey-Skill,OK,302568,ar5iv→pandoc-gfm,Agent Skill Evaluation and Evolution: Frameworks and Benchmarks,docs/roadmap/papers/2606.11435.md
+2606.22330,HDSO,OK,244286,ar5iv→pandoc-gfm,Hypothesis-Driven Skill Optimization for LLM Agents,docs/roadmap/papers/2606.22330.md
