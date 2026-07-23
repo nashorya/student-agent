@@ -1,20 +1,20 @@
-id,abbrev,status,bytes,source,title,local_path
-2308.10144,ExpeL,OK,110376,md-user-zip,ExpeL: LLM Agents Are Experiential Learners,docs/roadmap/papers/2308.10144.md
-2505.06120,LLMs-Get-Lost,OK,457070,ar5iv→pandoc-gfm,[2505.06120] LLMs Get Lost In Multi-Turn Conversation,docs/roadmap/papers/2505.06120.md
-2510.13166,CoT-Evo,OK,299877,ar5iv→pandoc-gfm,CoT-Evo: Evolutionary Distillation of Chain-of-Thought for Scientific Reasoning,docs/roadmap/papers/2510.13166.md
-2511.18423,GAM,OK,157482,ar5iv→pandoc-gfm,General Agentic Memory Via Deep Research,docs/roadmap/papers/2511.18423.md
-2601.22758,AutoRefine,OK,1293325,ar5iv→pandoc-gfm,AutoRefine: From Trajectories to Reusable Expertise for Continual LLM Agent Refinement,docs/roadmap/papers/2601.22758.md
-2602.01869,Skill-Pro,OK,257212,ar5iv→pandoc-gfm,Skill-Pro: Learning Reusable Skills from Experience via Non-Parametric PPO for LLM Agents,docs/roadmap/papers/2602.01869.md
-2603.15401,SWE-Skills-Bench,OK,140096,ar5iv→pandoc-gfm,SWE-Skills-Bench: Do Agent Skills Actually Help in Real-World Software Engineering?,docs/roadmap/papers/2603.15401.md
-2603.25158,Trace2Skill,OK,215899,ar5iv→pandoc-gfm,Trace2Skill: Distill Trajectory-Local Lessons into Transferable Agent Skills,docs/roadmap/papers/2603.25158.md
-2603.28052,Meta-Harness,OK,343081,ar5iv→pandoc-gfm,Meta-Harness: End-to-End Optimization of Model Harnesses,docs/roadmap/papers/2603.28052.md
-2604.15034,Autogenesis,OK,604198,arxiv-abs→pandoc-gfm,[2604.15034] Autogenesis: A Self-Evolving Agent Protocol,docs/roadmap/papers/2604.15034.md
-2604.15097,GEP-Gene,OK,237075,ar5iv→pandoc-gfm,From Procedural Skills to Strategy Genes: Towards Experience-Driven Test-Time Evolution,docs/roadmap/papers/2604.15097.md
-2604.25850,AHE,OK,2029081,ar5iv→pandoc-gfm,[2604.25850] Agentic Harness Engineering: Observability-Driven Automatic Evolution of Coding-Agent Harnesses,docs/roadmap/papers/2604.25850.md
-2605.06130,Skill1,OK,298042,ar5iv→pandoc-gfm,Skill1: Unified Evolution of Skill-Augmented Agents via Reinforcement Learning,docs/roadmap/papers/2605.06130.md
-2605.09192,SPARK-PDI,OK,370527,ar5iv→pandoc-gfm,Evidence Over Plans: Online Trajectory Verification for Skill Distillation,docs/roadmap/papers/2605.09192.md
-2605.09998,Continual-Harness,OK,214970,ar5iv→pandoc-gfm,Continual Harness: Online Adaptation for Self-Improving Foundation Agents,docs/roadmap/papers/2605.09998.md
-2605.13821,AEvo,OK,928572,ar5iv→pandoc-gfm,Harnessing Agentic Evolution,docs/roadmap/papers/2605.13821.md
-2605.29463,Honest-Lying,OK,134410,ar5iv→pandoc-gfm,Honest Lying: Understanding Memory Confabulation in Reflexive Agents,docs/roadmap/papers/2605.29463.md
-2606.11435,Survey-Skill,OK,302568,ar5iv→pandoc-gfm,Agent Skill Evaluation and Evolution: Frameworks and Benchmarks,docs/roadmap/papers/2606.11435.md
-2606.22330,HDSO,OK,244286,ar5iv→pandoc-gfm,Hypothesis-Driven Skill Optimization for LLM Agents,docs/roadmap/papers/2606.22330.md
+id,abbrev,status,bytes,source,title,local_path,keywords,applies_to
+2308.10144,ExpeL,OK,110376,md-user-zip,ExpeL: LLM Agents Are Experiential Learners,docs/roadmap/papers/2308.10144.md,"importance-count;ADD/UPVOTE/DOWNVOTE/EDIT;experience-pool;task-similarity;insight-extraction;cross-task;no-gradient","蒸馏器;召回;实验设计;失败阶梯"
+2505.06120,LLMs-Get-Lost,OK,457070,ar5iv→pandoc-gfm,[2505.06120] LLMs Get Lost In Multi-Turn Conversation,docs/roadmap/papers/2505.06120.md,"multi-turn;lostness;unreliability;recap;context-degradation","召回;实验设计;失败阶梯"
+2510.13166,CoT-Evo,OK,299877,ar5iv→pandoc-gfm,CoT-Evo: Evolutionary Distillation of Chain-of-Thought for Scientific Reasoning,docs/roadmap/papers/2510.13166.md,"evolutionary-distillation;novelty-driven;deletive-mutation;gold-CoT;filtering;meta-narration-blacklist","蒸馏器;失败阶梯"
+2511.18423,GAM,OK,157482,ar5iv→pandoc-gfm,General Agentic Memory Via Deep Research,docs/roadmap/papers/2511.18423.md,"JIT-memory;AOT;deep-research;Researcher;memory-scale","召回;蒸馏器"
+2601.22758,AutoRefine,OK,1293325,ar5iv→pandoc-gfm,AutoRefine: From Trajectories to Reusable Expertise for Continual LLM Agent Refinement,docs/roadmap/papers/2601.22758.md,"retrieval;utilization;success-count;effectiveness;prune-merge;lesson-lifecycle","蒸馏器;knack schema;召回"
+2602.01869,Skill-Pro,OK,257212,ar5iv→pandoc-gfm,Skill-Pro: Learning Reusable Skills from Experience via Non-Parametric PPO for LLM Agents,docs/roadmap/papers/2602.01869.md,"Skill-MDP;non-parametric-PPO;PPO-Gate;procedural-skill;activation-execution-termination","knack schema;召回;实验设计"
+2603.15401,SWE-Skills-Bench,OK,140096,ar5iv→pandoc-gfm,SWE-Skills-Bench: Do Agent Skills Actually Help in Real-World Software Engineering?,docs/roadmap/papers/2603.15401.md,"paired-with-without-skill;SWE-skills;external-validity;fixed-commit","实验设计;召回"
+2603.25158,Trace2Skill,OK,215899,ar5iv→pandoc-gfm,Trace2Skill: Distill Trajectory-Local Lessons into Transferable Agent Skills,docs/roadmap/papers/2603.25158.md,"batch-distillation;multi-trajectory;conflict-merge;directed-patch","蒸馏器;knack schema"
+2603.28052,Meta-Harness,OK,343081,ar5iv→pandoc-gfm,Meta-Harness: End-to-End Optimization of Model Harnesses,docs/roadmap/papers/2603.28052.md,"full-traces;harness-optimization;scores-only;trace-archive","实验设计;失败阶梯"
+2604.15034,Autogenesis,OK,604198,arxiv-abs→pandoc-gfm,[2604.15034] Autogenesis: A Self-Evolving Agent Protocol,docs/roadmap/papers/2604.15034.md,"RSPL;SEPL;evolvability;PS-Joint-Evo;self-evolving-protocol","蒸馏器;实验设计"
+2604.15097,GEP-Gene,OK,237075,ar5iv→pandoc-gfm,From Procedural Skills to Strategy Genes: Towards Experience-Driven Test-Time Evolution,docs/roadmap/papers/2604.15097.md,"strategy-gene;skill-leak;failure-history;knack-schema;compression","knack schema;蒸馏器;召回"
+2604.25850,AHE,OK,2029081,ar5iv→pandoc-gfm,[2604.25850] Agentic Harness Engineering: Observability-Driven Automatic Evolution of Coding-Agent Harnesses,docs/roadmap/papers/2604.25850.md,"observability;component-nonadditivity;regression-blindness;harness-engineering","实验设计;失败阶梯"
+2605.06130,Skill1,OK,298042,ar5iv→pandoc-gfm,Skill1: Unified Evolution of Skill-Augmented Agents via Reinforcement Learning,docs/roadmap/papers/2605.06130.md,"RL;skill-selection;utilization;distillation;co-evolution;variation-credit","蒸馏器;召回;knack schema"
+2605.09192,SPARK-PDI,OK,370527,ar5iv→pandoc-gfm,Evidence Over Plans: Online Trajectory Verification for Skill Distillation,docs/roadmap/papers/2605.09192.md,"φ_exec;φ_plan;φ_oss;PDI;posterior;verification-block;Jensen-Shannon;exploration-memo","蒸馏器;knack schema;失败阶梯;实验设计"
+2605.09998,Continual-Harness,OK,214970,ar5iv→pandoc-gfm,Continual Harness: Online Adaptation for Self-Improving Foundation Agents,docs/roadmap/papers/2605.09998.md,"online-adaptation;capability-floor;reset-free;continual-harness","实验设计;召回"
+2605.13821,AEvo,OK,928572,ar5iv→pandoc-gfm,Harnessing Agentic Evolution,docs/roadmap/papers/2605.13821.md,"evolution-as-environment;evaluator-isolation;reward-hacking;meta-editing","实验设计;蒸馏器"
+2605.29463,Honest-Lying,OK,134410,ar5iv→pandoc-gfm,Honest Lying: Understanding Memory Confabulation in Reflexive Agents,docs/roadmap/papers/2605.29463.md,"RRR;memory-confabulation;trajectory-failure-signals;reflection-repetition","蒸馏器;失败阶梯;knack schema"
+2606.11435,Survey-Skill,OK,302568,ar5iv→pandoc-gfm,Agent Skill Evaluation and Evolution: Frameworks and Benchmarks,docs/roadmap/papers/2606.11435.md,"four-paradigms;longitudinal-eval;binary-metrics-gap;trajectory-distillation;execution-feedback","实验设计;蒸馏器;召回"
+2606.22330,HDSO,OK,244286,ar5iv→pandoc-gfm,Hypothesis-Driven Skill Optimization for LLM Agents,docs/roadmap/papers/2606.22330.md,"paired-A-B;falsifiable-hypothesis;negative-evidence;control-treatment;frozen-curator","实验设计;蒸馏器;knack schema"

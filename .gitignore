@@ -7,11 +7,11 @@ dist/
 pi-mono/
 node_modules/.claude/
 
-# AI assistant configs (not for VCS)
+# AI assistant configs (not for VCS) — root CLAUDE.md is tracked (papers lookup rules)
 .claude/
 .codex
-CLAUDE.md
 CLAUDE*.md
+!CLAUDE.md
 codex.md
 *.Zone.Identifier
 .DS_Store

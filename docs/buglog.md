@@ -5,6 +5,21 @@
 
 ---
 
+## NOTE · eval 被试路径与 docs/roadmap/papers/ 隔离（2026-07-23）
+
+- **断言**：SWE / 注入实验被试的 agent `cwd` 为临时 worktree（`os.tmpdir()` 下
+  `student-agent-swebench-*` 等），内容来自实例仓库 `git clone` / Docker testbed
+  checkout，**不挂载**本仓库 `docs/`；故被试运行时**无法读取**
+  `docs/roadmap/papers/`。
+- **证据**：`src/evals/swebench-patch-producer.ts` — `mkdtemp(join(tmpdir(), …))` →
+  `checkoutInstance` → `sandboxDir: worktreePath` / synthetic task `taskDir: worktreePath`。
+- **对照污染边界**：学习用 `studentMemoryDir` 可指向仓库外记忆根，但 papers 索引
+  仅供开发态设计查阅（见根目录 `CLAUDE.md`「参考资料查阅」）；eval 设计决策
+  不得依赖被试可见的 papers/。
+- **状态**：VERIFIED（文书确认；未改 runner 代码）
+
+---
+
 ## BUG-012 · SWE 召回 repository gate 误杀 + P3 citation 同 ordinal 失效
 
 - **时间**：2026-07-21，发现者：knack 出厂自检探针（`docs/probes/knack-birth-self-check-2026-07-21.md`）
