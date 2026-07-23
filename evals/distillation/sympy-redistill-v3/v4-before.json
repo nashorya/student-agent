@@ -1,0 +1,133 @@
+{
+  "kind": "sympy-v0.2-fidelity-v4-before",
+  "extractor_commit": "87f6a2170352094b090f8b16432abb409014d5d6",
+  "source_results_root": "/Users/juejuezi/student-agent-prereg-interpretation/evals/results/injection-experiment-v0.2/sympy-family2-20260722T0807-cst-main-b79a90f8-images-proxy7897",
+  "source_policy": "read-only real A-L events/records/trace/injection/admission; no reconstructed samples",
+  "runs": [
+    {
+      "ordinal": 1,
+      "instance_id": "sympy__sympy-20442",
+      "source_run_dir": "A-L/F-SY-UNIT-EQUIVALENCE/1-sympy__sympy-20442",
+      "source_sha256": {
+        "events_jsonl": "5bda5a3117e0a37e62643e65b517793649520863cebadaad00cf687ecabbb2ed",
+        "records_json": "f0426bf25967eabe85c72c8cd930683271a0982abb2c3f8adf94d108b3e6c1f9",
+        "trace_json": "22ba9fa3d5af535c604e2ef137818edbdfee85d602a580b2a115a2e7eec4e8ba",
+        "injection_txt": "526017796f5399c5f86e4cb799fd38bfdd6b964384a6e303c819873a24ba3126",
+        "admission_json": "8daa078443862f5f8ebbe283c10086de59126962e8086c0000ba13f6773394f9"
+      },
+      "actual_injection_from_injection_txt": [],
+      "old_distillation_candidates": [
+        {
+          "id": "knack-sympy-sympy-a43a55ee1d3e",
+          "dedup_key": "sympy-sympy:92362fcb5923",
+          "repo": "sympy/sympy",
+          "symptom": "convert_to seems to combine orthogonal units",
+          "fix_summary": "to verify the solution is exact; if not, return `None` so `convert…",
+          "verified_fix": "Tool sequence: bash -> bash -> bash -> edit -> bash -> bash -> bash -> bash -> bash -> bash -> bash -> bash. I'll start by exploring the repository structure and finding the relevant code for `convert_to`.Let me reproduce the issue first to understand the problem.I've reproduced the issue. The problem is in `_get_conversion_matrix_for_expr`. It uses `solve_least_squares` which returns an approximate solution even when no exact solution exists. Let me examine the matrix solver behavior.Now I clearly understand the issue. The least-squares solver returns `7/9` but `camat * 7/9 ≠ exprmat`, confirming no exact solution exists. The fix is to verify the solution is exact; if not, return `None` so `convert…",
+          "evidence_task": "sympy__sympy-20442",
+          "evidence_turns": [
+            5,
+            17
+          ],
+          "compression_level": "knack",
+          "confidence": "verified",
+          "reuse_count": 0,
+          "injected_count": 0,
+          "last_succeeded_task": null,
+          "last_injected_task": null,
+          "unit_test": "Verified by verifier reward=1."
+        }
+      ]
+    },
+    {
+      "ordinal": 2,
+      "instance_id": "sympy__sympy-24066",
+      "source_run_dir": "A-L/F-SY-UNIT-EQUIVALENCE/2-sympy__sympy-24066",
+      "source_sha256": {
+        "events_jsonl": "77c198b798d133eb87798741d5ad2774ac391f7bba266bce1d1cf7df975a0574",
+        "records_json": "f41d77affc3eed8ed9101ca90daedf5126ce61f307b3025f9f9f8ee88ef7bdf4",
+        "trace_json": "fc383fc6e2f67fb424e035b93cf133b9d5166890c7f116d3d1c4bc325b63cb18",
+        "injection_txt": "4263a9e532f824dcf733f4b8a3151d7a0efa9e35494848f24862389dc9cec138",
+        "admission_json": "362675421697f7495cf65dc014fc42dc1a288f5959389c64449183f1ae52835d"
+      },
+      "actual_injection_from_injection_txt": [
+        {
+          "memoryId": "lesson_961cecc6-33c6-46ea-a4a2-7714e505df0f",
+          "symptom": "convert_to seems to combine orthogonal units",
+          "fixSummary": "to verify the solution is exact; if not, return `None` so `convert…",
+          "rawLine": "- [recall:lesson_961cecc6-33c6-46ea-a4a2-7714e505df0f] Symptom: convert_to seems to combine orthogonal units Fix: to verify the solution is exact; if not, return `None` so `convert…"
+        }
+      ],
+      "old_distillation_candidates": [
+        {
+          "id": "knack-sympy-sympy-b3f248e31ec5",
+          "dedup_key": "sympy-sympy:034dd71b568b",
+          "repo": "sympy/sympy",
+          "symptom": "SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless",
+          "fix_summary": "- Full `sympy/physics/units/tests/` suite: 70 passed, 1 xfailed (pre-existing).",
+          "verified_fix": "Tool sequence: read -> edit -> read -> edit -> read -> bash -> apply_patch -> bash -> read -> apply_patch -> bash -> bash -> bash -> bash -> bash. The bug is confirmed. The `dim of expr` is `Dimension(time/(capacitance*impedance))` which `is_dimensionless` reports as True, but the `Function` branch passes that raw dimension through unchanged, so `Add` then fails comparing `Dimension(1)` against `Dimension(time/(capacitance*impedance))`. Let me look at the `Function` branch and the imports at the top of the file to apply a clean fix.Now I'll apply the fix to the `Function` branch so it detects when the argument(s) are dimensionless and returns `Dimension(1)` instead of passing the raw dimension through.Let me re-read the relevant section…",
+          "evidence_task": "sympy__sympy-24066",
+          "evidence_turns": [
+            6,
+            24
+          ],
+          "compression_level": "knack",
+          "confidence": "verified",
+          "reuse_count": 0,
+          "injected_count": 0,
+          "last_succeeded_task": null,
+          "last_injected_task": null,
+          "unit_test": "Verified by verifier reward=1."
+        }
+      ]
+    },
+    {
+      "ordinal": 3,
+      "instance_id": "sympy__sympy-24213",
+      "source_run_dir": "A-L/F-SY-UNIT-EQUIVALENCE/3-sympy__sympy-24213",
+      "source_sha256": {
+        "events_jsonl": "ace24b701ab61e8c9320c6f2637ef8114733ad49f944f3b248f1eb9e14432a0d",
+        "records_json": "f70b1af192d8b1d01b6444889fd30b334dedeccf012a1adb597c8907b17004b8",
+        "trace_json": "00bdc9c461ec25ea2c27d159b14a17d8c8c83072d637de3d340466e6b1a35c53",
+        "injection_txt": "9e487479b1cb58dcc92ff8cbb7a2854b62c8852dc45831298f1c80a684b90ff8",
+        "admission_json": "34af8b314317e7644b6471ee71ba7264872720155185e322c671960df58e9b67"
+      },
+      "actual_injection_from_injection_txt": [
+        {
+          "memoryId": "lesson_961cecc6-33c6-46ea-a4a2-7714e505df0f",
+          "symptom": "convert_to seems to combine orthogonal units",
+          "fixSummary": "to verify the solution is exact; if not, return `None` so `convert…",
+          "rawLine": "- [recall:lesson_961cecc6-33c6-46ea-a4a2-7714e505df0f] Symptom: convert_to seems to combine orthogonal units Fix: to verify the solution is exact; if not, return `None` so `convert…"
+        },
+        {
+          "memoryId": "lesson_c526c57c-92e8-48b1-b91d-7ca0205349d9",
+          "symptom": "SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless",
+          "fixSummary": "- Full `sympy/physics/units/tests/` suite: 70 passed, 1 xfailed (pre-existing).",
+          "rawLine": "- [recall:lesson_c526c57c-92e8-48b1-b91d-7ca0205349d9] Symptom: SI._collect_factor_and_dimension() cannot properly detect that exponent is dimensionless Fix: - Full `sympy/physics/units/tests/` suite: 70 passed, 1 xfailed (pre-existing)."
+        }
+      ],
+      "old_distillation_candidates": [
+        {
+          "id": "knack-sympy-sympy-c3006c63c645",
+          "dedup_key": "sympy-sympy:fdd162103aca",
+          "repo": "sympy/sympy",
+          "symptom": "collect_factor_and_dimension does not detect equivalent dimensions in addition",
+          "fix_summary": "**Files changed:** `sympy/physics/units/unitsystem.py` (one 2-line change).",
+          "verified_fix": "Tool sequence: bash -> bash -> bash -> bash -> edit -> bash -> bash -> bash -> bash. I'll start by examining the relevant file that contains the `_collect_factor_and_dimension` method.Now let me look at the `Dimension` class to understand how dimensions work and how to check for equivalence.Now I understand the issue. In the `Add` branch of `_collect_factor_and_dimension`, dimensions are compared using strict inequality (`dim != addend_dim`), which fails to detect that `velocity` and `acceleration*time` are equivalent dimensions. The `DimensionSystem` class has an `equivalent_dims` method that properly checks equivalence by comparing dimensional dependencies. Let me first rep…",
+          "evidence_task": "sympy__sympy-24213",
+          "evidence_turns": [
+            4,
+            15
+          ],
+          "compression_level": "knack",
+          "confidence": "verified",
+          "reuse_count": 0,
+          "injected_count": 0,
+          "last_succeeded_task": null,
+          "last_injected_task": null,
+          "unit_test": "Verified by verifier reward=1."
+        }
+      ]
+    }
+  ]
+}

@@ -10,7 +10,7 @@ import {
 } from '../../../src/evals/knack-distillation.js';
 import { execGroundingSimilarity } from '../../../src/evals/exec-grounding.js';
 
-const EXTRACTOR_COMMIT = 'a5005ec13441e4a85050f8e4bdc255a93fc8cabe';
+const EXTRACTOR_COMMIT = '87f6a2170352094b090f8b16432abb409014d5d6';
 const FAMILY = 'F-SY-UNIT-EQUIVALENCE';
 const TASKS = [
   { ordinal: 1, instanceId: 'sympy__sympy-20442' },
@@ -215,15 +215,15 @@ for (const task of TASKS) {
 }
 
 await mkdir(outputRoot, { recursive: true });
-await writeFile(join(outputRoot, 'before.json'), `${JSON.stringify({
-  kind: 'sympy-v0.2-fidelity-v3-before',
+await writeFile(join(outputRoot, 'v4-before.json'), `${JSON.stringify({
+  kind: 'sympy-v0.2-fidelity-v4-before',
   extractor_commit: EXTRACTOR_COMMIT,
   source_results_root: inputRoot,
   source_policy: 'read-only real A-L events/records/trace/injection/admission; no reconstructed samples',
   runs: beforeRuns,
 }, null, 2)}\n`, 'utf8');
-await writeFile(join(outputRoot, 'after.json'), `${JSON.stringify({
-  kind: 'sympy-v0.2-fidelity-v3-redistill',
+await writeFile(join(outputRoot, 'v4-after.json'), `${JSON.stringify({
+  kind: 'sympy-v0.2-fidelity-v4-redistill',
   extractor_commit: EXTRACTOR_COMMIT,
   evidence_hydration: 'events metadata.evidenceRef -> records[0].trace.toolCalls; edit/apply_patch args copied verbatim; failed attempts retained',
   model_calls: 0,

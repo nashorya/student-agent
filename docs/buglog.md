@@ -22,6 +22,16 @@
   题 3 仍为 `Files changed…` 元信息且 ψ=`0.072`。证据见
   `evals/distillation/sympy-redistill-v3/diff.md`；登记 finding：
   **`φ_exec 尺度不匹配`**，候选改进待另开单，本单未改萃取器。
+  **状态注（v4）**：该原表述已作废但保留供追溯；替代 finding 为
+  **`φ_exec 相对质量非单调`**——实测 ψ 与质量不单调，故仅可作极低分下限闸，
+  不可作“越高越好”的排序信号，高分必须配合紧凑度/上界约束。
+- **v4 真实轨迹重蒸验收**：使用 extractor
+  `87f6a2170352094b090f8b16432abb409014d5d6` 对同一真实 A-L 归档离线重蒸；
+  题 1 得到完整 `convert_to`/`return None` 修法，题 2 得到
+  `is_dimensionless()`/`Dimension(1)`，题 3 得到 `equivalent_dims()`；
+  三条 fix 均成句且无测试汇报、口水话或变更元信息。ψ=`0.303 / 0.193 / 0.160`，
+  与旧混杂候选 `0.747` 共同支持相对质量非单调 finding。完整取证见
+  `evals/distillation/sympy-redistill-v3/v4-diff.md`；最终处置待作者按跑前公证判定。
 - **状态**：**FIXED-待作者确认对照表** → 确认后关单。
 
 ---
