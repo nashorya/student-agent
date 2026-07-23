@@ -26,6 +26,9 @@ export interface Knack {
   repo?: string;
   symptom?: string;
   fixSummary?: string;
+  /** Optional v3 fields; empty/absent is safe for recall/render. */
+  verification?: string;
+  executionEvidence?: string;
   reuseCount?: number;
   injectedCount?: number;
   lastSucceededTask?: string | null;

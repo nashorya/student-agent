@@ -5,6 +5,21 @@
 
 ---
 
+## BUG-013 · 萃取保真度 v3（结构 + φ_exec + 黑白名单）· FIXED-待作者确认
+
+- **时间**：2026-07-23
+- **症状**：第三型失真——fix 栏装测试汇报（`70 passed`）或半句截断；注入臂付阅读税。
+- **处置**（per SPARK/PDI-2605.09192 · per CoT-Evo-2510.13166）：
+  1. schema 可选字段 `verification` / `execution_evidence`（ADR-004 状态注）；
+  2. `src/evals/exec-grounding.ts` φ_exec（α=0.002，阈值 0.067，标定见
+     `evals/distillation/phi-exec-calibration-v3.md`；全量正负未完全分离，测试汇报带可分）；
+  3. 黑白名单兜底；`softSummarize` 软300/硬800。
+- **对照**：`evals/distillation/p1-fidelity-v3-diff.md`；凶案重建
+  `evals/distillation/sympy-crime-scene-v3/`（原 SymPy results 本机缺失）。
+- **状态**：**FIXED-待作者确认对照表** → 确认后关单。
+
+---
+
 ## NOTE · eval 被试路径与 docs/roadmap/papers/ 隔离（2026-07-23）
 
 - **断言**：SWE / 注入实验被试的 agent `cwd` 为临时 worktree（`os.tmpdir()` 下

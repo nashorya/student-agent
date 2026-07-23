@@ -5,6 +5,7 @@ import {
   findCausalPair,
   type VerificationKind,
 } from './causal-pair.js';
+import { passesPhiExec } from './exec-grounding.js';
 
 export interface DistillationEvent {
   line: number;
@@ -28,6 +29,10 @@ export interface CandidateKnack {
   last_succeeded_task: null;
   last_injected_task: null;
   unit_test: string;
+  /** v3: verification reports live here — never in fix_summary. */
+  verification?: string;
+  /** v3: patch / key commands for φ_exec + audit. */
+  execution_evidence?: string;
 }
 
 export interface DistillRunInput {
@@ -78,6 +83,8 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     ? ` ${summarizeText(input.finalSummary, 600)}`
     : '';
   const verifiedFix = `Tool sequence: ${actionSequence}.${summary}`.trim();
+  const executionEvidence = extractExecutionEvidence(operations);
+  const verificationField = buildVerificationField(pair.verification, input.events, input.finalSummary);
   const symptom = extractSymptom({
     verifiedFix,
     fallback: stringValue(error.data.summary) ?? 'Unknown tool error',
@@ -87,6 +94,7 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
   const { fix_summary: fixSummary, confidence } = extractFixSummary(
     verifiedFix,
     input.finalSummary,
+    executionEvidence,
   );
   const dedupKey = buildDedupKey(input.repo, symptom);
   const hash = createHash('sha256')
@@ -116,49 +124,105 @@ export function distillRunEvents(input: DistillRunInput): CandidateKnack | null 
     unit_test: fixSummary
       ? verificationNote
       : `${verificationNote} Fix not extracted.`,
+    verification: verificationField,
+    execution_evidence: executionEvidence || undefined,
   };
 }
 
-/** Marker hit → verified; else last code-bearing finalSummary sentence; else empty + candidate. */
+/** Marker / code-sentence candidates → φ_exec then blacklist/whitelist; else empty + candidate. */
 export function extractFixSummary(
   verifiedFix: string,
   finalSummary?: string,
+  executionEvidence = '',
 ): { fix_summary: string; confidence: 'verified' | 'candidate' } {
+  const candidates: string[] = [];
   for (const marker of [
-    /(?:^|[.!?\n])(?:\s|\*)*The fix is\s*[:\s]\s*(.+)$/i,
-    /(?:^|[\s\n])\*{0,2}Fix\*{0,2}\s*:\s*(.+)$/i,
-    /(?:^|[.!?\n])(?:\s|\*)*The solution is\s*[:\s]\s*(.+)$/i,
+    /(?:^|[.!?\n])(?:\s|\*)*The fix is\s*[:\s]\s*(.+)$/ims,
+    /(?:^|[\s\n])\*{0,2}Fix\*{0,2}\s*:\s*(.+)$/ims,
+    /(?:^|[.!?\n])(?:\s|\*)*The solution is\s*[:\s]\s*(.+)$/ims,
   ]) {
     const markedText = verifiedFix.match(marker)?.[1]?.trim();
-    if (markedText) {
-      return {
-        fix_summary: softSummarize(firstSentence(markedText)),
-        confidence: 'verified',
-      };
-    }
+    if (markedText) candidates.push(firstSentence(markedText));
   }
-  const codeSentence = lastCodeBearingSentence(finalSummary);
-  if (codeSentence) {
-    return {
-      fix_summary: softSummarize(codeSentence),
-      confidence: 'verified',
-    };
+  for (const sentence of codeBearingSentences(finalSummary)) {
+    candidates.push(sentence);
   }
-  // Never fall back to "Tool sequence: …" audit prose.
+  for (const raw of candidates) {
+    const fix = softSummarize(raw);
+    if (!fix || isBlacklistedFix(fix)) continue;
+    if (!isWhitelistedFix(fix)) continue;
+    if (!passesPhiExec(fix, executionEvidence)) continue;
+    return { fix_summary: fix, confidence: 'verified' };
+  }
   return { fix_summary: '', confidence: 'candidate' };
 }
 
-function lastCodeBearingSentence(text: string | undefined): string | undefined {
-  if (!text?.trim()) return undefined;
+/** Patch / edit / apply_patch summaries — execution grounding corpus. */
+export function extractExecutionEvidence(
+  operations: DistillationEvent[],
+): string {
+  return operations
+    .map(({ data }) => {
+      const tool = (stringValue(data.toolName) ?? stringValue(data.name) ?? '').toLowerCase();
+      const summary = stringValue(data.summary) ?? '';
+      const isEdit = /edit|apply_patch|write|str_replace|patch/i.test(tool)
+        || /[+]{3}|diff --git|@@/.test(summary);
+      if (!isEdit && !(summary.length >= 40 && hasCodeSymbols(summary))) return '';
+      // Skip placeholder summaries ("fix"/"patch") — φ_exec needs real corpus.
+      if (summary.length < 24 && !hasCodeSymbols(summary)) return '';
+      return `${tool} ${summary}`.trim();
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+export function buildVerificationField(
+  kind: VerificationKind,
+  events: DistillationEvent[],
+  finalSummary?: string,
+): string {
+  const parts: string[] = [
+    kind === 'exit 0' ? 'exit 0' : 'verifier reward=1',
+  ];
+  const corpus = `${finalSummary ?? ''}\n${events.map((e) => stringValue(e.data.summary) ?? '').join('\n')}`;
+  const suite = corpus.match(/(\d+)\s+passed(?:,\s*(\d+)\s+x?failed)?/i);
+  if (suite) {
+    parts.push(`${suite[1]} passed${suite[2] ? `, ${suite[2]} failed/xfailed` : ''}`);
+  }
+  return parts.join('; ');
+}
+
+/** Test reports / status fluff / meta-narration — CoT-Evo deletive + SPARK verification split. */
+export function isBlacklistedFix(text: string): boolean {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (/^\s*Tool sequence:/i.test(t)) return true;
+  if (/\b\d+\s+(passed|failed|xfailed)\b/i.test(t)) return true;
+  if (/tests?\/[\w./-]+/i.test(t) && /\b\d+\b/.test(t)) return true;
+  if (/\b(fix is in place|works now)\b/i.test(t)) return true;
+  if (/^(confirmed\.?|ok\.?|done\.?)$/i.test(t)) return true;
+  if (/\b(the user says|tips mention|correct answer)\b/i.test(t)) return true;
+  return false;
+}
+
+/** Change verb and/or code citation required (v2 whitelist retained). */
+export function isWhitelistedFix(text: string): boolean {
+  if (hasCodeSymbols(text)) return true;
+  return /\b(assign|add(?:ed)?|return|copy|replace|call|use|set|check|handle|preserve|accept|restore|update|insert|remove|delete|move|rename|cast|wrap|unwrap|branch|elif|else|validate)\b/i
+    .test(text);
+}
+
+function codeBearingSentences(text: string | undefined): string[] {
+  if (!text?.trim()) return [];
   const sentences = text
     .split(/(?<=[.!?])\s+/)
     .map((part) => part.trim())
     .filter(Boolean);
+  const hits: string[] = [];
   for (let index = sentences.length - 1; index >= 0; index -= 1) {
     const sentence = sentences[index];
-    if (hasCodeSymbols(sentence)) return sentence;
+    if (hasCodeSymbols(sentence)) hits.push(sentence);
   }
-  return undefined;
+  return hits;
 }
 
 function hasCodeSymbols(sentence: string): boolean {
@@ -220,8 +284,8 @@ export function isInformativeSymptom(text: string): boolean {
   return !(bare.length < 25 && !hasCodeSymbols(trimmed));
 }
 
-/** Soft 150 / hard 300; end on sentence boundary — no mid-clause chop at 150. */
-export function softSummarize(text: string, softLimit = 150, hardLimit = 300): string {
+/** Soft 300 / hard 800; end on sentence boundary — SPARK: over-compression hurts. */
+export function softSummarize(text: string, softLimit = 300, hardLimit = 800): string {
   const n = text.replace(/\s+/g, ' ').trim();
   if (n.length <= softLimit) return n;
   const win = n.slice(0, softLimit);

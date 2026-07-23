@@ -17,6 +17,8 @@ interface DistilledKnack {
   last_succeeded_task?: string | null;
   last_injected_task?: string | null;
   verified_fix?: string; // Audit-only source data; never injected into recall.
+  verification?: string;
+  execution_evidence?: string;
 }
 
 type ImportedKnack = Knack & {
@@ -79,6 +81,8 @@ function toKnack(source: DistilledKnack, timestamp: string, existing?: ImportedK
     repo: source.repo,
     symptom: source.symptom,
     fixSummary: source.fix_summary,
+    ...(source.verification ? { verification: source.verification } : {}),
+    ...(source.execution_evidence ? { executionEvidence: source.execution_evidence } : {}),
     reuseCount: existing && 'reuseCount' in existing ? existing.reuseCount ?? 0 : source.reuse_count ?? 0,
     injectedCount: existing && 'injectedCount' in existing ? existing.injectedCount ?? 0 : source.injected_count ?? 0,
     lastSucceededTask: existing && 'lastSucceededTask' in existing

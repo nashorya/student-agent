@@ -125,3 +125,11 @@ P0 离线蒸馏（`evals/distillation/candidate-knacks.json`）产出 6 条 veri
 - 前置：[ADR-003](ADR-003-v04x-priority-reorder.md)（P0 验收）
 - 实现：`scripts/distill-knacks.ts`、`evals/distillation/candidate-knacks.json`
 - 下一个：[ADR-005](ADR-005-recall-ranking-protocol.md)（P2 召回排序正式协议，已采纳）
+
+---
+
+> **状态注 · v3 字段扩展（2026-07-23，BUG-013，per SPARK/PDI-2605.09192）**：在 Schema v1
+> 原文不变前提下，蒸馏产物新增两个**可选**字段：
+> - `verification`：该 run 的验证信息（测试通过数、harness reward 等）。**验证内容一律进此字段，禁止进 fix_summary / summary。**
+> - `execution_evidence`：该 run 实际生效的变更证据（patch 片段 / 关键命令，取自 events），供 φ_exec 判别与审计。
+> 主库既有条目两字段可留空；import / recall 渲染对空值必须安全。φ_plan / φ_oss 仍为远期候选（缺 exploration memo）。

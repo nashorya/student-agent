@@ -1,0 +1,14 @@
+[
+  {
+    "instance": "sympy__sympy-24066",
+    "role": "task2_injected_bad_fix",
+    "fix_summary": "Full sympy/physics/units/tests/ suite: 70 passed, 1 xfailed",
+    "note": "verification report masquerading as fix"
+  },
+  {
+    "instance": "sympy__sympy-20442",
+    "role": "task1_or_related_half_sentence",
+    "fix_summary": "to return `None` so convert…",
+    "note": "v2 soft150/hard300 mid-clause chop at extractFixSummary/softSummarize"
+  }
+]

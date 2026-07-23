@@ -115,6 +115,25 @@ describe('rankKnackResults', () => {
 
     expect(ranked[0].ranking?.similaritySource).toBe('lexical');
   });
+
+  it('ranks legacy knacks with absent v3 fields without error', async () => {
+    const ranked = await rankKnackResults([
+      result('legacy', {
+        repo: 'astropy/astropy',
+        symptom: 'replace result is discarded',
+        fixSummary: 'assign the result back',
+      }),
+    ], {
+      repository: 'astropy/astropy',
+      queryText: 'replace discarded',
+      currentTaskId: 'task_legacy',
+    });
+    expect(ranked).toHaveLength(1);
+    const payload = ranked[0].item.payload as Record<string, unknown>;
+    expect(payload.verification).toBeUndefined();
+    expect(payload.executionEvidence).toBeUndefined();
+    expect(ranked[0].item.summary).toContain('Fix: assign the result back');
+  });
 });
 
 function result(id: string, knack: {

@@ -280,7 +280,7 @@ describe('knack distillation', () => {
     })?.symptom).toBe('Possible bug in io.fits related to D exponents');
   });
 
-  it('soft-limits long fix_summary at sentence end (fidelity v2)', () => {
+  it('soft-limits long fix_summary at sentence end (fidelity v3 limits)', () => {
     const longTail = 'Keep the rest of the paragraph for context only and do not mid-cut. ';
     const finalSummary = `The fix is ${'Assign the replace result back to output_field so D exponents survive. '.repeat(3)}${longTail.repeat(5)}`;
     const events = parseJsonLines([
@@ -297,10 +297,9 @@ describe('knack distillation', () => {
     })?.fix_summary ?? '';
 
     expect(fix.endsWith('.')).toBe(true);
-    expect(fix.length).toBeLessThanOrEqual(300);
+    expect(fix.length).toBeLessThanOrEqual(800);
     expect(fix.includes('Assign the replace result')).toBe(true);
-    // Must not hard-cut mid-word at exactly 150.
-    expect(fix.length === 150 && !/[.!?]$/.test(fix)).toBe(false);
+    expect(fix.length === 300 && !/[.!?]$/.test(fix)).toBe(false);
   });
 
   it('isInformativeSymptom rejects confirmed fluff', () => {
@@ -309,11 +308,97 @@ describe('knack distillation', () => {
     expect(isInformativeSymptom('AssertionError: matrix wrong')).toBe(true);
   });
 
-  it('softSummarize extends to sentence end instead of chopping at 150', () => {
-    const text = `${'word '.repeat(20)}Complete sentence ends here. Extra clause stays out if possible.`;
-    const out = softSummarize(text, 150, 300);
+  it('softSummarize extends to sentence end instead of chopping at soft limit', () => {
+    const text = `${'word '.repeat(40)}Complete sentence ends here. Extra clause stays out if possible.`;
+    const out = softSummarize(text, 300, 800);
     expect(out.endsWith('.')).toBe(true);
     expect(out.includes('Complete sentence ends here.')).toBe(true);
+  });
+
+  it('rejects three distortion types: tool-sequence, fluff, and test-report', () => {
+    const base = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"AssertionError: dim mismatch"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"edit unitsystem.py: use is_dimensionless(dim) instead of structural equality"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+    const cases: Array<[string, string]> = [
+      ['Tool sequence: bash -> edit -> bash. Done reviewing.', ''],
+      ['The fix is in place. confirmed.', ''],
+      ['Full sympy/physics/units/tests/ suite: 70 passed, 1 xfailed', ''],
+    ];
+    for (const [finalSummary, expected] of cases) {
+      expect(distillRunEvents({
+        events: base, evidenceTask: 'sympy__sympy-24066', repo: 'sympy/sympy', finalSummary,
+      })?.fix_summary).toBe(expected);
+    }
+  });
+
+  it('φ_exec accepts grounded fix and rejects test-report against rich evidence', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"ValueError: Dimension of exp(...)"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"edit unitsystem.py: call is_dimensionless(dim) for exponent check; SI.get_dimension_system().is_dimensionless"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+    const good = distillRunEvents({
+      events,
+      evidenceTask: 'sympy__sympy-24066',
+      repo: 'sympy/sympy',
+      finalSummary: 'The fix is to call `is_dimensionless()` on the collected dimension before rejecting exponents.',
+    });
+    expect(good?.fix_summary.toLowerCase()).toContain('is_dimensionless');
+    expect(good?.confidence).toBe('verified');
+    expect(good?.verification).toBeTruthy();
+    expect(good?.execution_evidence).toContain('is_dimensionless');
+
+    const bad = distillRunEvents({
+      events,
+      evidenceTask: 'sympy__sympy-24066',
+      repo: 'sympy/sympy',
+      finalSummary: 'The fix is Full sympy/physics/units/tests/ suite: 70 passed, 1 xfailed.',
+    });
+    expect(bad?.fix_summary).toBe('');
+    expect(bad?.confidence).toBe('candidate');
+    expect(bad?.verification).toMatch(/passed/);
+  });
+
+  it('keeps empty verification/execution_evidence safe for legacy render shape', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"AssertionError: expected 2, got 1"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"fix"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+    const candidate = distillRunEvents({
+      events,
+      evidenceTask: 'owner__repo-123',
+      repo: 'owner/repo',
+      finalSummary: 'The fix is to assign `x` back.',
+    });
+    expect(candidate).toMatchObject({
+      fix_summary: 'to assign `x` back.',
+      verification: expect.any(String),
+    });
+    // Thin edit summary → no execution_evidence key forced; consumers must tolerate absence.
+    const rendered = `Symptom: ${candidate?.symptom} Fix: ${candidate?.fix_summary}`;
+    expect(rendered.includes('undefined')).toBe(false);
+  });
+
+  it('does not mid-cut long convert_to fix under v3 soft/hard limits', () => {
+    const longFix =
+      'The fix is to return `None` so convert_to leaves orthogonal units unchanged when no exact conversion exists in the unit system.';
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"bash","summary":"odd convert_to joule**(7/9)"}',
+      '{"kind":"tool_call","toolName":"edit","summary":"edit util.py convert_to: return None when solve fails for orthogonal units instead of partial combine"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+    const fix = distillRunEvents({
+      events,
+      evidenceTask: 'sympy__sympy-20442',
+      repo: 'sympy/sympy',
+      finalSummary: longFix,
+    })?.fix_summary ?? '';
+    expect(fix).toContain('return `None`');
+    expect(fix.endsWith('.')).toBe(true);
+    expect(fix.includes('…')).toBe(false);
   });
 
   it('links run archives to their task and resolved harness result', async () => {

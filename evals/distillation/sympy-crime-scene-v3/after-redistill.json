@@ -1,0 +1,19 @@
+{
+  "note": "Original SymPy family run archives missing under evals/results; reconstructed from known bad strings + grounded edit evidence.",
+  "truncation_locus": "extractFixSummary → softSummarize (was soft150/hard300). Import truncate(200) on knack.summary is separate and does not chop fixSummary field.",
+  "task2_with_bad_marker_first": {
+    "fix_summary": "Also call `is_dimensionless()` on the collected dimension.",
+    "confidence": "verified",
+    "verification": "verifier reward=1; 70 passed, 1 failed/xfailed"
+  },
+  "task2_grounded": {
+    "fix_summary": "to call `is_dimensionless()` on the collected dimension before rejecting exponents.",
+    "confidence": "verified",
+    "verification": "verifier reward=1",
+    "execution_evidence": "edit edit unitsystem.py: use SI.get_dimension_system().is_dimensionless(dim) instead of structural equality on exponent"
+  },
+  "task1_full_sentence": {
+    "fix_summary": "to return `None` so convert_to leaves orthogonal units unchanged when no exact conversion exists in the unit system.",
+    "confidence": "verified"
+  }
+}

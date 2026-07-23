@@ -68,4 +68,47 @@ describe('importDistilledKnacks', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
   });
+
+  it('imports optional v3 verification/execution_evidence without error', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'knack-import-v3-'));
+    dirs.push(dir);
+    const sourcePath = join(dir, 'candidate-knacks.json');
+    const targetPath = join(dir, 'knacks.jsonl');
+    await writeFile(sourcePath, JSON.stringify([{
+      id: 'knack-sympy-24066',
+      dedup_key: 'sympy:24066',
+      repo: 'sympy/sympy',
+      symptom: 'exponent dimension check',
+      fix_summary: 'call is_dimensionless()',
+      evidence_task: 'sympy__sympy-24066',
+      confidence: 'verified',
+      verification: 'verifier reward=1; 70 passed, 1 failed/xfailed',
+      execution_evidence: 'edit unitsystem.py is_dimensionless(dim)',
+    }, {
+      id: 'knack-legacy-empty-v3',
+      dedup_key: 'astropy:legacy',
+      repo: 'astropy/astropy',
+      symptom: 'legacy row',
+      fix_summary: 'assign replace back',
+      evidence_task: 'astropy__astropy-6938',
+      confidence: 'verified',
+    }]), 'utf8');
+
+    const outcome = await importDistilledKnacks({
+      sourcePath,
+      targetPath,
+      now: new Date('2026-07-23T00:00:00.000Z'),
+    });
+    expect(outcome.imported).toBe(2);
+    const rows = (await readFile(targetPath, 'utf8')).trim().split('\n').map((l) => JSON.parse(l));
+    expect(rows.find((r) => r.id === 'knack-sympy-24066')).toMatchObject({
+      verification: 'verifier reward=1; 70 passed, 1 failed/xfailed',
+      executionEvidence: 'edit unitsystem.py is_dimensionless(dim)',
+      fixSummary: 'call is_dimensionless()',
+    });
+    expect(rows.find((r) => r.id === 'knack-legacy-empty-v3')).toMatchObject({
+      fixSummary: 'assign replace back',
+    });
+    expect(rows.find((r) => r.id === 'knack-legacy-empty-v3').verification).toBeUndefined();
+  });
 });
