@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "19566318839a8186",
+  "contentHash": "388694e474585ed8",
   "nodes": [
     {
       "id": "ADR-001",
@@ -1043,6 +1043,15 @@
       "sourceLine": 2694
     },
     {
+      "id": "finding:self-built-sequence-unsealed",
+      "kind": "finding",
+      "title": "finding:self-built-sequence-unsealed",
+      "status": "DEFINED",
+      "summary": "finding:self-built-sequence-unsealed",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 294
+    },
+    {
       "id": "finding:skill-leak-knacks-jsonl",
       "kind": "finding",
       "title": "finding:skill-leak-knacks-jsonl",
@@ -1315,6 +1324,15 @@
       "summary": "\"较真税\"治理（thoroughness budget）",
       "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
       "sourceLine": 244
+    },
+    {
+      "id": "probe:determinism-20260724",
+      "kind": "finding",
+      "title": "probe:determinism-20260724",
+      "status": "DEFINED",
+      "summary": "probe:determinism-20260724",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 294
     },
     {
       "id": "probe:knack-birth-self-check",
@@ -1911,6 +1929,33 @@
       "sourcePath": "docs/roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md",
       "sourceLine": 2694,
       "id": "produces:finding:references-folder->finding:v032-escalation-ladder"
+    },
+    {
+      "kind": "produces",
+      "from": "finding:self-built-sequence-unsealed",
+      "to": "ADR-002",
+      "label": "scoped_by",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 295,
+      "id": "produces:finding:self-built-sequence-unsealed->ADR-002"
+    },
+    {
+      "kind": "produces",
+      "from": "finding:self-built-sequence-unsealed",
+      "to": "phase:P0",
+      "label": "same_pattern_as",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 296,
+      "id": "produces:finding:self-built-sequence-unsealed->phase:P0"
+    },
+    {
+      "kind": "produces",
+      "from": "finding:self-built-sequence-unsealed",
+      "to": "probe:determinism-20260724",
+      "label": "unsealed_by",
+      "sourcePath": "docs/adr/ADR-003-v04x-priority-reorder.md",
+      "sourceLine": 294,
+      "id": "produces:finding:self-built-sequence-unsealed->probe:determinism-20260724"
     },
     {
       "kind": "produces",
@@ -2532,7 +2577,7 @@
         "id": "ADR-002",
         "kind": "adr",
         "title": "学习 eval：别人的题 + 自己的协议",
-        "edgeCount": 1,
+        "edgeCount": 2,
         "sourcePath": "docs/adr/ADR-002-learning-eval-protocol.md"
       },
       {
@@ -2700,7 +2745,7 @@
         "id": "phase:P0",
         "kind": "phase",
         "title": "P0 · 化验工具链可复现依赖",
-        "edgeCount": 6,
+        "edgeCount": 7,
         "sourcePath": "docs/buglog.md"
       },
       {
