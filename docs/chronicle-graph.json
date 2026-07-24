@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "d80f81805248fe96",
+  "contentHash": "09e7edc6bafb98be",
   "nodes": [
     {
       "id": "ADR-001",
@@ -90,7 +90,7 @@
       "status": "CLOSED（Tier A/B 实跑 trace 已持续记录 task lifecycle、",
       "summary": "SWE 对比 run 的 trace 中 `layers.L1/L2/L3.sectionCount = 0`、",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 339
+      "sourceLine": 364
     },
     {
       "id": "BUG-002",
@@ -99,7 +99,7 @@
       "status": "CLOSED（OpenRouter Sonnet cache_control 透传与 usage 采集实测正常；",
       "summary": "cc（经代理跑 gpt-5.5）的 `cacheReadTokens` 恒为 0",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 356
+      "sourceLine": 381
     },
     {
       "id": "BUG-003",
@@ -108,7 +108,7 @@
       "status": "CLOSED",
       "summary": "git log 最后的版本化提交停在 v0.36，v0.4 成果埋在",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 380
+      "sourceLine": 405
     },
     {
       "id": "BUG-004",
@@ -117,7 +117,7 @@
       "status": "CLOSED（3 seed 均满足 verifier 4/4、工具取证、脚本穷举三条件；",
       "summary": "Terminal Tier A 的 `overfull-hbox` run 中 agent 消除了",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 394
+      "sourceLine": 419
     },
     {
       "id": "BUG-005",
@@ -126,7 +126,7 @@
       "status": "CLOSED",
       "summary": "`p2-overfull-hard-constraints-20260611` reward=0 看似红灯，",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 490
+      "sourceLine": 515
     },
     {
       "id": "BUG-006",
@@ -135,7 +135,7 @@
       "status": "CLOSED（verifier 依赖与 invalid_run 哨兵已实测生效；后续",
       "summary": "overfull-hbox 重跑 agent 正常退出，verifier reward 0.0；",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 509
+      "sourceLine": 534
     },
     {
       "id": "BUG-007",
@@ -144,7 +144,7 @@
       "status": "CLOSED（相关凭据仍建议轮换）",
       "summary": "`scripts/probe_tools.py` 被纳入功能分支提交，文件中的本地渠道配置",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 554
+      "sourceLine": 579
     },
     {
       "id": "BUG-008",
@@ -153,7 +153,7 @@
       "status": "CLOSED",
       "summary": "README 要求手动克隆 `pi-mono`，但直接克隆 main 得到 0.80.6，包名已从",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 320
+      "sourceLine": 345
     },
     {
       "id": "BUG-009",
@@ -162,7 +162,7 @@
       "status": "CLOSED",
       "summary": "`npm run eval:validate` 报",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 308
+      "sourceLine": 333
     },
     {
       "id": "BUG-010",
@@ -171,7 +171,7 @@
       "status": "CLOSED",
       "summary": "`npm audit` 报 Vitest UI server 任意文件读取/执行 critical advisory。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 299
+      "sourceLine": 324
     },
     {
       "id": "BUG-011",
@@ -180,31 +180,31 @@
       "status": "CLOSED（修复后 C 组 3/3 valid 且 verifier 满分，追平 plain 3/3）",
       "summary": "正式运行",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 240
+      "sourceLine": 265
     },
     {
       "id": "BUG-012",
       "kind": "bug",
       "title": "SWE 召回 repository gate 误杀 + P3 citation 同 ordinal 失效",
-      "status": "DONE（判分入档）；P1 合页仍否（盲审/主库门槛）。",
-      "summary": "P1-E #1 symptom=`confirmed.` 口水话；fix 半句截断风险。",
+      "status": "FIXED（远端：`e18b22dd` @ `codex/knack-birth-probe`；PR https://github.com/nashorya/student-agent/pull/13 ；未合入 main）",
+      "summary": "SWE 召回 repository gate 误杀 + P3 citation 同 ordinal 失效",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 92
+      "sourceLine": 117
     },
     {
       "id": "BUG-013",
       "kind": "bug",
       "title": "萃取保真度 v3（结构 + φ_exec + 黑白名单）· REOPENED",
-      "status": "VERIFIED（文书确认；未改 runner 代码）",
+      "status": "**FIXED-v5（build + 1148 tests 全绿；待作者确认）**",
       "summary": "第三型失真——fix 栏装测试汇报（`70 passed`）或半句截断；注入臂付阅读税。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 36
+      "sourceLine": 49
     },
     {
       "id": "BUG-014",
       "kind": "bug",
       "title": "正式 SymPy run 未申报 recall citation",
-      "status": "**OPEN（UPGRADED；used_recall 不得作为唯一归因依据）**",
+      "status": "**OPEN（INCONCLUSIVE；等待高于噪声地板的行为证据）**",
       "summary": "sympy-v4-rematch 的 A-L 题 2/题 3 均确认注入 lesson，",
       "sourcePath": "docs/buglog.md",
       "sourceLine": 8
@@ -216,7 +216,7 @@
       "status": "FIXED（门控收紧 + 库清理）；P1 验收重开。",
       "summary": "盲审 0/5；13 条主库全是 `Treat tool error as a retry pattern` 过程噪声。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 229
+      "sourceLine": 254
     },
     {
       "id": "BUG-UNNUMBERED-561c42ed",
@@ -225,7 +225,16 @@
       "status": "FIXED-部分（计价重算路径 + 入档）；generationId 落盘后续增强。",
       "summary": "ZenMux campaign 本地合计 $0.74 vs 控制台 **$2.41（≈3.3×）**。",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 219
+      "sourceLine": 244
+    },
+    {
+      "id": "campaign:bug-013-v5-blacklist-bypass-20260724.md",
+      "kind": "campaign",
+      "title": "bug-013-v5-blacklist-bypass-20260724.md",
+      "status": "RECORDED",
+      "summary": "# BUG-013 · v5 变更元信息黑名单绕过取证 ## 性质与边界 - 日期：2026-07-24 - 性质：既有第四型失真的复现修复；按 v4 stop rule ② 允许进入 v5。 - 成本：¥0；零模型调用、零 SWE-bench run、零 harness。 - 未改：φ_exec 阈值、门控、召回、prompt、采样、主库与冻结档案。 ## 先取证：实际绕过原文 来源： ",
+      "sourcePath": "evals/distillation/bug-013-v5-blacklist-bypass-20260724.md",
+      "sourceLine": 1
     },
     {
       "id": "campaign:c2-cache-prefix-smoke-proxy7897.json",
@@ -264,6 +273,15 @@
       "status": "RECORDED",
       "summary": "# SymPy v4 rematch · citation 分诊（2026-07-23） > 档位：诊断性取证，零模型调用、零 run、零 harness。本报告不修复 > citation 仪器，也不使用 v0.2 旧 B 臂数据。 ## 结论 **明确落格：② 模型未申报。** 两次正式 A-L run 的 lesson 与 `RECALL CITATION RULE` 均完整进入实际",
       "sourcePath": "evals/distillation/citation-triage-20260723.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:finding-noise-floor-20260723.md",
+      "kind": "campaign",
+      "title": "finding-noise-floor-20260723.md",
+      "status": "RECORDED",
+      "summary": "# finding:单格 n=1 时效应量与噪声量级相当 ## 证据：同被试条件跨批直接测量 两批 B 臂均为无注入、`glm-5.2 + thinking`、同一 SymPy 三题与题序、同一 冻结采样，且学习管线照跑。逐 run 反查的三题阶梯分别为： - v0.2 原批：`0 / 2 / 0`； - fidelity v4 批：`0 / 6 / 0`。 | B 臂 | 口径 | 阶梯",
+      "sourcePath": "evals/distillation/finding-noise-floor-20260723.md",
       "sourceLine": 1
     },
     {
@@ -940,7 +958,7 @@
       "status": "DEFINED",
       "summary": "finding:distill-blind-spot",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 71
+      "sourceLine": 84
     },
     {
       "id": "finding:external-agent-misattribution",
@@ -987,6 +1005,15 @@
       "summary": "Knack Schema v1",
       "sourcePath": "docs/adr/ADR-004-knack-schema-v1.md",
       "sourceLine": 120
+    },
+    {
+      "id": "finding:noise-floor",
+      "kind": "finding",
+      "title": "单格 n=1 时效应量与噪声量级相当",
+      "status": "DEFINED",
+      "summary": "单格 n=1 时效应量与噪声量级相当",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 42
     },
     {
       "id": "finding:recall-citation-nondeclaration",
@@ -1224,7 +1251,7 @@
       "status": "HYPOTHESIS",
       "summary": "paper:Trace2Skill",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 72
+      "sourceLine": 85
     },
     {
       "id": "phase:P0",
@@ -1233,7 +1260,7 @@
       "status": "CLOSED",
       "summary": "化验工具链可复现依赖",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 306
+      "sourceLine": 331
     },
     {
       "id": "phase:P1",
@@ -1242,7 +1269,7 @@
       "status": "CLOSED",
       "summary": "成本对账是 P1 供给可信度的前提",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 227
+      "sourceLine": 252
     },
     {
       "id": "phase:P2",
@@ -1299,16 +1326,34 @@
       "sourceLine": 1
     },
     {
+      "id": "run:sympy-v4-b-arm",
+      "kind": "finding",
+      "title": "run:sympy-v4-b-arm",
+      "status": "DEFINED",
+      "summary": "run:sympy-v4-b-arm",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 43
+    },
+    {
       "id": "run:sympy-v4-rematch-24213",
       "kind": "finding",
       "title": "run:sympy-v4-rematch-24213",
       "status": "DEFINED",
       "summary": "run:sympy-v4-rematch-24213",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 71
+      "sourceLine": 84
     }
   ],
   "edges": [
+    {
+      "kind": "exposes",
+      "from": "BUG-014",
+      "to": "finding:noise-floor",
+      "label": "exposes",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 42,
+      "id": "exposes:BUG-014->finding:noise-floor"
+    },
     {
       "kind": "exposes",
       "from": "BUG-014",
@@ -1576,7 +1621,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 335,
+      "sourceLine": 360,
       "id": "motivates:BUG-008->phase:P0"
     },
     {
@@ -1585,7 +1630,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 318,
+      "sourceLine": 343,
       "id": "motivates:BUG-009->phase:P0"
     },
     {
@@ -1594,7 +1639,7 @@
       "to": "phase:P0",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 306,
+      "sourceLine": 331,
       "id": "motivates:BUG-010->phase:P0"
     },
     {
@@ -1621,7 +1666,7 @@
       "to": "phase:P1",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 238,
+      "sourceLine": 263,
       "id": "motivates:BUG-UNNUMBERED-205d894e->phase:P1"
     },
     {
@@ -1630,7 +1675,7 @@
       "to": "phase:P1",
       "label": "motivates",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 227,
+      "sourceLine": 252,
       "id": "motivates:BUG-UNNUMBERED-561c42ed->phase:P1"
     },
     {
@@ -1801,7 +1846,7 @@
       "to": "paper:Trace2Skill",
       "label": "candidate_fix",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 72,
+      "sourceLine": 85,
       "id": "produces:finding:distill-blind-spot->paper:Trace2Skill"
     },
     {
@@ -1810,7 +1855,7 @@
       "to": "run:sympy-v4-rematch-24213",
       "label": "evidenced_by",
       "sourcePath": "docs/buglog.md",
-      "sourceLine": 71,
+      "sourceLine": 84,
       "id": "produces:finding:distill-blind-spot->run:sympy-v4-rematch-24213"
     },
     {
@@ -1821,6 +1866,33 @@
       "sourcePath": "docs/adr/ADR-004-knack-schema-v1.md",
       "sourceLine": 121,
       "id": "produces:finding:knack-schema-v1->phase:P1"
+    },
+    {
+      "kind": "produces",
+      "from": "finding:noise-floor",
+      "to": "BUG-014",
+      "label": "qualifies",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 45,
+      "id": "produces:finding:noise-floor->BUG-014"
+    },
+    {
+      "kind": "produces",
+      "from": "finding:noise-floor",
+      "to": "finding:injection-effect-experiment",
+      "label": "qualifies",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 44,
+      "id": "produces:finding:noise-floor->finding:injection-effect-experiment"
+    },
+    {
+      "kind": "produces",
+      "from": "finding:noise-floor",
+      "to": "run:sympy-v4-b-arm",
+      "label": "evidenced_by",
+      "sourcePath": "docs/buglog.md",
+      "sourceLine": 43,
+      "id": "produces:finding:noise-floor->run:sympy-v4-b-arm"
     },
     {
       "kind": "produces",
@@ -2199,6 +2271,14 @@
       "sourcePath": "evals/distillation/citation-triage-20260723.md",
       "sourceLine": 1,
       "id": "verifies:campaign:citation-triage-20260723.md->phase:P1"
+    },
+    {
+      "kind": "verifies",
+      "from": "campaign:finding-noise-floor-20260723.md",
+      "to": "phase:P1",
+      "sourcePath": "evals/distillation/finding-noise-floor-20260723.md",
+      "sourceLine": 1,
+      "id": "verifies:campaign:finding-noise-floor-20260723.md->phase:P1"
     },
     {
       "kind": "verifies",
@@ -2590,7 +2670,7 @@
         "id": "BUG-014",
         "kind": "bug",
         "title": "正式 SymPy run 未申报 recall citation",
-        "edgeCount": 2,
+        "edgeCount": 4,
         "sourcePath": "docs/buglog.md"
       },
       {
@@ -2618,7 +2698,7 @@
         "id": "phase:P1",
         "kind": "phase",
         "title": "P1 · 成本对账是 P1 供给可信度的前提",
-        "edgeCount": 32,
+        "edgeCount": 33,
         "sourcePath": "docs/buglog.md"
       },
       {

@@ -95,6 +95,22 @@ describe('chronicle knowledge graph', () => {
     expect(graph.parseErrors.some((e) => e.message.includes('BUG-099') && e.line > 0)).toBe(true);
   });
 
+  it('does not let a following NOTE overwrite the preceding bug status', () => {
+    const graph = buildChronicleGraph(input({
+      buglogText: [
+        '## BUG-013 · extractor',
+        '- **状态**：FIXED-v5',
+        '## NOTE · audit note',
+        '- **状态**：VERIFIED',
+        '## BUG-014 · citation',
+        '- **状态**：OPEN',
+      ].join('\n'),
+    }));
+
+    expect(graph.nodes.find((node) => node.id === 'BUG-013')?.status).toBe('FIXED-v5');
+    expect(graph.nodes.find((node) => node.id === 'BUG-014')?.status).toBe('OPEN');
+  });
+
   it('is byte-deterministic across two builds', () => {
     const a = serializeChronicleGraph(buildChronicleGraph(input()));
     const b = serializeChronicleGraph(buildChronicleGraph(input()));

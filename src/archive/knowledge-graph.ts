@@ -243,6 +243,7 @@ function parseBuglog(
       }
       continue;
     }
+    if (current && /^##\s+/.test(line)) flush();
     if (!current) continue;
     const status = line.match(/^\s*-\s*\*\*状态\*\*\s*[：:]\s*(.+)\s*$/);
     if (status) current.status = status[1].trim();

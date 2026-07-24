@@ -456,6 +456,7 @@ describe('knack distillation', () => {
   it('rejects change metadata and redistills 24213 to equivalent_dims()', () => {
     for (const metadata of [
       'Files changed: sympy/physics/units/unitsystem.py.',
+      '## Files Changed - `sympy/physics/units/unitsystem.py` (production file only)',
       '2 files changed, 4 insertions(+), 1 deletion(-).',
       'diff --git a/unitsystem.py b/unitsystem.py',
       '@@ -181,7 +181,8 @@ class UnitSystem:',
@@ -480,6 +481,30 @@ describe('knack distillation', () => {
 
     expect(candidate?.fix_summary).toContain('`equivalent_dims(dim, addend_dim)`');
     expect(candidate?.fix_summary).not.toContain('Files changed');
+  });
+
+  it('normalizes and rejects the actual v4 B-run markdown change heading', () => {
+    const events = parseJsonLines([
+      '{"kind":"tool_error","toolName":"edit","summary":"Hashline tag is stale"}',
+      '{"kind":"tool_call","toolName":"apply_patch","summary":"apply_patch unitsystem.py: call is_dimensionless(d[1]) and return Dimension(1)"}',
+      '{"kind":"verifier","reward":1}',
+    ].join('\n'));
+    const candidate = distillRunEvents({
+      events,
+      evidenceTask: 'sympy__sympy-24066',
+      repo: 'sympy/sympy',
+      finalSummary: [
+        '## Fix',
+        'Call `is_dimensionless()` for every function argument and return `Dimension(1)`.',
+        '## Files Changed',
+        '- `sympy/physics/units/unitsystem.py` (production file only)',
+        '## Validation',
+        '- 70 tests passed.',
+      ].join('\n'),
+    });
+
+    expect(candidate?.fix_summary).toContain('`is_dimensionless()`');
+    expect(candidate?.fix_summary).not.toMatch(/Files Changed|production file only/i);
   });
 
   it('links run archives to their task and resolved harness result', async () => {

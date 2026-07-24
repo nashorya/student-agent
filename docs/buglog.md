@@ -30,6 +30,19 @@
 - **exposes** → `finding:recall-citation-nondeclaration` · 正式 provider 多轮运行未稳定申报 recall citation
 - **motivates** → `phase:P3` · 利用可观测须补正式路径申报可靠性验收
 - **状态**：**OPEN（UPGRADED；used_recall 不得作为唯一归因依据）**
+- **噪声地板状态注（2026-07-24，追加）**：上述 (b) 以“A-L/B 行为差为真”
+  为前提；同一无注入 B 在 v0.2 原批与 fidelity v4 批的第 2+3 题波动为：
+  阶梯 `2 → 6`、轮次 `24 → 42`、等价成本
+  `¥1.206248 → ¥4.559296`，达到或超过本批 A-L/B 差值。故无条件的
+  “(b) 归因手段不可靠”表述退化为**“无法判定 citation 可靠性”**。
+  `used_recall` 仍只表示申报而非实际使用，但本批不能凭单格 n=1 的行为差
+  证明“受影响而未自报”。依据：
+  `evals/distillation/finding-noise-floor-20260723.md`。
+- **状态**：**OPEN（INCONCLUSIVE；等待高于噪声地板的行为证据）**
+- **exposes** → `finding:noise-floor` · 单格 n=1 时效应量与噪声量级相当
+  finding:noise-floor --evidenced_by--> run:sympy-v4-b-arm
+  finding:noise-floor --qualifies--> finding:injection-effect-experiment
+  finding:noise-floor --qualifies--> BUG-014
 
 ---
 
@@ -71,6 +84,18 @@
   `finding:distill-blind-spot --evidenced_by--> run:sympy-v4-rematch-24213`
   `finding:distill-blind-spot --candidate_fix--> paper:Trace2Skill`
 - **状态**：**REOPENED（v4 新正式轨迹复现已知第四型；待独立修复单）**
+- **v5 绕过取证（2026-07-24，追加）**：实际漏过原文为
+  `## Files Changed - \`sympy/physics/units/unitsystem.py\` (production file only)`。
+  v4 只折叠空白，黑名单起点只允许可选 `**`，没有剥离 Markdown `##`，
+  因而不是大小写问题，而是标题标点导致的字面模式绕过。
+- **v5 修复**：黑名单统一改为 NFKC + 小写化 + 标点剥离 + 空白归一后
+  匹配；`@@ … @@` 等依赖定界形状的模式仍检查原文。真实绕过原文与 v4
+  原有元信息组均有回归，φ_exec 阈值及其他门控未改。只读离线复核已不再
+  产出 `Files Changed`。完整取证：
+  `evals/distillation/bug-013-v5-blacklist-bypass-20260724.md`。
+- **脆性状态注**：规范化匹配仍是启发式；本次计为 v5，不重置累计计数。
+  下一次同处再修即触发 Trace2Skill / 约束式生成的结构性方案评估。
+- **状态**：**FIXED-v5（build + 1148 tests 全绿；待作者确认）**
 
 ---
 

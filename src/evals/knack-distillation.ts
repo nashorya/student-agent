@@ -206,17 +206,25 @@ export function buildVerificationField(
 
 /** Test reports / status fluff / meta-narration — CoT-Evo deletive + SPARK verification split. */
 export function isBlacklistedFix(text: string): boolean {
-  const t = text.replace(/\s+/g, ' ').trim();
-  if (/^\s*Tool sequence:/i.test(t)) return true;
-  if (/^(?:\*{0,2})?Files? changed\b/i.test(t)) return true;
-  if (/^(?:diff --git\b|@@.*@@|\*\*\* (?:Begin Patch|Update File))/i.test(t)) return true;
-  if (/\b\d+\s+files?\s+changed\b|\b\d+\s+(?:insertions?|deletions?)(?:\(\+\)|\(-\))?/i.test(t)) return true;
-  if (/\b\d+\s+(passed|failed|xfailed)\b/i.test(t)) return true;
-  if (/tests?\/[\w./-]+/i.test(t) && /\b\d+\b/.test(t)) return true;
-  if (/\b(fix is in place|works now)\b/i.test(t)) return true;
-  if (/^(confirmed\.?|ok\.?|done\.?)$/i.test(t)) return true;
-  if (/\b(the user says|tips mention|correct answer)\b/i.test(t)) return true;
+  const raw = text.replace(/\s+/g, ' ').trim();
+  const normalized = normalizeBlacklistText(raw);
+  if (/^tool sequence\b/.test(normalized)) return true;
+  if (/^files? changed\b/.test(normalized)) return true;
+  if (/^(?:diff git|begin patch|update file)\b/.test(normalized) || /^@@.*@@/i.test(raw)) return true;
+  if (/\b\d+\s+files?\s+changed\b|\b\d+\s+(?:insertions?|deletions?)\b/.test(normalized)) return true;
+  if (/\b\d+\s+(passed|failed|xfailed)\b/.test(normalized)) return true;
+  if (/tests?\/[\w./-]+/i.test(raw) && /\b\d+\b/.test(raw)) return true;
+  if (/\b(fix is in place|works now)\b/.test(normalized)) return true;
+  if (/^(confirmed|ok|done)$/.test(normalized)) return true;
+  if (/\b(the user says|tips mention|correct answer)\b/.test(normalized)) return true;
   return false;
+}
+
+function normalizeBlacklistText(text: string): string {
+  return text.normalize('NFKC').toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /** Change verb and/or code citation required (v2 whitelist retained). */
