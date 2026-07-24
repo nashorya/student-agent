@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentHash": "09e7edc6bafb98be",
+  "contentHash": "19566318839a8186",
   "nodes": [
     {
       "id": "ADR-001",
@@ -273,6 +273,15 @@
       "status": "RECORDED",
       "summary": "# SymPy v4 rematch · citation 分诊（2026-07-23） > 档位：诊断性取证，零模型调用、零 run、零 harness。本报告不修复 > citation 仪器，也不使用 v0.2 旧 B 臂数据。 ## 结论 **明确落格：② 模型未申报。** 两次正式 A-L run 的 lesson 与 `RECALL CITATION RULE` 均完整进入实际",
       "sourcePath": "evals/distillation/citation-triage-20260723.md",
+      "sourceLine": 1
+    },
+    {
+      "id": "campaign:determinism-probe-20260724.md",
+      "kind": "campaign",
+      "title": "determinism-probe-20260724.md",
+      "status": "RECORDED",
+      "summary": "**性质：本批仅测量仪器确定性与并发可行性，不产生任何关于记忆内容、记忆注入或其效果的结论。** # `sympy__sympy-24066` 确定性探针（2026-07-24） ## 状态 **STOPPED — BUDGET FUSE。** 串行组 3/3 完整结束；并发组三路同时启动， 但累计等价成本在一个响应归档后由 ¥4.931072 升至 **¥5.015516**，超过 ¥5 ",
+      "sourcePath": "evals/distillation/determinism-probe-20260724.md",
       "sourceLine": 1
     },
     {
