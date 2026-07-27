@@ -13,6 +13,11 @@ import { runPinnedScoring } from './eval-injection-score.js';
 export { readFrozenInjectionSpec, resolveInjectionArm };
 export type { InjectionArm, InjectionFamilyRunOptions };
 
+export const DEFAULT_INJECTION_PREREG_PATH =
+  'docs/proposals/injection-effect-experiment-prereg-v0.3.md';
+export const DEFAULT_INJECTION_RESULTS_ROOT =
+  'evals/results/injection-experiment-v0.3';
+
 export function runInjectionFamily(
   options: InjectionFamilyRunOptions,
   dependencies: Partial<InjectionFamilyDependencies> = {},
@@ -23,7 +28,10 @@ export function runInjectionFamily(
   });
 }
 
-function cli(args: string[]): InjectionFamilyRunOptions {
+export function parseInjectionCliOptions(
+  args: string[],
+  now: Date = new Date(),
+): InjectionFamilyRunOptions {
   const values = new Map<string, string>();
   for (let index = 0; index < args.length; index++) {
     if (args[index]?.startsWith('--') && args[index + 1] && !args[index + 1]?.startsWith('--')) {
@@ -38,8 +46,11 @@ function cli(args: string[]): InjectionFamilyRunOptions {
     familyId: required('--family'),
     arm: arm as InjectionArm,
     instancesPath: resolve(values.get('--instances-path') ?? 'evals/inputs/injection-effect-frozen-instances.jsonl'),
-    resultsDir: resolve(values.get('--results-dir') ?? join('evals/results/injection-experiment-v0.2', new Date().toISOString().replace(/[:.]/gu, '-'))),
-    preregPath: resolve(values.get('--prereg') ?? 'docs/proposals/injection-effect-experiment-prereg-v0.2.md'),
+    resultsDir: resolve(values.get('--results-dir') ?? join(
+      DEFAULT_INJECTION_RESULTS_ROOT,
+      now.toISOString().replace(/[:.]/gu, '-'),
+    )),
+    preregPath: resolve(values.get('--prereg') ?? DEFAULT_INJECTION_PREREG_PATH),
     ...(dryRun ? {} : {
       harnessPython: required('--harness-python'),
       snapshotManifest: required('--snapshot-manifest'),
@@ -53,7 +64,7 @@ function cli(args: string[]): InjectionFamilyRunOptions {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  runInjectionFamily(cli(process.argv.slice(2)))
+  runInjectionFamily(parseInjectionCliOptions(process.argv.slice(2)))
     .then((result) => console.log(JSON.stringify({ ok: true, ...result }, null, 2)))
     .catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exit(1); });
 }

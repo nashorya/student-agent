@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  parseInjectionCliOptions,
   readFrozenInjectionSpec,
   resolveInjectionArm,
   runInjectionFamily,
@@ -13,7 +14,7 @@ import { appendSignal } from '../../memory/signals/index.js';
 import { RunArchiveWriter } from '../../memory/run-archive/index.js';
 import { TasksManager } from '../../memory/tasks/manager.js';
 
-describe('injection experiment v0.2 runner', () => {
+describe('injection experiment v0.3 runner', () => {
   const roots: string[] = [];
 
   afterEach(async () => {
@@ -22,7 +23,8 @@ describe('injection experiment v0.2 runner', () => {
   });
 
   it('reads the frozen four-arm sampling, snapshot, and family order', async () => {
-    const spec = await readFrozenInjectionSpec(resolve('docs/proposals/injection-effect-experiment-prereg-v0.2.md'));
+    const spec = await readFrozenInjectionSpec(resolve('docs/proposals/injection-effect-experiment-prereg-v0.3.md'));
+    expect(spec.version).toBe('v0.3');
     expect(spec.frozen).toBe(true);
     expect(spec.sampling).toEqual({
       model: 'glm-5.2', profile: 'zhipu-glm-5.2', thinking: 'enabled',
@@ -34,6 +36,36 @@ describe('injection experiment v0.2 runner', () => {
     ]);
   });
 
+  it('defaults the CLI and audit directory to the frozen v0.3 preregistration', () => {
+    const options = parseInjectionCliOptions(
+      ['--family', 'F-DJ-MIGRATION-REFERENCE', '--arm', 'B', '--dry-run'],
+      new Date('2026-07-27T00:00:00.000Z'),
+    );
+    expect(options.preregPath).toBe(resolve(
+      'docs/proposals/injection-effect-experiment-prereg-v0.3.md',
+    ));
+    expect(options.resultsDir).toBe(resolve(
+      'evals/results/injection-experiment-v0.3/2026-07-27T00-00-00-000Z',
+    ));
+  });
+
+  it('records the selected preregistration version instead of a runner constant', async () => {
+    const root = await fixtureRoot();
+    const preregPath = join(root, 'future-prereg.md');
+    const source = await readFile(
+      resolve('docs/proposals/injection-effect-experiment-prereg-v0.3.md'),
+      'utf8',
+    );
+    await writeFile(preregPath, source.replace('| 版本 | **v0.3**', '| 版本 | **v9.9**'));
+    const result = await runInjectionFamily({
+      ...runOptions(root, preregPath),
+      dryRun: true,
+    }, { produce: vi.fn(), score: vi.fn() });
+    const manifest = JSON.parse(await readFile(join(result.batchDir, 'batch.json'), 'utf8'));
+    expect(manifest.version).toBe('v9.9');
+    expect(manifest.preregVersion).toBe('v9.9');
+  });
+
   it('maps all four arms onto the same context runtime', () => {
     expect(resolveInjectionArm('A-L')).toEqual({ variant: 'context_runtime', injectionMode: 'lesson-recall' });
     expect(resolveInjectionArm('A-K')).toEqual({ variant: 'context_runtime', injectionMode: 'knack-recall' });
@@ -41,26 +73,31 @@ describe('injection experiment v0.2 runner', () => {
     expect(resolveInjectionArm('C')).toEqual({ variant: 'context_runtime', injectionMode: 'lesson-full' });
   });
 
-  it('refuses model execution while v0.2 is not frozen', async () => {
+  it('refuses model execution while v0.3 is not frozen', async () => {
     const root = await fixtureRoot();
     await expect(runInjectionFamily(runOptions(root, await draftPrereg(root)), {
       produce: vi.fn(), score: vi.fn(),
-    })).rejects.toThrow('not frozen');
+    })).rejects.toThrow('v0.3 preregistration is not frozen');
   });
 
   it('derives disjoint memory roots for every arm and family', async () => {
     const root = await fixtureRoot();
-    const preregPath = resolve('docs/proposals/injection-effect-experiment-prereg-v0.2.md');
+    const preregPath = resolve('docs/proposals/injection-effect-experiment-prereg-v0.3.md');
     const instancesPath = resolve('evals/inputs/injection-effect-frozen-instances.jsonl');
     const rootsSeen = new Set<string>();
-    for (const arm of ['A-L', 'A-K', 'B', 'C'] as const) {
-      for (const familyId of ['F-DJ-MIGRATION-REFERENCE', 'F-SY-UNIT-EQUIVALENCE']) {
-        const result = await runInjectionFamily({
-          familyId, arm, instancesPath, resultsDir: root, preregPath, dryRun: true,
-        }, { produce: vi.fn(), score: vi.fn() });
-        rootsSeen.add(result.memoryDir);
-      }
-    }
+    await Promise.all(
+      (['A-L', 'A-K', 'B', 'C'] as const).flatMap((arm) =>
+        ['F-DJ-MIGRATION-REFERENCE', 'F-SY-UNIT-EQUIVALENCE'].map(async (familyId) => {
+          const result = await runInjectionFamily({
+            familyId, arm, instancesPath, resultsDir: root, preregPath, dryRun: true,
+          }, { produce: vi.fn(), score: vi.fn() });
+          rootsSeen.add(result.memoryDir);
+          const manifest = JSON.parse(await readFile(join(result.batchDir, 'batch.json'), 'utf8'));
+          expect(manifest.version).toBe('v0.3');
+          expect(manifest.preregVersion).toBe('v0.3');
+        }),
+      ),
+    );
     expect(rootsSeen.size).toBe(8);
   });
 
@@ -246,7 +283,7 @@ describe('injection experiment v0.2 runner', () => {
   });
 
   async function fixtureRoot(): Promise<string> {
-    const root = await mkdtemp(join(tmpdir(), 'injection-v02-runner-'));
+    const root = await mkdtemp(join(tmpdir(), 'injection-v03-runner-'));
     roots.push(root);
     await writeFile(join(root, 'instances.jsonl'), [12125, 14580, 17087].map((id) => JSON.stringify({
       instance_id: `django__django-${id}`, repo: 'django/django', base_commit: `base-${id}`,
@@ -257,14 +294,14 @@ describe('injection experiment v0.2 runner', () => {
 
   async function frozenPrereg(root: string): Promise<string> {
     const target = join(root, 'prereg.md');
-    const source = await readFile(resolve('docs/proposals/injection-effect-experiment-prereg-v0.2.md'), 'utf8');
+    const source = await readFile(resolve('docs/proposals/injection-effect-experiment-prereg-v0.3.md'), 'utf8');
     await writeFile(target, source.replace(/^状态：.*$/mu, '状态：**已冻结（test fixture）**'));
     return target;
   }
 
   async function draftPrereg(root: string): Promise<string> {
     const target = join(root, 'draft-prereg.md');
-    const source = await readFile(resolve('docs/proposals/injection-effect-experiment-prereg-v0.2.md'), 'utf8');
+    const source = await readFile(resolve('docs/proposals/injection-effect-experiment-prereg-v0.3.md'), 'utf8');
     await writeFile(target, source.replace(/^状态：.*$/mu, '状态：**待作者批准冻结（test fixture）**'));
     return target;
   }

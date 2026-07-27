@@ -29,6 +29,7 @@ export type HarnessScorer = (options: {
 }) => Promise<HarnessScoreResult>;
 
 export interface FrozenInjectionSpec {
+  version: string;
   frozen: boolean;
   sampling: { model: string; profile: string; thinking: string; temperature: number; topP: number; maxTokens: number };
   dataset: { commit: string; arrowSha256: string };
@@ -74,6 +75,10 @@ export async function readFrozenInjectionSpec(path: string): Promise<FrozenInjec
     throw new Error(`Frozen preregistration is missing ${label}`);
   };
   return {
+    version: value([
+      /^\| 版本 \| \**(v\d+(?:\.\d+)*)\**/mu,
+      /^# .*?\b(v\d+(?:\.\d+)*)\b/mu,
+    ], 'preregistration version'),
     frozen: /^状态[:：].*已冻结/mu.test(text),
     sampling: {
       model: value([/^\| model \| `([^`]+)`/mu, /^\| 模型 \| `([^`]+)`/mu], 'model'),
@@ -96,7 +101,9 @@ export async function runInjectionFamily(
   dependencies: InjectionFamilyDependencies,
 ) {
   const spec = await readFrozenInjectionSpec(options.preregPath);
-  if (!options.dryRun && !spec.frozen) throw new Error('v0.2 preregistration is not frozen');
+  if (!options.dryRun && !spec.frozen) {
+    throw new Error(`${spec.version} preregistration is not frozen`);
+  }
   if (!options.dryRun && (!options.harnessPython || !options.snapshotManifest)) {
     throw new Error('Formal runs require explicit harnessPython and snapshotManifest');
   }
@@ -107,8 +114,8 @@ export async function runInjectionFamily(
   const memoryDir = join(options.resultsDir, 'memory', options.arm, options.familyId);
   const batchDir = join(options.resultsDir, options.arm, options.familyId);
   const instrumentCommit = await currentCommit();
-  const manifest = { version: 'v0.2', instrumentCommit, familyId: options.familyId, arm: options.arm,
-    ...arm, memoryDir, instances: instanceIds, ...spec };
+  const manifest = { ...spec, preregVersion: spec.version, instrumentCommit,
+    familyId: options.familyId, arm: options.arm, ...arm, memoryDir, instances: instanceIds };
   await mkdir(batchDir, { recursive: true });
   if (options.dryRun) {
     await writeFile(join(batchDir, 'batch.json'), JSON.stringify({ ...manifest, dryRun: true }, null, 2));
