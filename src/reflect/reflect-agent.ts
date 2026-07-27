@@ -36,6 +36,10 @@ export interface ReflectInput {
   lessonOperationEvidence?: LessonOperationEvidence[];
   deferKnackPromotion?: boolean;
   eligibleLessonRunIds?: string[];
+  /** Agent's closing narrative — fix-extraction source for paired lessons. */
+  finalSummary?: string;
+  /** Repository identity for knack schema-v1 ranking; never inferred from cwd. */
+  repo?: string;
 }
 
 export interface ReflectResult {
@@ -87,6 +91,9 @@ export class ReflectAgent {
           limit: 20,
           verificationEvidence: input.lessonVerificationEvidence,
           operationEvidence: input.lessonOperationEvidence,
+          taskDescription: input.taskDescription,
+          finalSummary: input.finalSummary,
+          repo: input.repo,
         });
         result.lessonsExtracted = lessons.length;
       }
@@ -146,6 +153,12 @@ export class ReflectAgent {
     return promotedCount;
   }
 
+  /**
+   * Repetition (same signal kind seen twice) is the default birth condition.
+   * A lesson already promoted to verified by an external harness carries
+   * stronger evidence than repetition, so it is exempt — this is what makes an
+   * eval run "solve it, then write the knack" without a second occurrence.
+   */
   private isLessonEligibleForKnackPromotion(
     lesson: LessonCandidate,
     signalKindCounts: Map<SignalKind, number>,
@@ -154,6 +167,7 @@ export class ReflectAgent {
     if ((lesson.counterexamples ?? []).some((counterexample) => counterexample.severity === 'high')) {
       return false;
     }
+    if (lesson.confidence === 'verified' && lesson.promotedAt) return true;
     return lesson.trigger.signalKinds.some((kind) => (signalKindCounts.get(kind) ?? 0) >= 2);
   }
 

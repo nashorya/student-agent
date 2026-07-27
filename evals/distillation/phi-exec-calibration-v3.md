@@ -3,7 +3,9 @@
 - **日期**：2026-07-23
 - **公式**：per SPARK/PDI-2605.09192 — 词级 tokenize → 加性平滑 α=0.002 →
   Jensen–Shannon → ψ = 1 − JS。零模型调用。
-- **实现**：`src/evals/exec-grounding.ts`
+- **实现**：`src/memory/distill/exec-grounding.ts`
+  （原 `src/evals/exec-grounding.ts`；BUG-014 迁入共享模块，公式与阈值未改，
+  在线 lesson 写入与离线审计蒸馏器共用同一份）
 
 ## 样本与 ψ（事件风格 evidence，对齐 `extractExecutionEvidence`）
 

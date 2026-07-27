@@ -219,6 +219,95 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
     expect(await mgr.getEphemeral()).toHaveLength(1);
   });
 
+  it('phrases paired lessons as Symptom/Fix from the issue text and patch', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const [lesson] = await mgr.observeSignals([{
+      id: 'sig_fidelity',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'AssertionError: separability matrix mismatch',
+      toolName: 'bash',
+      toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1',
+      sessionRef: 'run_1',
+      repo: 'astropy/astropy',
+      taskDescription:
+        'Instance: astropy__astropy-12907\nNested CompoundModel separability matrix fills `right` with 1 instead of the real values.',
+      finalSummary:
+        'The fix is to copy the actual matrix values into `cright` instead of filling with 1.',
+      operationEvidence: [{
+        toolName: 'edit',
+        completedAt: '2026-01-01T00:01:00.000Z',
+        summary:
+          'astropy/modeling/separable.py copy the actual matrix values into cright instead of filling right with 1 for nested CompoundModel',
+      }],
+      verificationEvidence: [{
+        toolCallId: 'call_pass',
+        toolName: 'bash',
+        exitCode: 0,
+        completedAt: '2026-01-01T00:02:00.000Z',
+      }],
+    });
+
+    expect(lesson.quality).toBe('high');
+    expect(lesson.repo).toBe('astropy/astropy');
+    expect(lesson.symptom).toContain('separability matrix');
+    expect(lesson.fixSummary).toContain('cright');
+    expect(lesson.lesson).toBe(`Symptom: ${lesson.symptom} Fix: ${lesson.fixSummary}`);
+    expect(lesson.executionEvidence).toContain('separable.py');
+  });
+
+  it('rejects test-report fix text and leaves fixSummary empty', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const [lesson] = await mgr.observeSignals([{
+      id: 'sig_report',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'AssertionError: dimensionless conversion mismatch',
+      toolName: 'bash',
+      toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1',
+      sessionRef: 'run_1',
+      finalSummary: 'Full sympy/units/tests/ suite: 70 passed, 1 xfailed.',
+      operationEvidence: [{
+        toolName: 'edit',
+        completedAt: '2026-01-01T00:01:00.000Z',
+        summary: 'sympy/physics/units/util.py call is_dimensionless before converting orthogonal units',
+      }],
+      verificationEvidence: [{
+        toolCallId: 'call_pass',
+        toolName: 'bash',
+        exitCode: 0,
+        completedAt: '2026-01-01T00:02:00.000Z',
+      }],
+    });
+
+    expect(lesson.fixSummary).toBeUndefined();
+    expect(lesson.lesson).toContain('Fix: (not extracted)');
+    expect(lesson.lesson).not.toContain('70 passed');
+  });
+
+  it('keeps template text for unpaired ephemeral notes', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const [lesson] = await mgr.observeSignals([{
+      id: 'sig_unpaired',
+      kind: 'hashline_rejection',
+      severity: 'medium',
+      summary: 'stale hashline anchor',
+      toolName: 'edit',
+      toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], { taskId: 'task_1', sessionRef: 'run_1' });
+
+    expect(lesson.quality).toBe('low');
+    expect(lesson.lesson).toContain('Avoid repeating stale edits');
+    expect(lesson.symptom).toBeUndefined();
+  });
+
   it('writes nothing for an empty trajectory', async () => {
     const mgr = LessonsManager.getInstance(tmpDir);
     expect(await mgr.observeSignals([], {

@@ -8,8 +8,10 @@ import {
   readEligibleInjectionRunIds,
   recordInjectionAdmission,
 } from './injection-admission.js';
-import { importDistilledLessons } from './import-distilled-lessons.js';
-import { promoteHarnessEligibleLessons } from './eval-learning-lifecycle.js';
+import {
+  promoteHarnessEligibleLessons,
+  promoteRunLessonsAfterHarness,
+} from './eval-learning-lifecycle.js';
 import { RunArchiveWriter } from '../memory/run-archive/run-archive-writer.js';
 import {
   loadSweBenchInstances,
@@ -181,11 +183,12 @@ export async function runInjectionFamily(
       evidenceRef: join(runDir, 'harness-instance-report.json'),
     });
     const admission = await recordInjectionAdmission(memoryDir, { runId, taskId, instanceId, resolved: harness.resolved });
+    // Lessons are born online during the run; the harness only graduates them.
     const distillation = harness.resolved
-      ? await importDistilledLessons({ memoryDir, harnessPromotedAt: admission.recordedAt, runs: [{
-        runId, taskId, instanceId, reward: 1, taskInstruction: instance.problem_statement,
-      }] })
-      : { distilled: [], admitted: [], promoted: 0,
+      ? { source: 'online', ...await promoteRunLessonsAfterHarness({
+        memoryDir, sessionRef: runId, reward: 1, promotedAt: admission.recordedAt,
+      }) }
+      : { source: 'online', promoted: 0,
         skipped: [{ instanceId, reason: 'harness_unresolved_not_admitted' }] };
     const eligibleRunIds = await readEligibleInjectionRunIds(memoryDir);
     const knacksPromoted = await promoteHarnessEligibleLessons({

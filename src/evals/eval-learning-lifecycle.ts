@@ -1,7 +1,14 @@
 import { PreferenceCandidatesManager } from '../memory/candidates/manager.js';
+import {
+  buildOperationEvidence,
+  buildVerificationEvidence,
+} from '../memory/distill/tool-evidence.js';
 import { KnacksManager } from '../memory/knacks/index.js';
 import { LessonsManager } from '../memory/lessons/index.js';
-import type { LessonVerificationEvidence } from '../memory/lessons/index.js';
+import type {
+  LessonOperationEvidence,
+  LessonVerificationEvidence,
+} from '../memory/lessons/index.js';
 import { PreferencesManager } from '../memory/preferences/manager.js';
 import {
   RunArchiveWriter,
@@ -51,6 +58,8 @@ export async function finalizeEvalLearningRun(options: {
   verificationStatus?: 'pending' | 'passed' | 'failed';
   verificationEvidenceRef?: string;
   deferKnackPromotion?: boolean;
+  /** SWE `owner/repo` from the instance record — not inferred from cwd (BUG-012). */
+  repo?: string;
 }): Promise<EvalLearningSummary> {
   const tasks = TasksManager.getInstance(options.memoryDir);
   const task = await tasks.getTask(options.run.taskId);
@@ -108,6 +117,8 @@ export async function finalizeEvalLearningRun(options: {
     lessonVerificationEvidence: buildLessonVerificationEvidence(toolCalls),
     lessonOperationEvidence: buildLessonOperationEvidence(toolCalls),
     deferKnackPromotion: options.deferKnackPromotion,
+    finalSummary: options.finalSummary,
+    repo: options.repo,
   });
 
   await tasks.completePhase(options.run.taskId);
@@ -119,6 +130,27 @@ export async function finalizeEvalLearningRun(options: {
     knacksPromoted: reflect.knacksPromoted,
     usedRecallIds: options.recallAudit?.used_recall_ids ?? [],
   };
+}
+
+/**
+ * Harness verdict → this run's candidate lessons become verified.
+ *
+ * Replaces the offline distiller as the eval supply chain: the lesson was
+ * already born online during the run (same path as normal usage), and the
+ * harness only decides whether it graduates. reward!=1 leaves it a candidate.
+ */
+export async function promoteRunLessonsAfterHarness(options: {
+  memoryDir: string;
+  sessionRef: string;
+  reward: 0 | 1;
+  promotedAt: string;
+}): Promise<{ promoted: number }> {
+  LessonsManager.resetInstance();
+  return LessonsManager.getInstance(options.memoryDir).promoteCandidatesForRun({
+    sessionRef: options.sessionRef,
+    reward: options.reward,
+    promotedAt: options.promotedAt,
+  });
 }
 
 export async function promoteHarnessEligibleLessons(options: {
@@ -143,45 +175,14 @@ export async function promoteHarnessEligibleLessons(options: {
 export function buildLessonVerificationEvidence(
   toolCalls: ToolTraceEntry[],
 ): LessonVerificationEvidence[] {
-  return toolCalls.flatMap((call) => {
-    if (call.isError !== false || !call.endedAt || !isProcessTool(call.name)) {
-      return [];
-    }
-    const command = extractCommand(call.args);
-    if (!command || !isVerificationCommand(command)) {
-      return [];
-    }
-    return [{
-      toolCallId: call.id,
-      toolName: call.name,
-      exitCode: 0,
-      completedAt: call.endedAt,
-    }];
-  });
+  return buildVerificationEvidence(toolCalls);
 }
 
 /** Non-error tool ops for provisional causal pairs (error → recovery tools). */
 export function buildLessonOperationEvidence(
   toolCalls: ToolTraceEntry[],
-): Array<{ toolName: string; completedAt: string }> {
-  return toolCalls.flatMap((call) => {
-    if (call.isError === true || !call.endedAt) return [];
-    return [{ toolName: call.name, completedAt: call.endedAt }];
-  });
-}
-
-function isProcessTool(name: string): boolean {
-  return /^(?:student_)?(?:bash|shell|exec)$/.test(name.toLowerCase());
-}
-
-function extractCommand(args: unknown): string | undefined {
-  if (typeof args !== 'object' || args === null) return undefined;
-  const command = (args as Record<string, unknown>).command;
-  return typeof command === 'string' ? command : undefined;
-}
-
-function isVerificationCommand(command: string): boolean {
-  return /\b(?:test|tests|pytest|vitest|jest|tsc|lint|check|verify)\b/i.test(command);
+): LessonOperationEvidence[] {
+  return buildOperationEvidence(toolCalls);
 }
 
 function resetReflectManagers(): void {

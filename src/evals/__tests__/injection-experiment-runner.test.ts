@@ -8,6 +8,9 @@ import {
   runInjectionFamily,
 } from '../../../scripts/eval-injection-experiment.js';
 import { createInjectionBuildMemoryPrompt, seedContextRuntimeEvalMemory } from '../context-runtime-runner.js';
+import { beginEvalLearningRun, finalizeEvalLearningRun } from '../eval-learning-lifecycle.js';
+import { appendSignal } from '../../memory/signals/index.js';
+import { RunArchiveWriter } from '../../memory/run-archive/index.js';
 import { TasksManager } from '../../memory/tasks/manager.js';
 
 describe('injection experiment v0.2 runner', () => {
@@ -102,7 +105,7 @@ describe('injection experiment v0.2 runner', () => {
     })).rejects.toThrow('Missing required audit artifacts');
   });
 
-  it('replays task1 resolved distillation into task2 lesson recall without a model', async () => {
+  it('replays task1 online lesson birth into task2 lesson recall without a model', async () => {
     const root = await fixtureRoot();
     const memoryDir = join(root, 'memory', 'A-L', 'F-DJ-MIGRATION-REFERENCE');
     const snapshots: string[] = [];
@@ -121,15 +124,63 @@ describe('injection experiment v0.2 runner', () => {
       const runId = active!.working_memory.runId;
       const prompt = await (await createInjectionBuildMemoryPrompt('lesson-recall', memoryDir))();
       snapshots.push(prompt);
-      await mkdir(join(memoryDir, 'runs', runId), { recursive: true });
-      await writeFile(join(memoryDir, 'runs', runId, 'events.jsonl'), [
-        JSON.stringify({ kind: 'tool_error', summary: 'migration reference serializer failed' }),
-        JSON.stringify({ kind: 'tool_call', toolName: 'edit' }),
-        '',
-      ].join('\n'));
-      await writeFile(join(memoryDir, 'runs', runId, 'outcome.json'), JSON.stringify({
-        taskId: active!.id, finalSummary: 'Fix: use `__qualname__` for the migration reference serializer.',
-      }));
+      await beginEvalLearningRun(memoryDir);
+      // Stand in for the agent phase: a tool error, a recovery edit, and a
+      // passing check — the same material the online lesson writer consumes.
+      const archive = new RunArchiveWriter({ memoryDir });
+      await archive.appendEvent(runId, {
+        timestamp: '2026-01-01T00:00:00.000Z',
+        kind: 'tool_error',
+        summary: 'ValueError: cannot serialize migration reference to a nested class',
+        toolName: 'bash',
+      });
+      await archive.appendEvent(runId, {
+        timestamp: '2026-01-01T00:00:40.000Z',
+        kind: 'tool_call',
+        summary: 'edit tool call',
+        toolName: 'edit',
+      });
+      await appendSignal({
+        id: `sig_${call}`,
+        kind: 'tool_error',
+        severity: 'medium',
+        summary: 'ValueError: cannot serialize migration reference to a nested class',
+        toolName: 'bash',
+        toolCallId: `call_err_${call}`,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }, memoryDir);
+      await finalizeEvalLearningRun({
+        memoryDir,
+        run: { taskId: active!.id, runId },
+        taskDescription: 'Fix migration reference serializer.',
+        gitDiff: '',
+        status: 'success',
+        finalSummary: 'Fix: use `__qualname__` for the migration reference serializer.',
+        totalTaskCount: call,
+        deferKnackPromotion: true,
+        repo: 'django/django',
+        toolCalls: [
+          {
+            id: `call_edit_${call}`,
+            name: 'edit',
+            args: {
+              path: 'django/db/migrations/serializer.py',
+              patch: 'use __qualname__ instead of __name__ for the nested migration reference serializer',
+            },
+            startedAt: '2026-01-01T00:00:30.000Z',
+            endedAt: '2026-01-01T00:00:40.000Z',
+            isError: false,
+          },
+          {
+            id: `call_test_${call}`,
+            name: 'bash',
+            args: { command: 'pytest tests/migrations' },
+            startedAt: '2026-01-01T00:01:00.000Z',
+            endedAt: '2026-01-01T00:01:10.000Z',
+            isError: false,
+          },
+        ],
+      });
       return { records: [{ status: 'success', injectionSnapshot: prompt,
         trace: { learningRun: { runId, taskId: active!.id }, failureEscalationEvents: [] } }] };
     });

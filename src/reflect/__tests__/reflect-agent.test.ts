@@ -425,4 +425,48 @@ describe('ReflectAgent', () => {
     expect(knacks).toHaveLength(2);
     expect(knacks.every((knack) => knack.id.startsWith('knack_'))).toBe(true);
   });
+
+  it('harness 晋升的单条 lesson 免重复直接升格为 knack', async () => {
+    const lessonsMgr = LessonsManager.getInstance(tmpDir);
+    const knacksMgr = KnacksManager.getInstance(tmpDir);
+    await appendSignal({
+      id: 'sig_single',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'AssertionError: separability matrix mismatch',
+      toolName: 'bash',
+      toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }, tmpDir);
+    agent = new ReflectAgent(candidatesMgr, preferencesMgr, null, undefined, lessonsMgr, knacksMgr);
+
+    await agent.run({
+      taskId: 'task_single',
+      sessionRef: 'run_single',
+      taskDescription: '修复 separability matrix',
+      gitDiff: '',
+      totalTaskCount: 50,
+      repo: 'astropy/astropy',
+      deferKnackPromotion: true,
+      lessonOperationEvidence: [{
+        toolName: 'edit',
+        completedAt: '2026-01-01T00:01:00.000Z',
+        summary: 'astropy/modeling/separable.py copy the actual matrix values into cright',
+      }],
+    });
+
+    // 出生时只是 candidate，重复次数为 1，不该升格。
+    expect(await agent.promoteLessonsToKnacks({ totalTaskCount: 50 })).toBe(0);
+
+    await lessonsMgr.promoteCandidatesForRun({
+      sessionRef: 'run_single',
+      reward: 1,
+      promotedAt: '2026-01-01T00:03:00.000Z',
+    });
+
+    expect(await agent.promoteLessonsToKnacks({ totalTaskCount: 50 })).toBe(1);
+    const [knack] = await knacksMgr.getAll();
+    expect(knack.repo).toBe('astropy/astropy');
+    expect(knack.verification).toBe('verifier reward=1');
+  });
 });

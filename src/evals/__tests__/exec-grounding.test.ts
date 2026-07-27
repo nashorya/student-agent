@@ -3,7 +3,7 @@ import {
   PHI_EXEC_THRESHOLD,
   execGroundingSimilarity,
   passesPhiExec,
-} from '../exec-grounding.js';
+} from '../../memory/distill/exec-grounding.js';
 
 describe('φ_exec exec-grounding', () => {
   /** Event-style evidence (as extractExecutionEvidence would yield). */

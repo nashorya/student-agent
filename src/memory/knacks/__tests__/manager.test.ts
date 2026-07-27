@@ -78,6 +78,25 @@ describe('KnacksManager', () => {
     expect(await readFile(join(tmpDir, 'knacks.jsonl'), 'utf-8')).toContain('knack_');
   });
 
+  it('carries schema-v1 ranking fields from the lesson', async () => {
+    const mgr = KnacksManager.getInstance(tmpDir);
+    const knack = await mgr.promoteLessonCandidate(makeLesson({
+      repo: 'astropy/astropy',
+      symptom: 'Nested CompoundModel fills `right` with 1 instead of the real matrix',
+      fixSummary: 'copy the actual matrix values into `cright`',
+      executionEvidence: 'edit astropy/modeling/separable.py cright = right',
+      confidence: 'verified',
+      promotedAt: '2026-01-03T00:00:00.000Z',
+    }), { breaker: new BoundedBreaker(), totalTaskCount: 50 });
+
+    expect(knack).toMatchObject({
+      repo: 'astropy/astropy',
+      fixSummary: 'copy the actual matrix values into `cright`',
+      verification: 'verifier reward=1',
+    });
+    expect(knack.executionEvidence).toContain('separable.py');
+  });
+
   it('blocks prompt injection when a high-severity counterexample exists', async () => {
     const mgr = KnacksManager.getInstance(tmpDir);
     const knack = await mgr.promoteLessonCandidate(makeLesson({

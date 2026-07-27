@@ -12,11 +12,18 @@ import { PreferencesManager } from '../../memory/preferences/manager.js';
 import { LessonsManager } from '../../memory/lessons/index.js';
 import { KnacksManager } from '../../memory/knacks/index.js';
 import { BreakerLogManager } from '../../reflect/breaker-log-manager.js';
-import type { SessionEndContext } from '../../core/pi-bridge/types.js';
+import {
+  buildOperationEvidence,
+  buildVerificationEvidence,
+  type ToolCallRecord,
+} from '../../memory/distill/tool-evidence.js';
+import type { PostToolCallContext, SessionEndContext } from '../../core/pi-bridge/types.js';
 import { safeStdout } from '../../tui/logger.js';
 
 let taskCount = 0;
 let baselineRef = 'HEAD';
+/** Per-task tool trace; feeds the same lesson evidence builders the eval runner uses. */
+let toolTrace: ToolCallRecord[] = [];
 
 export interface CollectTaskDiffOptions {
   cwd?: string;
@@ -58,6 +65,8 @@ export function createReflectHook(
       taskDescription: taskDescription(),
       gitDiff,
       totalTaskCount: taskCount,
+      lessonVerificationEvidence: buildVerificationEvidence(toolTrace),
+      lessonOperationEvidence: buildOperationEvidence(toolTrace),
     });
 
     if (result.patternsExtracted > 0) {
@@ -78,6 +87,18 @@ export const emitReflectSummaryForTesting = emitReflectSummary;
 /** 标记一次用户任务开始前的 git 基线，用于会话结束后提取本次任务 diff。 */
 export function markReflectBaseline(): void {
   baselineRef = createTrackedWorktreeRef();
+  toolTrace = [];
+}
+
+/** 记录一次工具调用，供会话结束后构造 lesson 证据。 */
+export function recordReflectToolCall(ctx: PostToolCallContext): void {
+  toolTrace.push({
+    id: ctx.toolCallId,
+    name: ctx.toolName,
+    args: ctx.args,
+    endedAt: new Date().toISOString(),
+    isError: ctx.isError,
+  });
 }
 
 /** 收集本次任务 diff：基线、暂存区、未暂存改动，以及 untracked 文件。 */
@@ -173,4 +194,5 @@ function createTrackedWorktreeRef(): string {
 export function _resetForTesting(): void {
   taskCount = 0;
   baselineRef = 'HEAD';
+  toolTrace = [];
 }

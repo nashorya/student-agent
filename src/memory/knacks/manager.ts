@@ -85,6 +85,17 @@ export class KnacksManager {
       allowPromptInjection: !hasHighSeverityCounterexample && breakerDecision.action !== 'reject',
       writesHardToolRule: false,
       breakerReport: breakerDecision.report,
+      // schema-v1 ranking fields; carried from the lesson so online-born knacks
+      // rank alongside imported ones (see recall/knack-ranking).
+      repo: lesson.repo,
+      symptom: lesson.symptom,
+      fixSummary: lesson.fixSummary,
+      executionEvidence: lesson.executionEvidence,
+      verification: lesson.verification
+        ? `exit 0 via ${lesson.verification.toolName}`
+        : lesson.promotedAt
+          ? 'verifier reward=1'
+          : undefined,
       createdAt: now,
       updatedAt: now,
     };

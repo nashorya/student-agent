@@ -5,6 +5,56 @@
 
 ---
 
+## BUG-014 · eval knack 供给走离线专线，与生产闭环不同构 · FIXED-待作者确认
+
+- **时间**：2026-07-27
+- **症状**：第三型失真（BUG-013）的**结构性根源**。eval 的 knack 由
+  `src/evals/knack-distillation.ts` 事后读 `events.jsonl`，每 run 只从
+  `finalSummary` 总结一条；窗口横跨全程（如 14182 `evidence_turns=[13,32]`），
+  于是出现悬空指代（`fix_summary: "to add that missing case."`）、
+  混入无关弧线（环境/Hashline 噪声）与末端叙事污染。v2/v3 只在出口端过滤，
+  源头未动。
+- **根因**：eval 与正常使用**不同构**。生产闭环是
+  signal → 会话结束 `ReflectAgent.observeRecentSignals` 就近产 lesson →
+  重复者升 knack；eval 侧 signal pipeline 与失败阶梯（L1/L2-Context7/L3）
+  已接通，唯独 knack 出生走了实验室专线，测的是产品里不存在的机制。
+- **处置**（per SPARK/PDI-2605.09192 · per Honest-Lying-2605.29463 ·
+  per SWE-Skills-Bench-2603.15401）：
+  1. 保真萃取迁入共享模块 `src/memory/distill/`（fidelity + φ_exec +
+     tool-evidence），离线蒸馏器改依赖同一份实现；
+  2. 在线 lesson 配对成功时产结构化 `Symptom: … Fix: …`，fix 经
+     φ_exec + 黑白名单把关，提不出则留空且 confidence 维持 candidate；
+     未配对的过程噪声仍走模板文案 + ephemeral；
+  3. 症状源新增 issue-like 门槛：只有多行或 ≥120 字的指令（SWE
+     `problem_statement`）才作症状源，交互态一行任务标题不占该槽位；
+  4. 两侧共用 `buildVerificationEvidence` / `buildOperationEvidence`；
+     生产侧 `recordReflectToolCall` 补齐轨迹采集（此前完全没采）；
+     SWE 侧 repo 来自 `instance.repo`（沿 BUG-012，不由 cwd 推断）；
+  5. `promoteLessonCandidate` 填充 `repo/symptom/fixSummary/
+     executionEvidence/verification` 等 schema-v1 字段；
+  6. **harness-strong 出生规则**：harness reward=1 晋升的 verified lesson
+     免除「同类信号 ≥2 次」的重复要求，单次直升 knack；无 harness 的生产态
+     仍走重复规则。时序保持延迟晋升，run 内一律 candidate；
+  7. `knack-ranking` 的 repo 门控改以 `repo` 存在与否为准，避免在线出生的
+     knack（有 symptom 无 repo）被新加的字段误拖进相似度门。
+- **供给链**：producer `finalizeEvalLearningRun`（defer）→ harness →
+  `promoteRunLessonsAfterHarness` → `promoteHarnessEligibleLessons`。
+  `knack-distillation.ts` / `import-distilled-*` / `distill-knacks.ts`
+  降级为 **audit-only** 保真对照基线，不再写主库。
+- **回归**：全量 1146 pass / 1 skip / 0 fail；`npm run build` 通过。新增用例覆盖
+  Symptom/Fix 措辞、`70 passed` 不进 fix 栏、未配对保留模板、schema-v1 字段
+  承接、harness-strong 单次升格；`injection-experiment-runner` 的跨题回放改为
+  验证在线出生 → harness 晋升 → 次题召回。
+- **出生率语义变化**：同构后单题单跑不再必然产出 knack（需 harness 判 resolved
+  或同类信号重复）。knack-birth 探针口径需按此重述，见
+  `docs/probes/knack-birth-self-check-2026-07-21.md`。
+- **未做**：run 中途在线调模型蒸馏（验证时序 + 成本 + eval 隔离）；不改 v0.2
+  冻结条款，不重跑正式题。fix 目前仍以叙事为源、patch 只作 φ_exec 语料，
+  「从 patch 反推 fix」属 φ_exec 标定未覆盖的新机制，另案。
+- **状态**：**FIXED-待作者确认** → 确认后关单。
+
+---
+
 ## BUG-013 · 萃取保真度 v3（结构 + φ_exec + 黑白名单）· FIXED-待作者确认
 
 - **时间**：2026-07-23

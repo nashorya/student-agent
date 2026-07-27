@@ -1,6 +1,10 @@
 /**
  * CLI: distill memory runs → LessonWriter → main library → harness promote.
  *
+ * AUDIT ONLY — the live supply chain is the online lesson path. Use this to
+ * reproduce the offline baseline for fidelity comparison, against a scratch
+ * memory dir rather than a live library.
+ *
  * Usage:
  *   npx tsx scripts/import-distilled-lessons.ts \
  *     --memory-dir evals/results/swebench/.../memory-... \

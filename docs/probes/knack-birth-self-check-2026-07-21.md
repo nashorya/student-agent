@@ -81,3 +81,18 @@
 1. [x] **先回查 v0.2 各臂的轮次、时长、等价成本和阶梯，不只看 resolved。** [补审结果](./injection-effect-v0.2-efficiency-reaudit-2026-07-21.md)：Django 的 A-L 与 B 虽然 resolved `2:2`，但阶梯 `3:6`，已满足预注册“少至少 30%”的 H1 方向支持规则；额外效率指标整体为小幅、分题异质，不能写成稳定翻案。SymPy 尚未运行，v0.2 总结论未完成。
 2. [x] **修复 repository identity gate 与 P3 context/citation 对齐**（2026-07-21 仪器修复）：`resolveRepositoryIdentity` 可从 goal/hardConstraints 等 hints 恢复 SWE `owner__repo-N` 身份，不再在 `task_*` 下误用仪器仓 cwd；context assembly 把 `hardConstraints` 与 repository hints 传入召回；SWE producer 显式传 `instance.repo`。P3 citation 对缺失同 ordinal context 的后续 assistant message **向前沿用最近一次注入 allowlist**，使末条 `[[used_recall:]]` 可记入 `used_recall_ids`。回归：`repository-identity` / `citation` / `recall-router` / `context-assembly` / `recall-citation.eval`。不回改 v0.2 冻结条款，不重跑正式题。
 3. [ ] 若另开后续实验，把轮次、agent/producer 时长、等价成本预注册为正式 outcome，并增加同题重复；不得回改 v0.2 冻结条款或用事后阈值包装现有单次轨迹。
+
+## 口径变更（2026-07-27，BUG-014 补记）
+
+本探针的 knack 来自离线蒸馏器（每个 resolved run 直接产一条）。BUG-014 之后
+eval 供给已切换到与正常使用同构的在线管线，**出生条件不同**：run 内出生的
+lesson 一律 candidate，须由 harness 判 resolved 晋升 verified（harness-strong
+规则下可单次直升 knack），或同类信号重复 ≥2 次。
+
+因此：
+
+- 本探针表格中的「自产 knack」是**旧口径产物**，其内容与新在线管线的措辞
+  （结构化 `Symptom: … Fix: …`）不逐字等同，不能直接与新批次合并比较；
+- 后续探针若要复现，须重新声明出生条件，并说明该 knack 由哪条路径出生；
+- 探针结论（14995 机制下限阳性信号）本身不因供给链切换而作废，因为它测的是
+  **已注入 knack** 的机制下限，不是出生链路。

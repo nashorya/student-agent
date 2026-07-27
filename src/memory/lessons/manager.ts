@@ -7,6 +7,11 @@ import {
   findCausalPair,
   type VerificationKind,
 } from '../../evals/causal-pair.js';
+import {
+  extractExecutionEvidence,
+  extractFixSummary,
+  extractSymptom,
+} from '../distill/index.js';
 import { readRecentSignals } from '../signals/index.js';
 import type { Signal } from '../signals/types.js';
 import type { LessonCandidate, LessonCandidateStatus, LessonConfidence } from './types.js';
@@ -22,6 +27,10 @@ export interface ObserveRecentSignalsOptions {
   /** Optional external terminator (harness reward=1), same distill fallback. */
   verification?: VerificationKind;
   finalSummary?: string;
+  /** Issue/instruction text — preferred symptom source (fidelity v2). */
+  taskDescription?: string;
+  /** Repository identity for knack schema-v1 ranking; never inferred from cwd. */
+  repo?: string;
 }
 
 export interface LessonVerificationEvidence {
@@ -34,7 +43,21 @@ export interface LessonVerificationEvidence {
 export interface LessonOperationEvidence {
   toolName: string;
   completedAt: string;
+  /** Edit / patch summary — φ_exec grounding corpus (fidelity v3). */
+  summary?: string;
 }
+
+export type SignalObservationOptions = Pick<
+  ObserveRecentSignalsOptions,
+  | 'taskId'
+  | 'sessionRef'
+  | 'verificationEvidence'
+  | 'operationEvidence'
+  | 'verification'
+  | 'finalSummary'
+  | 'taskDescription'
+  | 'repo'
+>;
 
 export class LessonsManager {
   private static instance: LessonsManager | null = null;
@@ -75,15 +98,7 @@ export class LessonsManager {
 
   async observeSignals(
     signals: Signal[],
-    options: Pick<
-      ObserveRecentSignalsOptions,
-      | 'taskId'
-      | 'sessionRef'
-      | 'verificationEvidence'
-      | 'operationEvidence'
-      | 'verification'
-      | 'finalSummary'
-    >,
+    options: SignalObservationOptions,
   ): Promise<LessonCandidate[]> {
     if (signals.length === 0) return [];
 
@@ -205,25 +220,22 @@ export class LessonsManager {
 
 function signalToLessonCandidate(
   signal: Signal,
-  options: Pick<
-    ObserveRecentSignalsOptions,
-    | 'taskId'
-    | 'sessionRef'
-    | 'verificationEvidence'
-    | 'operationEvidence'
-    | 'verification'
-    | 'finalSummary'
-  >,
+  options: SignalObservationOptions,
 ): LessonCandidate {
   const now = new Date().toISOString();
   const path = signal.path ? [signal.path] : [];
   const evidenceRefs = [signal.evidenceRef, signal.toolCallId].filter((value): value is string => Boolean(value));
   const admission = admitSignalCausalPair(signal, options);
+  const body = buildLessonBody(signal, options, admission.paired);
 
   return {
     id: `lesson_${randomUUID()}`,
     sourceSignalId: signal.id,
-    lesson: lessonText(signal),
+    lesson: body.lesson,
+    repo: options.repo,
+    symptom: body.symptom,
+    fixSummary: body.fixSummary,
+    executionEvidence: body.executionEvidence,
     trigger: {
       signalKinds: [signal.kind],
       paths: path,
@@ -247,6 +259,60 @@ function signalToLessonCandidate(
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * Paired lessons get the fidelity v2/v3 phrasing ("Symptom: … Fix: …") so the
+ * online path reads identically to the audit distiller; unpaired ephemeral
+ * notes keep the cheap template text.
+ *
+ * per SPARK/PDI-2605.09192 · per Honest-Lying-2605.29463
+ */
+function buildLessonBody(
+  signal: Signal,
+  options: SignalObservationOptions,
+  paired: boolean,
+): { lesson: string; symptom?: string; fixSummary?: string; executionEvidence?: string } {
+  if (!paired) return { lesson: lessonText(signal) };
+
+  const executionEvidence = extractExecutionEvidence(
+    (options.operationEvidence ?? []).map((operation, index) => ({
+      line: index,
+      data: { toolName: operation.toolName, summary: operation.summary ?? '' },
+    })),
+  );
+  const symptom = extractSymptom({
+    verifiedFix: options.finalSummary ?? '',
+    fallback: signal.summary,
+    events: [{
+      line: 0,
+      data: { kind: signal.kind, summary: signal.summary, isError: true },
+    }],
+    taskInstruction: issueLikeInstruction(options.taskDescription),
+  });
+  const { fix_summary: fixSummary } = extractFixSummary(
+    options.finalSummary ?? '',
+    options.finalSummary,
+    executionEvidence,
+  );
+
+  return {
+    lesson: `Symptom: ${symptom} Fix: ${fixSummary || '(not extracted)'}`,
+    symptom,
+    fixSummary: fixSummary || undefined,
+    executionEvidence: executionEvidence || undefined,
+  };
+}
+
+/**
+ * Fidelity v2 sources the symptom from the issue text, which only exists when
+ * the instruction carries a bug report (SWE `problem_statement`). A one-line
+ * interactive task title is a goal, not a symptom, so it must not win the slot.
+ */
+function issueLikeInstruction(taskDescription?: string): string | undefined {
+  const trimmed = taskDescription?.trim();
+  if (!trimmed) return undefined;
+  return trimmed.includes('\n') || trimmed.length >= 120 ? trimmed : undefined;
 }
 
 /** Shared findCausalPair (+ harness fallback + provisional). */

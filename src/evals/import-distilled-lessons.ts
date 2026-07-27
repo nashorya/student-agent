@@ -1,4 +1,10 @@
-/** P1-E: distill → LessonWriter(findCausalPair) → main → harness promote. No knacks. */
+/**
+ * Offline distill → LessonWriter → main → harness promote. AUDIT ONLY.
+ *
+ * Superseded as the supply chain by the online path (lessons are born during
+ * the run via ReflectAgent, then graduated by `promoteRunLessonsAfterHarness`).
+ * Kept as the fidelity comparison baseline; do not point live evals at it.
+ */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { LessonsManager } from '../memory/lessons/manager.js';

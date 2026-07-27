@@ -43,6 +43,14 @@ export interface LessonCandidate {
   /** Set when harness reward=1 promotes a candidate → verified. */
   promotedAt?: string;
   verification?: LessonVerification;
+  /**
+   * Fidelity fields for paired lessons (shared with knack schema-v1 ranking).
+   * Absent on template-text ephemeral notes.
+   */
+  repo?: string;
+  symptom?: string;
+  fixSummary?: string;
+  executionEvidence?: string;
   status: LessonCandidateStatus;
   counterexamples?: LessonCounterexample[];
   provenance: {

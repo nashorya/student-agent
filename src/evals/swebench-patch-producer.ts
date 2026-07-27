@@ -419,6 +419,7 @@ async function runSweBenchInstance(options: {
         recallAudit: trace.recallAudit,
         verificationStatus: 'pending',
         deferKnackPromotion: options.studentDeferKnackPromotion,
+        repo: options.instance.repo,
       });
     } catch (err) {
       learningFinalizationError = err instanceof Error ? err.message : String(err);

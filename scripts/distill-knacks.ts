@@ -1,3 +1,8 @@
+/**
+ * CLI: offline run-level distillation → candidate-knacks.json. AUDIT ONLY.
+ * The live knack supply chain runs online (lessons → knacks); this stays as the
+ * fidelity comparison baseline and writes no library.
+ */
 import { resolve } from 'node:path';
 import { distillResults } from '../src/evals/knack-distillation.js';
 

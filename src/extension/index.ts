@@ -38,7 +38,7 @@ import { createToolGuardHook } from './hooks/tool-guard.js';
 import { createRiskGuardHook, type ConfirmationProviderRef } from './hooks/risk-guard.js';
 import { FailureEscalationContext } from './hooks/failure-escalation.js';
 import { createContextAssemblyHook } from './hooks/context-assembly.js';
-import { createReflectHook, markReflectBaseline } from './hooks/reflect.js';
+import { createReflectHook, markReflectBaseline, recordReflectToolCall } from './hooks/reflect.js';
 import { createQualityWatchdogHook } from './hooks/quality-watchdog.js';
 import { formatContextInspection, inspectContext } from './commands/context-inspector.js';
 import { buildSettingTargetPrompt, parseSettingTargetAnswer, type SettingTarget } from './setting-target.js';
@@ -261,6 +261,7 @@ function buildHooks(
     onAfterToolCall: async (ctx) => {
       toolGuard.observeResult(ctx);
       await signalPipeline.processAfterToolCall(ctx);
+      recordReflectToolCall(ctx);
       return escalationHook(ctx);
     },
     buildMemoryPrompt: createContextAssemblyHook({

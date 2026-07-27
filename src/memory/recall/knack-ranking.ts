@@ -37,12 +37,14 @@ export async function rankKnackResults(results: MemoryRecallResult[], options: {
   const repository = normalizeRepositoryIdentity(options.repository);
   return results.map((result) => {
     const knack = result.item.payload as Partial<Knack>;
-    const hasSchemaV1 = Boolean(knack.repo || knack.symptom || knack.fixSummary);
-    const repoMatch = Boolean(knack.repo)
+    // Only repo-scoped knacks face the repo/similarity gate. Online-born knacks
+    // carry symptom/fixSummary without a repo and stay unconditionally eligible.
+    const repoScoped = Boolean(knack.repo);
+    const repoMatch = repoScoped
       && normalizeRepositoryIdentity(knack.repo as string) === repository;
     const similarity = clamp(similarities.get(result.item.id) ?? 0);
     const threshold = source === 'lexical' ? LEXICAL_ELIGIBILITY_THRESHOLD : SEMANTIC_ELIGIBILITY_THRESHOLD;
-    const eligible = !hasSchemaV1 || repoMatch || similarity >= threshold;
+    const eligible = !repoScoped || repoMatch || similarity >= threshold;
     const reuseCount = Math.max(0, Math.min(REUSE_CAP, knack.reuseCount ?? 0));
     const confidence = knack.status === 'validated' || result.item.metadata.status === 'validated' ? 1 : 0;
     const antiRepeat = knack.lastInjectedTask === options.currentTaskId ? 0 : 1;
