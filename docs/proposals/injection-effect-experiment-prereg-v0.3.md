@@ -7,7 +7,7 @@
 | finding | `finding:injection-effect-experiment-v0.3` |
 | 前版 | [v0.2（已作废，禁止并入结果）](./injection-effect-experiment-prereg-v0.2.md) |
 | 版本 | **v0.3** · 2026-07-27 |
-| 代码基线 | `af67cc532b9dc61c0fb998505654f31c889d8e35`（分支 `fix/bug-014-online-knack-supply`）。若合并入 main，以合并后 SHA 为准并同步更新本预注册。 |
+| 代码基线 | `f032b71e`（main，2026-07-27 合并） |
 | 冻结规则 | 作者批准后合并本预注册即冻结；任何设计变化均须再次作废重开 |
 
 ## 作废栏（相对 v0.2）
@@ -16,7 +16,7 @@ v0.2 因**仪器漂移**作废，不得并入本版结果，只可作历史对�
 
 - Django 族 12 run 跑于 2026-07-20（代码基线早于下列三次改动）。
 - 其后 `e18b22dd`（BUG-012：改 recall / citation / repo 身份）、`a5005ec1`（BUG-013：改蒸馏器与 knack ranking）、`af67cc53`（BUG-014：蒸馏器换在线管线）三次改动全部压在注入关键路径上。
-- 本版路径：在代码基线 `af67cc53` 上，按本预注册重跑两正式族（Django + SymPy）共 24 run；结果目录前缀 `evals/results/injection-experiment-v0.3/`。
+- 本版路径：在代码基线 `f032b71e` 上，按本预注册重跑两正式族（Django + SymPy）共 24 run；结果目录前缀 `evals/results/injection-experiment-v0.3/`。
 
 ## 目标与假设
 
