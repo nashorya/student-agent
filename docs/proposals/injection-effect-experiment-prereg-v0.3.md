@@ -1,14 +1,22 @@
-# 预注册：注入效果实验 v0.2（四臂纯记忆迁移）
+# 预注册：注入效果实验 v0.3（四臂纯记忆迁移 · 两族重跑）
 
-状态：**已作废（2026-07-27）；禁止并入 v0.3 结果，只可作历史对照引用**
+状态：**已冻结（2026-07-27，作者明确回复「点火」）；仪器门禁全绿前禁止运行正式题**
 
 | 字段 | 值 |
 |------|-----|
-| finding | `finding:injection-effect-experiment-v0.2` |
-| 前版 | [v0.1.1（已作废，禁止并入结果）](./injection-effect-experiment-prereg-v0.md) |
-| 后继 | [v0.3（重开）](./injection-effect-experiment-prereg-v0.3.md) |
-| 版本 | **v0.2** · 2026-07-20 |
+| finding | `finding:injection-effect-experiment-v0.3` |
+| 前版 | [v0.2（已作废，禁止并入结果）](./injection-effect-experiment-prereg-v0.2.md) |
+| 版本 | **v0.3** · 2026-07-27 |
+| 代码基线 | `af67cc532b9dc61c0fb998505654f31c889d8e35`（分支 `fix/bug-014-online-knack-supply`）。若合并入 main，以合并后 SHA 为准并同步更新本预注册。 |
 | 冻结规则 | 作者批准后合并本预注册即冻结；任何设计变化均须再次作废重开 |
+
+## 作废栏（相对 v0.2）
+
+v0.2 因**仪器漂移**作废，不得并入本版结果，只可作历史对照引用：
+
+- Django 族 12 run 跑于 2026-07-20（代码基线早于下列三次改动）。
+- 其后 `e18b22dd`（BUG-012：改 recall / citation / repo 身份）、`a5005ec1`（BUG-013：改蒸馏器与 knack ranking）、`af67cc53`（BUG-014：蒸馏器换在线管线）三次改动全部压在注入关键路径上。
+- 本版路径：在代码基线 `af67cc53` 上，按本预注册重跑两正式族（Django + SymPy）共 24 run；结果目录前缀 `evals/results/injection-experiment-v0.3/`。
 
 ## 目标与假设
 
@@ -25,7 +33,7 @@
 | 臂 | 代号 | 注入定义 |
 |----|------|----------|
 | A-L | `lesson-recall` | 仅从本臂本族此前 resolved run 的主 lesson 中按需排序召回；不注入 knack 或其他记忆类型 |
-| A-K | `knack-recall` | 仅召回由合格 lesson 按现行 breaker 晋升的 knack；不放宽晋升或 ranking 规则 |
+| A-K | `knack-recall` | 仅召回由合格 lesson 按现行 breaker / harness-strong 规则晋升的 knack；不放宽晋升或 ranking 规则 |
 | B | `off` | 与其他臂使用相同 context-runtime 组装，学习照常写入，但记忆注入为空 |
 | C | `lesson-full` | 本臂本族此前 resolved run 的全部主 lesson 常驻；不排序、不做成熟度筛选 |
 
@@ -40,6 +48,14 @@
 - A-K 继续使用现行 breaker 和 knack ranking；来源 lesson 未通过 harness 准入的 knack 不合格。
 - lesson 晋升后，A-L/C 仍只渲染 lesson 一次；A-K 只渲染 knack，禁止双份注入。
 
+### harness-strong 出生规则（相对 v0.2 必须预声明）
+
+BUG-014 后，eval knack 供给与生产闭环同构：run 内由 ReflectAgent 在线出生的 lesson 一律为 `candidate`；离线确定性蒸馏器（`knack-distillation.ts` 等）降为 audit-only，**不再写主库**。
+
+- **晋升**：harness 判 `resolved=true`（reward=1）后，由 `promoteRunLessonsAfterHarness` 将该 run 在线出生的 candidate lesson 晋升为 `verified`；`resolved=false` 则该 run 的 lesson/knack 永久不准入。
+- **harness-strong**：已由 harness reward=1 晋升为 verified 的 lesson，免除「同类信号 ≥2 次」的重复要求，**单次直升 knack**（经 `promoteHarnessEligibleLessons`）。无 harness 的生产态仍走重复规则。时序保持延迟晋升：run 内一律 candidate，不在 run 内写主库 knack。
+- **对 A-K 的系统影响**：相对 v0.2（离线蒸馏器在 resolved 后直接产 knack 文案），本版 A-K 注入内容来自在线 `Symptom: … Fix: …` 结构化 lesson 经 harness-strong 直升的 knack；出生率与措辞均系统性改变。此差异预先声明，不作事后解释。
+
 ## 串行执行与准入
 
 每臂每族使用独立 memory root，族开始时重置为空；三题按附录 A 顺序串行：
@@ -50,8 +66,8 @@
 4. 立即用冻结数据快照和官方 SWE-bench harness 单实例判分。
 5. harness 进程非零、报告缺失或快照不符属于仪器异常，整批停跑保留现场。
 6. `resolved=false` 是合法结果：继续下一题，但该 run 的 lesson/knack 永久不准入，不补种、不重跑。
-7. `resolved=true` 后才登记准入；用 issue 文本、最终总结、实际 trace events 和 harness reward 运行既有确定性蒸馏器。蒸馏为空只记原因，禁止 synthetic fallback。
-8. 对已准入 lesson 执行现行 knack 晋升，再开始下一题。第 3 题完成后仍照常归档/蒸馏，但不跨族使用。
+7. `resolved=true` 后才登记准入；由 `promoteRunLessonsAfterHarness` 晋升该 run 在线出生的 lesson（reward=1 → verified）。晋升为空只记原因，禁止 synthetic fallback，禁止回退到离线确定性蒸馏器写主库。
+8. 对已准入（verified）lesson 执行现行 knack 晋升（含 harness-strong 单次直升），再开始下一题。第 3 题完成后仍照常归档/晋升，但不跨族使用。
 
 harness 的测试名、日志和详细报告只作审计产物，不进入 memory root 或模型上下文；管线只消费 resolved 布尔值。
 
@@ -115,12 +131,14 @@ harness 的测试名、日志和详细报告只作审计产物，不进入 memor
 
 ## 审计产物与完成门
 
-每 run 必须落：trace、events、注入快照、prediction、官方 harness 报告、distillation/admission 报告、注入前后 memory inventory。批次 manifest 必须记录当前代码 commit、文档版本、数据 SHA、arm/family、模型与采样。
+每 run 必须落：trace、events、注入快照、prediction、官方 harness 报告、admission 报告、注入前后 memory inventory。批次 manifest 必须记录当前代码 commit、预注册文档版本、数据 SHA、arm/family、模型与采样。
 
-正式点火前必须通过：四臂差异单测、resolved/unresolved 双题无模型回放、跨臂/跨族/ephemeral/历史记忆防泄漏测试、P3 lesson/knack citation 测试、全量测试、构建，以及旧 resolved prediction 的官方判分烟测。全部通过后仍需作者另行明确回复“点火”。
+正式点火前必须通过：四臂差异单测、resolved/unresolved 双题无模型回放、跨臂/跨族/ephemeral/历史记忆防泄漏测试、P3 lesson/knack citation 测试、全量测试、构建，以及旧 resolved prediction 的官方 harness 判分烟测。全部通过后仍需作者另行明确回复「点火」。
+
+runner 收到本任务单**不等于**已点火。阶段 0（本预注册冻结 + v0.2 作废标记 + 作者「点火」）未完成前，只允许执行阶段 1 的 `--dry-run`。
 
 ## 批准 / 冻结栏
 
-- 作者批准合并（冻结）：☑ 2026-07-20 / PR #10
+- 作者批准合并（冻结）：☑ 2026-07-27 / 作者明确回复「点火」（代码基线 `af67cc53`，分支 `fix/bug-014-online-knack-supply`；合并入 main 后以合并 SHA 同步更新）
 - 陪审知悉：□ 日期 ____
-- 作废重开：☑ 理由 仪器漂移——Django 族 12 run（2026-07-20）之后，`e18b22dd`（BUG-012）、`a5005ec1`（BUG-013）、`af67cc53`（BUG-014）三次改动全部压在注入关键路径上；v0.2 数据不得并入后续版本 / 新版路径 [docs/proposals/injection-effect-experiment-prereg-v0.3.md](./injection-effect-experiment-prereg-v0.3.md)
+- 作废重开：□ 理由 ____ / 新版路径 ____
