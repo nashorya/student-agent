@@ -9,7 +9,7 @@ import type { EvalTaskDefinition } from '../types.js';
 import type { Knack } from '../../memory/knacks/types.js';
 import type { LessonCandidate } from '../../memory/lessons/types.js';
 
-describe('v0.2 injection memory policies', () => {
+describe('injection memory policies', () => {
   const roots: string[] = [];
   afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
 

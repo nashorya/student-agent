@@ -179,8 +179,13 @@ export class LessonsManager {
   }
 
   /**
-   * After harness reward: promote this run's candidate lessons → verified.
-   * reward≠1 keeps candidates in place (no delete).
+   * After harness reward: stamp this run's lessons as harness-promoted.
+   * `candidate` lessons become `verified`; lessons already born `verified` from
+   * in-run stream verification keep that confidence but still get `promotedAt`,
+   * because `promotedAt` is what marks external ground truth and what
+   * harness-strong knack promotion keys on (BUG-015 — skipping non-candidates
+   * left the best-evidenced lessons permanently unstamped, so they could never
+   * become knacks). reward≠1 leaves everything in place (no delete, no stamp).
    */
   async promoteCandidatesForRun(options: {
     sessionRef: string;
@@ -192,9 +197,10 @@ export class LessonsManager {
       const now = options.promotedAt ?? new Date().toISOString();
       let promoted = 0;
       const updated = lessons.map((lesson) => {
-        if (lesson.confidence !== 'candidate') return lesson;
         if (lesson.provenance.sessionRef !== options.sessionRef) return lesson;
         if (options.reward !== 1) return lesson;
+        // Idempotent: a re-run of the same admission must not re-stamp.
+        if (lesson.promotedAt) return lesson;
         promoted += 1;
         return {
           ...lesson,
@@ -518,13 +524,23 @@ export function isProcessNoiseSignal(signal: Signal): boolean {
     return true;
   }
   const summary = signal.summary.toLowerCase();
+  if (summary.includes('hashline') || summary.startsWith('sed:')) return true;
+  // A Python traceback is the primary learnable signal on a Python repo
+  // (astropy/sympy/django), so it is only noise when the exception itself is an
+  // import/module failure. Matching every traceback sent the best-evidenced
+  // lessons to ephemeral, where the injection experiment can never reach them.
+  return isImportFailure(summary);
+}
+
+function isImportFailure(summary: string): boolean {
   return (
-    summary.includes('hashline')
-    || summary.includes('modulenotfounderror')
-    || summary.includes('no module named')
-    || summary.includes('traceback (most recent call last)')
+    summary.includes('modulenotfounderror')
+    // Python spells these without a space; the old 'import error' clause alone
+    // never matched a real interpreter message.
+    || summary.includes('importerror')
     || summary.includes('import error')
-    || summary.startsWith('sed:')
+    || summary.includes('no module named')
+    || summary.includes('cannot import name')
   );
 }
 

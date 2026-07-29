@@ -5,6 +5,54 @@
 
 ---
 
+## BUG-015 · lesson 出生即 verified，harness-strong 晋升链永不触发，A-K 臂拿不到 knack · FIXED
+
+- **时间**：2026-07-28，发现者：live 烟测（注入实验 v0.4 仪器验收）
+- **症状**：真实种子 run（`astropy__astropy-12907`，glm-5.2，官方 harness 判
+  `resolved=true`）跑完后，lesson 正常出生且合格
+  （`mainLessons=1`、`eligibleLessonIds=[lesson_0f3b0419…]`），但
+  `promoteRunLessonsAfterHarness` 返回 `promoted: 0`、
+  `promoteHarnessEligibleLessons` 返回 `0`，**knacks 恒为 0**。
+  后果：`knack-recall` 臂（A-K）的注入提示与 `off` 臂（B）只差 18 字符的段落骨架，
+  无任何 knack 内容——A-K 在族内第 2 题与 B 结构等价，H1-K 不可测。
+  对照：同一份真实记忆下 `lesson-recall`（A-L）注入正常（5506 vs B 4554 字符，
+  含真实 lesson 正文），故缺陷只在 knack 链。
+  证据：本次 live 烟测产物（scratchpad，未入库）；复现见"复现"栏。
+- **根因**：出生时 confidence 就是 `verified` 而 `promotedAt` 为空，
+  而 harness-strong 判据要求二者**同时**成立。
+  链条：
+  1. 在线 lesson 写入器出生即 `confidence: 'verified'`、`promotedAt: null`；
+  2. `promoteRunLessonsAfterHarness` → `promoteCandidatesForRun` 只晋升
+     `candidate`，找不到候选 → `promoted: 0`，`promotedAt` 永不写入；
+  3. `src/reflect/reflect-agent.ts:169`
+     `if (lesson.confidence === 'verified' && lesson.promotedAt) return true;`
+     ——`promotedAt` 为空，harness-strong 分支不成立；
+  4. 回落到重复规则 `signalKindCounts >= 2`，单 run 单 lesson 恒为 1 → 不晋升。
+  因此预注册所述"run 内一律 candidate → harness resolved 后晋升为 verified →
+  harness-strong 单次直升 knack"这条机制**代码里并不存在**：既然出生即 verified，
+  就没有 candidate 可晋升。注意 A-L 的 harness 准入门仍有效（按 `eligibleRunIds`
+  以 runId 过滤，unresolved run 的 lesson 不会被注入），失效的只是
+  candidate→verified 这级与其下游的 knack 直升。
+- **复现**：`--phase seed` 跑任一 resolved 题，检查该 run 的
+  `admission.json`（`distillation.promoted`、`knacksPromoted`）与
+  `memory-inventory.json`（`after.knackIds`）。
+- **修复**（作者选定 (a)：让 harness 晋升写 `promotedAt`，保住 A-K）：
+  `LessonsManager.promoteCandidatesForRun` 的门槛由「只处理 `candidate`」改为
+  「只跳过已盖过 `promotedAt` 的」——
+  `candidate` 照旧升 `verified` 并盖章；已 `verified`（run 内自证）的补盖 `promotedAt`
+  且不改 confidence；已盖章的幂等跳过；`reward≠1` 一律不动。
+  `promotedAt` 由此成为「外部 harness 判对」的唯一标志，不再被出生时的 confidence 挡住。
+  注意这是**生产学习闭环**的语义调整，不限于 eval：任何带 harness/reward 的路径
+  现在都能让 run 内自证的 lesson 升 knack。
+- **验证**：新增 3 个单测（补盖章 / 幂等不重盖 / reward≠1 不盖）；
+  并在本次 live 烟测的**真实记忆**上重放晋升链：
+  修复前 `promoted=0`、`knacks=0`；修复后 `promoted=1`、`promoteHarnessEligibleLessons=1`、
+  `knacks=1`，A-K 注入提示 5473 字符含 knack 正文（对照 B 4543）。
+  `tsc --noEmit` 干净，全量测试通过。
+- **状态**：FIXED
+
+---
+
 ## BUG-014 · eval knack 供给走离线专线，与生产闭环不同构 · FIXED-待作者确认
 
 - **时间**：2026-07-27

@@ -4,7 +4,7 @@ import { access, readFile, writeFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildSweBenchEvaluationCommand, type ExternalCommand } from '../src/evals/external-benchmarks.js';
-import { readFrozenInjectionSpec } from '../src/evals/injection-family-runner.js';
+import { readInjectionSpec } from '../src/evals/injection-family-runner.js';
 
 export interface ScoreOptions {
   pythonCommand: string;
@@ -29,7 +29,7 @@ export async function buildPinnedScoringCommand(
   options: ScoreOptions,
   hashFile: HashFile = sha256File,
 ): Promise<ExternalCommand> {
-  const spec = await readFrozenInjectionSpec(options.preregPath);
+  const spec = await readInjectionSpec(options.preregPath);
   const manifest = JSON.parse(await readFile(options.manifestPath, 'utf8')) as Record<string, unknown>;
   if (manifest.datasetCommit !== spec.dataset.commit) throw new Error('Dataset commit does not match the frozen preregistration');
   if (manifest.arrowSha256 !== spec.dataset.arrowSha256) throw new Error('Arrow SHA-256 does not match the frozen preregistration');
