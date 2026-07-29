@@ -46,3 +46,6 @@ memory/benchmark-results/
 
 # Eval runtime output
 evals/results/
+
+# Local SWE-bench harness env (venv + materialized dataset snapshot)
+.swebench-env/

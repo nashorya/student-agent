@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { appendSignal } from '../../signals/index.js';
-import { LessonsManager } from '../manager.js';
+import { LessonsManager, isProcessNoiseSignal } from '../manager.js';
 
 describe('LessonsManager delayed promotion admission (P1 patch)', () => {
   let tmpDir: string;
@@ -126,6 +126,77 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       confidence: 'verified',
     });
     expect(lessons[0].promotedAt).toBeTruthy();
+  });
+
+  it('stamps promotedAt on stream-verified lessons so harness-strong can fire', async () => {
+    // A lesson born with in-run verification evidence is already `verified`, so
+    // the old skip-if-not-candidate rule left promotedAt empty forever — and
+    // harness-strong knack promotion needs verified AND promotedAt (BUG-015).
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const born = await mgr.admitDistilled({
+      events: [
+        { kind: 'tool_error', summary: 'matrix copy wrong', toolName: 'bash', isError: true },
+        { kind: 'tool_call', toolName: 'edit', name: 'edit' },
+        { kind: 'tool_call', toolName: 'bash', name: 'bash', exitCode: 0 },
+      ],
+      lesson: 'Fix: mirror the right branch of the separability matrix.',
+      sourceSignalId: 'sig_stream',
+      taskId: 'task_1',
+      sessionRef: 'run_stream',
+    });
+    expect(born?.confidence).toBe('verified');
+    expect(born?.promotedAt).toBeUndefined();
+
+    const result = await mgr.promoteCandidatesForRun({ sessionRef: 'run_stream', reward: 1 });
+
+    expect(result.promoted).toBe(1);
+    const lesson = (await mgr.getAll()).find((item) => item.id === born!.id)!;
+    expect(lesson.confidence).toBe('verified');
+    expect(lesson.promotedAt).toBeTruthy();
+  });
+
+  it('does not re-stamp promotedAt for a run already promoted', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    await mgr.observeSignals([{
+      id: 'sig_idem', kind: 'tool_error', severity: 'medium',
+      summary: 'idempotence check', toolName: 'bash', toolCallId: 'call_err',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }], {
+      taskId: 'task_1', sessionRef: 'run_idem',
+      operationEvidence: [{ toolName: 'bash', completedAt: '2026-01-01T00:01:00.000Z' }],
+    });
+    const first = await mgr.promoteCandidatesForRun({
+      sessionRef: 'run_idem', reward: 1, promotedAt: '2026-01-01T00:02:00.000Z',
+    });
+    expect(first.promoted).toBe(1);
+
+    const second = await mgr.promoteCandidatesForRun({
+      sessionRef: 'run_idem', reward: 1, promotedAt: '2026-01-01T09:99:00.000Z',
+    });
+
+    expect(second.promoted).toBe(0);
+    expect((await mgr.getAll()).find((l) => l.provenance.sessionRef === 'run_idem')!.promotedAt)
+      .toBe('2026-01-01T00:02:00.000Z');
+  });
+
+  it('does not stamp promotedAt when harness reward≠1', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const born = await mgr.admitDistilled({
+      events: [
+        { kind: 'tool_error', summary: 'unresolved run', toolName: 'bash', isError: true },
+        { kind: 'tool_call', toolName: 'edit', name: 'edit' },
+        { kind: 'tool_call', toolName: 'bash', name: 'bash', exitCode: 0 },
+      ],
+      lesson: 'Fix: should stay unstamped.',
+      sourceSignalId: 'sig_unresolved',
+      taskId: 'task_1',
+      sessionRef: 'run_unresolved',
+    });
+
+    const result = await mgr.promoteCandidatesForRun({ sessionRef: 'run_unresolved', reward: 0 });
+
+    expect(result.promoted).toBe(0);
+    expect((await mgr.getAll()).find((item) => item.id === born!.id)!.promotedAt).toBeUndefined();
   });
 
   it('does not promote candidates when harness reward≠1', async () => {
@@ -316,5 +387,47 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
     })).toEqual([]);
     expect(await mgr.getAll()).toHaveLength(0);
     expect(await mgr.getEphemeral()).toHaveLength(0);
+  });
+});
+
+describe('isProcessNoiseSignal traceback classification', () => {
+  const signal = (summary: string) => ({
+    id: 'sig_x',
+    kind: 'tool_error' as const,
+    severity: 'medium' as const,
+    summary,
+    toolName: 'bash',
+    toolCallId: 'call_x',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  // A bare Python traceback is the highest-value signal on a Python repo
+  // (astropy/sympy/django). Treating every traceback as process noise routed
+  // those lessons to ephemeral, which the injection experiment never injects.
+  it('does not treat a logic-error traceback as process noise', () => {
+    expect(isProcessNoiseSignal(signal(
+      'Traceback (most recent call last):\n  File "astropy/modeling/separable.py", line 310\n'
+      + 'ValueError: separability matrix mismatch for nested CompoundModel',
+    ))).toBe(false);
+  });
+
+  it('does not treat an assertion-failure traceback as process noise', () => {
+    expect(isProcessNoiseSignal(signal(
+      'Traceback (most recent call last):\n  File "test_separable.py", line 12\n'
+      + 'AssertionError: expected [[True, False]] but got [[True, True]]',
+    ))).toBe(false);
+  });
+
+  it('still treats an import-failure traceback as process noise', () => {
+    expect(isProcessNoiseSignal(signal(
+      'Traceback (most recent call last):\n  File "conftest.py", line 3\n'
+      + "ModuleNotFoundError: No module named 'astropy._compiler'",
+    ))).toBe(true);
+  });
+
+  it('keeps the existing non-traceback noise cases', () => {
+    expect(isProcessNoiseSignal(signal('ImportError: cannot import name X'))).toBe(true);
+    expect(isProcessNoiseSignal(signal('hashline mismatch on edit'))).toBe(true);
+    expect(isProcessNoiseSignal(signal('sed: -e expression #1, char 0'))).toBe(true);
   });
 });
