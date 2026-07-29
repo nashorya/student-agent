@@ -1,9 +1,18 @@
 # Done
 
-## ✅ 注入效果实验预注册草案 v0（2026-07-19）
-- `docs/proposals/injection-effect-experiment-prereg-v0.md`：H1/H2、三臂、题库规则、写死判读、预算熔断
-- 状态：草案；作者批准后冻结设计；题库附录待选
-- 关单后队列：**作者批准冻结** → 题库筛查表 → 附录 push
+## ⏳ 注入效果实验 v0.4 重开（2026-07-28，草案未冻结）
+- `docs/proposals/injection-effect-experiment-prereg-v0.4.md`：三臂（删 C）、共享种子题、两阶段种子门、三族
+- v0.3 已作废（零正式 run，无结果需隔离）：第 1 题运气混淆主对照、H2 结构上不可测、C 臂归因不干净、文档未覆盖空 patch/续跑
+- 仪器已对齐：种子阶段 `--phase seed`、臂阶段复制种子记忆并只跑第 2/3 题、种子 unresolved 拒启动、manifest 记预注册 sha256
+- 判读改单一主通道（第 2 题 A-L vs B 配对），复合量恒报告但不作替代通道 `per Survey-Skill-2606.11435`
+- **未冻结**：`spec.frozen === false`，正式跑被门禁拒绝，当前只能 `--dry-run`
+- 队列：**作者批准冻结**（回填代码基线 SHA）→ 作者「点火」→ 阶段 A 三族种子门 → 阶段 B 臂阶段
+
+## ✅ 注入效果实验预注册 v0.1（2026-07-19，未冻结）
+- `docs/proposals/injection-effect-experiment-prereg-v0.md`：coding plan 直连；$25 备用换口废族；前置烟测三门
+- **禁止合并**（合并即冻结）；烟测日志：`injection-effect-smoke-log-2026-07-19.md`
+- 烟测：离线 P3/阶梯绿；glm-5.2 可达；三臂代理对拍 + live 蒸馏话风仍缺
+- 队列：补全烟测 → 作者冻结合并 → 选族附录
 
 ## ✅ ADR-008 Measured Harness Evolution（2026-07-19，纯文书）
 - 落档 `docs/adr/ADR-008-measured-harness-evolution.md`：定位声明，无代码改动

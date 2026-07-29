@@ -44,6 +44,7 @@ import { formatContextInspection, inspectContext } from './commands/context-insp
 import { buildSettingTargetPrompt, parseSettingTargetAnswer, type SettingTarget } from './setting-target.js';
 import { runProviderProfileCommand } from './provider-command.js';
 import { shouldShowAgentErrorMessage } from './tui-message-policy.js';
+import { buildTaskStatusUpdate, hydrateActiveTaskStatus, taskWorkingMemoryItems } from './tui-task-status.js';
 import {
   buildPlanningRecoveryPromptQuestion,
   buildPlanningRetryRequest,
@@ -80,7 +81,7 @@ import { executeArchiveCommand } from '../archive/commands.js';
 import { ArchiveService } from '../archive/service.js';
 import { ArchiveWorkflowCoordinator } from '../archive/workflow.js';
 import { printBanner } from '../cli/banner.js';
-import { startSelectedTUI, isTTY } from '../tui-runtime.js';
+import { startSelectedTUI, isTTY, shouldPrintLegacyBanner } from '../tui-runtime.js';
 import { createInputQueue } from '../tui/input-queue.js';
 import { createPasteBuffer } from '../tui/paste-buffer.js';
 import { createBufferedPromptLog } from '../tui/prompt-log.js';
@@ -95,10 +96,16 @@ import { PlanRevisionManager } from '../memory/plan-revisions/manager.js';
 import type { PlanRevision } from '../memory/plan-revisions/types.js';
 import { ProjectKbManager } from '../memory/project-kb/manager.js';
 import { parsePhaseSignal, type PhaseSignal } from '../core/task-planner/phase-signal.js';
-import { createPlanSnapshot, detectPlanRevisionIntent, type PlanSnapshot } from '../core/task-planner/plan-revision-detector.js';
+import {
+  createPlanSnapshot,
+  detectPlanRevisionIntent,
+  type DetectedPlanRevision,
+  type PlanSnapshot,
+} from '../core/task-planner/plan-revision-detector.js';
+import { classifyPlanApprovalInput } from '../core/task-planner/plan-approval-input.js';
 import { detectNegativeFeedback } from '../core/task-planner/feedback-detector.js';
 import { detectNaturalReviewResponse } from '../core/task-planner/review-detector.js';
-import { classifyIntent, isInformationalFollowUp } from '../core/task-planner/intent-classifier.js';
+import { classifyIntent, isInformationalFollowUp, isTaskAdvanceInput } from '../core/task-planner/intent-classifier.js';
 import { buildTaskContextPrefix } from '../core/task-planner/task-context-builder.js';
 import { buildCtx7RetryContext } from '../core/task-planner/ctx7-retry-builder.js';
 import { buildPlanningPrompt, buildPhaseExecutionPrompt } from '../core/task-planner/planning-prompt.js';
@@ -156,8 +163,6 @@ if (CWD === '/') {
 /** 当前任务描述（用于 ReflectAgent 和失败升级的诊断报告） */
 let currentTaskDescription = '';
 let lastPlanSnapshot: PlanSnapshot | null = null;
-
-const PLAN_CONFIRM_RE = /^(确认|开始|执行|继续|go|yes|y)$/i;
 
 interface RuntimeState {
   config: StudentAgentConfig;
@@ -504,7 +509,7 @@ async function main(): Promise<void> {
   if (isTTY()) {
     // ── TUI 模式 ──────────────────────────────────────
     clearTerminalViewport(output);
-    printBanner();
+    if (shouldPrintLegacyBanner(process.env)) printBanner();
     initLogger();
     initDebugEvents({ enabled: process.env.STUDENT_AGENT_DEBUG_UI === '1' });
     setTuiMode(true);
@@ -557,6 +562,7 @@ async function main(): Promise<void> {
     });
 
     bindRuntimeToTui(runtime, tui.bridge);
+    await hydrateActiveTaskStatus(TasksManager.getInstance(MEMORY_DIR), tui.bridge);
 
     while (true) {
       const submitted = await inputQueue.waitForSubmit();
@@ -634,6 +640,7 @@ async function main(): Promise<void> {
               runtime.unsubscribe();
               runtime = result.value;
               bindRuntimeToTui(runtime, tui.bridge);
+              await hydrateActiveTaskStatus(TasksManager.getInstance(MEMORY_DIR), tui.bridge);
               tui.bridge.setStatus(
                 `OK: 已切换至 ${result.profileName}：${runtime.config.model.provider}/${runtime.config.model.name}`,
               );
@@ -662,6 +669,7 @@ async function main(): Promise<void> {
               runtime.unsubscribe();
               runtime = await createRuntime(await reloadConfig());
               bindRuntimeToTui(runtime, tui.bridge);
+              await hydrateActiveTaskStatus(TasksManager.getInstance(MEMORY_DIR), tui.bridge);
               tui.bridge.setStatus(`OK: 模型已切换为 ${runtime.config.model.provider}/${runtime.config.model.name}`);
             } else {
               tui.bridge.setStatus('已取消');
@@ -698,6 +706,7 @@ async function main(): Promise<void> {
             runtime.unsubscribe();
             runtime = await createRuntime(await reloadConfig());
             bindRuntimeToTui(runtime, tui.bridge);
+            await hydrateActiveTaskStatus(TasksManager.getInstance(MEMORY_DIR), tui.bridge);
             tui.bridge.setStatus(`OK: 已应用设置：${runtime.config.model.provider}/${runtime.config.model.name}`);
             continue;
           }
@@ -809,6 +818,13 @@ async function main(): Promise<void> {
 
       const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
       const activeTask = await tasksMgr.getActive();
+      if (activeTask && detectNaturalReviewResponse(userInput).type === 'abandoned') {
+        const cancelled = await tasksMgr.cancelActiveTask();
+        lastPlanSnapshot = null;
+        tui.bridge.clearTaskStatus();
+        tui.bridge.setStatus(cancelled ? `已丢弃当前任务：${cancelled.name}` : '当前无活跃任务');
+        continue;
+      }
       if (activeTask && isAwaitingUserReview(activeTask)) {
         const reviewResult = await maybeHandleNaturalReviewResponse(userInput, currentTaskDescription);
         if (reviewResult) {
@@ -824,6 +840,16 @@ async function main(): Promise<void> {
           tui.bridge.setStatus(reviewResult.message);
           continue;
         }
+      }
+
+      const planApproval = classifyPlanApprovalInput(userInput, activeTask, lastPlanSnapshot);
+      if (planApproval?.type === 'revise' && activeTask) {
+        tui.bridge.setStatus(await recordAutomaticPlanRevision(activeTask, planApproval.revision));
+        continue;
+      }
+      if (planApproval?.type === 'approve' && activeTask) {
+        await runTuiActivePhase(runtime, tui.bridge, activeTask);
+        continue;
       }
 
       const automaticRevisionMessage = await maybeRecordAutomaticPlanRevision(userInput, activeTask);
@@ -1297,6 +1323,12 @@ async function main(): Promise<void> {
 
       const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
       const activeTask = await tasksMgr.getActive();
+      if (activeTask && detectNaturalReviewResponse(userInput).type === 'abandoned') {
+        const cancelled = await tasksMgr.cancelActiveTask();
+        lastPlanSnapshot = null;
+        console.log(chalk.green(`  ${cancelled ? `已丢弃当前任务：${cancelled.name}` : '当前无活跃任务'}`));
+        continue;
+      }
       if (activeTask && isAwaitingUserReview(activeTask)) {
         const reviewResult = await maybeHandleNaturalReviewResponse(userInput, currentTaskDescription);
         if (reviewResult) {
@@ -1306,6 +1338,16 @@ async function main(): Promise<void> {
           console.log(chalk.green(`  ${reviewResult.message}`));
           continue;
         }
+      }
+
+      const planApproval = classifyPlanApprovalInput(userInput, activeTask, lastPlanSnapshot);
+      if (planApproval?.type === 'revise' && activeTask) {
+        console.log(chalk.dim(`  ${await recordAutomaticPlanRevision(activeTask, planApproval.revision)}`));
+        continue;
+      }
+      if (planApproval?.type === 'approve' && activeTask) {
+        await runConsoleActivePhase(runtime, activeTask);
+        continue;
       }
 
       const automaticRevisionMessage = await maybeRecordAutomaticPlanRevision(userInput, activeTask);
@@ -1772,7 +1814,7 @@ function isYoloMode(runtime: RuntimeState): boolean {
 }
 
 function isPlanConfirmationInput(input: string): boolean {
-  return PLAN_CONFIRM_RE.test(input.trim());
+  return isTaskAdvanceInput(input);
 }
 
 
@@ -1796,30 +1838,6 @@ function formatAwaitingReviewMessage(task: Task): string {
 
 async function finalizePendingArchiveForReview(task: Task, tasksMgr: TasksManager): Promise<void> {
   await new ArchiveWorkflowCoordinator(new ArchiveService({ root: CWD }), tasksMgr).applyAfterVerification(task);
-}
-
-function buildTaskStatusUpdate(task: Task, state: 'running' | 'aborting' | 'idle' | 'failed') {
-  const phase = task.phases[task.active_phase_index];
-  return {
-    name: task.name,
-    phaseIndex: task.active_phase_index,
-    totalPhases: task.phases.length,
-    workflowStatus: task.workflow_status,
-    level: task.level,
-    goal: task.working_memory.goal,
-    acceptanceCriteria: taskWorkingMemoryItems(task, 'acceptance_criterion'),
-    phases: task.phases.map((p) => ({ description: p.description, status: p.status })),
-    constraints: taskWorkingMemoryItems(task, 'constraint'),
-    openQuestions: taskWorkingMemoryItems(task, 'open_question'),
-    userPreferences: taskWorkingMemoryItems(task, 'user_preference'),
-    verificationSummary: taskWorkingMemoryItems(task, 'verification_result'),
-    requiresUserAcceptance: task.requires_user_acceptance,
-    requiresVisualReview: task.requires_visual_review,
-    retryCount: phase?.retry_count ?? 0,
-    toolCallCount: 0,
-    elapsedMs: 0,
-    state,
-  };
 }
 
 function formatPlanAwaitingConfirmation(name: string, phases: string[], yoloMode = false): string {
@@ -1866,23 +1884,6 @@ function appendStatusList(lines: string[], label: string, values: string[]): voi
   if (values.length === 0) return;
   lines.push(`${label}：`);
   values.slice(-6).forEach((value) => lines.push(`- ${value}`));
-}
-
-function taskWorkingMemoryItems(task: Task, kind: string): string[] {
-  const memory = task.working_memory;
-  const artifactItems = memory.artifactRefs
-    .filter((artifact) => artifact.kind === kind)
-    .map((artifact) => artifact.summary);
-  const signalItems = memory.recentSignals
-    .filter((signal) => signal.kind === kind)
-    .map((signal) => signal.summary);
-  const todoItems = kind === 'acceptance_criterion'
-    ? memory.todos.map((todo) => todo.content)
-    : [];
-  const writtenItems = kind === 'changed_file'
-    ? memory.writeFiles.map((file) => file.path)
-    : [];
-  return [...new Set([...artifactItems, ...signalItems, ...todoItems, ...writtenItems])];
 }
 
 function buildTaskCreateOptions(intent: Awaited<ReturnType<typeof classifyIntent>>, context: Extract<ReturnType<typeof parsePhaseSignal>, { type: 'task_start' }>['context'] | undefined, yoloMode: boolean) {
@@ -2129,6 +2130,16 @@ async function maybeHandleNaturalReviewResponse(
     return null;
   }
 
+  if (signal.type === 'abandoned') {
+    const cancelled = await TasksManager.getInstance(MEMORY_DIR).cancelActiveTask();
+    return {
+      message: cancelled
+        ? `已丢弃当前任务：${cancelled.name}`
+        : '当前无活跃任务',
+      completedTask: true,
+    };
+  }
+
   const command: ReviewCommand = signal.type === 'accepted'
     ? { type: 'review', rating: 'ok', comment: signal.text }
     : { type: 'review', rating: 'down', comment: signal.text };
@@ -2226,6 +2237,10 @@ async function maybeRecordAutomaticPlanRevision(input: string, activeTask: Task 
   const detected = detectPlanRevisionIntent(input, activeTask, lastPlanSnapshot);
   if (!activeTask || !detected) return null;
 
+  return recordAutomaticPlanRevision(activeTask, detected);
+}
+
+async function recordAutomaticPlanRevision(activeTask: Task, detected: DetectedPlanRevision): Promise<string> {
   try {
     const revision = await PlanRevisionManager.getInstance(MEMORY_DIR).append({
       taskId: activeTask.id,

@@ -1,0 +1,71 @@
+{
+  "taskId": "task_1781254635607",
+  "runId": "run_1781254635607",
+  "status": "success",
+  "userCorrectionCount": 0,
+  "toolErrorCount": 5,
+  "hashlineRejectionCount": 0,
+  "hashlineRecoveryCount": 0,
+  "repeatedToolCallCount": 6,
+  "lostnessTriggerCount": 0,
+  "finalSummary": "Now I can see the issue. In `_arithmetic_mask`, the `else` branch calls `handle_mask(self.mask, operand.mask, **kwds)` but doesn't handle the case where `operand.mask is None` (when operand exists but has no mask). The fix is to add that missing case.The numpy version is incompatible. Let me verify the patch is correct by reading the file:The patch is in place. Let me verify the git diff:The fix is clean and minimal. Here is a summary of what was done:\n\n**Root cause**: In `NDArithmeticMixin._arithmetic_mask` (astropy/nddata/mixins/ndarithmetic.py), the logic handled these cases:\n1. Both masks are `None` → return `None`\n2. `self.mask is None` but operand has a mask → return copy of operand's mask\n3. `operand is None` (no operand object at all, e.g. scalar constant) → return copy of self's mask\n4. **Missing case**: operand exists but `operand.mask is None` → fell through to `handle_mask(self.mask, operand.mask)` which called `np.bitwise_or(int, None)` and raised `TypeError`\n\n**Fix**: Added `elif operand.mask is None: return deepcopy(self.mask)` before the `else` branch, so when `self` has a mask and the operand exists but has no mask, self's mask is simply copied to the result — matching the v5.2 behavior described in the issue.",
+  "evidenceRefs": [
+    "toolu_01UiJsQsmuK99rRkqeUxQPHQ",
+    "toolu_016SBGbx6STjwfWiien2ncva",
+    "toolu_01B7z5krDWj2GrvefxZgY9uH",
+    "toolu_01BzxXzuPWCZ5gbqo84LApDp",
+    "toolu_018KfAMkk8BEDydX1MDum6Ty",
+    "toolu_01NAWjGXygNXdeqBQAxkL7UQ",
+    "toolu_01Ln14vdk2TWpbHQV8dab9k6",
+    "toolu_01HSThvqzNsov2L6zxtTBbcv",
+    "toolu_014E1d3UuDq9d6MQRWH4Fpnb",
+    "toolu_01S2LcM5QfnG9jDFP498HDfa",
+    "toolu_018QMpKXPkdLT7Yv8SKDa188",
+    "toolu_01Fd59XzBsXz9Sk2UWit9Tyq",
+    "toolu_01StiQJyFbjx1TKFPdXm2KNC",
+    "toolu_01HzLTPaE9sEctNraRG8GTg3",
+    "toolu_01G5eqKhok1H3x5pj5rsqkpt",
+    "toolu_011pQfdnzQgkGSTX3vz5ijjZ",
+    "toolu_01JjfBuNh8fvXQsoJqNqoWfJ"
+  ],
+  "wmSnapshot": {
+    "taskId": "task_1781254635607",
+    "runId": "run_1781254635607",
+    "goal": "Eval task: SWE-bench astropy__astropy-14995",
+    "phase": "executing",
+    "finalStep": "Execute eval task astropy__astropy-14995",
+    "completedTodos": [],
+    "completedTodoCount": 0,
+    "readFiles": [
+      "astropy/nddata/mixins/ndarithmetic.py"
+    ],
+    "writtenFiles": [
+      "astropy/nddata/mixins/ndarithmetic.py"
+    ],
+    "keyFiles": [
+      {
+        "path": "astropy/nddata/mixins/ndarithmetic.py",
+        "role": "read_and_written"
+      }
+    ],
+    "keySignalSummaries": [
+      "Hashline stale rejection: astropy/nddata/mixins/ndarithmetic.py",
+      "Hashline: astropy/nddata/mixins/ndarithmetic.py has changed since last read (tag 0651 is stale, current is 85A5). Re-read the file before editing.",
+      "Hashline stale rejection: astropy/nddata/mixins/ndarithmetic.py",
+      "Traceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n    from astropy.nddata import NDDataRef\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-sweben...",
+      "Traceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n    from astropy.nddata import NDDataRef\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-sweben..."
+    ],
+    "errorPatterns": [
+      "Hashline: astropy/nddata/mixins/ndarithmetic.py has changed since last read (tag 0651 is stale, current is 85A5). Re-read the file before editing.",
+      "Hashline: astropy/nddata/mixins/ndarithmetic.py has changed since last read (tag 0651 is stale, curr",
+      "Hashline stale rejection: astropy/nddata/mixins/ndarithmetic.py",
+      "Traceback (most recent call last):"
+    ],
+    "evidenceRefs": [
+      "runs/run_1781254635607/events.jsonl",
+      "runs/run_1781254635607/outcome.json"
+    ],
+    "createdAt": "2026-06-12T08:59:10.780Z"
+  },
+  "createdAt": "2026-06-12T08:59:10.780Z"
+}

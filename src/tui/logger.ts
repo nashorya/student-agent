@@ -3,7 +3,7 @@
  *
  * 行为：
  *   - TUI 模式下写文件（~/.student-agent/logs/runtime-YYYY-MM-DD.log）
- *   - 非 TUI 模式下写 stderr（不干扰 ink 管理的 stdout 区）
+ *   - 非 TUI 模式下 error 写 stderr
  *   - 支持 printf-style 占位符（与 console.log 一致）
  */
 
@@ -55,8 +55,8 @@ function writeLine(level: LogLevel, ...args: unknown[]): void {
   const message = format(...(args as Parameters<typeof format>));
   const line = `[${new Date().toISOString()}] [${level}] ${message}\n`;
 
-  // error 级别始终写 stderr
-  if (level === "error") {
+  // 全屏 TUI 模式下 stderr 会绕过渲染器，污染输入框/状态栏。
+  if (level === "error" && !tuiModeActive) {
     process.stderr.write(line);
   }
 

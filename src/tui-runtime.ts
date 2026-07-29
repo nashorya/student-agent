@@ -10,7 +10,11 @@ export interface TUIVersionEnv {
 export function selectTUIVersion(
   env: TUIVersionEnv,
 ): TUIVersion {
-  return env.STUDENT_AGENT_TUI === 'v2' ? 'v2' : 'v1';
+  return env.STUDENT_AGENT_TUI === 'v1' ? 'v1' : 'v2';
+}
+
+export function shouldPrintLegacyBanner(env: TUIVersionEnv): boolean {
+  return selectTUIVersion(env) === 'v1';
 }
 
 export function startSelectedTUI(options: {

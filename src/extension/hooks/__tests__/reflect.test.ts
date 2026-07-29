@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { collectTaskDiff, emitReflectSummaryForTesting } from '../reflect.js';
+import { collectTaskDiff, emitReflectSummaryForTesting, markReflectBaseline } from '../reflect.js';
 import { setTuiMode } from '../../../tui/logger.js';
 
 afterEach(() => {
@@ -13,6 +13,9 @@ describe('reflect diff collection', () => {
       cwd: '/repo',
       execGit: (args) => {
         const command = args.join(' ');
+        if (command === 'rev-parse --is-inside-work-tree') {
+          return 'true\n';
+        }
         if (command === 'diff --binary HEAD --') {
           return 'diff --git a/base.txt b/base.txt\n+++ b/base.txt\n+base\n';
         }
@@ -38,6 +41,34 @@ describe('reflect diff collection', () => {
     expect(diff).toContain('+staged');
     expect(diff).toContain('+++ b/untracked.txt');
     expect(diff).toContain('+untracked');
+  });
+
+  it('非 Git 目录直接跳过 diff 收集', () => {
+    const commands: string[] = [];
+    const diff = collectTaskDiff('HEAD', {
+      cwd: '/plain-folder',
+      execGit: (args) => {
+        commands.push(args.join(' '));
+        throw new Error('fatal: not a git repository');
+      },
+    });
+
+    expect(diff).toBe('');
+    expect(commands).toEqual(['rev-parse --is-inside-work-tree']);
+  });
+
+  it('非 Git 目录标记 baseline 时不执行 stash', () => {
+    const commands: string[] = [];
+
+    markReflectBaseline({
+      cwd: '/plain-folder',
+      execGit: (args) => {
+        commands.push(args.join(' '));
+        throw new Error('fatal: not a git repository');
+      },
+    });
+
+    expect(commands).toEqual(['rev-parse --is-inside-work-tree']);
   });
 
   it('TUI 模式下 Reflect 摘要不直接写 console/stdout', () => {

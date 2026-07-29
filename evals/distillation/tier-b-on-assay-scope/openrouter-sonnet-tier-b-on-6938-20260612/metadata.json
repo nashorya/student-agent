@@ -1,0 +1,46 @@
+{
+  "commit": "53adbd418ab0b6d0c62dcb4dbf128808724ca22b",
+  "generatedAt": "2026-06-12T08:08:23.725Z",
+  "agent": "student-agent",
+  "modelNameOrPath": "anthropic/claude-sonnet-4.6",
+  "studentVariant": "context_runtime",
+  "studentMemoryDir": "/Users/juejuezi/student-agent/evals/distillation/tier-b-on-assay-scope/openrouter-sonnet-tier-b-on-memory-20260612",
+  "studentLearningLifecycle": true,
+  "studentLearningTaskOffset": 0,
+  "networkRoute": "proxy:127.0.0.1:6518",
+  "runtimeModel": {
+    "id": "anthropic/claude-sonnet-4.6",
+    "provider": "openrouter",
+    "api": "openai-completions",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "pricingUsdPerMillionTokens": {
+      "input": 3,
+      "output": 15,
+      "cacheRead": 0.3,
+      "cacheWrite": 3.75
+    }
+  },
+  "workingTreeDirty": true,
+  "dirtyPaths": [
+    " M scripts/probe_tools.py",
+    "?? anthropic__claude-sonnet-4.6.tier-b-off-6938-20260612-retry.json"
+  ],
+  "instances": [
+    {
+      "instanceId": "astropy__astropy-6938",
+      "status": "success",
+      "costUsd": 0.1370751,
+      "inputTokens": 9220,
+      "totalTokens": 123643,
+      "turns": 14,
+      "cacheReadTokens": 100742,
+      "learning": {
+        "taskId": "task_1781251630240",
+        "runId": "run_1781251630240",
+        "patternsExtracted": 1,
+        "lessonsExtracted": 7,
+        "knacksPromoted": 6
+      }
+    }
+  ]
+}

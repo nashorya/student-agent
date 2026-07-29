@@ -112,6 +112,8 @@ export class EventRenderer {
         this.startTime = Date.now();
         if (!this.bridge) {
           this.spinner.start(chalk.dim("思考中..."));
+        } else {
+          this.bridge.setStatus("等待模型响应…");
         }
         break;
 
@@ -145,6 +147,7 @@ export class EventRenderer {
           this.streamBuffer += delta;
           this.hasOutput = true;
           if (this.bridge) {
+            this.bridge.clearStatus();
             this.scheduleBridgeFlush();
           } else {
             process.stdout.write(delta);
@@ -201,8 +204,9 @@ export class EventRenderer {
           const messages = formatToolFailureMessages(event.toolName, rawDetail, ev.args ?? ev.toolArgs);
           if (this.bridge) {
             // TUI 模式：tool 错误只在状态栏短暂显示，不污染用户可见的 transcript
-            const summary = rawDetail
-              ? `${event.toolName} 失败: ${rawDetail.slice(0, 60)}${rawDetail.length > 60 ? '…' : ''}`
+            const compactDetail = rawDetail.replace(/\s+/gu, ' ').trim();
+            const summary = compactDetail
+              ? `${event.toolName} 失败: ${compactDetail.slice(0, 60)}${compactDetail.length > 60 ? '…' : ''}`
               : `${event.toolName} 调用失败`;
             this.bridge.setStatus(summary);
             recordDebugEvent("toolResult", {
@@ -232,6 +236,7 @@ export class EventRenderer {
         }
         if (this.bridge) {
           this.bridge.setCurrentTool(null);
+          this.bridge.clearStatus();
           this.bridge.updateTaskStatus({ state: "idle" });
         } else {
           this.spinner.stop();

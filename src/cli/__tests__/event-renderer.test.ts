@@ -297,6 +297,22 @@ describe('EventRenderer TUI 多消息回合', () => {
     } as unknown as AgentEvent;
   }
 
+  it('TUI agent_start shows a waiting-for-model status until output arrives', () => {
+    const bridge = createFakeBridge();
+    const renderer = new EventRenderer(bridge);
+
+    renderer.handleEvent({ type: 'agent_start' } as unknown as AgentEvent);
+    expect(bridge.setStatus).toHaveBeenCalledWith('等待模型响应…');
+
+    renderer.handleEvent({
+      type: 'message_start',
+      message: { role: 'assistant' },
+    } as unknown as AgentEvent);
+    renderer.handleEvent(textDeltaEvent('hello'));
+
+    expect(bridge.clearStatus).toHaveBeenCalled();
+  });
+
   it('TUI 中只提交最后一段 assistant 回复，丢弃工具间碎碎念', async () => {
     const bridge = createFakeBridge();
     const renderer = new EventRenderer(bridge);

@@ -45,12 +45,15 @@ describe('redirectConsoleForTUI', () => {
     expect(content).toContain('[debug] debug-msg');
   });
 
-  it('console.error 不被劫持（保留写 stderr）', () => {
+  it('console.error 也被重定向，避免污染全屏 TUI', () => {
     const originalError = console.error;
     cleanup = redirectConsoleForTUI({ logDir: tmpDir, dateString: '2026-05-20' });
-    expect(console.error).toBe(originalError);
+    expect(console.error).not.toBe(originalError);
+    console.error('fatal-looking error');
     cleanup();
     cleanup = null;
+    expect(console.error).toBe(originalError);
+    expect(readLog()).toContain('[error] fatal-looking error');
   });
 
   it('支持 printf-style 占位符', () => {

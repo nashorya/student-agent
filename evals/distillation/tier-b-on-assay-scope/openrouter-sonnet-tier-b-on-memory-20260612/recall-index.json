@@ -1,0 +1,739 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-12T08:57:15.623Z",
+  "entries": [
+    {
+      "id": "knack_742bf852-4445-4d15-b970-dcc4fb674f83",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Hashline: astropy/io/fits/fitsrec.py has changed since last read (tag 36AA is stale, current is 2D77). Re-read the file before editing.",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "edit"
+          ]
+        },
+        "applicableWhen": [
+          "Using edit"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:08:23.629Z",
+        "updatedAt": "2026-06-12T08:08:23.629Z",
+        "evidenceRefs": [
+          "toolu_01CvbSCJLoiFVQgY1RmYUXVR",
+          "toolu_01CvbSCJLoiFVQgY1RmYUXVR"
+        ]
+      }
+    },
+    {
+      "id": "knack_d1814d0e-311a-47d3-a7a4-345b9b22b967",
+      "kind": "knack",
+      "summary": "Avoid repeating stale edits after Hashline stale rejection: astropy/io/fits/fitsrec.py",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "hashline_rejection"
+          ],
+          "paths": [
+            "astropy/io/fits/fitsrec.py"
+          ]
+        },
+        "applicableWhen": [
+          "Editing a file after a stale hashline rejection"
+        ],
+        "doNotApplyWhen": [
+          "No file edit is being retried"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:08:23.630Z",
+        "updatedAt": "2026-06-12T08:08:23.630Z",
+        "evidenceRefs": [
+          "36AA"
+        ]
+      }
+    },
+    {
+      "id": "knack_6d0f2431-ae35-4014-b209-70682db75560",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Hashline: astropy/io/fits/fitsrec.py has changed since last read (tag 1F2E is stale, current is 2D77). Re-read the file before editing.",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "edit"
+          ]
+        },
+        "applicableWhen": [
+          "Using edit"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:08:23.630Z",
+        "updatedAt": "2026-06-12T08:08:23.630Z",
+        "evidenceRefs": [
+          "toolu_013iGfMzYBbyCChFPNZqNZWz",
+          "toolu_013iGfMzYBbyCChFPNZqNZWz"
+        ]
+      }
+    },
+    {
+      "id": "knack_6d30512a-fb87-4522-a6f1-28138e1a729b",
+      "kind": "knack",
+      "summary": "Avoid repeating stale edits after Hashline stale rejection: astropy/io/fits/fitsrec.py",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "hashline_rejection"
+          ],
+          "paths": [
+            "astropy/io/fits/fitsrec.py"
+          ]
+        },
+        "applicableWhen": [
+          "Editing a file after a stale hashline rejection"
+        ],
+        "doNotApplyWhen": [
+          "No file edit is being retried"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:08:23.631Z",
+        "updatedAt": "2026-06-12T08:08:23.631Z",
+        "evidenceRefs": [
+          "1F2E"
+        ]
+      }
+    },
+    {
+      "id": "knack_07594838-9850-449e-b0db-a5926a7960ef",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: sed: 1: \"astropy/io/fits/fitsrec ...\": command a expects \\ followed by text\n\n\nCommand exited with code 1",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:08:23.631Z",
+        "updatedAt": "2026-06-12T08:08:23.631Z",
+        "evidenceRefs": [
+          "toolu_01XDhmv9PWsDXwoBxzRgQYFc",
+          "toolu_01XDhmv9PWsDXwoBxzRgQYFc"
+        ]
+      }
+    },
+    {
+      "id": "knack_4ced0de6-7524-440e-8abf-c5333cb1a5a0",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n    from astropy.io.fits import FITS_rec\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-sweben...",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:08:23.631Z",
+        "updatedAt": "2026-06-12T08:08:23.631Z",
+        "evidenceRefs": [
+          "toolu_01AbnBDTfewDwtDk2tu56ysq",
+          "toolu_01AbnBDTfewDwtDk2tu56ysq"
+        ]
+      }
+    },
+    {
+      "id": "knack_0098690f-3419-47f6-bd48-fa0b9a17f99f",
+      "kind": "knack",
+      "summary": "Avoid tool usage blocked by ToolGuard: ToolGuard blocked: broad_glob",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "toolguard_block"
+          ],
+          "paths": [
+            "**/*.py"
+          ],
+          "ruleNames": [
+            "broad_glob"
+          ]
+        },
+        "applicableWhen": [
+          "Signal kind is toolguard_block"
+        ],
+        "doNotApplyWhen": [
+          "A hard ToolGuard rule already blocks the action"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.567Z",
+        "updatedAt": "2026-06-12T08:17:17.567Z",
+        "evidenceRefs": [
+          "toolu_01DNZZwHCocjTpsoi4KoLcLg"
+        ]
+      }
+    },
+    {
+      "id": "knack_77d1bd26-4d5f-4460-8831-0c97ad0be4a2",
+      "kind": "knack",
+      "summary": "Avoid tool usage blocked by ToolGuard: ToolGuard blocked: broad_glob",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "toolguard_block"
+          ],
+          "paths": [
+            "**/*.py"
+          ],
+          "ruleNames": [
+            "broad_glob"
+          ]
+        },
+        "applicableWhen": [
+          "Signal kind is toolguard_block"
+        ],
+        "doNotApplyWhen": [
+          "A hard ToolGuard rule already blocks the action"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.568Z",
+        "updatedAt": "2026-06-12T08:17:17.568Z",
+        "evidenceRefs": [
+          "toolu_01JS2CnjM1MoSw7b9E81FCm6"
+        ]
+      }
+    },
+    {
+      "id": "knack_8d7859c1-3e65-4382-98b9-912eb48183ca",
+      "kind": "knack",
+      "summary": "Avoid tool usage blocked by ToolGuard: ToolGuard blocked: broad_glob",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "toolguard_block"
+          ],
+          "paths": [
+            "**/*.py"
+          ],
+          "ruleNames": [
+            "broad_glob"
+          ]
+        },
+        "applicableWhen": [
+          "Signal kind is toolguard_block"
+        ],
+        "doNotApplyWhen": [
+          "A hard ToolGuard rule already blocks the action"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.568Z",
+        "updatedAt": "2026-06-12T08:17:17.568Z",
+        "evidenceRefs": [
+          "toolu_01N7CzPZqD9u6SfXKdNC3R46"
+        ]
+      }
+    },
+    {
+      "id": "knack_e100389c-69b6-47f6-b6f8-d6bd47b90dd4",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Hashline: astropy/wcs/wcs.py has changed since last read (tag DFAE is stale, current is 17FB). Re-read the file before editing.",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "edit"
+          ]
+        },
+        "applicableWhen": [
+          "Using edit"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.569Z",
+        "updatedAt": "2026-06-12T08:17:17.569Z",
+        "evidenceRefs": [
+          "toolu_01TsN1SQ24vUcgLX87T4kkHP",
+          "toolu_01TsN1SQ24vUcgLX87T4kkHP"
+        ]
+      }
+    },
+    {
+      "id": "knack_2b1ea8bb-e2de-427d-a2c4-e76ed7fb491a",
+      "kind": "knack",
+      "summary": "Avoid repeating stale edits after Hashline stale rejection: astropy/wcs/wcs.py",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "hashline_rejection"
+          ],
+          "paths": [
+            "astropy/wcs/wcs.py"
+          ]
+        },
+        "applicableWhen": [
+          "Editing a file after a stale hashline rejection"
+        ],
+        "doNotApplyWhen": [
+          "No file edit is being retried"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.569Z",
+        "updatedAt": "2026-06-12T08:17:17.569Z",
+        "evidenceRefs": [
+          "DFAE"
+        ]
+      }
+    },
+    {
+      "id": "knack_d1d894a2-ebc7-4399-9b61-d2d1f8a02f14",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n    from astropy.wcs import WCS\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-IjSlxk...",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.569Z",
+        "updatedAt": "2026-06-12T08:17:17.569Z",
+        "evidenceRefs": [
+          "toolu_011f8Lo29QvZqVhgb3g4SEVZ",
+          "toolu_011f8Lo29QvZqVhgb3g4SEVZ"
+        ]
+      }
+    },
+    {
+      "id": "knack_91814809-7f91-4aa4-bb16-8b8e686b606a",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"<string>\", line 4, in <module>\n    import astropy\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-IjSlxk/astropy__ast...",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.569Z",
+        "updatedAt": "2026-06-12T08:17:17.569Z",
+        "evidenceRefs": [
+          "toolu_019ayfvG2VgVuvNj9ctA34u2",
+          "toolu_019ayfvG2VgVuvNj9ctA34u2"
+        ]
+      }
+    },
+    {
+      "id": "knack_9518b650-547e-4fc7-bccd-7292684d0d8f",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"<string>\", line 6, in <module>\n    from astropy.wcs import WCS\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-IjSlxk...",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.570Z",
+        "updatedAt": "2026-06-12T08:17:17.570Z",
+        "evidenceRefs": [
+          "toolu_01TMC3EkeR936DV1ZS8qnAL4",
+          "toolu_01TMC3EkeR936DV1ZS8qnAL4"
+        ]
+      }
+    },
+    {
+      "id": "knack_4169a514-20a1-4368-92b0-1bc3bee265a3",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Hashline: astropy/wcs/wcs.py has changed since last read (tag B5CF is stale, current is 5FC9). Re-read the file before editing.",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "edit"
+          ]
+        },
+        "applicableWhen": [
+          "Using edit"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.570Z",
+        "updatedAt": "2026-06-12T08:17:17.570Z",
+        "evidenceRefs": [
+          "toolu_013wL88DfnrwF725qGA6F7Zn",
+          "toolu_013wL88DfnrwF725qGA6F7Zn"
+        ]
+      }
+    },
+    {
+      "id": "knack_c401a43f-306b-4df9-916e-da25eb3ab3ac",
+      "kind": "knack",
+      "summary": "Avoid repeating stale edits after Hashline stale rejection: astropy/wcs/wcs.py",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "hashline_rejection"
+          ],
+          "paths": [
+            "astropy/wcs/wcs.py"
+          ]
+        },
+        "applicableWhen": [
+          "Editing a file after a stale hashline rejection"
+        ],
+        "doNotApplyWhen": [
+          "No file edit is being retried"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:17:17.571Z",
+        "updatedAt": "2026-06-12T08:17:17.571Z",
+        "evidenceRefs": [
+          "B5CF"
+        ]
+      }
+    },
+    {
+      "id": "knack_1c38d908-5cc3-4d1c-a26a-f395ec981560",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-1Jgkt8/astropy__astropy-12907/astropy/__init__.py\", line 143, in _initialize_...",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:21:21.744Z",
+        "updatedAt": "2026-06-12T08:21:21.744Z",
+        "evidenceRefs": [
+          "toolu_01XPECXw2NWgiVmoMkaYD9HG",
+          "toolu_01XPECXw2NWgiVmoMkaYD9HG"
+        ]
+      }
+    },
+    {
+      "id": "knack_2e9623a9-ea39-431a-9029-885ad00eb810",
+      "kind": "knack",
+      "summary": "Avoid tool usage blocked by ToolGuard: ToolGuard blocked: broad_glob",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "toolguard_block"
+          ],
+          "paths": [
+            "**/*.py"
+          ],
+          "ruleNames": [
+            "broad_glob"
+          ]
+        },
+        "applicableWhen": [
+          "Signal kind is toolguard_block"
+        ],
+        "doNotApplyWhen": [
+          "A hard ToolGuard rule already blocks the action"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:33:06.877Z",
+        "updatedAt": "2026-06-12T08:33:06.877Z",
+        "evidenceRefs": [
+          "toolu_01TB1BFg9haReZnVXU8SUxzo"
+        ]
+      }
+    },
+    {
+      "id": "knack_91c72460-1715-489e-b9e6-1d7234925c56",
+      "kind": "knack",
+      "summary": "Avoid tool usage blocked by ToolGuard: ToolGuard blocked: broad_glob",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "toolguard_block"
+          ],
+          "paths": [
+            "**/*.py"
+          ],
+          "ruleNames": [
+            "broad_glob"
+          ]
+        },
+        "applicableWhen": [
+          "Signal kind is toolguard_block"
+        ],
+        "doNotApplyWhen": [
+          "A hard ToolGuard rule already blocks the action"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:33:06.878Z",
+        "updatedAt": "2026-06-12T08:33:06.878Z",
+        "evidenceRefs": [
+          "toolu_011kpQvbuaiwatZbnf8Brihm"
+        ]
+      }
+    },
+    {
+      "id": "knack_cc0f3edc-c71a-4109-96f9-e21ba510e675",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-5kDW2p/astropy__astropy-14182/astropy/__init__.py\", line 164, in _initialize_...",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:33:06.879Z",
+        "updatedAt": "2026-06-12T08:33:06.879Z",
+        "evidenceRefs": [
+          "toolu_01N45rXFtFi2cUdg7XLViLYj",
+          "toolu_01N45rXFtFi2cUdg7XLViLYj"
+        ]
+      }
+    },
+    {
+      "id": "knack_8747d9f6-4c77-4c99-b251-8ec73efad6a5",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-5kDW2p/astropy__astropy-14182/astropy/__init__.py\", line 164, in _initialize_...",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:33:06.879Z",
+        "updatedAt": "2026-06-12T08:33:06.879Z",
+        "evidenceRefs": [
+          "toolu_01H792LkFhheAQFPqEKo7ni8",
+          "toolu_01H792LkFhheAQFPqEKo7ni8"
+        ]
+      }
+    },
+    {
+      "id": "knack_66ab2370-58c7-4a0e-86a1-eb4fc862e6c4",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern:       ModuleNotFoundError: No module named 'setuptools.dep_util'\n      [end of output]\n  \n  note: This error originates from a subprocess, and is likely not a problem with pip.\nERROR: Failed to build ...",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:33:06.880Z",
+        "updatedAt": "2026-06-12T08:33:06.880Z",
+        "evidenceRefs": [
+          "toolu_01W3PjWMPFCXVXCugFk3j2SD",
+          "toolu_01W3PjWMPFCXVXCugFk3j2SD"
+        ]
+      }
+    },
+    {
+      "id": "knack_3c537e22-c120-462c-90c6-376045fa26fb",
+      "kind": "knack",
+      "summary": "Treat tool error as a retry pattern: Traceback (most recent call last):\n  File \"<string>\", line 2, in <module>\n    from astropy.io.ascii.qdp import _line_type, _get_tables_from_qdp_file\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhf...",
+      "sourcePath": "/Users/juejuezi/student-agent/evals/results/swebench/openrouter-sonnet-tier-b-on-memory-20260612/knacks.jsonl",
+      "recall": {
+        "trigger": {
+          "signalKinds": [
+            "tool_error"
+          ],
+          "paths": [],
+          "toolNames": [
+            "bash"
+          ]
+        },
+        "applicableWhen": [
+          "Using bash"
+        ],
+        "doNotApplyWhen": [
+          "The triggering context is absent"
+        ]
+      },
+      "metadata": {
+        "status": "candidate",
+        "createdAt": "2026-06-12T08:45:53.780Z",
+        "updatedAt": "2026-06-12T08:45:53.780Z",
+        "evidenceRefs": [
+          "toolu_01VbzAAFMv5pkHYZ57hiaPus",
+          "toolu_01VbzAAFMv5pkHYZ57hiaPus"
+        ]
+      }
+    }
+  ]
+}

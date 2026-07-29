@@ -33,6 +33,18 @@ describe('detectNaturalReviewResponse', () => {
   });
 
   it.each([
+    '别干这个任务了',
+    '不要继续这个任务',
+    '取消当前任务',
+    '放弃这个任务',
+  ])('detects task abandonment: %s', (input) => {
+    expect(detectNaturalReviewResponse(input)).toMatchObject({
+      type: 'abandoned',
+      text: input,
+    });
+  });
+
+  it.each([
     '我看看',
     '等一下',
     '为什么这里这么设计？',

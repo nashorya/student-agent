@@ -87,7 +87,7 @@ export function classifyWorkflowIntent(input: string, currentTaskName: string | 
     return continueResult('question-or-analysis-only');
   }
 
-  if (currentTaskName && TASK_ADVANCE_RE.test(text)) {
+  if (currentTaskName && isTaskAdvanceInput(text)) {
     return taskAdvanceResult('active-task-continuation');
   }
 
@@ -215,8 +215,12 @@ function taskAdvanceResult(reason: string): IntentResult {
   };
 }
 
-// 推进当前任务的确认短语：短、表达同意/继续
-const TASK_ADVANCE_RE = /^(好的?|可以|确认|嗯+|OK|好吧|行|明白|收到|没问题|那就这样|就这样|同意)[\s,，。！!]*$|^(继续|继续当前任务|继续这个任务|继续执行|下一步|执行下一步|执行当前\s*phase|执行当前阶段|开始当前任务|go|yes|y|(好的?|可以|行|嗯+|OK)[，,\s]*(继续|开始|执行|下一步))[\s。！!]*$/iu;
+export function isTaskAdvanceInput(input: string): boolean {
+  return TASK_ADVANCE_RE.test(input.trim());
+}
+
+// 推进当前任务的确认短语：短、表达同意/继续，允许自然中文确认句。
+const TASK_ADVANCE_RE = /^(好的?|可以|确认|嗯+|OK|好吧|行|明白|收到|没问题|那就这样|就这样|同意)[\s,，。！!]*$|^(继续|继续当前任务|继续这个任务|继续执行|下一步|执行下一步|执行当前\s*phase|执行当前阶段|开始当前任务|go|yes|y)[\s。！!]*$|^(好的?|可以|行|嗯+|OK|好吧|没问题)[，,\s。！!]*(请你?|麻烦你?)?(继续|开始|执行|推进|下一步|实现)(当前任务|这个任务|当前\s*phase|当前阶段|下一步|实现|一下|吧)?[\s。！!]*$/iu;
 
 function isVisualTask(input: string): boolean {
   return /(前端|页面|界面|UI|视觉|样式|颜色|布局|响应式|截图|设计|组件|按钮|卡片|CSS|TSX|React)/iu.test(input);

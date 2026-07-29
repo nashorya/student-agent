@@ -1,5 +1,11 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { classifyIntent, classifyWorkflowIntent, isInformationalFollowUp, isMetaQuestion } from '../intent-classifier.js';
+import {
+  classifyIntent,
+  classifyWorkflowIntent,
+  isInformationalFollowUp,
+  isMetaQuestion,
+  isTaskAdvanceInput,
+} from '../intent-classifier.js';
 
 vi.mock('@mariozechner/pi-ai', () => ({
   completeSimple: vi.fn(),
@@ -41,6 +47,12 @@ describe('classifyIntent', () => {
 
   it('returns task_advance when user says continue with active task', async () => {
     const result = await classifyIntent('好的，继续', '修改首页', mockModel);
+    expect(result).toMatchObject({ type: 'task_advance', level: 0, requiresPlan: false });
+    expect(completeSimple).not.toHaveBeenCalled();
+  });
+
+  it('returns task_advance for natural Chinese approval to start implementation', async () => {
+    const result = await classifyIntent('好，请你开始实现', 'AIVTuber 全栈实现', mockModel);
     expect(result).toMatchObject({ type: 'task_advance', level: 0, requiresPlan: false });
     expect(completeSimple).not.toHaveBeenCalled();
   });
@@ -121,6 +133,17 @@ describe('isInformationalFollowUp', () => {
     '开任务，进入 task 模式实现这个多文件改造',
   ])('does not allow planning fallback for task prompts: %s', (input) => {
     expect(isInformationalFollowUp(input)).toBe(false);
+  });
+});
+
+describe('isTaskAdvanceInput', () => {
+  it.each([
+    '好，请你开始实现',
+    '好的，开始吧',
+    '行，执行下一步',
+    '继续',
+  ])('accepts natural task-advance phrase: %s', (input) => {
+    expect(isTaskAdvanceInput(input)).toBe(true);
   });
 });
 

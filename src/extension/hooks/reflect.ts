@@ -85,8 +85,8 @@ function emitReflectSummary(summary: { patternsExtracted: number; promotedCount:
 export const emitReflectSummaryForTesting = emitReflectSummary;
 
 /** 标记一次用户任务开始前的 git 基线，用于会话结束后提取本次任务 diff。 */
-export function markReflectBaseline(): void {
-  baselineRef = createTrackedWorktreeRef();
+export function markReflectBaseline(options: Pick<CollectTaskDiffOptions, 'cwd' | 'execGit'> = {}): void {
+  baselineRef = createTrackedWorktreeRef(options);
   toolTrace = [];
 }
 
@@ -107,12 +107,25 @@ export function collectTaskDiff(baseRef: string, options: CollectTaskDiffOptions
   const execGit = options.execGit ?? defaultExecGit;
   const readFile = options.readFile ?? ((path: string) => readFileSync(path, 'utf-8'));
 
+  if (!isGitWorktree(cwd, execGit)) return '';
+
   return [
     gitDiff(['diff', '--binary', baseRef, '--'], cwd, execGit),
     gitDiff(['diff', '--cached', '--binary', '--'], cwd, execGit),
     gitDiff(['diff', '--binary', '--'], cwd, execGit),
     collectUntrackedDiff(cwd, execGit, readFile),
   ].filter(Boolean).join('\n');
+}
+
+function isGitWorktree(
+  cwd: string,
+  execGit: (args: string[], cwd: string) => string,
+): boolean {
+  try {
+    return execGit(['rev-parse', '--is-inside-work-tree'], cwd).trim() === 'true';
+  } catch {
+    return false;
+  }
 }
 
 function gitDiff(
@@ -175,15 +188,17 @@ function defaultExecGit(args: string[], cwd: string): string {
     cwd,
     encoding: 'utf-8',
     timeout: 5000,
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
 }
 
-function createTrackedWorktreeRef(): string {
+function createTrackedWorktreeRef(options: Pick<CollectTaskDiffOptions, 'cwd' | 'execGit'> = {}): string {
+  const cwd = options.cwd ?? process.cwd();
+  const execGit = options.execGit ?? defaultExecGit;
+  if (!isGitWorktree(cwd, execGit)) return 'HEAD';
+
   try {
-    const ref = execFileSync('git', ['stash', 'create'], {
-      encoding: 'utf-8',
-      timeout: 5000,
-    }).trim();
+    const ref = execGit(['stash', 'create'], cwd).trim();
     return ref || 'HEAD';
   } catch {
     return 'HEAD';

@@ -1,0 +1,37 @@
+[
+  {
+    "source": "ephemeral",
+    "quality": "low",
+    "confidence": null,
+    "lesson": "Treat tool error as a retry pattern: Hashline: astropy/io/fits/fitsrec.py has changed since last read (tag 57C9 is stale, current is 2D77). Re-read the file before editing.",
+    "verification": false
+  },
+  {
+    "source": "ephemeral",
+    "quality": "low",
+    "confidence": null,
+    "lesson": "Treat tool error as a retry pattern: Hashline: astropy/io/fits/fitsrec.py has changed since last read (tag B2E9 is stale, current is 2D77). Re-read the file before editing.",
+    "verification": false
+  },
+  {
+    "source": "ephemeral",
+    "quality": "low",
+    "confidence": null,
+    "lesson": "Treat tool error as a retry pattern: Hashline: astropy/wcs/wcs.py has changed since last read (tag 37A6 is stale, current is 17FB). Re-read the file before editing.",
+    "verification": false
+  },
+  {
+    "source": "ephemeral",
+    "quality": "low",
+    "confidence": null,
+    "lesson": "Avoid repeating stale edits after Hashline stale rejection: astropy/io/fits/fitsrec.py",
+    "verification": false
+  },
+  {
+    "source": "ephemeral",
+    "quality": "low",
+    "confidence": null,
+    "lesson": "Avoid repeating stale edits after Hashline stale rejection: astropy/wcs/wcs.py",
+    "verification": false
+  }
+]

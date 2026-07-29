@@ -1,0 +1,194 @@
+{
+  "note": "ZenMux management/generation requires per-call response id. Campaign traces did not persist those IDs, so historical official bill cannot be reconstructed via this API. Local cost is estimated from OpenRouter-style pricing in student-agent (input $3 / output $15 / cacheRead $0.3 per MTok).",
+  "probe": {
+    "generationId": "32c0226d3d154db09536b41294ed48d5",
+    "management": {
+      "success": true,
+      "data": {
+        "api": "chat.completions",
+        "generationId": "32c0226d3d154db09536b41294ed48d5",
+        "model": "anthropic/claude-sonnet-4.6",
+        "createAt": "2026-07-18T16:11:48.000+00:00",
+        "generationTime": 1554,
+        "latency": 2031,
+        "nativeTokens": {
+          "completion_tokens": 4,
+          "prompt_tokens": 11,
+          "total_tokens": 15,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0,
+            "web_search": 0,
+            "cacheCreationInputTokens": 0
+          }
+        },
+        "streamed": false,
+        "finishReason": "stop",
+        "usage": 9.3e-05,
+        "ratingResponses": {
+          "billAmount": 9.3e-05,
+          "discountAmount": 0,
+          "originAmount": 9.3e-05,
+          "priceVersion": "0.0.2",
+          "ratingDetails": [
+            {
+              "billAmount": 0,
+              "discountAmount": 0,
+              "feeItemCode": "input_cache_write_5_min",
+              "originAmount": 0,
+              "rate": 3.75
+            },
+            {
+              "billAmount": 6e-05,
+              "discountAmount": 0,
+              "feeItemCode": "completion",
+              "originAmount": 6e-05,
+              "rate": 15
+            },
+            {
+              "billAmount": 0,
+              "discountAmount": 0,
+              "feeItemCode": "web_search",
+              "originAmount": 0,
+              "rate": 0.01
+            },
+            {
+              "billAmount": 0,
+              "discountAmount": 0,
+              "feeItemCode": "input_cache_read",
+              "originAmount": 0,
+              "rate": 0.3
+            },
+            {
+              "billAmount": 0,
+              "discountAmount": 0,
+              "feeItemCode": "input_cache_write_1_h",
+              "originAmount": 0,
+              "rate": 6
+            },
+            {
+              "billAmount": 3.3e-05,
+              "discountAmount": 0,
+              "feeItemCode": "prompt",
+              "originAmount": 3.3e-05,
+              "rate": 3
+            }
+          ]
+        },
+        "requestRetryTimes": 0,
+        "finalRetry": true
+      }
+    }
+  },
+  "campaign": {
+    "channel": "zenmux",
+    "model": "anthropic/claude-sonnet-4.6",
+    "stamp": "20260718-zenmux",
+    "runs": [
+      {
+        "instanceId": "astropy__astropy-6938",
+        "turns": 11,
+        "inputTokens": 158,
+        "outputTokens": 1364,
+        "cacheReadTokens": 63372,
+        "totalTokens": 64894,
+        "localCostUsd": 0.0399456,
+        "localCostBreakdown": {
+          "input": 0.000474,
+          "output": 0.02046,
+          "cacheRead": 0.0190116,
+          "cacheWrite": 0,
+          "total": 0.0399456
+        },
+        "zenmuxGenerationIds": []
+      },
+      {
+        "instanceId": "astropy__astropy-7746",
+        "turns": 18,
+        "inputTokens": 6267,
+        "outputTokens": 3894,
+        "cacheReadTokens": 119334,
+        "totalTokens": 129495,
+        "localCostUsd": 0.1130112,
+        "localCostBreakdown": {
+          "input": 0.018801,
+          "output": 0.05841,
+          "cacheRead": 0.0358002,
+          "cacheWrite": 0,
+          "total": 0.1130112
+        },
+        "zenmuxGenerationIds": []
+      },
+      {
+        "instanceId": "astropy__astropy-12907",
+        "turns": 9,
+        "inputTokens": 3057,
+        "outputTokens": 1917,
+        "cacheReadTokens": 52255,
+        "totalTokens": 57229,
+        "localCostUsd": 0.0536025,
+        "localCostBreakdown": {
+          "input": 0.009171,
+          "output": 0.028755,
+          "cacheRead": 0.0156765,
+          "cacheWrite": 0,
+          "total": 0.0536025
+        },
+        "zenmuxGenerationIds": []
+      },
+      {
+        "instanceId": "astropy__astropy-14182",
+        "turns": 20,
+        "inputTokens": 29311,
+        "outputTokens": 4458,
+        "cacheReadTokens": 137056,
+        "totalTokens": 170825,
+        "localCostUsd": 0.1959198,
+        "localCostBreakdown": {
+          "input": 0.087933,
+          "output": 0.06687,
+          "cacheRead": 0.0411168,
+          "cacheWrite": 0,
+          "total": 0.1959198
+        },
+        "zenmuxGenerationIds": []
+      },
+      {
+        "instanceId": "astropy__astropy-14365",
+        "turns": 13,
+        "inputTokens": 27363,
+        "outputTokens": 3799,
+        "cacheReadTokens": 84664,
+        "totalTokens": 115826,
+        "localCostUsd": 0.1644732,
+        "localCostBreakdown": {
+          "input": 0.082089,
+          "output": 0.056985,
+          "cacheRead": 0.0253992,
+          "cacheWrite": 0,
+          "total": 0.1644732
+        },
+        "zenmuxGenerationIds": []
+      },
+      {
+        "instanceId": "astropy__astropy-14995",
+        "turns": 18,
+        "inputTokens": 26432,
+        "outputTokens": 3992,
+        "cacheReadTokens": 115059,
+        "totalTokens": 145483,
+        "localCostUsd": 0.1736937,
+        "localCostBreakdown": {
+          "input": 0.079296,
+          "output": 0.05988,
+          "cacheRead": 0.0345177,
+          "cacheWrite": 0,
+          "total": 0.1736937
+        },
+        "zenmuxGenerationIds": []
+      }
+    ],
+    "localCostTotalUsd": 0.740646
+  }
+}

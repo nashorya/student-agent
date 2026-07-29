@@ -1,0 +1,78 @@
+{
+  "taskId": "task_1781252069033",
+  "runId": "run_1781252069033",
+  "status": "success",
+  "userCorrectionCount": 0,
+  "toolErrorCount": 5,
+  "hashlineRejectionCount": 0,
+  "hashlineRecoveryCount": 0,
+  "repeatedToolCallCount": 11,
+  "lostnessTriggerCount": 0,
+  "finalSummary": "Now I can see the issue. When empty arrays are passed, `func(xy, origin)` is called with zero-length data, and wcslib's C code can't handle that. The fix is to detect empty input and return empty output early.Now let me verify the fix was applied correctly:The patch looks correct. Now let me test the fix with a simple Python script:The local repo has a Python 3.10+ incompatibility in configobj. Let me look at whether there's a way to run tests directly, or test the logic in isolation:The logic works correctly. Let me also verify the `ra_dec_order` sky=='input' path for empty inputs is covered:Let me check the ra_dec_order output case more carefully - the returned shapes should match what the normal path returns:The `(xy, xy)` approach returned `(0, 2)` shaped arrays instead of `(0,)`. Let me fix that part of the patch:The fix is now in place. Let me verify the logic once more with comprehensive tests:Now let's look at the final git diff:The patch is clean and minimal. Here is a summary of the changes:\n\n**File modified:** `astropy/wcs/wcs.py`\n\n**What was changed:**\n\n1. In `_return_list_of_arrays` (called when passing separate coordinate arrays like `wcs_pix2world([], [], 0)`): added an early-return guard after building the `xy` array. If any dimension of `xy` is zero (empty input), return empty arrays immediately without calling the underlying `func` (which calls wcslib C code that cannot handle zero-length coordinate arrays).\n\n2. In `_return_single_array` (called when passing a single Nx2 array like `wcs_pix2world(np.empty((0,2)), 0)`): added a similar early-return guard — if `xy` contains a zero dimension, return it directly unchanged.\n\nBoth guards mirror the shape/structure of what the normal (non-empty) path would return, ensuring callers receive properly shaped empty arrays rather than an `InconsistentAxisTypesError` from wcslib.",
+  "evidenceRefs": [
+    "toolu_01JS2CnjM1MoSw7b9E81FCm6",
+    "toolu_01N7CzPZqD9u6SfXKdNC3R46",
+    "toolu_0137dmeY5SZNZJz3AFJ8BZ9P",
+    "toolu_01Hkdu7X3EdCySZ4hQfWkeDg",
+    "toolu_vrtx_01CSjxRaMqRLncFKmyBScr1d",
+    "toolu_01TsN1SQ24vUcgLX87T4kkHP",
+    "toolu_01Lui4qZPfKdFcnhBB5jpMdS",
+    "toolu_01ASUT3Y693GSzXtXHh9UtK9",
+    "toolu_01R2roGuJfTfV83i15aFXiaG",
+    "toolu_011f8Lo29QvZqVhgb3g4SEVZ",
+    "toolu_016SRgi2wLvLNmaH8q54kA4R",
+    "toolu_019ayfvG2VgVuvNj9ctA34u2",
+    "toolu_01TMC3EkeR936DV1ZS8qnAL4",
+    "toolu_01NLxVvLFo9XyidZwgHVHKWf",
+    "toolu_01VPpjQtrbah7ySdTiyfwpAs",
+    "toolu_01KbTW8EHx5w9BeVj7JrnQqf",
+    "toolu_011vZ4iCiqmDayF5HPWtNZR7",
+    "toolu_0198qEHrR6oGZoqiKcw6WoSj",
+    "toolu_013wL88DfnrwF725qGA6F7Zn",
+    "toolu_01Ra9AFmy7giQriaivm7jm1h",
+    "toolu_012ZjUQGzYRVe4cCRfyPgRK2",
+    "toolu_01C4sYw1es7SXMTCtZByDv9b",
+    "toolu_01AVyngyuricTPrNa8v3SgaY",
+    "toolu_01P6SdsQcX6Yze1W46moxPm7"
+  ],
+  "wmSnapshot": {
+    "taskId": "task_1781252069033",
+    "runId": "run_1781252069033",
+    "goal": "Eval task: SWE-bench astropy__astropy-7746",
+    "phase": "executing",
+    "finalStep": "Execute eval task astropy__astropy-7746",
+    "completedTodos": [],
+    "completedTodoCount": 0,
+    "readFiles": [
+      "astropy/wcs/wcs.py"
+    ],
+    "writtenFiles": [
+      "astropy/wcs/wcs.py"
+    ],
+    "keyFiles": [
+      {
+        "path": "astropy/wcs/wcs.py",
+        "role": "read_and_written"
+      }
+    ],
+    "keySignalSummaries": [
+      "Traceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n    from astropy.wcs import WCS\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-IjSlxk...",
+      "Traceback (most recent call last):\n  File \"<string>\", line 4, in <module>\n    import astropy\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-IjSlxk/astropy__ast...",
+      "Traceback (most recent call last):\n  File \"<string>\", line 6, in <module>\n    from astropy.wcs import WCS\n  File \"/private/var/folders/yl/rtnh4ydn1158gbvnwhfggqgm0000gn/T/student-agent-swebench-IjSlxk...",
+      "Hashline: astropy/wcs/wcs.py has changed since last read (tag B5CF is stale, current is 5FC9). Re-read the file before editing.",
+      "Hashline stale rejection: astropy/wcs/wcs.py"
+    ],
+    "errorPatterns": [
+      "Traceback (most recent call last):",
+      "Hashline: astropy/wcs/wcs.py has changed since last read (tag B5CF is stale, current is 5FC9). Re-read the file before editing.",
+      "Hashline: astropy/wcs/wcs.py has changed since last read (tag B5CF is stale, current is 5FC9). Re-re",
+      "Hashline stale rejection: astropy/wcs/wcs.py"
+    ],
+    "evidenceRefs": [
+      "runs/run_1781252069033/events.jsonl",
+      "runs/run_1781252069033/outcome.json"
+    ],
+    "createdAt": "2026-06-12T08:17:17.563Z"
+  },
+  "createdAt": "2026-06-12T08:17:17.563Z"
+}

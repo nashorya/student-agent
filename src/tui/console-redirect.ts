@@ -9,8 +9,7 @@
  *   1. 项目自身散布的 console.* 调用（88 处）
  *   2. 第三方包内部的 console.warn（如 @google/genai 检测到双 env 时）
  *
- * 这个 helper 在 TUI 启动时全局重定向 log/warn/info 到日志文件，
- * error 仍写 stderr（ink 不接管 stderr，安全）。
+ * 这个 helper 在 TUI 启动时全局重定向 log/warn/info/error 到日志文件。
  * 返回 cleanup 函数，TUI 退出时调用以恢复原始 console。
  *
  * 日志文件位置：~/.student-agent/logs/runtime-YYYY-MM-DD.log
@@ -26,6 +25,7 @@ interface ConsoleSnapshot {
   warn: typeof console.warn;
   info: typeof console.info;
   debug: typeof console.debug;
+  error: typeof console.error;
 }
 
 let activeLogPath: string | null = null;
@@ -61,12 +61,14 @@ export function redirectConsoleForTUI(options: RedirectOptions = {}): () => void
     warn: console.warn,
     info: console.info,
     debug: console.debug,
+    error: console.error,
   };
 
   console.log = makeWriter('log');
   console.warn = makeWriter('warn');
   console.info = makeWriter('info');
   console.debug = makeWriter('debug');
+  console.error = makeWriter('error');
 
   return restore;
 }
@@ -87,6 +89,7 @@ function restore(): void {
     console.warn = activeSnapshot.warn;
     console.info = activeSnapshot.info;
     console.debug = activeSnapshot.debug;
+    console.error = activeSnapshot.error;
     activeSnapshot = null;
   }
   activeLogPath = null;

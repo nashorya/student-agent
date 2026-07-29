@@ -9,6 +9,11 @@ const agentDir = resolve(dirname(binPath), '..');
 const entryPath = resolve(agentDir, 'dist/extension/index.js');
 const projectCwd = process.env.STUDENT_AGENT_CWD || process.cwd();
 const tsxImport = import.meta.resolve('tsx');
+const useOpenTUI = process.env.STUDENT_AGENT_TUI !== 'v1';
+const executable = useOpenTUI ? process.env.STUDENT_AGENT_BUN || 'bun' : process.execPath;
+const args = useOpenTUI
+  ? [entryPath, ...process.argv.slice(2)]
+  : ['--import', tsxImport, entryPath, ...process.argv.slice(2)];
 
 if (!existsSync(entryPath)) {
   console.error('[student-agent] Missing dist/extension/index.js. Run `npm run build` before using the packaged CLI.');
@@ -17,8 +22,8 @@ if (!existsSync(entryPath)) {
 
 process.env.STUDENT_AGENT_CWD = projectCwd;
 const child = spawnSync(
-  process.execPath,
-  ['--import', tsxImport, entryPath, ...process.argv.slice(2)],
+  executable,
+  args,
   {
     cwd: projectCwd,
     env: process.env,
