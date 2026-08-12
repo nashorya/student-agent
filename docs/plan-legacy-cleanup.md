@@ -1,11 +1,16 @@
 # 计划：旧版 TUI 与遗留物清理（独立 PR，benchmark 收尾后执行）
 
+> **TUI 策略已由 [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) 取代（2026-08-12）。**
+> 不再「默认切 v2 → 迁共享件 → 删 v1」；改为 **删除全部 `src/tui/` + `src/tui-v2/` + `src/tui-runtime.ts`**，
+> 用 pi-tui 从零重建 Student-owned shell。下文仅保留非 TUI 遗留物清理参考。
+
 ## 背景
 
 - `npm run dev` 默认仍走 v1 TUI（ink/react）。v2（pi-tui）需 `STUDENT_AGENT_TUI=v2`。
 - 共享基础设施（logger、input-queue、paste-buffer、debug-events、TUIBridge 类型）
   住在 `src/tui/`（v1 目录）里，`extension/index.ts` 直接引用，不能直接删目录。
 - 架构文档把 TUI v2 稳定化记在 v0.33，与"默认 v1"现状矛盾，需二选一对齐。
+- **（已否决）** 渐进保留 tui-v2；见 ADR-009。
 
 ## 步骤（按序执行，每步可独立提交）
 

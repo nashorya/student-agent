@@ -4,7 +4,7 @@ import {
   defineTool,
   type BashOperations,
   type BashToolOptions,
-} from '@mariozechner/pi-coding-agent';
+} from '@earendil-works/pi-coding-agent';
 
 export const DEFAULT_BASH_TIMEOUT_SECONDS = 120;
 

@@ -3,7 +3,7 @@ import {
   createReadToolDefinition,
   createWriteToolDefinition,
   defineTool,
-} from '@mariozechner/pi-coding-agent';
+} from '@earendil-works/pi-coding-agent';
 import type { SnapshotStore, Filesystem } from '@oh-my-pi/hashline';
 import { MismatchError } from '@oh-my-pi/hashline';
 import { emitProtectedEvent } from '../hashline/index.js';

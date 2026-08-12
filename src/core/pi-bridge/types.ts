@@ -9,7 +9,7 @@ import type {
   AfterToolCallResult,
   AgentEvent,
   AgentMessage,
-} from '@mariozechner/pi-agent-core';
+} from '@earendil-works/pi-agent-core';
 
 // ── beforeToolCall 边界 ─────────────────────────────
 

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { AgentEvent } from '@mariozechner/pi-agent-core';
-import type { Api, Model } from '@mariozechner/pi-ai';
+import type { AgentEvent } from '@earendil-works/pi-agent-core';
+import type { Api, Model } from '../core/pi-compat/index.js';
 import { loadEnvFile, loadEnvLayersPreservingAmbient } from '../core/env.js';
 import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';

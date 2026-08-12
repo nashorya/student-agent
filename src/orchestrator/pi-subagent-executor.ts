@@ -1,4 +1,4 @@
-import type { Api, Model } from '@mariozechner/pi-ai';
+import type { Api, Model } from '../core/pi-compat/index.js';
 import type {
   CreateStudentSessionOptions,
   CreateStudentSessionResult,

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { Type } from '@mariozechner/pi-ai';
-import { defineTool } from '@mariozechner/pi-coding-agent';
+import { Type } from '../pi-compat/index.js';
+import { defineTool } from '@earendil-works/pi-coding-agent';
 import { ArchiveService } from '../../archive/service.js';
 import type { PendingArchiveActionType } from '../../archive/pending-actions.js';
 

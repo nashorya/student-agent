@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { open, readdir, realpath, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { Type } from '@mariozechner/pi-ai';
-import { defineTool } from '@mariozechner/pi-coding-agent';
+import { Type } from '../pi-compat/index.js';
+import { defineTool } from '@earendil-works/pi-coding-agent';
 
 type RecordValue = Record<string, unknown>;
 

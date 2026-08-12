@@ -1,4 +1,4 @@
-import type { AgentEvent } from '@mariozechner/pi-agent-core';
+import type { AgentEvent } from '@earendil-works/pi-agent-core';
 
 export const SELF_CHECK_PROMPT = `Before finishing, perform one evidence-based completion self-check:
 1. Use git diff or read tools to list every file change you made. Do not rely on memory.

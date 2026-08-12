@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BashOperations } from '@mariozechner/pi-coding-agent';
+import type { BashOperations } from '@earendil-works/pi-coding-agent';
 import { createStudentBashToolDefinition, DEFAULT_BASH_TIMEOUT_SECONDS } from '../bash-timeout-tool.js';
 
 describe('createStudentBashToolDefinition', () => {

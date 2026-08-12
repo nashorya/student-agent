@@ -327,6 +327,9 @@
   `@earendil-works/pi` 0.80.6 时，`getModel/getModels/getProviders/completeSimple`
   API 已不存在，不能只换包名；按 [pi 后继迁移计划](plan-pi-successor-migration.md)
   独立处理。`oh-my-pi` runtime 需要 Bun，继续按既有路线图排除。
+- **2026-08-12 跟进**：按 [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) Phase 0
+  已迁到 `@earendil-works/pi-*` 0.84.1 + `src/core/pi-compat`；旧 `src/tui*` 已删。
+  GLM thinking 真实请求复验仍待做。
 - **状态**：CLOSED
 - **motivates** → `phase:P0` · 干净检出是一切化验前提
 

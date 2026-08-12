@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { collectTaskDiff, emitReflectSummaryForTesting } from '../reflect.js';
-import { setTuiMode } from '../../../tui/logger.js';
+import { setTuiMode } from '../../../runtime/logger.js';
 
 afterEach(() => {
   setTuiMode(false);

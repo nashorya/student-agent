@@ -1,4 +1,4 @@
-import { completeSimple, type Model, type Api } from '@mariozechner/pi-ai';
+import { completeSimple, type Model, type Api } from '../pi-compat/index.js';
 
 export type IntentType = 'new_task' | 'task_advance' | 'continue';
 export type WorkflowLevel = 0 | 1 | 2 | 3 | 4;

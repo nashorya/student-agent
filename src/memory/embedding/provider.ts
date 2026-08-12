@@ -1,4 +1,4 @@
-import { logger } from '../../tui/logger.js';
+import { logger } from '../../runtime/logger.js';
 import type { EmbeddingProvider, RecallSimilarityProvider } from './types.js';
 
 export interface OpenAICompatibleEmbeddingOptions {

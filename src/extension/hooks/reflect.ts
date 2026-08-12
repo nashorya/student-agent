@@ -18,7 +18,7 @@ import {
   type ToolCallRecord,
 } from '../../memory/distill/tool-evidence.js';
 import type { PostToolCallContext, SessionEndContext } from '../../core/pi-bridge/types.js';
-import { safeStdout } from '../../tui/logger.js';
+import { safeStdout } from '../../runtime/logger.js';
 
 let taskCount = 0;
 let baselineRef = 'HEAD';

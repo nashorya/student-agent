@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
-import { Type } from '@mariozechner/pi-ai';
-import { defineTool } from '@mariozechner/pi-coding-agent';
+import { Type } from '../pi-compat/index.js';
+import { defineTool } from '@earendil-works/pi-coding-agent';
 import type { TasksManager } from '../../memory/tasks/manager.js';
 
 interface ApplyPatchInput {

@@ -13,7 +13,7 @@ import { PreferencesManager } from '../memory/preferences/manager.js';
 import { extractPatterns } from './pattern-rules.js';
 import type { ExtractedPattern } from './pattern-rules.js';
 import { BoundedBreaker } from './bounded-breaker.js';
-import { logger } from '../tui/logger.js';
+import { logger } from '../runtime/logger.js';
 import { BreakerLogManager } from './breaker-log-manager.js';
 import { LessonsManager } from '../memory/lessons/index.js';
 import { KnacksManager } from '../memory/knacks/index.js';

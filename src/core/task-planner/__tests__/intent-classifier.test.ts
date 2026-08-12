@@ -1,11 +1,11 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { classifyIntent, classifyWorkflowIntent, isInformationalFollowUp, isMetaQuestion } from '../intent-classifier.js';
 
-vi.mock('@mariozechner/pi-ai', () => ({
+vi.mock('../../pi-compat/index.js', () => ({
   completeSimple: vi.fn(),
 }));
 
-import { completeSimple } from '@mariozechner/pi-ai';
+import { completeSimple } from '../../pi-compat/index.js';
 
 const mockModel = { id: 'test', api: 'anthropic', provider: 'anthropic' } as any;
 

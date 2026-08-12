@@ -1,4 +1,4 @@
-import { completeSimple, type Model, type Api } from '@mariozechner/pi-ai';
+import { completeSimple, type Model, type Api } from '../pi-compat/index.js';
 import type { Context7Client, Context7DocsResult } from '../../knowledge/context7-client.js';
 
 /**

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { buildCtx7RetryContext } from '../ctx7-retry-builder.js';
 
-vi.mock('@mariozechner/pi-ai', () => ({ completeSimple: vi.fn() }));
-import { completeSimple } from '@mariozechner/pi-ai';
+vi.mock('../../pi-compat/index.js', () => ({ completeSimple: vi.fn() }));
+import { completeSimple } from '../../pi-compat/index.js';
 
 const mockModel = { id: 'test', api: 'anthropic', provider: 'anthropic' } as any;
 

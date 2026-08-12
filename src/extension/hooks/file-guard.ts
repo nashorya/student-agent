@@ -85,7 +85,7 @@ export function createFileGuardHook(_abortRef: { abort: () => void }, options: F
       if (path !== null && ROOT_PATH_RE.test(path)) {
         return block(
           '[FileGuard] 禁止列举项目根目录，那里有数千个文件会撑满上下文。' +
-          '请指定具体子目录，例如 src/core/ 或 src/tui/。',
+          '请指定具体子目录，例如 src/core/ 或 src/cli/。',
           path,
         );
       }

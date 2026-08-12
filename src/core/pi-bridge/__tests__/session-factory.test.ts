@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Agent } from '@mariozechner/pi-agent-core';
-import { registerFauxProvider, streamSimple } from '@mariozechner/pi-ai';
+import { Agent } from '@earendil-works/pi-agent-core';
+import { registerFauxProvider, streamSimple } from '../../pi-compat/index.js';
 import { applyLlmRequestLimits, createStudentSession } from '../session-factory.js';
 
 const registrations: Array<{ unregister: () => void }> = [];
@@ -112,7 +112,7 @@ describe('createStudentSession', () => {
       maxRetryDelayMs: 30_000,
     });
 
-    const stream = await agent.streamFn(faux.getModel(), {
+    const stream = await agent.streamFunction(faux.getModel(), {
       systemPrompt: '',
       messages: [],
       tools: [],

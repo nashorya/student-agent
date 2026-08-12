@@ -115,7 +115,7 @@ export class ForcedCompactionController {
       event.status = 'failed';
       event.error =
         'Pinned Pi AgentSession does not expose session.compact(). ' +
-        'Inspect node_modules/@mariozechner/pi-coding-agent@0.73.1 before continuing.';
+        'Inspect node_modules/@earendil-works/pi-coding-agent@0.84.1 before continuing.';
       throw new Error(event.error);
     }
 

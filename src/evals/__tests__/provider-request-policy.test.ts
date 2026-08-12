@@ -1,4 +1,4 @@
-import type { Api, Model } from '@mariozechner/pi-ai';
+import type { Api, Model } from '../../core/pi-compat/index.js';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

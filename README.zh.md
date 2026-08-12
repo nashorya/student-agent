@@ -2,7 +2,7 @@
 
 > **真正的大师，永远都怀着一颗学徒的心**
 
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
+[![Node](https://img.shields.io/badge/node-%3E%3D22.19-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Eval Fixtures](https://img.shields.io/badge/eval%20fixtures-10%2F10%20validate-success)](evals/)
@@ -56,7 +56,7 @@ commit + 模型 + 单价。2026 年 6 月要点：
 
 ### 前置条件
 
-- Node.js 20+
+- Node.js 22.19+
 - Git
 
 ### 安装
@@ -149,8 +149,8 @@ npx playwright install chromium
 
 | 层 | 选型 | 版本 | 说明 |
 |---|---|---|---|
-| 运行时 | Node.js / TypeScript | 20+ / 5.x | 与现有工具链一致 |
-| 基础框架 | [pi](https://github.com/badlogic/pi-mono) | 0.73.1（npm 锁定） | CLI REPL、工具调用、MCP Client 骨架 |
+| 运行时 | Node.js / TypeScript | 22.19+ / 5.x | 与现有工具链一致 |
+| 基础框架 | [pi](https://github.com/badlogic/pi-mono) | 0.84.1（@earendil-works/pi-*） | CLI REPL、工具调用、MCP Client 骨架 |
 | LLM 运行时 | Pi SDK model registry | 可配置 | 使用 Pi 的 `Model<Api>` registry，支持 Anthropic 和 OpenAI 兼容 provider。 |
 | 向量存储 | sqlite-vec | 0.1.9 | 零依赖，预编译二进制，跨平台 |
 | MCP | @modelcontextprotocol/sdk | — | 标准协议；Context7、Web Search 直接接入 |

@@ -19,16 +19,16 @@
  *   - 禁止直接 console.log
  */
 
-import type { AgentEvent } from "@mariozechner/pi-agent-core";
-import type { AssistantMessageEvent } from "@mariozechner/pi-ai";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
+import type { AssistantMessageEvent } from '../core/pi-compat/index.js';
 import chalk from "chalk";
 import ora, { type Ora } from "ora";
 import stringWidth from "string-width";
 import { renderMarkdown } from "./markdown.js";
-import type { TUIBridge } from "../tui/bridge.js";
+import type { TUIBridge } from "../runtime/ui-bridge.js";
 import { stripPhaseSignals } from "../core/task-planner/phase-signal.js";
-import { recordDebugEvent } from "../tui/debug-events.js";
-import { logger } from "../tui/logger.js";
+import { recordDebugEvent } from "../runtime/debug-events.js";
+import { logger } from "../runtime/logger.js";
 
 /**
  * 从 message_update 事件的 assistantMessageEvent 中提取文本 delta。

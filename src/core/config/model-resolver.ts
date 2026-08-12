@@ -1,4 +1,4 @@
-import { getModels, type Api, type Model } from '@mariozechner/pi-ai';
+import { getModels, type Api, type Model } from '../pi-compat/index.js';
 import type { StudentAgentConfig } from './types.js';
 
 type ModelConfig = StudentAgentConfig['model'];

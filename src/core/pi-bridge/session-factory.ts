@@ -13,9 +13,9 @@ import {
   type CreateAgentSessionOptions,
   type CreateAgentSessionResult,
   type AgentSession,
-} from '@mariozechner/pi-coding-agent';
-import type { Agent, AgentEvent } from '@mariozechner/pi-agent-core';
-import type { Api, Model } from '@mariozechner/pi-ai';
+} from '@earendil-works/pi-coding-agent';
+import type { Agent, AgentEvent } from '@earendil-works/pi-agent-core';
+import type { Api, Model } from '../pi-compat/index.js';
 import { createApplyPatchToolDefinition } from './apply-patch-tool.js';
 import { createArchiveRecordToolDefinition } from './archive-tool.js';
 import { createHashlineStore, StudentAgentFilesystem } from '../hashline/index.js';
@@ -76,7 +76,7 @@ export interface CreateStudentSessionOptions {
   llm?: LlmRequestLimits;
   /**
    * 显式 API Key（供自定义 provider 使用）。
-   * Pi 的 hasConfiguredAuth 不认识自定义 provider，需通过 registerProvider 注入。
+   * Pi 的 hasConfiguredAuth 不认识自定义 provider，需通过 modelRuntime.setRuntimeApiKey 注入。
    */
   apiKey?: string;
   /** Whether agents may stage durable project archive records. */
@@ -181,9 +181,9 @@ export async function createStudentSession(
 
   // 为自定义 provider 注册 API Key。
   // Pi 的 hasConfiguredAuth 只认识内置 provider 的 env var，
-  // 对未知 provider 需通过 registerProvider 把 key 存入 providerRequestConfigs。
+  // 对未知 provider 需通过 modelRuntime.setRuntimeApiKey 注入运行时 API Key。
   if (apiKey && model) {
-    session.modelRegistry.registerProvider(model.provider, { apiKey });
+    await session.modelRuntime.setRuntimeApiKey(model.provider, apiKey);
   }
 
   applyLlmRequestLimits(agent, llm);
@@ -252,8 +252,8 @@ export function applyLlmRequestLimits(agent: Agent, limits: LlmRequestLimits | u
     return;
   }
 
-  const originalStreamFn = agent.streamFn;
-  agent.streamFn = (model, context, options) => {
+  const originalStreamFn = agent.streamFunction;
+  agent.streamFunction = (model, context, options) => {
     const longCache = Boolean(
       (model as { compat?: { supportsLongCacheRetention?: boolean } }).compat
         ?.supportsLongCacheRetention,

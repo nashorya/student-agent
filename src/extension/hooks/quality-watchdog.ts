@@ -3,7 +3,7 @@ import { QualityFeedbackManager, shouldRequestFeedback } from '../../watchdog/fe
 import { QualityWatchdog } from '../../watchdog/watchdog.js';
 import { PreferenceCandidatesManager } from '../../memory/candidates/manager.js';
 import type { SessionEndContext } from '../../core/pi-bridge/types.js';
-import { logger } from '../../tui/logger.js';
+import { logger } from '../../runtime/logger.js';
 
 let taskCount = 0;
 

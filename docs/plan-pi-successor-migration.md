@@ -23,19 +23,22 @@ runner 因此在最终 fetch 出口执行临时注入、`temperature: 0` / `do_s
 
 ## 决策
 
-1. 当前发布修复保持 Node 20+ 与 pi 0.73.1 精确 npm 版本。
+1. Phase 0：Node ≥22.19 与 `@earendil-works/pi-*` 0.84.1（compat shim）；旧 TUI 已删。
 2. 不迁移到 Codex 或 oh-my-pi runtime。
 3. 建立独立批次迁移到 `@earendil-works/pi`，不与 ADR-003 P2 产品实验混改。
+4. **总纲见 [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md)**：施工目标 `@earendil-works/pi-*` **0.84.1**、Node **≥22.19**；compat 优先；**不对 tui-v2 做 API 修补**，旧 TUI 在 Phase 1 整目录删除后由新 shell 取代。
 
 ## 迁移步骤
 
-1. 建立 pi compatibility adapter，集中封装 model registry 和 simple completion。
-2. 用现有单测锁定 provider/model 选择、fallback、usage 和 tool schema 行为。
-3. 将运行时基线提升到 Node 22.19，并更新 CI/README。
-4. 替换为 `@earendil-works/pi-*` 精确版本，逐项适配移除的 API。
-5. 运行 TypeScript build、全量 Vitest、Python runner、`eval:validate`。
-6. 运行一条零付费 faux-provider smoke 和一条受控非交互真实 provider smoke。
-7. `npm audit` 确认旧 `@mariozechner/pi-coding-agent` advisory 已消失后再合并。
+> 2026-08-12：Phase 0 代码已合入工作树（未要求 commit）——0.84.1、`pi-compat`、旧 TUI 删除、readline 临时 REPL；`tsc` / Vitest / `eval:validate` 已绿。待办：faux-provider smoke、GLM thinking 真实请求复验、合并前再确认 audit 无旧 pi advisory。
+
+1. ~~建立 pi compatibility adapter~~ → `src/core/pi-compat`
+2. ~~单测锁定~~ → Vitest 全绿
+3. ~~Node 22.19 + README~~
+4. ~~替换 `@earendil-works/pi-*` 0.84.1 + session `modelRuntime`~~
+5. ~~TypeScript / Vitest / `eval:validate`~~
+6. 零付费 faux-provider smoke + 受控真实 provider / GLM thinking 复验（待）
+7. 合并前 `npm audit` 确认无旧 `@mariozechner/pi-coding-agent` advisory（当前剩余为传递依赖 brace-expansion / undici，非旧 pi 包）
 
 ## 验收
 

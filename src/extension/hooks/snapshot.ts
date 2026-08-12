@@ -7,7 +7,7 @@
 
 import { SnapshotManager } from '../../core/executor/snapshot.js';
 import type { PreToolCallContext, PreToolCallDecision } from '../../core/pi-bridge/types.js';
-import { logger } from '../../tui/logger.js';
+import { logger } from '../../runtime/logger.js';
 
 /** 最近一次快照 ID，供失败升级时回滚使用 */
 let lastSnapshotId: string | null = null;

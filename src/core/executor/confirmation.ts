@@ -1,5 +1,5 @@
 import type { ConfirmationDecision, ConfirmationProvider } from './types.js';
-import { logger } from '../../tui/logger.js';
+import { logger } from '../../runtime/logger.js';
 
 export class AlwaysAllowProvider implements ConfirmationProvider {
   async confirm(_op: { toolName: string; input: unknown; reason: string }): Promise<boolean> {

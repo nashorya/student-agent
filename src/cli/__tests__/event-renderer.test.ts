@@ -6,9 +6,9 @@ import {
   formatDuration,
   formatToolFailureMessages,
 } from '../event-renderer.js';
-import type { AssistantMessageEvent } from '@mariozechner/pi-ai';
-import type { AgentEvent } from '@mariozechner/pi-agent-core';
-import type { TUIBridge } from '../../tui/bridge.js';
+import type { AssistantMessageEvent } from '../../core/pi-compat/index.js';
+import type { AgentEvent } from '@earendil-works/pi-agent-core';
+import type { TUIBridge } from '../../runtime/ui-bridge.js';
 
 // 最小 AssistantMessage mock
 const partialMessage = {

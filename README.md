@@ -2,7 +2,7 @@
 
 > **A true master is an eternal student.**
 
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
+[![Node](https://img.shields.io/badge/node-%3E%3D22.19-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Eval Fixtures](https://img.shields.io/badge/eval%20fixtures-10%2F10%20validate-success)](evals/)
@@ -65,7 +65,7 @@ every run traceable to commit + model + pricing. June 2026 highlights:
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22.19+
 - Git
 
 ### Install
@@ -158,8 +158,8 @@ npx playwright install chromium
 
 | Layer | Choice | Version | Reason |
 |---|---|---|---|
-| Runtime | Node.js / TypeScript | 20+ / 5.x | Consistent with existing toolchain |
-| Base framework | [pi](https://github.com/badlogic/pi-mono) | 0.73.1 (pinned npm packages) | CLI REPL, tool dispatch, MCP client skeleton |
+| Runtime | Node.js / TypeScript | 22.19+ / 5.x | Consistent with existing toolchain |
+| Base framework | [pi](https://github.com/badlogic/pi-mono) | 0.84.1 (@earendil-works/pi-*) | CLI REPL, tool dispatch, MCP client skeleton |
 | LLM runtime | Pi SDK model registry | configurable | Uses Pi's `Model<Api>` registry; supports Anthropic and OpenAI-compatible providers. |
 | Vector store | sqlite-vec | 0.1.9 | Zero dependencies, precompiled binary, cross-platform |
 | MCP | @modelcontextprotocol/sdk | — | Standard protocol; Context7 and Web Search plug in directly |
