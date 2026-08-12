@@ -51,6 +51,7 @@
 | 2026-07-19 | Roadmap 收编入库 + 假设账本：`docs/roadmap/` 归档 paper-calibrated 终稿（原文保留）并追加结账层；论文表加状态/证据列与 GEP/Gene 第 9 行；Chronicle extra source 接线图关系 | [roadmap 终稿](roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md) |
 | 2026-07-19 | 注入效果实验预注册 **v0.1.1**（finding:injection-effect-experiment）：coding plan 直连；记忆隔离+主库封存；p1prom 六题黑名单；C 臂断点后全量常驻细则；采样三臂锁定；**未冻结禁止合并** | [预注册 v0.1.1](proposals/injection-effect-experiment-prereg-v0.md) · [ADR-008](adr/ADR-008-measured-harness-evolution.md) |
 | 2026-08-12 | ADR-009 Phase 0 落地：`@earendil-works/pi-*` 0.84.1、`pi-compat`、删 `src/tui*`/`tui-runtime`、共享件迁 `src/runtime/`、交互暂 readline；`tsc`/Vitest/`eval:validate` 绿。Phase 1 新 shell 与 GLM thinking 实测待办 | [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) · [pi 后继迁移](plan-pi-successor-migration.md) |
+| 2026-08-12 | ADR-009 Phase 1 foundation：`src/tui-shell/`（semantic theme、state/bridge、wide/compact layout、Composer/Status/Plan·Agents 占位）；TTY 交互接 shell + EventRenderer；非 TTY 保留 readline | [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) |
 
 ## 横向 · 项目树地图
 
@@ -63,7 +64,7 @@
 | Guards（Tool/File/Risk） | `src/extension/hooks/` | 架构更新 §v0.36 |
 | Run Archive / Trace Grader | `src/memory/run-archive/`、`src/evals/trace-grader/` | 冻结文档 |
 | Eval 框架（baseline/ablation/外部基准） | `src/evals/`、`scripts/eval-*.ts` | [eval 写作指南](eval-writing-guide.md)、[Ablation RFC](ablation-eval-rfc.md)、[外部基准](external-benchmarks.zh.md) |
-| TUI | 旧目录**已删**；共享件在 `src/runtime/`；新 shell 待 Phase 1；交互暂 readline | [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) |
+| TUI | `src/tui-shell/`（Phase 1 foundation）；共享件 `src/runtime/`；非 TTY 仍 readline | [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) |
 | 路线图 | — | [v0.4/v0.4x/v0.5 roadmap（结账层）](roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md) |
 | 决策档案 | — | [adr/](adr/)（含被否方案与理由） |
 | Bug 档案 | — | [buglog.md](buglog.md) |

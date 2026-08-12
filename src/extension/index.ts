@@ -81,6 +81,10 @@ import { ArchiveService } from '../archive/service.js';
 import { ArchiveWorkflowCoordinator } from '../archive/workflow.js';
 import { printBanner } from '../cli/banner.js';
 import { initLogger, logger } from '../runtime/logger.js';
+import { createInputQueue } from '../runtime/input-queue.js';
+import { redirectConsoleForTUI } from '../runtime/console-redirect.js';
+import type { UiBridge } from '../runtime/ui-bridge.js';
+import { startShell, type ShellHandle } from '../tui-shell/index.js';
 import { TasksManager } from '../memory/tasks/manager.js';
 import type { Task } from '../memory/tasks/types.js';
 import { createSignalPipeline } from '../memory/signals/index.js';
@@ -289,6 +293,13 @@ function bindConsoleRiskConfirmation(
   }));
 }
 
+function bindBridgeRiskConfirmation(runtime: RuntimeState, bridge: UiBridge): void {
+  runtime.setRiskConfirmationProvider(new PromptConfirmationProvider({
+    prompt: (question) => bridge.promptSettings(question),
+    isInteractive: () => process.stdin.isTTY === true && process.stdout.isTTY === true,
+  }));
+}
+
 // ── 主入口 ─────────────────────────────────────────────
 
 async function runNonInteractive(args: Exclude<NonInteractiveArgs, { mode: 'interactive' }>): Promise<number> {
@@ -475,14 +486,22 @@ async function main(): Promise<void> {
     setupRl.close();
   }
 
+  const useTuiShell = process.stdin.isTTY === true && process.stdout.isTTY === true;
+  if (useTuiShell) {
+    await runInteractiveTui();
+    return;
+  }
+
+  await runInteractiveReadline();
+}
+
+/** Non-TTY interactive path: temporary readline REPL (ADR-009). */
+async function runInteractiveReadline(): Promise<void> {
   let runtime = await createRuntime(await reloadConfig());
 
-  // ── REPL ─────────────────────────────────────────
-
-  // ── Interactive readline REPL (temporary; ADR-009) ─
   printBanner();
   console.log(chalk.yellow(
-    '[student-agent] Full TUI is being rebuilt under ADR-009; readline REPL is temporary.',
+    '[student-agent] Full TUI requires a TTY; readline REPL is temporary for non-TTY.',
   ));
   initLogger();
 
@@ -954,6 +973,163 @@ async function main(): Promise<void> {
   rl.close();
 }
 
+/**
+ * TTY interactive path: pi-tui Student shell (ADR-009 Phase 1).
+ * Esc aborts the current agent turn; Ctrl+C exits the shell.
+ * promptSettings uses an Editor overlay (fallback: next Composer submit answers).
+ */
+async function runInteractiveTui(): Promise<void> {
+  initLogger();
+  const restoreConsole = redirectConsoleForTUI();
+
+  let runtime!: RuntimeState;
+  let shell!: ShellHandle;
+  let stopped = false;
+
+  const inputQueue = createInputQueue();
+
+  shell = startShell({
+    onSubmit: (value) => {
+      shell.bridge.addMessage('user', value);
+      inputQueue.enqueueSubmit(value);
+      shell.setPendingCount(inputQueue.pendingCount());
+    },
+    onAbort: () => {
+      if (runtime?.agent.state.isStreaming) {
+        void runtime.session.abort().catch(() => {});
+        shell.bridge.setStatus('abort requested…');
+      }
+    },
+    onExit: () => {
+      stopped = true;
+      shell.unmount();
+    },
+    getStatusMeta: () => ({
+      model: runtime
+        ? `${runtime.config.model.provider}/${runtime.config.model.name}`
+        : undefined,
+      mode: runtime?.config.executionMode,
+    }),
+  });
+
+  try {
+    runtime = await createRuntime(await reloadConfig(), { bridge: shell.bridge });
+    bindBridgeRiskConfirmation(runtime, shell.bridge);
+    shell.bridge.addMessage(
+      'system',
+      'Student Agent TUI (ADR-009 Phase 1). Esc aborts · Ctrl+C exits · /help for commands.',
+    );
+    shell.bridge.setStatus('ready');
+
+    while (!stopped) {
+      const raced = await Promise.race([
+        inputQueue.waitForSubmit().then((queued) => ({ kind: 'input' as const, queued })),
+        shell.waitForExit().then(() => ({ kind: 'exit' as const })),
+      ]);
+      if (raced.kind === 'exit' || stopped) break;
+
+      shell.setPendingCount(inputQueue.pendingCount());
+      let userInput = raced.queued.value.trim();
+      if (!userInput) continue;
+
+      const command = parseCommand(userInput);
+      if (command) {
+        switch (command.type) {
+          case 'paste':
+            userInput = command.content;
+            break;
+
+          case 'quit':
+            stopped = true;
+            shell.unmount();
+            continue;
+
+          case 'help':
+            shell.bridge.addMessage('system', getHelpText());
+            continue;
+
+          case 'clear':
+            shell.clearTranscript();
+            shell.bridge.setStatus('cleared');
+            continue;
+
+          case 'status':
+            shell.bridge.addMessage(
+              'system',
+              [
+                `任务: ${currentTaskDescription || '(无)'}`,
+                `模式: ${runtime.config.executionMode}`,
+                `模型: ${runtime.config.model.provider}/${runtime.config.model.name}`,
+                `LLM 超时: ${runtime.config.llm.requestTimeoutMs}ms`,
+              ].join('\n'),
+            );
+            continue;
+
+          case 'abort':
+            if (!runtime.agent.state.isStreaming) {
+              shell.bridge.addMessage('system', '当前没有运行中的任务。');
+            } else {
+              await runtime.session.abort();
+              shell.bridge.addMessage('system', '已请求中止当前任务。');
+            }
+            continue;
+
+          case 'unknown':
+            shell.bridge.addMessage('system', `未知命令: ${command.raw}\n输入 /help 查看可用命令`);
+            continue;
+
+          default:
+            shell.bridge.addMessage(
+              'system',
+              `/${command.type}：Phase 1 TUI 以核心命令与普通 prompt 为主；复杂设置流可稍后完善。`,
+            );
+            continue;
+        }
+
+        if (command.type !== 'paste') continue;
+      }
+
+      // Plain prompt (and /paste body): stream via EventRenderer → bridge
+      currentTaskDescription = userInput;
+      runtime.escalation.initTask(currentTaskDescription, CWD);
+      markReflectBaseline();
+      shell.bridge.setStatus('running…');
+      try {
+        runtime.resetFileGuard();
+        runtime.resetToolGuard();
+        await runtime.session.prompt(userInput);
+        await runtime.agent.waitForIdle();
+        if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
+          shell.bridge.addMessage('error', `[Agent Error] ${runtime.agent.state.errorMessage}`);
+        }
+      } catch (err) {
+        shell.bridge.addMessage(
+          'error',
+          `Task error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      } finally {
+        shell.bridge.clearStatus();
+      }
+
+      const pendingQ = runtime.escalation.takePendingQuestion();
+      if (pendingQ) {
+        const answer = await shell.bridge.promptSettings(
+          `[需要你的帮助] ${pendingQ.context}\n（直接回车跳过）`,
+        );
+        if (answer.trim()) {
+          await QuestionsManager.getInstance(MEMORY_DIR).resolve(pendingQ.id, answer.trim());
+          shell.bridge.addMessage('system', '已记录，下次遇到类似问题会参考。');
+        }
+      }
+    }
+  } finally {
+    runtime?.renderer.cleanup();
+    runtime?.unsubscribe();
+    shell.unmount();
+    restoreConsole();
+  }
+}
+
 type FeedbackCommand = Extract<SlashCommand, { type: 'feedback' }>;
 type PlanCommand = Extract<SlashCommand, { type: 'plan' }>;
 type ReviewCommand = Extract<SlashCommand, { type: 'review' }>;
@@ -1422,6 +1598,7 @@ interface RuntimeOptions {
   onProtectedEvents?: (events: ProtectedEvalEvent[]) => void;
   memoryDir?: string;
   runMode?: ContextRunMode;
+  bridge?: UiBridge;
 }
 
 async function createRuntime(
@@ -1461,7 +1638,7 @@ async function createRuntime(
   // 绑定 abort 回调：session 创建后才能访问 session.abort
   abortRef.abort = () => session.abort().catch(() => {});
 
-  const renderer = new EventRenderer();
+  const renderer = new EventRenderer(options.bridge);
   const unsubscribe = agent.subscribe((event) => {
     renderer.handleEvent(event);
   });

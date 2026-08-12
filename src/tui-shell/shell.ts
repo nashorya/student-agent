@@ -1,0 +1,306 @@
+import {
+  Editor,
+  HStack,
+  matchesKey,
+  ProcessTerminal,
+  ScrollView,
+  TuiAltScreen,
+  VStack,
+  isViewportTUI,
+  type Component,
+  type OverlayHandle,
+} from '@earendil-works/pi-tui';
+import { setTuiMode } from '../runtime/logger.js';
+import type { UiBridge } from '../runtime/ui-bridge.js';
+import { createShellBridge, type ShellUiBridge } from './bridge.js';
+import { AgentsPanel, PlanPanel, StatusBar, TranscriptView } from './components.js';
+import { isWide, rightRailBasis } from './layout.js';
+import {
+  initialShellState,
+  shellReducer,
+  type ShellAction,
+  type ShellAgentRow,
+  type ShellPlanStep,
+  type ShellState,
+} from './state.js';
+import { editorTheme, theme } from './theme.js';
+
+export interface StartShellOptions {
+  onSubmit: (value: string) => void;
+  onAbort: () => void;
+  onExit: () => void;
+  getStatusMeta?: () => { model?: string; mode?: string };
+}
+
+export interface ShellHandle {
+  bridge: UiBridge;
+  waitForExit: () => Promise<void>;
+  unmount: () => void;
+  setPlanSteps: (steps: ShellPlanStep[]) => void;
+  setAgents: (agents: ShellAgentRow[]) => void;
+  setPendingCount: (count: number) => void;
+  clearTranscript: () => void;
+}
+
+/**
+ * promptSettings Phase 1 UX:
+ * Prefer a centered Editor overlay. If overlay setup fails, fall back to
+ * setStatus(question) and treat the next Composer submit as the answer.
+ */
+export function startShell(options: StartShellOptions): ShellHandle {
+  let state = initialShellState();
+  const getState = () => state;
+
+  const terminal = new ProcessTerminal();
+  const tui = new TuiAltScreen(terminal, true, undefined, { mouse: true });
+
+  let exitResolve: (() => void) | null = null;
+  const exitPromise = new Promise<void>((resolve) => {
+    exitResolve = resolve;
+  });
+  let unmounted = false;
+
+  const requestRender = (force = false) => {
+    if (unmounted) return;
+    if (force) tui.renderNow(true);
+    else tui.requestRender();
+  };
+
+  const dispatch = (action: ShellAction) => {
+    state = shellReducer(state, action);
+  };
+
+  // Pending promptSettings waiter (overlay or submit-as-answer fallback).
+  let pendingPrompt: {
+    resolve: (answer: string) => void;
+    overlay?: OverlayHandle;
+    editor?: Editor;
+  } | null = null;
+
+  const clearPendingPromptOverlay = () => {
+    if (pendingPrompt?.overlay) {
+      try {
+        pendingPrompt.overlay.hide();
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const promptSettings = async (question: string): Promise<string> => {
+    if (pendingPrompt) {
+      // Replace previous waiter with empty answer so callers don't hang forever.
+      pendingPrompt.resolve('');
+      clearPendingPromptOverlay();
+      pendingPrompt = null;
+    }
+
+    return new Promise<string>((resolve) => {
+      try {
+        const overlayEditor = new Editor(tui, editorTheme);
+        overlayEditor.onSubmit = (text) => {
+          const answer = text;
+          overlayEditor.setText('');
+          const waiter = pendingPrompt;
+          pendingPrompt = null;
+          clearPendingPromptOverlay();
+          tui.setFocus(editor);
+          dispatch({ type: 'CLEAR_STATUS' });
+          requestRender();
+          waiter?.resolve(answer);
+        };
+
+        const handle = tui.showOverlay(overlayEditor, {
+          width: '70%',
+          maxHeight: '40%',
+          anchor: 'center',
+        });
+        handle.focus();
+        dispatch({ type: 'SET_STATUS', text: question });
+        requestRender();
+        // Flash so the question is visible even if status is missed.
+        if (typeof (tui as TuiAltScreen).flash === 'function') {
+          (tui as TuiAltScreen).flash(theme.warning(question.slice(0, 120)), 4000);
+        }
+        pendingPrompt = { resolve, overlay: handle, editor: overlayEditor };
+      } catch {
+        // Fallback: next composer submit answers the question.
+        dispatch({ type: 'SET_STATUS', text: `Q: ${question}` });
+        requestRender();
+        pendingPrompt = { resolve };
+      }
+    });
+  };
+
+  const bridge: ShellUiBridge = createShellBridge({
+    getState,
+    dispatch,
+    requestRender,
+    promptSettings,
+  });
+
+  const getMeta = () => options.getStatusMeta?.() ?? {};
+  const getColumns = () => terminal.columns || process.stdout.columns || 80;
+
+  const transcript = new TranscriptView(getState);
+  const planPanel = new PlanPanel(getState);
+  const agentsPanel = new AgentsPanel(getState);
+  const statusBar = new StatusBar(getState, getMeta, getColumns);
+
+  const editor = new Editor(tui, editorTheme);
+  editor.onSubmit = (text) => {
+    const value = text.trim();
+    editor.setText('');
+    if (!value) return;
+
+    if (pendingPrompt && !pendingPrompt.overlay) {
+      const waiter = pendingPrompt;
+      pendingPrompt = null;
+      dispatch({ type: 'CLEAR_STATUS' });
+      requestRender();
+      waiter.resolve(value);
+      return;
+    }
+
+    options.onSubmit(value);
+  };
+
+  let currentWide = isWide(getColumns());
+  let scrollView: ScrollView | null = null;
+
+  const buildLayout = (wide: boolean): Component => {
+    scrollView = new ScrollView(transcript, {
+      follow: 'end',
+      primary: true,
+      scrollbar: 'auto',
+      scrollbarStyle: theme.muted,
+    });
+
+    const dock = new VStack(
+      [
+        { component: editor, basis: 'auto' },
+        { component: statusBar, basis: 'auto' },
+      ],
+      { gap: 0 },
+    );
+
+    if (wide) {
+      const railBasis = rightRailBasis(getColumns());
+      const right = new VStack(
+        [
+          { component: planPanel, grow: 1 },
+          { component: agentsPanel, grow: 1 },
+        ],
+        { gap: 1 },
+      );
+      return new VStack(
+        [
+          {
+            component: new HStack(
+              [
+                { component: scrollView, grow: 1, minSize: 40 },
+                { component: right, basis: railBasis, minSize: 24 },
+              ],
+              { gap: 1 },
+            ),
+            grow: 1,
+          },
+          { component: dock, basis: 'auto' },
+        ],
+        { gap: 0 },
+      );
+    }
+
+    return new VStack(
+      [
+        { component: scrollView, grow: 1 },
+        { component: dock, basis: 'auto' },
+      ],
+      { gap: 0 },
+    );
+  };
+
+  const applyLayout = () => {
+    currentWide = isWide(getColumns());
+    const root = buildLayout(currentWide);
+    if (!isViewportTUI(tui)) {
+      throw new Error('TuiAltScreen must be a ViewportTUI');
+    }
+    tui.setLayoutRoot(root);
+    tui.setFocus(editor);
+    requestRender();
+  };
+
+  applyLayout();
+
+  const onStdoutResize = () => {
+    const wide = isWide(getColumns());
+    if (wide !== currentWide) {
+      applyLayout();
+    } else {
+      requestRender();
+    }
+  };
+  process.stdout.on('resize', onStdoutResize);
+
+  /**
+   * Global keys:
+   * - ctrl+c → onExit (leave TUI)
+   * - escape while streaming → onAbort (documented Phase 1 behavior)
+   */
+  const removeInputListener = tui.addInputListener((data) => {
+    if (matchesKey(data, 'ctrl+c')) {
+      options.onExit();
+      return { consume: true };
+    }
+    if (matchesKey(data, 'escape') || matchesKey(data, 'esc')) {
+      options.onAbort();
+      return { consume: true };
+    }
+    return undefined;
+  });
+
+  setTuiMode(true);
+  tui.start();
+
+  const unmount = () => {
+    if (unmounted) return;
+    unmounted = true;
+    process.stdout.off('resize', onStdoutResize);
+    removeInputListener();
+    clearPendingPromptOverlay();
+    if (pendingPrompt) {
+      pendingPrompt.resolve('');
+      pendingPrompt = null;
+    }
+    try {
+      tui.stop();
+    } catch {
+      // ignore
+    }
+    setTuiMode(false);
+    exitResolve?.();
+  };
+
+  return {
+    bridge,
+    waitForExit: () => exitPromise,
+    unmount,
+    setPlanSteps(steps) {
+      dispatch({ type: 'SET_PLAN_STEPS', steps });
+      requestRender();
+    },
+    setAgents(agents) {
+      dispatch({ type: 'SET_AGENTS', agents });
+      requestRender();
+    },
+    setPendingCount(count) {
+      dispatch({ type: 'SET_PENDING_COUNT', count });
+      requestRender();
+    },
+    clearTranscript() {
+      dispatch({ type: 'CLEAR_TRANSCRIPT' });
+      requestRender();
+    },
+  };
+}

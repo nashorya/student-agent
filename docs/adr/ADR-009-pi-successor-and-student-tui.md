@@ -1,8 +1,8 @@
 # ADR-009：升级到受维护的 Pi，并删除旧 TUI、以 pi-tui 重建 Student Agent 工作台
 
-- 状态：accepted (Phase 0 done; Phase 1+ pending)
+- 状态：accepted (Phase 0–1 foundation done; Phase 2+ pending)
 - 日期：2026-08-12
-- 实现状态：Phase 0 done — `@earendil-works/pi-*` 0.84.1、`src/core/pi-compat`、旧 `src/tui*` 已删、交互暂 readline；GLM thinking 真实请求复验与新 shell 待 Phase 0 收尾 / Phase 1
+- 实现状态：Phase 0 done；Phase 1 foundation landed — `src/tui-shell/`（theme/state/layout/bridge/shell）、TTY 走 pi-tui alt-screen，非 TTY 仍 readline；Plan/Agents 为占位；activity timeline / 完整 Plan 接线待 Phase 2–3。GLM thinking 真实请求复验仍待收尾
 - 取代：[`docs/plan-legacy-cleanup.md`](../plan-legacy-cleanup.md) 中「保留/渐进迁 tui-v2」路线；与 [`docs/plan-pi-successor-migration.md`](../plan-pi-successor-migration.md) 的 Phase 0 对齐并扩展为含 TUI 重建批次
 
 ## 背景
