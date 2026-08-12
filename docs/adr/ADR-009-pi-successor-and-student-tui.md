@@ -1,8 +1,8 @@
 # ADR-009：升级到受维护的 Pi，并删除旧 TUI、以 pi-tui 重建 Student Agent 工作台
 
-- 状态：accepted (Phase 0–2 foundation; Phase 3+ pending)
+- 状态：accepted (Phase 0–3 foundation; Phase 4 pending)
 - 日期：2026-08-12
-- 实现状态：Phase 0–1 done；Phase 2 activity timeline landed — transcript kinds（reasoning / tool / diff / error / recovery / verification）、EventRenderer 投影、ScrollView follow-end；Plan/Agents 完整接线仍待 Phase 3。交互分区/Composer 体验后续再打磨。GLM thinking 真实请求复验仍待收尾
+- 实现状态：Phase 0–2 done；Phase 3 Plan/Subagents projection landed — TasksManager→Plan sidebar、main agent row、compact Ctrl+P overlay、TUI planner-aware turn。完整 orch 子 agent 进度事件与 Memory polish 仍待 Phase 4。交互分区/Composer 体验后续再打磨。
 - 取代：[`docs/plan-legacy-cleanup.md`](../plan-legacy-cleanup.md) 中「保留/渐进迁 tui-v2」路线；与 [`docs/plan-pi-successor-migration.md`](../plan-pi-successor-migration.md) 的 Phase 0 对齐并扩展为含 TUI 重建批次
 
 ## 背景
@@ -232,9 +232,11 @@ reasoning / tool receipt / diff / error / recovery / verification / follow-botto
 
 落痕：`ShellMessage.kind`、`TranscriptView` 分层渲染、`EventRenderer` thinking/tool/error/recovery 投影；ScrollView `follow: 'end'`（用户上滚由 pi-tui 解除跟随）。
 
-### Phase 3：Plan + Subagents
+### Phase 3：Plan + Subagents — done (projection)
 
-Planner projection、Plan sidebar、Subagent tree、compact overlay。
+Planner projection、Plan sidebar、Subagent tree（main + parentId）、compact overlay（Ctrl+P）。
+
+落痕：`project-workbench` / `syncWorkbenchProjection`；TUI 走 TasksManager + planner-aware turn；orch 子 agent 实时进度仍缺底层事件，Agents 面板先投影 main。
 
 ### Phase 4：Memory + polish
 

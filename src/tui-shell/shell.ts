@@ -12,11 +12,18 @@ import {
 import { setTuiMode } from '../runtime/logger.js';
 import type { UiBridge } from '../runtime/ui-bridge.js';
 import { createShellBridge, type ShellUiBridge } from './bridge.js';
-import { AgentsPanel, PlanPanel, StatusBar, TranscriptView } from './components.js';
+import {
+  AgentsPanel,
+  CompactOverlayPanel,
+  PlanPanel,
+  StatusBar,
+  TranscriptView,
+} from './components.js';
 import { isWide, rightRailBasis } from './layout.js';
 import {
   initialShellState,
   shellReducer,
+  type CompactOverlay,
   type ShellAction,
   type ShellAgentRow,
   type ShellPlanStep,
@@ -38,7 +45,9 @@ export interface ShellHandle {
   setPlanSteps: (steps: ShellPlanStep[]) => void;
   setAgents: (agents: ShellAgentRow[]) => void;
   setPendingCount: (count: number) => void;
+  setCompactOverlay: (overlay: CompactOverlay) => void;
   clearTranscript: () => void;
+  getState: () => ShellState;
 }
 
 /**
@@ -105,6 +114,7 @@ export function startShell(options: StartShellOptions): ShellHandle {
   const transcript = new TranscriptView(getState);
   const planPanel = new PlanPanel(getState);
   const agentsPanel = new AgentsPanel(getState);
+  const compactOverlay = new CompactOverlayPanel(getState);
   const statusBar = new StatusBar(getState, getMeta, getColumns);
 
   const editor = new Editor(tui, editorTheme);
@@ -171,9 +181,11 @@ export function startShell(options: StartShellOptions): ShellHandle {
       );
     }
 
+    // Compact: transcript + optional Plan/Agents overlay + composer/status
     return new VStack(
       [
         { component: scrollView, grow: 1 },
+        { component: compactOverlay, basis: 'auto', maxSize: 12 },
         { component: dock, basis: 'auto' },
       ],
       { gap: 0 },
@@ -196,6 +208,9 @@ export function startShell(options: StartShellOptions): ShellHandle {
   const onStdoutResize = () => {
     const wide = isWide(getColumns());
     if (wide !== currentWide) {
+      if (wide) {
+        dispatch({ type: 'SET_COMPACT_OVERLAY', overlay: 'none' });
+      }
       applyLayout();
     } else {
       requestRender();
@@ -205,8 +220,9 @@ export function startShell(options: StartShellOptions): ShellHandle {
 
   /**
    * Global keys:
-   * - ctrl+c → onExit (leave TUI)
-   * - escape while streaming → onAbort (documented Phase 1 behavior)
+   * - ctrl+c → onExit
+   * - escape → onAbort
+   * - ctrl+p → cycle compact Plan/Agents overlay (narrow only)
    */
   const removeInputListener = tui.addInputListener((data) => {
     if (matchesKey(data, 'ctrl+c')) {
@@ -215,6 +231,17 @@ export function startShell(options: StartShellOptions): ShellHandle {
     }
     if (matchesKey(data, 'escape') || matchesKey(data, 'esc')) {
       options.onAbort();
+      return { consume: true };
+    }
+    if (matchesKey(data, 'ctrl+p')) {
+      if (!isWide(getColumns())) {
+        const next: CompactOverlay =
+          state.compactOverlay === 'none' ? 'plan' :
+          state.compactOverlay === 'plan' ? 'agents' :
+          'none';
+        dispatch({ type: 'SET_COMPACT_OVERLAY', overlay: next });
+        requestRender();
+      }
       return { consume: true };
     }
     return undefined;
@@ -245,6 +272,7 @@ export function startShell(options: StartShellOptions): ShellHandle {
     bridge,
     waitForExit: () => exitPromise,
     unmount,
+    getState,
     setPlanSteps(steps) {
       dispatch({ type: 'SET_PLAN_STEPS', steps });
       requestRender();
@@ -255,6 +283,10 @@ export function startShell(options: StartShellOptions): ShellHandle {
     },
     setPendingCount(count) {
       dispatch({ type: 'SET_PENDING_COUNT', count });
+      requestRender();
+    },
+    setCompactOverlay(overlay) {
+      dispatch({ type: 'SET_COMPACT_OVERLAY', overlay });
       requestRender();
     },
     clearTranscript() {

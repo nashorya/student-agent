@@ -9,6 +9,7 @@ describe('shellReducer', () => {
     expect(state.streamingReasoningId).toBeNull();
     expect(state.planSteps).toEqual([]);
     expect(state.agents).toEqual([]);
+    expect(state.compactOverlay).toBe('none');
   });
 
   it('adds messages and tracks streaming assistant', () => {

@@ -38,7 +38,11 @@ export type ShellAgentRow = {
   status: 'running' | 'done' | 'failed';
   summary?: string;
   elapsedMs?: number;
+  /** When set, AgentsPanel renders this row indented under the parent. */
+  parentId?: string;
 };
+
+export type CompactOverlay = 'none' | 'plan' | 'agents';
 
 export type ShellState = {
   messages: ShellMessage[];
@@ -48,9 +52,11 @@ export type ShellState = {
   currentTool: string | null;
   taskStatus: Partial<UiTaskStatus> | null;
   pendingCount: number;
-  /** Phase 3 will fully wire Plan; Phase 1–2 keep layout placeholders. */
+  /** Phase 3: Plan sidebar consumes TasksManager via setPlanSteps. */
   planSteps: ShellPlanStep[];
   agents: ShellAgentRow[];
+  /** Compact-mode Plan/Agents overlay (wide mode uses the right rail). */
+  compactOverlay: CompactOverlay;
 };
 
 export type StreamTarget = 'assistant' | 'reasoning';
@@ -78,6 +84,7 @@ export type ShellAction =
   | { type: 'SET_PENDING_COUNT'; count: number }
   | { type: 'SET_PLAN_STEPS'; steps: ShellPlanStep[] }
   | { type: 'SET_AGENTS'; agents: ShellAgentRow[] }
+  | { type: 'SET_COMPACT_OVERLAY'; overlay: CompactOverlay }
   | { type: 'CLEAR_TRANSCRIPT' };
 
 let nextId = 0;
@@ -98,6 +105,7 @@ export function initialShellState(): ShellState {
     pendingCount: 0,
     planSteps: [],
     agents: [],
+    compactOverlay: 'none',
   };
 }
 
@@ -209,6 +217,9 @@ export function shellReducer(state: ShellState, action: ShellAction): ShellState
 
     case 'SET_AGENTS':
       return { ...state, agents: action.agents };
+
+    case 'SET_COMPACT_OVERLAY':
+      return { ...state, compactOverlay: action.overlay };
 
     case 'CLEAR_TRANSCRIPT':
       return {

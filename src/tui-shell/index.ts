@@ -22,7 +22,16 @@ export {
   StatusBar,
   PlanPanel,
   AgentsPanel,
+  CompactOverlayPanel,
 } from './components.js';
+export {
+  projectTaskToPlanSteps,
+  projectMainAgentRow,
+  sortAgentRowsForTree,
+  formatPlanOverlay,
+  formatAgentsOverlay,
+} from './project-workbench.js';
+export { syncWorkbenchProjection } from './sync-workbench.js';
 export {
   startShell,
   type StartShellOptions,

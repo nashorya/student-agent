@@ -3,6 +3,7 @@ import { Text } from '@earendil-works/pi-tui';
 import type { ActivityKind, ShellMessage, ShellState } from './state.js';
 import { theme } from './theme.js';
 import { isWide } from './layout.js';
+import { sortAgentRowsForTree } from './project-workbench.js';
 
 const DIFF_LINE_RE = /^(?:diff --git |@@ |[+-](?![+-]))/;
 
@@ -97,7 +98,6 @@ function renderActivity(msg: ShellMessage, width: number): string[] {
   }
 
   if (msg.kind === 'tool') {
-    // Compact single-block receipt
     return new Text(`${label} ${theme.tool(body)}`, 1, 0).render(width);
   }
 
@@ -110,7 +110,6 @@ function renderActivity(msg: ShellMessage, width: number): string[] {
     return new Text(`${label}: ${body}`, 1, 0).render(width);
   }
 
-  // error / recovery / verification / system — label on own visual weight
   return new Text(`${label}: ${body}`, 1, 0).render(width);
 }
 
@@ -173,6 +172,11 @@ export class StatusBar implements Component {
           ? `Plan: ${state.planSteps.filter((s) => s.status === 'done').length}/${state.planSteps.length}`
           : 'Plan: n/a';
       parts.push(planHint);
+      if (state.compactOverlay !== 'none') {
+        parts.push(`overlay:${state.compactOverlay}`);
+      } else {
+        parts.push('Ctrl+P plan');
+      }
     }
 
     const line = theme.muted(parts.join(' · '));
@@ -212,7 +216,7 @@ export class AgentsPanel implements Component {
   invalidate(): void {}
 
   render(width: number): string[] {
-    const agents = this.getState().agents;
+    const agents = sortAgentRowsForTree(this.getState().agents);
     const header = theme.agent('Subagents');
     if (agents.length === 0) {
       return new Text(`${header}\n${theme.muted('No subagents')}`, 1, 0).render(width);
@@ -223,10 +227,27 @@ export class AgentsPanel implements Component {
           agent.status === 'done' ? theme.success('✓') :
           agent.status === 'failed' ? theme.danger('✗') :
           theme.accent('●');
+        const indent = agent.parentId ? theme.muted('└─ ') : '';
         const summary = agent.summary ? theme.muted(` — ${agent.summary}`) : '';
-        return `${mark} ${agent.name}${summary}`;
+        return `${indent}${mark} ${agent.name}${summary}`;
       })
       .join('\n');
     return new Text(`${header}\n${body}`, 1, 0).render(width);
+  }
+}
+
+/** Compact-mode overlay for Plan / Agents (ADR-009 Phase 3). */
+export class CompactOverlayPanel implements Component {
+  constructor(private readonly getState: () => ShellState) {}
+
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    const state = this.getState();
+    if (state.compactOverlay === 'none') return [];
+    if (state.compactOverlay === 'plan') {
+      return new PlanPanel(this.getState).render(width);
+    }
+    return new AgentsPanel(this.getState).render(width);
   }
 }
