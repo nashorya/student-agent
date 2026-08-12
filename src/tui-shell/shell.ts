@@ -19,7 +19,7 @@ import {
   StatusBar,
   TranscriptView,
 } from './components.js';
-import { isWide, rightRailBasis } from './layout.js';
+import { isWide, rightRailBasis, cycleCompactOverlay } from './layout.js';
 import {
   initialShellState,
   shellReducer,
@@ -46,6 +46,7 @@ export interface ShellHandle {
   setAgents: (agents: ShellAgentRow[]) => void;
   setPendingCount: (count: number) => void;
   setCompactOverlay: (overlay: CompactOverlay) => void;
+  setMemorySnapshot: (text: string) => void;
   clearTranscript: () => void;
   getState: () => ShellState;
 }
@@ -89,10 +90,10 @@ export function startShell(options: StartShellOptions): ShellHandle {
 
     dispatch({
       type: 'ADD_MESSAGE',
-      kind: 'system',
+      kind: 'prompt',
       content: question.trim() || '(input required)',
     });
-    dispatch({ type: 'SET_STATUS', text: 'awaiting input in composer…' });
+    dispatch({ type: 'SET_STATUS', text: 'composer: answering prompt…' });
     requestRender(true);
     tui.setFocus(editor);
 
@@ -235,10 +236,7 @@ export function startShell(options: StartShellOptions): ShellHandle {
     }
     if (matchesKey(data, 'ctrl+p')) {
       if (!isWide(getColumns())) {
-        const next: CompactOverlay =
-          state.compactOverlay === 'none' ? 'plan' :
-          state.compactOverlay === 'plan' ? 'agents' :
-          'none';
+        const next = cycleCompactOverlay(state.compactOverlay);
         dispatch({ type: 'SET_COMPACT_OVERLAY', overlay: next });
         requestRender();
       }
@@ -287,6 +285,10 @@ export function startShell(options: StartShellOptions): ShellHandle {
     },
     setCompactOverlay(overlay) {
       dispatch({ type: 'SET_COMPACT_OVERLAY', overlay });
+      requestRender();
+    },
+    setMemorySnapshot(text) {
+      dispatch({ type: 'SET_MEMORY_SNAPSHOT', text });
       requestRender();
     },
     clearTranscript() {

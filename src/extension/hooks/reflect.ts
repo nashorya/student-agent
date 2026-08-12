@@ -43,7 +43,10 @@ export interface CollectTaskDiffOptions {
 export function createReflectHook(
   memoryDir: string,
   taskDescription: () => string,
-  options: { boundedBreakerEnabled?: boolean } = {},
+  options: {
+    boundedBreakerEnabled?: boolean;
+    onSummary?: (summary: { patternsExtracted: number; promotedCount: number }) => void;
+  } = {},
 ) {
   return async (_ctx: SessionEndContext): Promise<void> => {
     taskCount++;
@@ -70,10 +73,12 @@ export function createReflectHook(
     });
 
     if (result.patternsExtracted > 0) {
-      emitReflectSummary({
+      const summary = {
         patternsExtracted: result.patternsExtracted,
         promotedCount: result.promoted.length,
-      });
+      };
+      options.onSummary?.(summary);
+      emitReflectSummary(summary);
     }
   };
 }

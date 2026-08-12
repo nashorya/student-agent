@@ -1,5 +1,6 @@
 import { TasksManager } from '../memory/tasks/manager.js';
 import type { ShellHandle } from './shell.js';
+import { buildMemoryOverlaySnapshot } from './project-memory.js';
 import {
   projectMainAgentRow,
   projectTaskToPlanSteps,
@@ -15,7 +16,7 @@ export interface SyncWorkbenchOptions {
 }
 
 /**
- * Push TasksManager + main-agent status into Plan/Agents panels.
+ * Push TasksManager + main-agent status + Memory overlay snapshot into the shell.
  * Call after task mutations and at the start/end of each TUI turn.
  */
 export async function syncWorkbenchProjection(options: SyncWorkbenchOptions): Promise<void> {
@@ -41,5 +42,12 @@ export async function syncWorkbenchProjection(options: SyncWorkbenchOptions): Pr
     });
   } else {
     options.shell.bridge.clearTaskStatus();
+  }
+
+  try {
+    const snapshot = await buildMemoryOverlaySnapshot(options.memoryDir);
+    options.shell.setMemorySnapshot(snapshot);
+  } catch {
+    // Memory overlay is best-effort; never block the turn.
   }
 }

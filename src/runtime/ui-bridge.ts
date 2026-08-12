@@ -23,7 +23,11 @@ export type UiMessageRole =
   | 'error'
   | 'recovery'
   | 'verification'
-  | 'system';
+  | 'system'
+  | 'prompt'
+  | 'signal'
+  | 'reflect'
+  | 'recall';
 
 export type UiMessageMeta = {
   toolName?: string;

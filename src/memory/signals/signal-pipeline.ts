@@ -13,6 +13,7 @@ export interface SignalPipelineOptions {
   memoryDir?: string;
   tasksManager?: TasksManager;
   onProtectedEvents?: (events: ProtectedEvalEvent[]) => void;
+  onSignals?: (signals: Signal[]) => void;
 }
 
 export function createSignalPipeline(options: SignalPipelineOptions = {}) {
@@ -29,6 +30,7 @@ export function createSignalPipeline(options: SignalPipelineOptions = {}) {
       }
 
       if (signals.length === 0) return;
+      options.onSignals?.(signals);
 
       const activeTask = await tasksManager.getActive();
       if (!activeTask) return;

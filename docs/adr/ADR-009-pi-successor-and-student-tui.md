@@ -1,8 +1,8 @@
 # ADR-009：升级到受维护的 Pi，并删除旧 TUI、以 pi-tui 重建 Student Agent 工作台
 
-- 状态：accepted (Phase 0–3 foundation; Phase 4 pending)
+- 状态：accepted (Phase 0–4 foundation complete; polish iterations welcome)
 - 日期：2026-08-12
-- 实现状态：Phase 0–2 done；Phase 3 Plan/Subagents projection landed — TasksManager→Plan sidebar、main agent row、compact Ctrl+P overlay、TUI planner-aware turn。完整 orch 子 agent 进度事件与 Memory polish 仍待 Phase 4。交互分区/Composer 体验后续再打磨。
+- 实现状态：Phase 0–4 landed — Memory activity（signal/reflect/recall）进 timeline；compact Ctrl+P 含 memory overlay；settings 用 Ask/prompt 区分 Composer；layout acceptance widths 单测。orch 子 agent 实时进度与更深 Composer UX 仍可继续打磨。
 - 取代：[`docs/plan-legacy-cleanup.md`](../plan-legacy-cleanup.md) 中「保留/渐进迁 tui-v2」路线；与 [`docs/plan-pi-successor-migration.md`](../plan-pi-successor-migration.md) 的 Phase 0 对齐并扩展为含 TUI 重建批次
 
 ## 背景
@@ -238,9 +238,11 @@ Planner projection、Plan sidebar、Subagent tree（main + parentId）、compact
 
 落痕：`project-workbench` / `syncWorkbenchProjection`；TUI 走 TasksManager + planner-aware turn；orch 子 agent 实时进度仍缺底层事件，Agents 面板先投影 main。
 
-### Phase 4：Memory + polish
+### Phase 4：Memory + polish — done
 
 memory activity、overlay、shortcuts、scroll/resize、visual polish。
+
+落痕：`signal`/`reflect`/`recall`/`prompt` kinds；`project-memory` + Memory overlay；Reflect/Signal/Recall 经 bridge 投影（TUI 不写 stdout）；Ctrl+P 轮换 plan→agents→memory；`describeLayoutRegions` + acceptance widths 单测。
 
 ## 验收
 

@@ -21,12 +21,18 @@ function kindStyle(kind: ActivityKind): (s: string) => string {
       return theme.text;
     case 'system':
       return theme.muted;
+    case 'prompt':
+      return theme.warning;
     case 'error':
       return theme.danger;
     case 'recovery':
       return theme.warning;
     case 'verification':
       return theme.success;
+    case 'signal':
+    case 'reflect':
+    case 'recall':
+      return theme.memory;
     default:
       return theme.text;
   }
@@ -51,12 +57,20 @@ function kindLabel(kind: ActivityKind, meta?: ShellMessage['meta']): string {
       return 'Diff';
     case 'system':
       return 'System';
+    case 'prompt':
+      return 'Ask';
     case 'error':
       return 'Error';
     case 'recovery':
       return 'Recovery';
     case 'verification':
       return 'Verify';
+    case 'signal':
+      return 'Signal';
+    case 'reflect':
+      return 'Reflect';
+    case 'recall':
+      return 'Recall';
     default:
       return kind;
   }
@@ -175,7 +189,7 @@ export class StatusBar implements Component {
       if (state.compactOverlay !== 'none') {
         parts.push(`overlay:${state.compactOverlay}`);
       } else {
-        parts.push('Ctrl+P plan');
+        parts.push('Ctrl+P overlay');
       }
     }
 
@@ -236,7 +250,7 @@ export class AgentsPanel implements Component {
   }
 }
 
-/** Compact-mode overlay for Plan / Agents (ADR-009 Phase 3). */
+/** Compact-mode overlay for Plan / Agents / Memory (ADR-009 Phase 3–4). */
 export class CompactOverlayPanel implements Component {
   constructor(private readonly getState: () => ShellState) {}
 
@@ -248,6 +262,24 @@ export class CompactOverlayPanel implements Component {
     if (state.compactOverlay === 'plan') {
       return new PlanPanel(this.getState).render(width);
     }
-    return new AgentsPanel(this.getState).render(width);
+    if (state.compactOverlay === 'agents') {
+      return new AgentsPanel(this.getState).render(width);
+    }
+    return new MemoryPanel(this.getState).render(width);
+  }
+}
+
+export class MemoryPanel implements Component {
+  constructor(private readonly getState: () => ShellState) {}
+
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    const snapshot = this.getState().memorySnapshot;
+    const header = theme.memory('Memory');
+    if (!snapshot || snapshot.trim().length === 0) {
+      return new Text(`${header}\n${theme.muted('No recent memory activity')}`, 1, 0).render(width);
+    }
+    return new Text(`${header}\n${snapshot}`, 1, 0).render(width);
   }
 }

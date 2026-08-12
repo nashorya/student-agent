@@ -210,8 +210,17 @@ function buildHooks(
   resetRiskGuard: () => void;
 } {
   const memoryDir = options.memoryDir ?? MEMORY_DIR;
+  const bridge = options.bridge;
   const reflectHook = createReflectHook(memoryDir, () => currentTaskDescription, {
     boundedBreakerEnabled: config.features.boundedBreaker,
+    onSummary: bridge
+      ? (summary) => {
+        bridge.addMessage(
+          'reflect',
+          `提取 ${summary.patternsExtracted} 个模式，升级 ${summary.promotedCount} 条偏好`,
+        );
+      }
+      : undefined,
   });
   const watchdogHook = config.features.qualityWatchdog
     ? createQualityWatchdogHook(memoryDir)
@@ -237,6 +246,17 @@ function buildHooks(
   const signalPipeline = createSignalPipeline({
     memoryDir,
     onProtectedEvents: options.onProtectedEvents,
+    onSignals: bridge
+      ? (signals) => {
+        for (const signal of signals) {
+          if (signal.severity === 'low') continue;
+          bridge.addMessage(
+            'signal',
+            `${signal.kind} [${signal.severity}] ${signal.summary}`,
+          );
+        }
+      }
+      : undefined,
   });
   const escalationHook = escalation.createHook();
   const riskGuard = createRiskGuardHook({
@@ -265,7 +285,18 @@ function buildHooks(
       memoryDir,
       useNewPipeline: true,
       runMode: options.runMode,
-      onTrace: options.onContextAssemblyTrace,
+      onTrace: (trace) => {
+        options.onContextAssemblyTrace?.(trace);
+        const items = trace.recall?.items ?? [];
+        if (bridge && items.length > 0) {
+          const byKind = new Map<string, number>();
+          for (const item of items) {
+            byKind.set(item.kind, (byKind.get(item.kind) ?? 0) + 1);
+          }
+          const counts = [...byKind.entries()].map(([k, n]) => `${k}:${n}`).join(' · ');
+          bridge.addMessage('recall', `${items.length} injected (${counts})`);
+        }
+      },
     }),
     onSessionEnd: async (ctx) => {
       await reflectHook(ctx);
@@ -1036,7 +1067,7 @@ async function runInteractiveTui(): Promise<void> {
     bindBridgeRiskConfirmation(runtime, shell.bridge);
     shell.bridge.addMessage(
       'system',
-      'Student Agent TUI (ADR-009). Esc aborts · Ctrl+C exits · Ctrl+P plan/agents (compact) · /help',
+      'Student Agent TUI (ADR-009). Esc abort · Ctrl+C exit · Ctrl+P plan/agents/memory (compact) · /help',
     );
     const conflict = describeProfileEnvConflict(runtime.config);
     if (conflict) {

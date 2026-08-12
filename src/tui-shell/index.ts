@@ -8,13 +8,17 @@ export {
   type ShellMessage,
   type ShellPlanStep,
   type ShellState,
+  type CompactOverlay,
 } from './state.js';
 export {
   WIDE_BREAKPOINT,
+  LAYOUT_ACCEPTANCE_WIDTHS,
   isWide,
   describeLayoutRegions,
   rightRailBasis,
+  cycleCompactOverlay,
   type LayoutRegion,
+  type CompactOverlayKind,
 } from './layout.js';
 export { createShellBridge, type CreateShellBridgeOptions, type ShellUiBridge } from './bridge.js';
 export {
@@ -23,6 +27,7 @@ export {
   PlanPanel,
   AgentsPanel,
   CompactOverlayPanel,
+  MemoryPanel,
 } from './components.js';
 export {
   projectTaskToPlanSteps,
@@ -31,6 +36,12 @@ export {
   formatPlanOverlay,
   formatAgentsOverlay,
 } from './project-workbench.js';
+export {
+  formatSignalActivity,
+  formatReflectActivity,
+  formatRecallActivity,
+  buildMemoryOverlaySnapshot,
+} from './project-memory.js';
 export { syncWorkbenchProjection } from './sync-workbench.js';
 export {
   startShell,

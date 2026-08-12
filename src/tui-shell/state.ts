@@ -1,6 +1,6 @@
 import type { UiTaskStatus } from '../runtime/ui-bridge.js';
 
-/** Activity timeline kinds (ADR-009 Phase 2). */
+/** Activity timeline kinds (ADR-009 Phase 2–4). */
 export type ActivityKind =
   | 'user'
   | 'assistant'
@@ -10,7 +10,11 @@ export type ActivityKind =
   | 'error'
   | 'recovery'
   | 'verification'
-  | 'system';
+  | 'system'
+  | 'prompt'
+  | 'signal'
+  | 'reflect'
+  | 'recall';
 
 export type ShellMessage = {
   id: string;
@@ -42,7 +46,7 @@ export type ShellAgentRow = {
   parentId?: string;
 };
 
-export type CompactOverlay = 'none' | 'plan' | 'agents';
+export type CompactOverlay = 'none' | 'plan' | 'agents' | 'memory';
 
 export type ShellState = {
   messages: ShellMessage[];
@@ -55,8 +59,10 @@ export type ShellState = {
   /** Phase 3: Plan sidebar consumes TasksManager via setPlanSteps. */
   planSteps: ShellPlanStep[];
   agents: ShellAgentRow[];
-  /** Compact-mode Plan/Agents overlay (wide mode uses the right rail). */
+  /** Compact-mode Plan/Agents/Memory overlay (wide mode uses the right rail). */
   compactOverlay: CompactOverlay;
+  /** Text snapshot for Memory overlay (Phase 4). */
+  memorySnapshot: string;
 };
 
 export type StreamTarget = 'assistant' | 'reasoning';
@@ -85,6 +91,7 @@ export type ShellAction =
   | { type: 'SET_PLAN_STEPS'; steps: ShellPlanStep[] }
   | { type: 'SET_AGENTS'; agents: ShellAgentRow[] }
   | { type: 'SET_COMPACT_OVERLAY'; overlay: CompactOverlay }
+  | { type: 'SET_MEMORY_SNAPSHOT'; text: string }
   | { type: 'CLEAR_TRANSCRIPT' };
 
 let nextId = 0;
@@ -106,6 +113,7 @@ export function initialShellState(): ShellState {
     planSteps: [],
     agents: [],
     compactOverlay: 'none',
+    memorySnapshot: '',
   };
 }
 
@@ -220,6 +228,9 @@ export function shellReducer(state: ShellState, action: ShellAction): ShellState
 
     case 'SET_COMPACT_OVERLAY':
       return { ...state, compactOverlay: action.overlay };
+
+    case 'SET_MEMORY_SNAPSHOT':
+      return { ...state, memorySnapshot: action.text };
 
     case 'CLEAR_TRANSCRIPT':
       return {
