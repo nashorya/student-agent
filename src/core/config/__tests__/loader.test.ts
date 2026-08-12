@@ -230,6 +230,44 @@ describe('student agent config loader', () => {
     }
   });
 
+  it('active profile 不继承全局 model 的 baseUrl/api（避免 DeepSeek key 打到智谱）', async () => {
+    const globalDir = await mkdtemp(join(tmpdir(), 'student-global-config-test-'));
+    try {
+      await writeFile(join(globalDir, '.student-agent.json'), JSON.stringify({
+        activeProviderProfile: 'deepseek-flash',
+        model: {
+          provider: 'openai',
+          name: 'glm-5.2',
+          baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+          api: 'openai-completions',
+        },
+        providerProfiles: {
+          'deepseek-flash': {
+            provider: 'deepseek',
+            name: 'deepseek-v4-flash',
+            apiKeyEnv: 'DEEPSEEK_API_KEY',
+          },
+        },
+      }));
+
+      const config = await loadStudentAgentConfig({
+        cwd: tmpDir,
+        globalConfigDir: globalDir,
+        env: {},
+      });
+
+      expect(config.model).toMatchObject({
+        provider: 'deepseek',
+        name: 'deepseek-v4-flash',
+        apiKeyEnv: 'DEEPSEEK_API_KEY',
+      });
+      expect(config.model.baseUrl).toBeUndefined();
+      expect(config.model.api).toBeUndefined();
+    } finally {
+      await rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
   it('项目配置可以选择另一个全局 profile，但不能覆盖 profile 定义', async () => {
     const globalDir = await mkdtemp(join(tmpdir(), 'student-global-config-test-'));
     try {

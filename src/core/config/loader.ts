@@ -46,7 +46,18 @@ export async function loadStudentAgentConfig(
 
   let config = mergeConfig(DEFAULT_STUDENT_AGENT_CONFIG, withoutProfileMetadata(globalConfig));
   if (selectedProfile) {
-    config = mergeConfig(config, { model: selectedProfile });
+    // Replace model route from the profile. Do NOT merge leftover baseUrl/api from
+    // a previous global model (e.g. BigModel URL sticking onto a DeepSeek profile).
+    config = {
+      ...config,
+      model: {
+        provider: selectedProfile.provider,
+        name: selectedProfile.name,
+        baseUrl: selectedProfile.baseUrl,
+        api: selectedProfile.api,
+        apiKeyEnv: selectedProfile.apiKeyEnv,
+      },
+    };
   }
   const localOverrides = withoutProfileMetadata(localConfig);
   if (localConfig.activeProviderProfile || envConfig.activeProviderProfile) {
@@ -234,6 +245,36 @@ function hasExplicitModelRouteEnv(env: NodeJS.ProcessEnv): boolean {
     env.STUDENT_AGENT_API,
     env.STUDENT_AGENT_API_KEY_ENV,
   ].some((value) => readOptionalString(value) !== undefined);
+}
+
+/**
+ * When a provider profile is active but STUDENT_AGENT_PROVIDER/MODEL env is also set,
+ * env wins (eval pinning). Surface a warning so interactive users notice the clash.
+ */
+export function describeProfileEnvConflict(
+  config: StudentAgentConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const profileName = config.activeProviderProfile;
+  if (!profileName) return undefined;
+  const profile = config.providerProfiles[profileName];
+  if (!profile) return undefined;
+  if (!hasExplicitModelRouteEnv(env)) return undefined;
+
+  const envProvider = readOptionalString(env.STUDENT_AGENT_PROVIDER);
+  const envModel = readOptionalString(env.STUDENT_AGENT_MODEL);
+  if (
+    (envProvider === undefined || envProvider === profile.provider)
+    && (envModel === undefined || envModel === profile.name)
+  ) {
+    return undefined;
+  }
+
+  return [
+    `警告：active profile「${profileName}」应为 ${profile.provider}/${profile.name}，`,
+    `但 .env 中的 STUDENT_AGENT_PROVIDER/MODEL 把它盖成了 ${config.model.provider}/${config.model.name}。`,
+    `用 profile 时请注释掉这两个环境变量后重启。`,
+  ].join('');
 }
 
 function readExecutionMode(value: string | undefined): StudentAgentExecutionMode | undefined {

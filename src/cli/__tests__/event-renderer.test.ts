@@ -3,6 +3,7 @@ import {
   EventRenderer,
   countTerminalLines,
   extractTextDelta,
+  extractThinkingDelta,
   formatDuration,
   formatToolFailureMessages,
 } from '../event-renderer.js';
@@ -43,7 +44,7 @@ describe('extractTextDelta', () => {
     expect(extractTextDelta(event)).toBe('');
   });
 
-  it('thinking_delta 返回 null', () => {
+  it('thinking_delta 返回 null（text 提取）但 extractThinkingDelta 可读', () => {
     const event: AssistantMessageEvent = {
       type: 'thinking_delta',
       contentIndex: 0,
@@ -51,6 +52,7 @@ describe('extractTextDelta', () => {
       partial: partialMessage,
     };
     expect(extractTextDelta(event)).toBeNull();
+    expect(extractThinkingDelta(event)).toBe('I should think...');
   });
 
   it('toolcall_delta 返回 null', () => {
@@ -161,7 +163,7 @@ describe('formatToolFailureMessages', () => {
       ].join('\n'),
     });
     expect(messages[2]).toEqual({
-      role: 'system',
+      role: 'recovery',
       content: [
         '恢复动作：',
         '1. 停止重复同一工具参数',
@@ -211,7 +213,7 @@ describe('formatToolFailureMessages', () => {
 
     expect(messages[0]?.content).toContain('错误：Could not find exact text');
     expect(messages[1]).toEqual({
-      role: 'system',
+      role: 'recovery',
       content: [
         '恢复动作：',
         '已自动回滚到工具调用前的状态（snapshot: snap_1）。',
@@ -274,8 +276,11 @@ describe('EventRenderer TUI 多消息回合', () => {
       dispatch: vi.fn(),
       addMessage: vi.fn(),
       updateLastMessage: vi.fn(),
+      updateReasoningMessage: vi.fn(),
       endAssistantMessage: vi.fn(),
       discardAssistantMessage: vi.fn(),
+      endReasoningMessage: vi.fn(),
+      discardReasoningMessage: vi.fn(),
       updateTaskStatus: vi.fn(),
       clearTaskStatus: vi.fn(),
       setCurrentTool: vi.fn(),
@@ -283,6 +288,18 @@ describe('EventRenderer TUI 多消息回合', () => {
       clearStatus: vi.fn(),
       promptSettings: vi.fn(async () => ''),
     } satisfies TUIBridge;
+  }
+
+  function thinkingDeltaEvent(delta: string): AgentEvent {
+    return {
+      type: 'message_update',
+      assistantMessageEvent: {
+        type: 'thinking_delta',
+        contentIndex: 0,
+        delta,
+        partial: partialMessage,
+      },
+    } as unknown as AgentEvent;
   }
 
   function textDeltaEvent(delta: string): AgentEvent {
@@ -344,6 +361,11 @@ describe('EventRenderer TUI 多消息回合', () => {
     expect(lastUpdates).not.toContain('AB');
     // message_end commits each message immediately, so both get endAssistantMessage
     expect(bridge.endAssistantMessage).toHaveBeenCalledTimes(2);
+    expect(bridge.addMessage).toHaveBeenCalledWith(
+      'tool',
+      'bash',
+      { toolName: 'bash', toolStatus: 'done' },
+    );
   });
 
   it('TUI bridge stream commits once without final duplicate add', () => {
@@ -384,5 +406,55 @@ describe('EventRenderer TUI 多消息回合', () => {
     expect(bridge.addMessage).not.toHaveBeenCalledWith('assistant', expect.anything());
     expect(bridge.updateLastMessage).not.toHaveBeenCalled();
     expect(bridge.endAssistantMessage).not.toHaveBeenCalled();
+  });
+
+  it('TUI 把 thinking_delta 投影为 reasoning activity', async () => {
+    vi.useFakeTimers();
+    const bridge = createFakeBridge();
+    const renderer = new EventRenderer(bridge);
+
+    renderer.handleEvent({ type: 'agent_start' } as unknown as AgentEvent);
+    renderer.handleEvent({
+      type: 'message_start',
+      message: { role: 'assistant' },
+    } as unknown as AgentEvent);
+    renderer.handleEvent(thinkingDeltaEvent('step 1'));
+    await vi.advanceTimersByTimeAsync(60);
+    renderer.handleEvent(textDeltaEvent('answer'));
+    await vi.advanceTimersByTimeAsync(60);
+    renderer.handleEvent({ type: 'message_end' } as unknown as AgentEvent);
+
+    expect(bridge.addMessage).toHaveBeenCalledWith('reasoning', '');
+    expect(bridge.updateReasoningMessage).toHaveBeenCalledWith('step 1');
+    expect(bridge.endReasoningMessage).toHaveBeenCalled();
+    expect(bridge.addMessage).toHaveBeenCalledWith('assistant', '');
+    expect(bridge.updateLastMessage).toHaveBeenCalledWith('answer');
+    vi.useRealTimers();
+  });
+
+  it('TUI 工具成功结束写入 compact tool receipt', () => {
+    const bridge = createFakeBridge();
+    const renderer = new EventRenderer(bridge);
+
+    renderer.handleEvent({ type: 'agent_start' } as unknown as AgentEvent);
+    renderer.handleEvent({
+      type: 'tool_execution_start',
+      toolName: 'bash',
+      args: { command: 'ls -la' },
+    } as unknown as AgentEvent);
+    renderer.handleEvent({
+      type: 'tool_execution_end',
+      toolName: 'bash',
+      isError: false,
+      args: { command: 'ls -la' },
+      result: { content: [{ text: 'ok' }] },
+    } as unknown as AgentEvent);
+
+    expect(bridge.setCurrentTool).toHaveBeenCalledWith('bash');
+    expect(bridge.addMessage).toHaveBeenCalledWith(
+      'tool',
+      'bash · ls -la',
+      { toolName: 'bash', toolStatus: 'done' },
+    );
   });
 });

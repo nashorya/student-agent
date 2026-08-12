@@ -1,44 +1,120 @@
 import type { Component } from '@earendil-works/pi-tui';
 import { Text } from '@earendil-works/pi-tui';
-import type { ShellState } from './state.js';
+import type { ActivityKind, ShellMessage, ShellState } from './state.js';
 import { theme } from './theme.js';
 import { isWide } from './layout.js';
 
-function roleStyle(role: ShellState['messages'][number]['role']): (s: string) => string {
-  switch (role) {
+const DIFF_LINE_RE = /^(?:diff --git |@@ |[+-](?![+-]))/;
+
+function kindStyle(kind: ActivityKind): (s: string) => string {
+  switch (kind) {
     case 'user':
       return theme.accent;
     case 'assistant':
       return theme.text;
+    case 'reasoning':
+      return theme.reasoning;
     case 'tool':
       return theme.tool;
+    case 'diff':
+      return theme.text;
     case 'system':
       return theme.muted;
     case 'error':
       return theme.danger;
+    case 'recovery':
+      return theme.warning;
+    case 'verification':
+      return theme.success;
     default:
       return theme.text;
   }
 }
 
-function roleLabel(role: ShellState['messages'][number]['role']): string {
-  switch (role) {
+function kindLabel(kind: ActivityKind, meta?: ShellMessage['meta']): string {
+  switch (kind) {
     case 'user':
       return 'You';
     case 'assistant':
       return 'Assistant';
-    case 'tool':
+    case 'reasoning':
+      return 'Thinking';
+    case 'tool': {
+      const status = meta?.toolStatus;
+      if (status === 'running') return 'Tool ·';
+      if (status === 'failed') return 'Tool ✗';
+      if (status === 'done') return 'Tool ✓';
       return 'Tool';
+    }
+    case 'diff':
+      return 'Diff';
     case 'system':
       return 'System';
     case 'error':
       return 'Error';
+    case 'recovery':
+      return 'Recovery';
+    case 'verification':
+      return 'Verify';
     default:
-      return role;
+      return kind;
   }
 }
 
-/** Phase 1 transcript: simple role-colored Text lines (activity timeline is Phase 2). */
+function looksLikeDiff(content: string): boolean {
+  const lines = content.split('\n').slice(0, 40);
+  let hits = 0;
+  for (const line of lines) {
+    if (DIFF_LINE_RE.test(line)) hits += 1;
+  }
+  return hits >= 2;
+}
+
+function renderDiffBody(content: string, width: number): string[] {
+  const lines: string[] = [];
+  for (const raw of content.split('\n')) {
+    let painted = raw;
+    if (raw.startsWith('+') && !raw.startsWith('+++')) painted = theme.diffAdded(raw);
+    else if (raw.startsWith('-') && !raw.startsWith('---')) painted = theme.diffRemoved(raw);
+    else if (raw.startsWith('@@')) painted = theme.muted(raw);
+    else painted = theme.muted(raw);
+    lines.push(...new Text(painted, 1, 0).render(width));
+  }
+  return lines;
+}
+
+function renderActivity(msg: ShellMessage, width: number): string[] {
+  const style = kindStyle(msg.kind);
+  const label = style(kindLabel(msg.kind, msg.meta));
+  const body = msg.content.length > 0 ? msg.content : theme.muted('…');
+
+  if (msg.kind === 'reasoning') {
+    const indented = body
+      .split('\n')
+      .map((line) => theme.reasoning(`  ${line}`))
+      .join('\n');
+    return new Text(`${label}\n${indented}`, 1, 0).render(width);
+  }
+
+  if (msg.kind === 'tool') {
+    // Compact single-block receipt
+    return new Text(`${label} ${theme.tool(body)}`, 1, 0).render(width);
+  }
+
+  if (msg.kind === 'diff' || (msg.kind === 'assistant' && looksLikeDiff(msg.content))) {
+    const header = style(msg.kind === 'diff' ? 'Diff:' : 'Assistant:');
+    return [header, ...renderDiffBody(msg.content, width), ''];
+  }
+
+  if (msg.kind === 'user' || msg.kind === 'assistant') {
+    return new Text(`${label}: ${body}`, 1, 0).render(width);
+  }
+
+  // error / recovery / verification / system — label on own visual weight
+  return new Text(`${label}: ${body}`, 1, 0).render(width);
+}
+
+/** Phase 2 transcript: hierarchical activity timeline. */
 export class TranscriptView implements Component {
   constructor(private readonly getState: () => ShellState) {}
 
@@ -52,12 +128,10 @@ export class TranscriptView implements Component {
 
     const lines: string[] = [];
     for (const msg of messages) {
-      const style = roleStyle(msg.role);
-      const header = style(`${roleLabel(msg.role)}:`);
-      const body = msg.content.length > 0 ? msg.content : theme.muted('…');
-      const block = new Text(`${header} ${body}`, 1, 0);
-      lines.push(...block.render(width));
-      lines.push('');
+      lines.push(...renderActivity(msg, width));
+      if (msg.kind !== 'tool') {
+        lines.push('');
+      }
     }
     return lines;
   }
@@ -102,7 +176,6 @@ export class StatusBar implements Component {
     }
 
     const line = theme.muted(parts.join(' · '));
-    // Truncate manually — TruncatedText has no setText.
     if (line.length <= width) return [line];
     const visible = Math.max(0, width - 1);
     return [line.slice(0, visible) + '…'];

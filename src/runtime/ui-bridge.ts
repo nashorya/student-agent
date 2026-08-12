@@ -1,6 +1,6 @@
 /**
- * UI bridge contract used by EventRenderer and temporary readline REPL.
- * Full TUI shell is rebuilt under ADR-009; this keeps non-UI callers compiling.
+ * UI bridge contract used by EventRenderer and Student TUI shell.
+ * Full TUI shell is rebuilt under ADR-009.
  */
 export type UiTaskStatus = {
   state?: string;
@@ -13,11 +13,32 @@ export type UiTaskStatus = {
   [k: string]: unknown;
 };
 
+/** Activity timeline roles (ADR-009 Phase 2). */
+export type UiMessageRole =
+  | 'user'
+  | 'assistant'
+  | 'reasoning'
+  | 'tool'
+  | 'diff'
+  | 'error'
+  | 'recovery'
+  | 'verification'
+  | 'system';
+
+export type UiMessageMeta = {
+  toolName?: string;
+  toolStatus?: 'running' | 'done' | 'failed';
+};
+
 export interface UiBridge {
-  addMessage: (role: 'user' | 'assistant' | 'tool' | 'system' | 'error', content: string) => void;
+  addMessage: (role: UiMessageRole, content: string, meta?: UiMessageMeta) => void;
   updateLastMessage: (content: string) => void;
+  /** Update the in-flight reasoning activity (thinking stream). */
+  updateReasoningMessage: (content: string) => void;
   endAssistantMessage: () => void;
   discardAssistantMessage: () => void;
+  endReasoningMessage: () => void;
+  discardReasoningMessage: () => void;
   updateTaskStatus: (status: Partial<UiTaskStatus>) => void;
   clearTaskStatus: () => void;
   setCurrentTool: (name: string | null) => void;

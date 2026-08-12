@@ -1,8 +1,8 @@
 # ADR-009：升级到受维护的 Pi，并删除旧 TUI、以 pi-tui 重建 Student Agent 工作台
 
-- 状态：accepted (Phase 0–1 foundation done; Phase 2+ pending)
+- 状态：accepted (Phase 0–2 foundation; Phase 3+ pending)
 - 日期：2026-08-12
-- 实现状态：Phase 0 done；Phase 1 foundation landed — `src/tui-shell/`（theme/state/layout/bridge/shell）、TTY 走 pi-tui alt-screen，非 TTY 仍 readline；Plan/Agents 为占位；activity timeline / 完整 Plan 接线待 Phase 2–3。GLM thinking 真实请求复验仍待收尾
+- 实现状态：Phase 0–1 done；Phase 2 activity timeline landed — transcript kinds（reasoning / tool / diff / error / recovery / verification）、EventRenderer 投影、ScrollView follow-end；Plan/Agents 完整接线仍待 Phase 3。交互分区/Composer 体验后续再打磨。GLM thinking 真实请求复验仍待收尾
 - 取代：[`docs/plan-legacy-cleanup.md`](../plan-legacy-cleanup.md) 中「保留/渐进迁 tui-v2」路线；与 [`docs/plan-pi-successor-migration.md`](../plan-pi-successor-migration.md) 的 Phase 0 对齐并扩展为含 TUI 重建批次
 
 ## 背景
@@ -226,9 +226,11 @@ Phase 0 **不**重构 TUI，**不**修补 tui-v2。交互入口若因旧 TUI 与
 4. semantic theme、UI state projection、responsive layout；
 5. 固定 Composer 与 Status bar；接上 extension 入口。
 
-### Phase 2：Main Transcript（activity timeline）
+### Phase 2：Main Transcript（activity timeline）— done
 
 reasoning / tool receipt / diff / error / recovery / verification / follow-bottom。
+
+落痕：`ShellMessage.kind`、`TranscriptView` 分层渲染、`EventRenderer` thinking/tool/error/recovery 投影；ScrollView `follow: 'end'`（用户上滚由 pi-tui 解除跟随）。
 
 ### Phase 3：Plan + Subagents
 

@@ -1,5 +1,5 @@
 /**
- * EventRenderer — 将 AgentEvent 流转为终端输出。
+ * EventRenderer — 将 AgentEvent 流转为终端输出 / TUI activity timeline。
  *
  * 渲染策略（参照 Pi 的 InteractiveMode.subscribeToAgent）：
  *   streaming 阶段: 裸文本逐 token 写 stdout（打字感）
@@ -8,14 +8,14 @@
  * 事件处理：
  *   agent_start       → 显示 spinner
  *   message_start     → 准备流式输出，打印 Assistant: 前缀
- *   message_update    → 逐 token 写 stdout（text_delta）+ 缓存
+ *   message_update    → text_delta / thinking_delta
  *   message_end       → 清屏重绘 Markdown + 换行
- *   tool_execution_*  → 工具状态 + 参数提示
+ *   tool_execution_*  → 工具 receipt + 状态栏
  *   agent_end         → 清理，显示耗时
  *
- * TUI 模式下：
- *   - tool error 必须通过 bridge.addMessage('error', ...) append 到 transcriptMessages
- *   - 工具状态通过 bridge.setStatus() / bridge.setCurrentTool() 走状态栏
+ * TUI 模式（ADR-009 Phase 2 activity timeline）：
+ *   - reasoning / assistant / tool / diff / error / recovery / verification
+ *   - 工具状态同时走 bridge.setStatus() / setCurrentTool()
  *   - 禁止直接 console.log
  */
 
@@ -25,10 +25,9 @@ import chalk from "chalk";
 import ora, { type Ora } from "ora";
 import stringWidth from "string-width";
 import { renderMarkdown } from "./markdown.js";
-import type { TUIBridge } from "../runtime/ui-bridge.js";
+import type { TUIBridge, UiMessageRole } from "../runtime/ui-bridge.js";
 import { stripPhaseSignals } from "../core/task-planner/phase-signal.js";
 import { recordDebugEvent } from "../runtime/debug-events.js";
-import { logger } from "../runtime/logger.js";
 
 /**
  * 从 message_update 事件的 assistantMessageEvent 中提取文本 delta。
@@ -38,6 +37,16 @@ export function extractTextDelta(
   assistantEvent: AssistantMessageEvent,
 ): string | null {
   if (assistantEvent.type === "text_delta") {
+    return assistantEvent.delta;
+  }
+  return null;
+}
+
+/** Extract thinking/reasoning stream deltas for the activity timeline. */
+export function extractThinkingDelta(
+  assistantEvent: AssistantMessageEvent,
+): string | null {
+  if (assistantEvent.type === "thinking_delta") {
     return assistantEvent.delta;
   }
   return null;
@@ -76,16 +85,21 @@ export class EventRenderer {
   private spinner: Ora;
   private isStreaming = false;
   private hasOutput = false;
+  private hasReasoning = false;
   private startTime = 0;
   private toolCount = 0;
   private bridge?: TUIBridge;
 
   // 流式输出缓冲区，用于 message_end 时的 markdown 重绘
   private streamBuffer = "";
+  private reasoningBuffer = "";
   private streamLineCount = 0;
   private bridgeFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  private reasoningFlushTimer: ReturnType<typeof setTimeout> | null = null;
   private bridgeMessageStarted = false;
+  private bridgeReasoningStarted = false;
   private bridgeVisibleText = "";
+  private bridgeVisibleReasoning = "";
 
   constructor(bridge?: TUIBridge) {
     this.bridge = bridge;
@@ -104,11 +118,15 @@ export class EventRenderer {
       case "agent_start":
         this.isStreaming = false;
         this.hasOutput = false;
+        this.hasReasoning = false;
         this.toolCount = 0;
         this.streamBuffer = "";
+        this.reasoningBuffer = "";
         this.streamLineCount = 0;
         this.bridgeMessageStarted = false;
+        this.bridgeReasoningStarted = false;
         this.bridgeVisibleText = "";
+        this.bridgeVisibleReasoning = "";
         this.startTime = Date.now();
         if (!this.bridge) {
           this.spinner.start(chalk.dim("思考中..."));
@@ -123,13 +141,18 @@ export class EventRenderer {
             this.bridgeMessageStarted = false;
             this.bridgeVisibleText = "";
           }
+          if (this.bridge && this.bridgeReasoningStarted) {
+            this.finishBridgeReasoningMessage();
+          }
           this.isStreaming = true;
           this.streamBuffer = "";
+          this.reasoningBuffer = "";
           this.streamLineCount = 0;
           // 关键：每条新 assistant 消息都要重置 hasOutput，
           // 否则一个回合内的第二条消息（典型场景 assistant→tool→assistant）
           // 不会触发 bridge.addMessage()，导致 updateLastMessage() 覆盖前一条。
           this.hasOutput = false;
+          this.hasReasoning = false;
           if (!this.bridge) {
             process.stdout.write(chalk.cyan("Assistant: "));
           }
@@ -140,6 +163,14 @@ export class EventRenderer {
 
       case "message_update": {
         if (!this.isStreaming) break;
+        const thinking = extractThinkingDelta(event.assistantMessageEvent);
+        if (thinking) {
+          this.reasoningBuffer += thinking;
+          this.hasReasoning = true;
+          if (this.bridge) {
+            this.scheduleReasoningFlush();
+          }
+        }
         const delta = extractTextDelta(event.assistantMessageEvent);
         if (delta) {
           this.streamBuffer += delta;
@@ -154,30 +185,39 @@ export class EventRenderer {
       }
 
       case "message_end":
+        this.flushReasoningBuffer();
         this.flushBridgeBuffer();
         if (this.isStreaming && this.hasOutput && !this.bridge) {
           // 清除裸文本输出，用 Markdown 格式化后重绘（仅非 TUI 模式）
           this.reRenderWithMarkdown();
         }
         // TUI 模式：message_end 时立即 commit，避免下一条 message_start discard 掉有内容的消息
-        if (this.bridge && this.bridgeMessageStarted) {
-          this.finishBridgeAssistantMessage();
-          // commit 后强制重绘，确保 markdown 完整版本被渲染到屏幕
-          if ('forceRedraw' in this.bridge && typeof (this.bridge as Record<string, unknown>).forceRedraw === 'function') {
-            (this.bridge as { forceRedraw: () => void }).forceRedraw();
+        if (this.bridge) {
+          if (this.bridgeReasoningStarted) {
+            this.finishBridgeReasoningMessage();
+          }
+          if (this.bridgeMessageStarted) {
+            this.finishBridgeAssistantMessage();
+            // commit 后强制重绘，确保 markdown 完整版本被渲染到屏幕
+            if ('forceRedraw' in this.bridge && typeof (this.bridge as Record<string, unknown>).forceRedraw === 'function') {
+              (this.bridge as { forceRedraw: () => void }).forceRedraw();
+            }
           }
         }
         // 重置 hasOutput，防止晚于 message_end 触发的 50ms flush 定时器
         // 看到 hasOutput=true + bridgeMessageStarted=false 后重建同内容的重复消息
         this.hasOutput = false;
+        this.hasReasoning = false;
         this.isStreaming = false;
         break;
 
       case "tool_execution_start":
         this.toolCount++;
         if (this.bridge) {
+          // Running state stays in the status bar; transcript gets a compact receipt on end.
           this.bridge.setCurrentTool(event.toolName);
-          this.bridge.setStatus(`正在调用 ${event.toolName}`);
+          const hint = compactToolHint(event.toolName, (event as { args?: unknown }).args);
+          this.bridge.setStatus(`正在调用 ${hint}`);
         } else {
           this.spinner.start(chalk.dim(`Tool: ${event.toolName}`));
         }
@@ -200,11 +240,21 @@ export class EventRenderer {
           const rawDetail = extractToolErrorDetail(ev);
           const messages = formatToolFailureMessages(event.toolName, rawDetail, ev.args ?? ev.toolArgs);
           if (this.bridge) {
-            // TUI 模式：tool 错误只在状态栏短暂显示，不污染用户可见的 transcript
             const summary = rawDetail
               ? `${event.toolName} 失败: ${rawDetail.slice(0, 60)}${rawDetail.length > 60 ? '…' : ''}`
               : `${event.toolName} 调用失败`;
             this.bridge.setStatus(summary);
+            this.bridge.addMessage('tool', summary, {
+              toolName: event.toolName,
+              toolStatus: 'failed',
+            });
+            for (const message of messages) {
+              const role: UiMessageRole =
+                message.role === 'recovery' ? 'recovery' :
+                message.role === 'error' ? 'error' :
+                'system';
+              this.bridge.addMessage(role, message.content);
+            }
             recordDebugEvent("toolResult", {
               toolName: event.toolName,
               isError: true,
@@ -217,15 +267,34 @@ export class EventRenderer {
               process.stderr.write(color(`  ${message.content}\n`));
             }
           }
+        } else if (this.bridge) {
+          const ev = event as Record<string, unknown>;
+          const hint = compactToolHint(event.toolName, ev.args ?? ev.toolArgs);
+          const resultText = extractToolResultText(ev);
+          const kind = classifySuccessfulTool(event.toolName, ev.args ?? ev.toolArgs, resultText);
+          if (kind === 'diff' && resultText) {
+            this.bridge.addMessage('diff', truncateBlock(resultText, 40));
+          } else if (kind === 'verification') {
+            this.bridge.addMessage('verification', hint);
+          } else {
+            this.bridge.addMessage('tool', hint, {
+              toolName: event.toolName,
+              toolStatus: 'done',
+            });
+          }
         }
         break;
 
       case "agent_end": {
         // Only flush+commit if message_end didn't already do it (bridgeMessageStarted still true)
+        if (this.bridgeReasoningStarted) {
+          this.flushReasoningBuffer();
+        }
         if (this.bridgeMessageStarted) {
           this.flushBridgeBuffer();
         }
         if (this.bridge) {
+          this.finishBridgeReasoningMessage();
           this.finishBridgeAssistantMessage();
         } else if (this.isStreaming && this.bridgeMessageStarted) {
           // Non-TUI rendering writes directly to stdout and does not use bridge commits.
@@ -311,8 +380,18 @@ export class EventRenderer {
 
   /** 停止 spinner（用于 REPL 退出时的清理）。 */
   cleanup(): void {
+    this.flushReasoningBuffer();
     this.flushBridgeBuffer();
     if (this.bridge) {
+      if (this.bridgeReasoningStarted) {
+        if (this.isStreaming || !this.bridgeVisibleReasoning.trim()) {
+          this.bridge.discardReasoningMessage();
+        } else {
+          this.bridge.endReasoningMessage();
+        }
+        this.bridgeReasoningStarted = false;
+        this.bridgeVisibleReasoning = "";
+      }
       if (this.bridgeMessageStarted) {
         if (this.isStreaming || !this.bridgeVisibleText.trim()) {
           this.bridge.discardAssistantMessage();
@@ -336,6 +415,14 @@ export class EventRenderer {
     }, 50);
   }
 
+  private scheduleReasoningFlush(): void {
+    if (!this.bridge || this.reasoningFlushTimer) return;
+    this.reasoningFlushTimer = setTimeout(() => {
+      this.reasoningFlushTimer = null;
+      this.flushReasoningBuffer();
+    }, 50);
+  }
+
   private flushBridgeBuffer(): void {
     if (!this.bridge || !this.hasOutput) return;
     if (this.bridgeFlushTimer) {
@@ -352,6 +439,22 @@ export class EventRenderer {
     this.bridge.updateLastMessage(visible);
   }
 
+  private flushReasoningBuffer(): void {
+    if (!this.bridge || !this.hasReasoning) return;
+    if (this.reasoningFlushTimer) {
+      clearTimeout(this.reasoningFlushTimer);
+      this.reasoningFlushTimer = null;
+    }
+    const visible = this.reasoningBuffer.trimEnd();
+    if (!visible && !this.bridgeReasoningStarted) return;
+    if (!this.bridgeReasoningStarted) {
+      this.bridge.addMessage("reasoning", "");
+      this.bridgeReasoningStarted = true;
+    }
+    this.bridgeVisibleReasoning = visible;
+    this.bridge.updateReasoningMessage(visible);
+  }
+
   private finishBridgeAssistantMessage(): void {
     if (!this.bridge || !this.bridgeMessageStarted) return;
     if (this.bridgeVisibleText.trim()) {
@@ -361,6 +464,17 @@ export class EventRenderer {
     }
     this.bridgeMessageStarted = false;
     this.bridgeVisibleText = "";
+  }
+
+  private finishBridgeReasoningMessage(): void {
+    if (!this.bridge || !this.bridgeReasoningStarted) return;
+    if (this.bridgeVisibleReasoning.trim()) {
+      this.bridge.endReasoningMessage();
+    } else {
+      this.bridge.discardReasoningMessage();
+    }
+    this.bridgeReasoningStarted = false;
+    this.bridgeVisibleReasoning = "";
   }
 }
 
@@ -380,8 +494,47 @@ function extractToolErrorDetail(ev: Record<string, unknown>): string {
   return "";
 }
 
+function extractToolResultText(ev: Record<string, unknown>): string {
+  return extractToolErrorDetail(ev);
+}
+
+function compactToolHint(toolName: string, args: unknown): string {
+  if (!isRecord(args)) return toolName;
+  const command = pickString(args, ["cmd", "command"]);
+  const path = pickString(args, ["path", "file_path", "filePath", "filename"]);
+  if (command) return `${toolName} · ${limitLine(command, 72)}`;
+  if (path) return `${toolName} · ${limitLine(path, 72)}`;
+  return toolName;
+}
+
+function classifySuccessfulTool(
+  toolName: string,
+  args: unknown,
+  resultText: string,
+): 'tool' | 'diff' | 'verification' {
+  const name = toolName.toLowerCase();
+  if (
+    (name.includes('edit') || name.includes('write') || name.includes('apply'))
+    && /^(?:diff --git |@@ |\+[^+]|-[^-])/m.test(resultText)
+  ) {
+    return 'diff';
+  }
+  const command = isRecord(args) ? pickString(args, ["cmd", "command"]) : null;
+  const blob = `${name} ${command ?? ''}`.toLowerCase();
+  if (/\b(vitest|pytest|npm test|cargo test|go test|self-?check|verify)\b/.test(blob)) {
+    return 'verification';
+  }
+  return 'tool';
+}
+
+function truncateBlock(text: string, maxLines: number): string {
+  const lines = text.split(/\r?\n/);
+  if (lines.length <= maxLines) return text.trimEnd();
+  return `${lines.slice(0, maxLines).join('\n')}\n… (${lines.length - maxLines} more lines)`;
+}
+
 export interface ToolFailureMessage {
-  role: "error" | "system";
+  role: "error" | "system" | "recovery";
   content: string;
 }
 
@@ -410,7 +563,7 @@ export function formatToolFailureMessages(
 
   const recovery = extractRecoveryLines(lines);
   if (recovery.length > 0) {
-    messages.push({ role: "system", content: ["恢复动作：", ...recovery].join("\n") });
+    messages.push({ role: "recovery", content: ["恢复动作：", ...recovery].join("\n") });
   }
 
   return messages;
@@ -458,7 +611,7 @@ function extractDiagnosticLines(lines: string[]): string[] {
       diagnostics.push(line);
     }
   }
-  return uniqueLines(diagnostics).map(limitLine);
+  return uniqueLines(diagnostics).map((line) => limitLine(line));
 }
 
 function extractRecoveryLines(lines: string[]): string[] {
@@ -485,7 +638,7 @@ function extractRecoveryLines(lines: string[]): string[] {
     }
   }
 
-  return uniqueLines(recovery).map(limitLine);
+  return uniqueLines(recovery).map((line) => limitLine(line));
 }
 
 function summarizeToolArgs(args: unknown): string[] {
@@ -518,6 +671,6 @@ function uniqueLines(lines: string[]): string[] {
   return [...new Set(lines.filter((line) => line.trim()))];
 }
 
-function limitLine(line: string): string {
-  return line.length > 220 ? `${line.slice(0, 217)}...` : line;
+function limitLine(line: string, max = 220): string {
+  return line.length > max ? `${line.slice(0, max - 3)}...` : line;
 }

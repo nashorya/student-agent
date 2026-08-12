@@ -2,6 +2,7 @@ export { theme, editorTheme, type ThemeToken } from './theme.js';
 export {
   initialShellState,
   shellReducer,
+  type ActivityKind,
   type ShellAction,
   type ShellAgentRow,
   type ShellMessage,

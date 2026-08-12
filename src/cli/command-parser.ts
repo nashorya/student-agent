@@ -19,6 +19,8 @@ export type SlashCommand =
   | { type: 'setting' }
   | { type: 'provider' }
   | { type: 'model' }
+  /** Pi CLI command; Student Agent uses /setting instead. */
+  | { type: 'login' }
   | { type: 'clear' }
   | { type: 'candidates' }
   | { type: 'context' }
@@ -125,6 +127,9 @@ export function parseCommand(input: string): SlashCommand | null {
     case 'model':
       return { type: 'model' };
 
+    case 'login':
+      return { type: 'login' };
+
     case 'clear':
       return { type: 'clear' };
 
@@ -209,9 +214,10 @@ export function getHelpText(): string {
     '    /quit, /exit, /q      退出',
     '    /status               显示当前状态',
     '    /abort                中止当前运行中的任务（TUI 中也可按 Esc）',
-    '    /setting              重新配置 Provider / API Key',
+    '    /setting              重新配置 Provider / API Key（写入 ~/.student-agent/.env）',
     '    /provider             切换已保存的 Provider profile',
     '    /model                快速切换模型（保持其他设置不变）',
+    '    /login                不可用：请用 /setting（Pi CLI 的 /login 不属于本程序）',
     '    /clear                清空屏幕',
     '    /candidates           查看偏好候选',
     '    /context              查看当前三层上下文状态',

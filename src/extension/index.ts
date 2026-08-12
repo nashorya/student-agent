@@ -20,7 +20,7 @@ import chalk from 'chalk';
 import { getModel, getModels, completeSimple, type Api, type Model } from '../core/pi-compat/index.js';
 import { loadEnvFile, loadEnvLayersPreservingAmbient } from '../core/env.js';
 import { getProjectCwd } from '../core/paths.js';
-import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
+import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR, describeProfileEnvConflict } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
 import { resolveConfiguredModel } from '../core/config/model-resolver.js';
 import {
@@ -43,7 +43,7 @@ import { createQualityWatchdogHook } from './hooks/quality-watchdog.js';
 import { formatContextInspection, inspectContext } from './commands/context-inspector.js';
 import { buildSettingTargetPrompt, parseSettingTargetAnswer, type SettingTarget } from './setting-target.js';
 import { runProviderProfileCommand } from './provider-command.js';
-import { shouldShowAgentErrorMessage } from './tui-message-policy.js';
+import { shouldShowAgentErrorMessage, formatAgentErrorForDisplay } from './tui-message-policy.js';
 import {
   buildPlanningRecoveryPromptQuestion,
   buildPlanningRetryRequest,
@@ -614,8 +614,16 @@ async function runInteractiveReadline(): Promise<void> {
         }
 
         case 'setting':
-          runtime = await runSettingFlow(rl, runtime);
+          runtime = await runSettingFlow(runtime, {
+            prompt: createReadlinePrompt(rl),
+            log: console.log,
+            recreateRuntime: async () => createRuntime(await reloadConfig()),
+          });
           bindConsoleRiskConfirmation(runtime, rl);
+          continue;
+
+        case 'login':
+          console.log(chalk.yellow(`  ${loginHelpMessage(runtime)}`));
           continue;
 
         case 'task': {
@@ -976,7 +984,7 @@ async function runInteractiveReadline(): Promise<void> {
 /**
  * TTY interactive path: pi-tui Student shell (ADR-009 Phase 1).
  * Esc aborts the current agent turn; Ctrl+C exits the shell.
- * promptSettings uses an Editor overlay (fallback: next Composer submit answers).
+ * promptSettings uses the bottom Composer (question lands in transcript).
  */
 async function runInteractiveTui(): Promise<void> {
   initLogger();
@@ -1019,6 +1027,10 @@ async function runInteractiveTui(): Promise<void> {
       'system',
       'Student Agent TUI (ADR-009 Phase 1). Esc aborts · Ctrl+C exits · /help for commands.',
     );
+    const conflict = describeProfileEnvConflict(runtime.config);
+    if (conflict) {
+      shell.bridge.addMessage('error', conflict);
+    }
     shell.bridge.setStatus('ready');
 
     while (!stopped) {
@@ -1074,6 +1086,79 @@ async function runInteractiveTui(): Promise<void> {
             }
             continue;
 
+          case 'login':
+            shell.bridge.addMessage('system', loginHelpMessage(runtime));
+            continue;
+
+          case 'provider': {
+            if (runtime.agent.state.isStreaming) {
+              shell.bridge.addMessage('system', '当前任务仍在运行，不能切换 Provider。');
+              continue;
+            }
+            try {
+              const result = await runProviderProfileCommand({
+                cwd: CWD,
+                config: runtime.config,
+                prompt: (q) => shell.bridge.promptSettings(q),
+                log: (message) => shell.bridge.addMessage('system', message),
+                activate: async () => createRuntime(await reloadConfig(), { bridge: shell.bridge }),
+              });
+              if (!result.switched) {
+                shell.bridge.addMessage('system', '已取消。');
+                continue;
+              }
+              runtime.renderer.cleanup();
+              runtime.unsubscribe();
+              runtime = result.value;
+              bindBridgeRiskConfirmation(runtime, shell.bridge);
+              shell.bridge.addMessage(
+                'system',
+                `OK: 已切换至 ${result.profileName}：${runtime.config.model.provider}/${runtime.config.model.name}`,
+              );
+              shell.bridge.setStatus('ready');
+            } catch (err) {
+              shell.bridge.addMessage('error', err instanceof Error ? err.message : String(err));
+            }
+            continue;
+          }
+
+          case 'model': {
+            if (runtime.agent.state.isStreaming) {
+              shell.bridge.addMessage('system', '当前任务仍在运行，不能切换模型。');
+              continue;
+            }
+            const newName = await switchModelName({
+              config: runtime.config,
+              prompt: (q) => shell.bridge.promptSettings(q),
+              log: (message) => shell.bridge.addMessage('system', message),
+            });
+            if (newName) {
+              runtime.renderer.cleanup();
+              runtime.unsubscribe();
+              runtime = await createRuntime(await reloadConfig(), { bridge: shell.bridge });
+              bindBridgeRiskConfirmation(runtime, shell.bridge);
+              shell.bridge.addMessage(
+                'system',
+                `OK: 模型已切换为 ${runtime.config.model.provider}/${runtime.config.model.name}`,
+              );
+              shell.bridge.setStatus('ready');
+            } else {
+              shell.bridge.addMessage('system', '已取消。');
+            }
+            continue;
+          }
+
+          case 'setting': {
+            runtime = await runSettingFlow(runtime, {
+              prompt: (q) => shell.bridge.promptSettings(q),
+              log: (message) => shell.bridge.addMessage('system', message),
+              recreateRuntime: async () => createRuntime(await reloadConfig(), { bridge: shell.bridge }),
+            });
+            bindBridgeRiskConfirmation(runtime, shell.bridge);
+            shell.bridge.setStatus('ready');
+            continue;
+          }
+
           case 'unknown':
             shell.bridge.addMessage('system', `未知命令: ${command.raw}\n输入 /help 查看可用命令`);
             continue;
@@ -1081,7 +1166,7 @@ async function runInteractiveTui(): Promise<void> {
           default:
             shell.bridge.addMessage(
               'system',
-              `/${command.type}：Phase 1 TUI 以核心命令与普通 prompt 为主；复杂设置流可稍后完善。`,
+              `/${command.type}：Phase 1 TUI 尚未接入该命令；可用 /setting /provider /model /help。`,
             );
             continue;
         }
@@ -1100,13 +1185,12 @@ async function runInteractiveTui(): Promise<void> {
         await runtime.session.prompt(userInput);
         await runtime.agent.waitForIdle();
         if (shouldShowAgentErrorMessage(runtime.agent.state.errorMessage)) {
-          shell.bridge.addMessage('error', `[Agent Error] ${runtime.agent.state.errorMessage}`);
+          const shown = formatAgentErrorForDisplay(runtime.agent.state.errorMessage)!;
+          shell.bridge.addMessage('error', `[Agent Error] ${shown}`);
         }
       } catch (err) {
-        shell.bridge.addMessage(
-          'error',
-          `Task error: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        const raw = err instanceof Error ? err.message : String(err);
+        shell.bridge.addMessage('error', `Task error: ${formatAgentErrorForDisplay(raw) ?? raw}`);
       } finally {
         shell.bridge.clearStatus();
       }
@@ -1661,41 +1745,58 @@ async function createRuntime(
   };
 }
 
+interface SettingFlowIo {
+  prompt: (question: string) => Promise<string>;
+  log: (message: string) => void;
+  recreateRuntime: () => Promise<RuntimeState>;
+}
+
+function loginHelpMessage(runtime: RuntimeState): string {
+  return [
+    'Student Agent 没有 /login。',
+    '请用 /setting 配置 Provider 与 API Key（写入 ~/.student-agent/.env）。',
+    '已有 DeepSeek key 时：选 deepseek，环境变量一般为 DEEPSEEK_API_KEY。',
+    '也可用 /provider 切换已保存的 profile，或 /model 只改模型名。',
+    `当前配置：${runtime.config.model.provider}/${runtime.config.model.name}（见 /status）。`,
+  ].join('\n');
+}
+
 async function runSettingFlow(
-  rl: Awaited<ReturnType<typeof createInterface>>,
   runtime: RuntimeState,
+  io: SettingFlowIo,
 ): Promise<RuntimeState> {
   if (runtime.agent.state.isStreaming) {
-    console.log(chalk.yellow('  当前任务仍在运行，不能修改设置。'));
+    io.log('当前任务仍在运行，不能修改设置。');
     return runtime;
   }
 
-  const target = await chooseSettingTarget(rl);
+  const target = await chooseSettingTarget(io.prompt);
   if (target === 'cancel') {
-    console.log(chalk.dim('  已取消设置。'));
+    io.log('已取消设置。');
     return runtime;
   }
 
   await runStartupInitializer({
     cwd: CWD,
     config: runtime.config,
-    prompt: createReadlinePrompt(rl),
+    prompt: io.prompt,
+    log: io.log,
     forceModelProviderSetup: target === 'model',
     forceEmbeddingSetup: target === 'embedding',
   });
 
   runtime.renderer.cleanup();
   runtime.unsubscribe();
-  const nextRuntime = await createRuntime(await reloadConfig());
-  console.log(chalk.green(`OK: 已应用设置：${nextRuntime.config.model.provider}/${nextRuntime.config.model.name}`));
+  const nextRuntime = await io.recreateRuntime();
+  io.log(`OK: 已应用设置：${nextRuntime.config.model.provider}/${nextRuntime.config.model.name}`);
   return nextRuntime;
 }
 
 async function chooseSettingTarget(
-  rl: Awaited<ReturnType<typeof createInterface>>,
+  prompt: (question: string) => Promise<string>,
 ): Promise<SettingTarget> {
   const targetPrompt = buildSettingTargetPrompt();
-  const answer = await rl.question(`${targetPrompt.menu}\n${targetPrompt.question}`);
+  const answer = await prompt(`${targetPrompt.menu}\n${targetPrompt.question}`);
   return parseSettingTargetAnswer(answer);
 }
 
@@ -1725,7 +1826,9 @@ async function runTaskWithAbort(runtime: RuntimeState, userInput: string): Promi
     await runtime.agent.waitForIdle();
 
     if (!aborted && runtime.agent.state.errorMessage) {
-      console.error(chalk.red(`[Agent Error] ${runtime.agent.state.errorMessage}`));
+      const shown = formatAgentErrorForDisplay(runtime.agent.state.errorMessage)
+        ?? runtime.agent.state.errorMessage;
+      console.error(chalk.red(`[Agent Error] ${shown}`));
     }
   } finally {
     if (isTTY) {

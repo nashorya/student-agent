@@ -8,7 +8,6 @@ import {
   VStack,
   isViewportTUI,
   type Component,
-  type OverlayHandle,
 } from '@earendil-works/pi-tui';
 import { setTuiMode } from '../runtime/logger.js';
 import type { UiBridge } from '../runtime/ui-bridge.js';
@@ -44,8 +43,8 @@ export interface ShellHandle {
 
 /**
  * promptSettings Phase 1 UX:
- * Prefer a centered Editor overlay. If overlay setup fails, fall back to
- * setStatus(question) and treat the next Composer submit as the answer.
+ * Put the question in the transcript and reuse the bottom Composer.
+ * A centered Editor overlay looked like the input "drifted" into the model list.
  */
 export function startShell(options: StartShellOptions): ShellHandle {
   let state = initialShellState();
@@ -70,65 +69,26 @@ export function startShell(options: StartShellOptions): ShellHandle {
     state = shellReducer(state, action);
   };
 
-  // Pending promptSettings waiter (overlay or submit-as-answer fallback).
-  let pendingPrompt: {
-    resolve: (answer: string) => void;
-    overlay?: OverlayHandle;
-    editor?: Editor;
-  } | null = null;
-
-  const clearPendingPromptOverlay = () => {
-    if (pendingPrompt?.overlay) {
-      try {
-        pendingPrompt.overlay.hide();
-      } catch {
-        // ignore
-      }
-    }
-  };
+  /** When set, the next Composer submit answers promptSettings (no overlay). */
+  let pendingPrompt: { resolve: (answer: string) => void } | null = null;
 
   const promptSettings = async (question: string): Promise<string> => {
     if (pendingPrompt) {
-      // Replace previous waiter with empty answer so callers don't hang forever.
       pendingPrompt.resolve('');
-      clearPendingPromptOverlay();
       pendingPrompt = null;
     }
 
-    return new Promise<string>((resolve) => {
-      try {
-        const overlayEditor = new Editor(tui, editorTheme);
-        overlayEditor.onSubmit = (text) => {
-          const answer = text;
-          overlayEditor.setText('');
-          const waiter = pendingPrompt;
-          pendingPrompt = null;
-          clearPendingPromptOverlay();
-          tui.setFocus(editor);
-          dispatch({ type: 'CLEAR_STATUS' });
-          requestRender();
-          waiter?.resolve(answer);
-        };
+    dispatch({
+      type: 'ADD_MESSAGE',
+      kind: 'system',
+      content: question.trim() || '(input required)',
+    });
+    dispatch({ type: 'SET_STATUS', text: 'awaiting input in composer…' });
+    requestRender(true);
+    tui.setFocus(editor);
 
-        const handle = tui.showOverlay(overlayEditor, {
-          width: '70%',
-          maxHeight: '40%',
-          anchor: 'center',
-        });
-        handle.focus();
-        dispatch({ type: 'SET_STATUS', text: question });
-        requestRender();
-        // Flash so the question is visible even if status is missed.
-        if (typeof (tui as TuiAltScreen).flash === 'function') {
-          (tui as TuiAltScreen).flash(theme.warning(question.slice(0, 120)), 4000);
-        }
-        pendingPrompt = { resolve, overlay: handle, editor: overlayEditor };
-      } catch {
-        // Fallback: next composer submit answers the question.
-        dispatch({ type: 'SET_STATUS', text: `Q: ${question}` });
-        requestRender();
-        pendingPrompt = { resolve };
-      }
+    return new Promise<string>((resolve) => {
+      pendingPrompt = { resolve };
     });
   };
 
@@ -151,9 +111,9 @@ export function startShell(options: StartShellOptions): ShellHandle {
   editor.onSubmit = (text) => {
     const value = text.trim();
     editor.setText('');
-    if (!value) return;
+    if (!value && !pendingPrompt) return;
 
-    if (pendingPrompt && !pendingPrompt.overlay) {
+    if (pendingPrompt) {
       const waiter = pendingPrompt;
       pendingPrompt = null;
       dispatch({ type: 'CLEAR_STATUS' });
@@ -268,7 +228,6 @@ export function startShell(options: StartShellOptions): ShellHandle {
     unmounted = true;
     process.stdout.off('resize', onStdoutResize);
     removeInputListener();
-    clearPendingPromptOverlay();
     if (pendingPrompt) {
       pendingPrompt.resolve('');
       pendingPrompt = null;

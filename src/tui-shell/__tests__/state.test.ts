@@ -6,14 +6,15 @@ describe('shellReducer', () => {
     const state = initialShellState();
     expect(state.messages).toEqual([]);
     expect(state.streamingAssistantId).toBeNull();
+    expect(state.streamingReasoningId).toBeNull();
     expect(state.planSteps).toEqual([]);
     expect(state.agents).toEqual([]);
   });
 
   it('adds messages and tracks streaming assistant', () => {
     let state = initialShellState();
-    state = shellReducer(state, { type: 'ADD_MESSAGE', role: 'user', content: 'hi', id: 'u1' });
-    state = shellReducer(state, { type: 'ADD_MESSAGE', role: 'assistant', content: '', id: 'a1' });
+    state = shellReducer(state, { type: 'ADD_MESSAGE', kind: 'user', content: 'hi', id: 'u1' });
+    state = shellReducer(state, { type: 'ADD_MESSAGE', kind: 'assistant', content: '', id: 'a1' });
     expect(state.streamingAssistantId).toBe('a1');
     state = shellReducer(state, { type: 'UPDATE_LAST_MESSAGE', content: 'hello' });
     expect(state.messages.find((m) => m.id === 'a1')?.content).toBe('hello');
@@ -21,9 +22,24 @@ describe('shellReducer', () => {
     expect(state.streamingAssistantId).toBeNull();
   });
 
+  it('tracks reasoning stream separately from assistant', () => {
+    let state = initialShellState();
+    state = shellReducer(state, { type: 'ADD_MESSAGE', kind: 'reasoning', content: '', id: 'r1' });
+    state = shellReducer(state, { type: 'ADD_MESSAGE', kind: 'assistant', content: '', id: 'a1' });
+    expect(state.streamingReasoningId).toBe('r1');
+    expect(state.streamingAssistantId).toBe('a1');
+    state = shellReducer(state, { type: 'UPDATE_STREAM', target: 'reasoning', content: 'think' });
+    state = shellReducer(state, { type: 'UPDATE_STREAM', target: 'assistant', content: 'say' });
+    expect(state.messages.find((m) => m.id === 'r1')?.content).toBe('think');
+    expect(state.messages.find((m) => m.id === 'a1')?.content).toBe('say');
+    state = shellReducer(state, { type: 'END_STREAM', target: 'reasoning' });
+    expect(state.streamingReasoningId).toBeNull();
+    expect(state.streamingAssistantId).toBe('a1');
+  });
+
   it('discards streaming assistant message', () => {
     let state = initialShellState();
-    state = shellReducer(state, { type: 'ADD_MESSAGE', role: 'assistant', content: 'tmp', id: 'a1' });
+    state = shellReducer(state, { type: 'ADD_MESSAGE', kind: 'assistant', content: 'tmp', id: 'a1' });
     state = shellReducer(state, { type: 'DISCARD_ASSISTANT_MESSAGE' });
     expect(state.messages).toHaveLength(0);
     expect(state.streamingAssistantId).toBeNull();
@@ -58,9 +74,10 @@ describe('shellReducer', () => {
 
   it('clears transcript', () => {
     let state = initialShellState();
-    state = shellReducer(state, { type: 'ADD_MESSAGE', role: 'user', content: 'x' });
+    state = shellReducer(state, { type: 'ADD_MESSAGE', kind: 'user', content: 'x' });
     state = shellReducer(state, { type: 'CLEAR_TRANSCRIPT' });
     expect(state.messages).toEqual([]);
     expect(state.streamingAssistantId).toBeNull();
+    expect(state.streamingReasoningId).toBeNull();
   });
 });

@@ -1,11 +1,30 @@
 import type { UiTaskStatus } from '../runtime/ui-bridge.js';
 
+/** Activity timeline kinds (ADR-009 Phase 2). */
+export type ActivityKind =
+  | 'user'
+  | 'assistant'
+  | 'reasoning'
+  | 'tool'
+  | 'diff'
+  | 'error'
+  | 'recovery'
+  | 'verification'
+  | 'system';
+
 export type ShellMessage = {
   id: string;
-  role: 'user' | 'assistant' | 'tool' | 'system' | 'error';
+  kind: ActivityKind;
   content: string;
   timestamp: number;
+  meta?: {
+    toolName?: string;
+    toolStatus?: 'running' | 'done' | 'failed';
+  };
 };
+
+/** @deprecated Prefer ActivityKind; kept for bridge role aliases. */
+export type ShellMessageRole = ActivityKind;
 
 export type ShellPlanStep = {
   id: string;
@@ -24,18 +43,31 @@ export type ShellAgentRow = {
 export type ShellState = {
   messages: ShellMessage[];
   streamingAssistantId: string | null;
+  streamingReasoningId: string | null;
   statusText: string;
   currentTool: string | null;
   taskStatus: Partial<UiTaskStatus> | null;
   pendingCount: number;
-  /** Phase 1 placeholders for layout (full Plan wiring is Phase 3). */
+  /** Phase 3 will fully wire Plan; Phase 1–2 keep layout placeholders. */
   planSteps: ShellPlanStep[];
   agents: ShellAgentRow[];
 };
 
+export type StreamTarget = 'assistant' | 'reasoning';
+
 export type ShellAction =
-  | { type: 'ADD_MESSAGE'; role: ShellMessage['role']; content: string; id?: string }
+  | {
+    type: 'ADD_MESSAGE';
+    kind: ActivityKind;
+    content: string;
+    id?: string;
+    meta?: ShellMessage['meta'];
+  }
+  | { type: 'UPDATE_STREAM'; target: StreamTarget; content: string }
+  /** Compat: updates assistant stream (or last message). */
   | { type: 'UPDATE_LAST_MESSAGE'; content: string }
+  | { type: 'END_STREAM'; target: StreamTarget }
+  | { type: 'DISCARD_STREAM'; target: StreamTarget }
   | { type: 'END_ASSISTANT_MESSAGE' }
   | { type: 'DISCARD_ASSISTANT_MESSAGE' }
   | { type: 'UPDATE_TASK_STATUS'; status: Partial<UiTaskStatus> }
@@ -59,6 +91,7 @@ export function initialShellState(): ShellState {
   return {
     messages: [],
     streamingAssistantId: null,
+    streamingReasoningId: null,
     statusText: '',
     currentTool: null,
     taskStatus: null,
@@ -68,33 +101,73 @@ export function initialShellState(): ShellState {
   };
 }
 
+function streamId(state: ShellState, target: StreamTarget): string | null {
+  return target === 'assistant' ? state.streamingAssistantId : state.streamingReasoningId;
+}
+
 export function shellReducer(state: ShellState, action: ShellAction): ShellState {
   switch (action.type) {
     case 'ADD_MESSAGE': {
-      const id = action.id ?? allocId(action.role);
+      const id = action.id ?? allocId(action.kind);
       const message: ShellMessage = {
         id,
-        role: action.role,
+        kind: action.kind,
         content: action.content,
         timestamp: Date.now(),
+        ...(action.meta ? { meta: action.meta } : {}),
       };
-      const streamingAssistantId =
-        action.role === 'assistant' ? id : state.streamingAssistantId;
+      let streamingAssistantId = state.streamingAssistantId;
+      let streamingReasoningId = state.streamingReasoningId;
+      if (action.kind === 'assistant') streamingAssistantId = id;
+      if (action.kind === 'reasoning') streamingReasoningId = id;
       return {
         ...state,
         messages: [...state.messages, message],
         streamingAssistantId,
+        streamingReasoningId,
       };
     }
 
-    case 'UPDATE_LAST_MESSAGE': {
-      if (state.messages.length === 0) return state;
-      const targetId = state.streamingAssistantId ?? state.messages[state.messages.length - 1]!.id;
+    case 'UPDATE_STREAM': {
+      const targetId = streamId(state, action.target);
+      if (!targetId) return state;
       return {
         ...state,
         messages: state.messages.map((msg) =>
           msg.id === targetId ? { ...msg, content: action.content } : msg,
         ),
+      };
+    }
+
+    case 'UPDATE_LAST_MESSAGE': {
+      const targetId =
+        state.streamingAssistantId
+        ?? state.messages[state.messages.length - 1]?.id;
+      if (!targetId) return state;
+      return {
+        ...state,
+        messages: state.messages.map((msg) =>
+          msg.id === targetId ? { ...msg, content: action.content } : msg,
+        ),
+      };
+    }
+
+    case 'END_STREAM':
+      if (action.target === 'assistant') {
+        return { ...state, streamingAssistantId: null };
+      }
+      return { ...state, streamingReasoningId: null };
+
+    case 'DISCARD_STREAM': {
+      const targetId = streamId(state, action.target);
+      if (!targetId) return state;
+      return {
+        ...state,
+        messages: state.messages.filter((msg) => msg.id !== targetId),
+        streamingAssistantId:
+          action.target === 'assistant' ? null : state.streamingAssistantId,
+        streamingReasoningId:
+          action.target === 'reasoning' ? null : state.streamingReasoningId,
       };
     }
 
@@ -142,6 +215,7 @@ export function shellReducer(state: ShellState, action: ShellAction): ShellState
         ...state,
         messages: [],
         streamingAssistantId: null,
+        streamingReasoningId: null,
       };
 
     default:

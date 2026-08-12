@@ -14,8 +14,10 @@ import {
   updateStudentAgentConfigFile,
   validateProviderProfileName,
 } from './provider-profiles.js';
+import { probeOpenAiCompatibleModels } from './provider-probe.js';
 
 export { getApiKeyEnvName } from './provider-profiles.js';
+export { probeOpenAiCompatibleModels } from './provider-probe.js';
 
 export interface StartupInitializerOptions {
   cwd: string;
@@ -26,6 +28,8 @@ export interface StartupInitializerOptions {
   log?: (message: string) => void;
   forceModelProviderSetup?: boolean;
   forceEmbeddingSetup?: boolean;
+  /** Injectable fetch for custom-endpoint model probing (tests / proxies). */
+  fetchImpl?: typeof fetch;
 }
 
 export interface StartupInitializationResult {
@@ -149,14 +153,26 @@ async function configureModelProvider(
   // ── API Key ────────────────────────────────────────────────────────
   const apiKeyName = getApiKeyEnvName(provider);
   const existingKey = env[apiKeyName] ? ` [已有，直接回车保留]` : '';
-  const apiKey = (await prompt(`  ${apiKeyName}${existingKey}: `)).trim();
-  if (!apiKey && !env[apiKeyName]) {
+  const apiKeyInput = (await prompt(`  ${apiKeyName}${existingKey}: `)).trim();
+  const effectiveApiKey = apiKeyInput || env[apiKeyName] || '';
+  if (!effectiveApiKey) {
     log(chalk.yellow('API Key 为空，已跳过初始化。'));
     return false;
   }
 
   // ── 选择模型 ───────────────────────────────────────────────────────
-  const modelName = await promptModelName(prompt, provider, log);
+  // 自定义 OpenAI 兼容端点：探针 GET /models 后点选；注册表 provider 仍用静态目录。
+  const modelName = isCustomProvider
+    ? await promptCustomModelName({
+      prompt,
+      log,
+      provider,
+      apiFormat,
+      baseUrl,
+      apiKey: effectiveApiKey,
+      fetchImpl: options.fetchImpl,
+    })
+    : await promptModelName(prompt, provider, log);
   const defaultProfileName = deriveProviderProfileName(provider, modelName);
   const profileNameInput = await prompt(`  Profile 名称 [${defaultProfileName}]: `);
   const profileName = validateProviderProfileName(profileNameInput.trim() || defaultProfileName);
@@ -180,9 +196,9 @@ async function configureModelProvider(
   };
 
   await mkdir(globalConfigDir, { recursive: true });
-  if (apiKey) {
-    await upsertEnvFile(join(globalConfigDir, GLOBAL_ENV_FILENAME), { [apiKeyName]: apiKey });
-    env[apiKeyName] = apiKey;
+  if (apiKeyInput) {
+    await upsertEnvFile(join(globalConfigDir, GLOBAL_ENV_FILENAME), { [apiKeyName]: apiKeyInput });
+    env[apiKeyName] = apiKeyInput;
   }
   await removeEnvFileKeys(join(globalConfigDir, GLOBAL_ENV_FILENAME), LEGACY_MODEL_ROUTE_ENV_KEYS);
   for (const key of LEGACY_MODEL_ROUTE_ENV_KEYS) {
@@ -358,27 +374,92 @@ async function promptModelName(
 ): Promise<string> {
   const defaultFallback = provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const models = getModels(provider as any);
+  const models = getModels(provider as any).map((m) => m.id);
+  return pickModelFromList({
+    prompt,
+    log,
+    title: `${provider} 可用模型（注册表）`,
+    models,
+    defaultFallback,
+  });
+}
+
+async function promptCustomModelName(options: {
+  prompt: (question: string) => Promise<string>;
+  log: (message: string) => void;
+  provider: string;
+  apiFormat: string;
+  baseUrl: string;
+  apiKey: string;
+  fetchImpl?: typeof fetch;
+}): Promise<string> {
+  const { prompt, log, provider, apiFormat, baseUrl, apiKey, fetchImpl } = options;
+  const defaultFallback = 'gpt-4o';
+
+  if (apiFormat === 'anthropic-messages') {
+    log(chalk.dim('  Anthropic Messages 自定义端点暂不自动探测模型列表，请手动输入。'));
+    const input = (await prompt(`  模型名称 [${defaultFallback}]: `)).trim();
+    return input || defaultFallback;
+  }
+
+  if (!baseUrl.trim()) {
+    log(chalk.dim('  未填写 Base URL，跳过探针，请手动输入模型名。'));
+    const input = (await prompt(`  模型名称 [${defaultFallback}]: `)).trim();
+    return input || defaultFallback;
+  }
+
+  log('  正在探测可用模型（GET /models）…');
+  const probed = await probeOpenAiCompatibleModels({
+    baseUrl,
+    apiKey,
+    fetchImpl,
+  });
+
+  if (!probed.ok) {
+    log(chalk.yellow(`  探针失败：${probed.error}${probed.endpoint ? `（${probed.endpoint}）` : ''}`));
+    log(chalk.dim('  回退为手动输入模型名。'));
+    const input = (await prompt(`  模型名称 [${defaultFallback}]: `)).trim();
+    return input || defaultFallback;
+  }
+
+  log(chalk.green(`  探针成功：发现 ${probed.models.length} 个模型`));
+  return pickModelFromList({
+    prompt,
+    log,
+    title: `${provider} 可用模型（来自端点）`,
+    models: probed.models,
+    defaultFallback: probed.models[0] ?? defaultFallback,
+  });
+}
+
+async function pickModelFromList(options: {
+  prompt: (question: string) => Promise<string>;
+  log: (message: string) => void;
+  title: string;
+  models: string[];
+  defaultFallback: string;
+}): Promise<string> {
+  const { prompt, log, title, models, defaultFallback } = options;
 
   if (models.length === 0) {
     const input = (await prompt(`  模型名称 [${defaultFallback}]: `)).trim();
     return input || defaultFallback;
   }
 
-  log(`\n  ${provider} 可用模型：`);
-  models.forEach((m, i) => {
-    log(`    ${String(i + 1).padStart(2)}) ${m.id}`);
+  log(`\n  ${title}：`);
+  models.forEach((id, i) => {
+    log(`    ${String(i + 1).padStart(2)}) ${id}`);
   });
   log(`    ${String(models.length + 1).padStart(2)}) 手动输入`);
 
-  const defaultIdx = models.findIndex((m) => m.id === defaultFallback);
+  const defaultIdx = models.findIndex((id) => id === defaultFallback);
   const displayDefault = defaultIdx >= 0 ? defaultIdx + 1 : 1;
 
   const choice = (await prompt(`  选择模型 [${displayDefault}]: `)).trim();
-  const num = parseInt(choice || String(displayDefault));
+  const num = parseInt(choice || String(displayDefault), 10);
 
   if (!isNaN(num) && num >= 1 && num <= models.length) {
-    return models[num - 1].id;
+    return models[num - 1];
   }
   if (num === models.length + 1) {
     const custom = (await prompt(`  模型名称 [${defaultFallback}]: `)).trim();

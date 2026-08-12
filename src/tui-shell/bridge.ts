@@ -1,5 +1,5 @@
-import type { UiBridge, UiTaskStatus } from '../runtime/ui-bridge.js';
-import type { ShellAction, ShellState } from './state.js';
+import type { UiBridge, UiMessageRole, UiTaskStatus } from '../runtime/ui-bridge.js';
+import type { ActivityKind, ShellAction, ShellState } from './state.js';
 
 export interface CreateShellBridgeOptions {
   getState: () => ShellState;
@@ -13,16 +13,29 @@ export type ShellUiBridge = UiBridge & {
   forceRedraw: () => void;
 };
 
+function asKind(role: UiMessageRole): ActivityKind {
+  return role;
+}
+
 export function createShellBridge(options: CreateShellBridgeOptions): ShellUiBridge {
   const { dispatch, requestRender, promptSettings } = options;
 
   const bridge: ShellUiBridge = {
-    addMessage(role, content) {
-      dispatch({ type: 'ADD_MESSAGE', role, content });
+    addMessage(role, content, meta) {
+      dispatch({
+        type: 'ADD_MESSAGE',
+        kind: asKind(role),
+        content,
+        ...(meta ? { meta } : {}),
+      });
       requestRender();
     },
     updateLastMessage(content) {
       dispatch({ type: 'UPDATE_LAST_MESSAGE', content });
+      requestRender();
+    },
+    updateReasoningMessage(content) {
+      dispatch({ type: 'UPDATE_STREAM', target: 'reasoning', content });
       requestRender();
     },
     endAssistantMessage() {
@@ -31,6 +44,14 @@ export function createShellBridge(options: CreateShellBridgeOptions): ShellUiBri
     },
     discardAssistantMessage() {
       dispatch({ type: 'DISCARD_ASSISTANT_MESSAGE' });
+      requestRender();
+    },
+    endReasoningMessage() {
+      dispatch({ type: 'END_STREAM', target: 'reasoning' });
+      requestRender();
+    },
+    discardReasoningMessage() {
+      dispatch({ type: 'DISCARD_STREAM', target: 'reasoning' });
       requestRender();
     },
     updateTaskStatus(status: Partial<UiTaskStatus>) {

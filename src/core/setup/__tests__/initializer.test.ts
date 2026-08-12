@@ -105,6 +105,10 @@ describe('provider profile setup', () => {
       prompt: async () => answers.shift() ?? '',
       log: () => {},
       forceModelProviderSetup: true,
+      // Avoid real network: force probe failure → manual model entry (unchanged answers).
+      fetchImpl: async () => {
+        throw new Error('offline');
+      },
     });
 
     expect(result.configuredModelProvider).toBe(true);
@@ -126,6 +130,43 @@ describe('provider profile setup', () => {
     expect(envFile).not.toContain('STUDENT_AGENT_MODEL=');
     expect(envFile).not.toContain('STUDENT_AGENT_BASE_URL=');
     expect(envFile).not.toContain('STUDENT_AGENT_API=');
+  });
+
+  it('自定义 OpenAI 兼容端点探针成功后可从列表选择模型', async () => {
+    const answers = [
+      'muskapi',
+      '1',
+      'https://api.muskapi.cc/v1',
+      'secret-key',
+      '2', // pick gpt-4o from probed list (sorted: claude…, gpt-4o)
+      'muskapi-gpt',
+    ];
+
+    const result = await runStartupInitializer({
+      cwd: projectDir,
+      globalConfigDir: globalDir,
+      config: mergeConfig({}, {
+        setup: { suppressEmbeddingReminder: true },
+      }),
+      env: {},
+      prompt: async () => answers.shift() ?? '',
+      log: () => {},
+      forceModelProviderSetup: true,
+      fetchImpl: async () => new Response(JSON.stringify({
+        data: [{ id: 'claude-sonnet-4-6' }, { id: 'gpt-4o' }],
+      }), { status: 200 }),
+    });
+
+    expect(result.configuredModelProvider).toBe(true);
+    const config = JSON.parse(await readFile(join(globalDir, '.student-agent.json'), 'utf8'));
+    expect(config.activeProviderProfile).toBe('muskapi-gpt');
+    expect(config.providerProfiles['muskapi-gpt']).toMatchObject({
+      provider: 'muskapi',
+      name: 'gpt-4o',
+      baseUrl: 'https://api.muskapi.cc/v1',
+      api: 'openai-completions',
+    });
+    expect(answers).toHaveLength(0);
   });
 
   it('switchModelName updates only the active profile', async () => {

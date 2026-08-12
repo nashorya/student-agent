@@ -23,6 +23,9 @@ describe('createShellBridge', () => {
     bridge.addMessage('assistant', '');
     bridge.updateLastMessage('hello');
     bridge.endAssistantMessage();
+    bridge.addMessage('reasoning', '');
+    bridge.updateReasoningMessage('think');
+    bridge.endReasoningMessage();
     bridge.setStatus('busy');
     bridge.setCurrentTool('read');
     bridge.updateTaskStatus({ state: 'running' });
@@ -36,6 +39,9 @@ describe('createShellBridge', () => {
       'ADD_MESSAGE',
       'UPDATE_LAST_MESSAGE',
       'END_ASSISTANT_MESSAGE',
+      'ADD_MESSAGE',
+      'UPDATE_STREAM',
+      'END_STREAM',
       'SET_STATUS',
       'SET_CURRENT_TOOL',
       'UPDATE_TASK_STATUS',
@@ -49,7 +55,7 @@ describe('createShellBridge', () => {
 
     const discardState: ShellState = shellReducer(initialShellState(), {
       type: 'ADD_MESSAGE',
-      role: 'assistant',
+      kind: 'assistant',
       content: 'tmp',
       id: 'a1',
     });

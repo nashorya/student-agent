@@ -7,7 +7,7 @@
     "student-agent": "./bin/student-agent"
   },
   "scripts": {
-    "dev": "bun src/extension/index.ts",
+    "dev": "npx tsx src/extension/index.ts",
     "build": "tsc",
     "eval:validate": "npx tsx scripts/eval-validate.ts",
     "eval:baseline": "npx tsx scripts/eval-baseline.ts",
