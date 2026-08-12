@@ -34,6 +34,7 @@ benchmarks/
 # memory/ 运行时数据（project-rules.md 手动维护，不忽略）
 memory/recall-index.json
 memory/tasks.json
+memory/sessions/
 memory/archive-actions.json
 memory/*.jsonl
 memory/preference-candidates.json

@@ -297,6 +297,23 @@ describe('TasksManager', () => {
     expect(await mgr.getActive()).toBeNull();
   });
 
+  it('parks active task without cancelling, and can resume it', async () => {
+    const task = await mgr.createTask('可恢复计划', ['执行', '验证']);
+    await mgr.completePhase(task.id);
+
+    const parked = await mgr.parkActiveTask();
+    expect(parked?.id).toBe(task.id);
+    expect(parked?.status).toBe('active');
+    expect(await mgr.getActive()).toBeNull();
+
+    const resumable = await mgr.findResumableTask();
+    expect(resumable?.id).toBe(task.id);
+
+    const resumed = await mgr.resumeTask(task.id);
+    expect(resumed?.id).toBe(task.id);
+    expect(await mgr.getActive()).toMatchObject({ id: task.id, active_phase_index: 1 });
+  });
+
   it('returns null when no active task', async () => {
     expect(await mgr.getActive()).toBeNull();
   });

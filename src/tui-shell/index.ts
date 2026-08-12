@@ -23,12 +23,22 @@ export {
 export { createShellBridge, type CreateShellBridgeOptions, type ShellUiBridge } from './bridge.js';
 export {
   TranscriptView,
-  StatusBar,
   PlanPanel,
   AgentsPanel,
   CompactOverlayPanel,
   MemoryPanel,
+  SidebarSectionGap,
 } from './components.js';
+export {
+  HRule,
+  WorkspaceHeader,
+  ComposerLabel,
+  StatusBar,
+  SidebarFrame,
+  sectionRailTitle,
+  hRule,
+  withSidebarRail,
+} from './chrome.js';
 export {
   projectTaskToPlanSteps,
   projectMainAgentRow,
@@ -48,3 +58,7 @@ export {
   type StartShellOptions,
   type ShellHandle,
 } from './shell.js';
+export {
+  sessionEntriesToSelectItems,
+  type SessionPickEntry,
+} from './session-picker.js';

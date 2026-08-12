@@ -87,6 +87,7 @@ import type { UiBridge } from '../runtime/ui-bridge.js';
 import { startShell, syncWorkbenchProjection, type ShellHandle } from '../tui-shell/index.js';
 import { TasksManager } from '../memory/tasks/manager.js';
 import type { Task } from '../memory/tasks/types.js';
+import { SessionStore, formatSessionExitHint } from '../memory/sessions/index.js';
 import { createSignalPipeline } from '../memory/signals/index.js';
 import { PlanRevisionManager } from '../memory/plan-revisions/manager.js';
 import type { PlanRevision } from '../memory/plan-revisions/types.js';
@@ -95,10 +96,10 @@ import { parsePhaseSignal, type PhaseSignal } from '../core/task-planner/phase-s
 import { createPlanSnapshot, detectPlanRevisionIntent, type PlanSnapshot } from '../core/task-planner/plan-revision-detector.js';
 import { detectNegativeFeedback } from '../core/task-planner/feedback-detector.js';
 import { detectNaturalReviewResponse } from '../core/task-planner/review-detector.js';
-import { classifyIntent, isInformationalFollowUp } from '../core/task-planner/intent-classifier.js';
+import { classifyIntent, isInformationalFollowUp, type IntentResult } from '../core/task-planner/intent-classifier.js';
 import { buildTaskContextPrefix } from '../core/task-planner/task-context-builder.js';
 import { buildCtx7RetryContext } from '../core/task-planner/ctx7-retry-builder.js';
-import { buildPlanningPrompt, buildPhaseExecutionPrompt } from '../core/task-planner/planning-prompt.js';
+import { buildPlanningPrompt, buildPlanningRepairPrompt, buildPhaseExecutionPrompt } from '../core/task-planner/planning-prompt.js';
 import { PromptConfirmationProvider } from '../core/executor/confirmation.js';
 import type { ConfirmationProvider } from '../core/executor/types.js';
 import type { ContextRunMode } from '../memory/recall/types.js';
@@ -153,8 +154,12 @@ if (CWD === '/') {
 /** 当前任务描述（用于 ReflectAgent 和失败升级的诊断报告） */
 let currentTaskDescription = '';
 let lastPlanSnapshot: PlanSnapshot | null = null;
+/** Codex-style collaboration mode: plan = investigate/design only; execute = normal. */
+let collaborationMode: 'plan' | 'execute' = 'execute';
 
 const PLAN_CONFIRM_RE = /^(确认|开始|执行|继续|go|yes|y)$/i;
+const PLAN_MODE_ENTERED = 'Plan 模式';
+const PLAN_MODE_LEFT = '已退出 Plan 模式';
 
 interface RuntimeState {
   config: StudentAgentConfig;
@@ -578,8 +583,64 @@ async function runInteractiveReadline(): Promise<void> {
           console.clear();
           continue;
 
+        case 'new': {
+          if (runtime.agent.state.isStreaming) {
+            console.log(chalk.yellow('  当前任务仍在运行，请先 /abort 再 /new。'));
+            continue;
+          }
+          const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+          const parked = await tasksMgr.parkActiveTask();
+          lastPlanSnapshot = null;
+          currentTaskDescription = '';
+          console.log(
+            parked
+              ? chalk.green(`  新会话（REPL）。上次任务「${parked.name}」已 park — TUI 下 /resume 恢复对话。`)
+              : chalk.green('  新会话（REPL）。'),
+          );
+          continue;
+        }
+
+        case 'sessions':
+          console.log(chalk.dim('  最近会话列表请在 TUI 中使用 /sessions。'));
+          continue;
+
+        case 'resume': {
+          if (runtime.agent.state.isStreaming) {
+            console.log(chalk.yellow('  当前任务仍在运行，请先 /abort 再 /resume。'));
+            continue;
+          }
+          if (!command.query.trim()) {
+            console.log(chalk.dim('  用法: /resume <名称>'));
+            continue;
+          }
+          const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+          const store = new SessionStore(MEMORY_DIR);
+          const loaded = await store.resolveSession(command.query);
+          if (!loaded) {
+            console.log(chalk.red(`  未找到会话：${command.query}`));
+            continue;
+          }
+          await tasksMgr.parkActiveTask();
+          if (loaded.task_id) {
+            const resumed = await tasksMgr.resumeTask(loaded.task_id);
+            if (resumed) {
+              currentTaskDescription = resumed.name;
+              lastPlanSnapshot = createPlanSnapshot(resumed);
+              console.log(chalk.green(
+                `  已恢复会话「${loaded.name}」关联任务「${resumed.name}」（对话记录请在 TUI /resume）`,
+              ));
+            } else {
+              console.log(chalk.yellow(`  会话「${loaded.name}」无有效关联任务。`));
+            }
+          } else {
+            console.log(chalk.yellow(`  会话「${loaded.name}」未关联任务。`));
+          }
+          continue;
+        }
+
         case 'status':
           console.log(chalk.dim(`  任务: ${currentTaskDescription || '(无)'}`));
+          console.log(chalk.dim(`  协作: ${collaborationMode === 'plan' ? 'plan' : 'execute'}`));
           console.log(chalk.dim(`  模式: ${runtime.config.executionMode}`));
           console.log(chalk.dim(`  模型: ${runtime.config.model.provider}/${runtime.config.model.name}`));
           console.log(chalk.dim(`  LLM 超时: ${runtime.config.llm.requestTimeoutMs}ms`));
@@ -691,7 +752,7 @@ async function runInteractiveReadline(): Promise<void> {
           continue;
 
         case 'candidates':
-          console.log(chalk.dim('  候选查看功能待实现'));
+          console.log(chalk.dim('  候选：待实现'));
           continue;
 
         case 'context':
@@ -737,8 +798,31 @@ async function runInteractiveReadline(): Promise<void> {
           console.log(chalk.green(await renderWhyCommand(command)));
           continue;
 
-        case 'plan':
-          console.log(chalk.green(await handlePlanCommand(command)));
+        case 'plan': {
+          if (runtime.agent.state.isStreaming) {
+            console.log(chalk.yellow('  当前任务仍在运行，不能切换 Plan 模式。'));
+            continue;
+          }
+          collaborationMode = 'plan';
+          if (!command.goal) {
+            console.log(chalk.cyan(`  ${PLAN_MODE_ENTERED}`));
+            continue;
+          }
+          userInput = command.goal;
+          break;
+        }
+
+        case 'execute':
+          collaborationMode = 'execute';
+          console.log(chalk.cyan(`  ${PLAN_MODE_LEFT}`));
+          continue;
+
+        case 'revision':
+          console.log(chalk.green(await handleRevisionCommand({ type: 'revision', content: command.content })));
+          continue;
+
+        case 'revisions':
+          console.log(chalk.green(await handleRevisionCommand({ type: 'revisions', query: command.query })));
           continue;
 
         case 'unknown':
@@ -746,6 +830,8 @@ async function runInteractiveReadline(): Promise<void> {
           console.log(chalk.dim('  输入 /help 查看可用命令'));
           continue;
       }
+
+      if (command.type !== 'paste' && command.type !== 'plan') continue;
     }
 
     // ── 兼容旧 /feedback up|down 格式 ──────────────
@@ -780,6 +866,7 @@ async function runInteractiveReadline(): Promise<void> {
     }
 
     if (activeTask && isPlanConfirmationInput(userInput)) {
+      collaborationMode = 'execute';
       await runConsoleActivePhase(runtime, activeTask);
       continue;
     }
@@ -825,24 +912,19 @@ async function runInteractiveReadline(): Promise<void> {
         );
       }
     } else {
-      // 非负反馈：意图分类
-      const intent = await classifyIntent(
-        userInput,
-        activeTask?.name ?? null,
-        runtime.model,
-      );
+      // 非负反馈：意图分类（Plan 模式强制走规划路径）
+      const forcePlan = collaborationMode === 'plan';
+      const intent = forcePlan
+        ? forcePlanIntent(userInput)
+        : await classifyIntent(
+          userInput,
+          activeTask?.name ?? null,
+          runtime.model,
+        );
 
-      if (intent.type === 'new_task' && intent.requiresPlan) {
+      if (forcePlan || (intent.type === 'new_task' && intent.requiresPlan)) {
         // 新任务：收集 agent 输出，解析信号
-        const agentOutputs: string[] = [];
-        const tempUnsubscribe = runtime.agent.subscribe((event) => {
-          if (event.type === 'message_update' && event.message.role === 'assistant') {
-            const textContent = event.message.content.find((c) => c.type === 'text');
-            if (textContent && textContent.type === 'text') {
-              agentOutputs.push(textContent.text);
-            }
-          }
-        });
+        const planningOut = subscribeAssistantTextSnapshot(runtime.agent);
 
         currentTaskDescription = intent.taskName ?? userInput;
         runtime.escalation.initTask(currentTaskDescription, CWD);
@@ -854,14 +936,20 @@ async function runInteractiveReadline(): Promise<void> {
         runtime.unsubscribe();
 
         let planningError: unknown;
+        let signal: PhaseSignal | null = null;
         try {
           runtime.setFileGuardMode('planning');
           await runTaskWithAbort(runtime, buildPlanningPrompt(userInput));
+          signal = parsePhaseSignal(planningOut.getText());
+          if (!isValidTaskStartSignal(signal)) {
+            await runTaskWithAbort(runtime, buildPlanningRepairPrompt(userInput));
+            signal = parsePhaseSignal(planningOut.getText());
+          }
         } catch (err) {
           planningError = err;
         } finally {
           runtime.setFileGuardMode('normal');
-          tempUnsubscribe();
+          planningOut.unsubscribe();
           // 重新订阅 EventRenderer
           runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
         }
@@ -880,33 +968,20 @@ async function runInteractiveReadline(): Promise<void> {
           continue;
         }
 
-        // 解析信号
-        const fullOutput = agentOutputs.join('');
-        const signal = parsePhaseSignal(fullOutput);
-
-        if (signal?.type === 'task_start') {
-          if (signal.phases.length === 0) {
-            // 规划失败：恢复 agent 消息到规划前状态
-            runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
-            if (isInformationalFollowUp(userInput)) {
-              await runConsolePlainAnswer(runtime, userInput);
-            } else {
-              console.log(chalk.red('\n  [规划失败] Agent 未输出有效 Phase 行，请重试或换个描述方式。'));
-            }
-            continue;
-          }
+        if (isValidTaskStartSignal(signal)) {
+          const autoExec = isYoloMode(runtime) && !forcePlan;
           const newTask = await tasksMgr.createTask(
             signal.name,
             signal.phases,
-            buildTaskCreateOptions(intent, signal.context, isYoloMode(runtime)),
+            buildTaskCreateOptions(intent, signal.context, autoExec),
           );
           lastPlanSnapshot = createPlanSnapshot(newTask);
           console.log(chalk.green('\n' + formatPlanAwaitingConfirmation(
             signal.name,
             signal.phases,
-            isYoloMode(runtime),
+            autoExec,
           )));
-          if (isYoloMode(runtime)) {
+          if (autoExec) {
             await runConsoleActivePhase(runtime, newTask);
           }
         } else if (signal?.type === 'phase_done' && activeTask) {
@@ -933,19 +1008,11 @@ async function runInteractiveReadline(): Promise<void> {
         } else {
           // 规划未输出 TASK_START：恢复 agent 消息到规划前状态
           runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
-          console.log(chalk.red('\n  [规划失败] Agent 未输出 TASK_START 信号，请重试或换个描述方式。'));
+          console.log(chalk.red('\n  [规划失败] Agent 未输出有效 Phase 行，请重试或换个描述方式。'));
         }
       } else {
         // 继续当前任务或其他操作
-        const agentOutputs: string[] = [];
-        const tempUnsubscribe = runtime.agent.subscribe((event) => {
-          if (event.type === 'message_update' && event.message.role === 'assistant') {
-            const textContent = event.message.content.find((c) => c.type === 'text');
-            if (textContent && textContent.type === 'text') {
-              agentOutputs.push(textContent.text);
-            }
-          }
-        });
+        const turnOut = subscribeAssistantTextSnapshot(runtime.agent);
 
         const useActiveTaskContext = Boolean(activeTask && intent.type === 'task_advance');
         const taskContext = useActiveTaskContext && activeTask ? buildTaskContextPrefix(activeTask) : '';
@@ -967,13 +1034,12 @@ async function runInteractiveReadline(): Promise<void> {
             err instanceof Error ? err.message : String(err),
           );
         } finally {
-          tempUnsubscribe();
+          turnOut.unsubscribe();
         }
 
         // 检查是否有 phase_done 信号
         if (useActiveTaskContext && activeTask) {
-          const fullOutput = agentOutputs.join('');
-          const signal = parsePhaseSignal(fullOutput);
+          const signal = parsePhaseSignal(turnOut.getText());
 
           if (signal?.type === 'phase_done') {
             await tasksMgr.completePhase(activeTask.id);
@@ -1027,6 +1093,49 @@ async function runInteractiveTui(): Promise<void> {
   let stopped = false;
 
   const inputQueue = createInputQueue();
+  const sessionStore = new SessionStore(MEMORY_DIR);
+  let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const flushSession = async () => {
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
+    }
+    try {
+      await sessionStore.saveMessages(shell.getState().messages);
+    } catch {
+      // Persistence must never break the TUI loop.
+    }
+  };
+
+  const scheduleSessionPersist = () => {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      persistTimer = null;
+      void flushSession();
+    }, 300);
+  };
+
+  const beginFreshSession = async (note?: string) => {
+    await flushSession();
+    const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+    const parked = await tasksMgr.parkActiveTask();
+    lastPlanSnapshot = null;
+    currentTaskDescription = '';
+    collaborationMode = 'execute';
+    shell.clearTranscript();
+    const session = await sessionStore.createSession({ cwd: CWD });
+    shell.bridge.addMessage(
+      'system',
+      note
+        ?? (parked
+          ? `新会话。上次任务「${parked.name}」已 park。`
+          : '新会话'),
+    );
+    await refreshWorkbench();
+    shell.bridge.setStatus('ready');
+    return session;
+  };
 
   const refreshWorkbench = async (opts?: { streaming?: boolean; taskError?: boolean }) => {
     await syncWorkbenchProjection({
@@ -1036,6 +1145,14 @@ async function runInteractiveTui(): Promise<void> {
       taskError: opts?.taskError,
       taskName: currentTaskDescription || null,
     });
+    try {
+      const active = await TasksManager.getInstance(MEMORY_DIR).getActive();
+      if (active && sessionStore.currentSession && sessionStore.currentSession.task_id !== active.id) {
+        await sessionStore.bindTask(active.id);
+      }
+    } catch {
+      // ignore
+    }
   };
 
   shell = startShell({
@@ -1052,29 +1169,25 @@ async function runInteractiveTui(): Promise<void> {
     },
     onExit: () => {
       stopped = true;
-      shell.unmount();
+      void flushSession().finally(() => shell.unmount());
     },
     getStatusMeta: () => ({
       model: runtime
         ? `${runtime.config.model.provider}/${runtime.config.model.name}`
         : undefined,
-      mode: runtime?.config.executionMode,
+      mode: collaborationMode === 'plan' ? 'plan' : runtime?.config.executionMode,
     }),
+    onTranscriptChange: () => {
+      scheduleSessionPersist();
+    },
   });
 
   try {
     runtime = await createRuntime(await reloadConfig(), { bridge: shell.bridge });
     bindBridgeRiskConfirmation(runtime, shell.bridge);
-    shell.bridge.addMessage(
-      'system',
-      'Student Agent TUI (ADR-009). Esc abort · Ctrl+C exit · Ctrl+P plan/agents/memory (compact) · /help',
-    );
-    const conflict = describeProfileEnvConflict(runtime.config);
-    if (conflict) {
-      shell.bridge.addMessage('error', conflict);
-    }
-    await refreshWorkbench();
-    shell.bridge.setStatus('ready');
+
+    // Each TUI launch = new session file (Claude Code / Codex style).
+    await beginFreshSession();
 
     while (!stopped) {
       const raced = await Promise.race([
@@ -1096,6 +1209,7 @@ async function runInteractiveTui(): Promise<void> {
 
           case 'quit':
             stopped = true;
+            await flushSession();
             shell.unmount();
             continue;
 
@@ -1108,12 +1222,98 @@ async function runInteractiveTui(): Promise<void> {
             shell.bridge.setStatus('cleared');
             continue;
 
+          case 'new': {
+            if (runtime.agent.state.isStreaming) {
+              shell.bridge.addMessage('system', '当前任务仍在运行，请先 Esc 中止再 /new。');
+              continue;
+            }
+            await beginFreshSession();
+            continue;
+          }
+
+          case 'sessions': {
+            const entries = await sessionStore.listSessions(30);
+            shell.bridge.addMessage(
+              'system',
+              `最近会话\n${sessionStore.formatList(entries, sessionStore.currentId)}`,
+            );
+            continue;
+          }
+
+          case 'resume': {
+            if (runtime.agent.state.isStreaming) {
+              shell.bridge.addMessage('system', '当前任务仍在运行，请先 Esc 中止再 /resume。');
+              continue;
+            }
+            const query = command.query.trim();
+            let loaded = null as Awaited<ReturnType<typeof sessionStore.loadSession>>;
+            if (!query) {
+              const entries = await sessionStore.listSessions(30);
+              if (entries.length === 0) {
+                shell.bridge.addMessage('system', '暂无历史会话可恢复。');
+                continue;
+              }
+              const pickedId = await shell.pickSession(entries, {
+                currentId: sessionStore.currentId,
+                title: 'Resume',
+              });
+              if (!pickedId) {
+                shell.bridge.addMessage('system', '已取消恢复。');
+                continue;
+              }
+              await flushSession();
+              loaded = await sessionStore.loadSession(pickedId);
+            } else {
+              await flushSession();
+              loaded = await sessionStore.resolveSession(query);
+            }
+            if (!loaded) {
+              shell.bridge.addMessage(
+                'error',
+                query
+                  ? `未找到会话：${query}\n用 /resume 打开选择列表。`
+                  : '未能加载所选会话。',
+              );
+              continue;
+            }
+            shell.loadTranscript(loaded.messages.map((m) => ({
+              id: m.id,
+              kind: m.kind,
+              content: m.content,
+              timestamp: m.timestamp,
+              ...(m.meta ? { meta: m.meta } : {}),
+            })));
+            const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+            await tasksMgr.parkActiveTask();
+            if (loaded.task_id) {
+              const resumed = await tasksMgr.resumeTask(loaded.task_id);
+              if (resumed) {
+                currentTaskDescription = resumed.name;
+                lastPlanSnapshot = createPlanSnapshot(resumed);
+              } else {
+                currentTaskDescription = '';
+                lastPlanSnapshot = null;
+              }
+            } else {
+              currentTaskDescription = '';
+              lastPlanSnapshot = null;
+            }
+            shell.bridge.addMessage(
+              'system',
+              `已恢复「${loaded.name}」· ${loaded.messages.length} 条消息`
+              + (loaded.task_id ? ' · 已关联任务' : ''),
+            );
+            await refreshWorkbench();
+            continue;
+          }
+
           case 'status': {
             const active = await TasksManager.getInstance(MEMORY_DIR).getActive();
             shell.bridge.addMessage(
               'system',
               [
                 `任务: ${currentTaskDescription || active?.name || '(无)'}`,
+                `协作: ${collaborationMode === 'plan' ? 'plan（只规划）' : 'execute'}`,
                 `模式: ${runtime.config.executionMode}`,
                 `模型: ${runtime.config.model.provider}/${runtime.config.model.name}`,
                 `LLM 超时: ${runtime.config.llm.requestTimeoutMs}ms`,
@@ -1127,9 +1327,150 @@ async function runInteractiveTui(): Promise<void> {
           }
 
           case 'plan': {
-            const text = await handlePlanCommand(command);
+            if (runtime.agent.state.isStreaming) {
+              shell.bridge.addMessage('system', '当前任务仍在运行，不能切换 Plan 模式。');
+              continue;
+            }
+            collaborationMode = 'plan';
+            if (!command.goal) {
+              shell.bridge.addMessage('system', PLAN_MODE_ENTERED);
+              continue;
+            }
+            await refreshWorkbench({ streaming: true });
+            shell.bridge.setStatus('planning…');
+            let turnError = false;
+            try {
+              await runTuiPlannerAwareTurn(runtime, command.goal, {
+                info: (message) => shell.bridge.addMessage('system', message),
+                error: (message) => shell.bridge.addMessage('error', message),
+                refresh: refreshWorkbench,
+              }, { forcePlan: true });
+            } catch (err) {
+              turnError = true;
+              const raw = err instanceof Error ? err.message : String(err);
+              shell.bridge.addMessage('error', `Task error: ${formatAgentErrorForDisplay(raw) ?? raw}`);
+            } finally {
+              shell.bridge.clearStatus();
+              await refreshWorkbench({ streaming: false, taskError: turnError });
+              await flushSession();
+            }
+            continue;
+          }
+
+          case 'execute':
+            collaborationMode = 'execute';
+            shell.bridge.addMessage('system', PLAN_MODE_LEFT);
+            continue;
+
+          case 'revision': {
+            const text = await handleRevisionCommand({ type: 'revision', content: command.content });
             shell.bridge.addMessage('system', text);
             await refreshWorkbench();
+            continue;
+          }
+
+          case 'revisions': {
+            const text = await handleRevisionCommand({ type: 'revisions', query: command.query });
+            shell.bridge.addMessage('system', text);
+            continue;
+          }
+
+          case 'task': {
+            const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
+            const activeTask = await tasksMgr.getActive();
+            if (command.subcommand === 'status') {
+              shell.bridge.addMessage(
+                'system',
+                activeTask ? formatTaskStatus(activeTask) : '当前无活跃任务。',
+              );
+            } else if (command.subcommand === 'rename') {
+              if (!activeTask) {
+                shell.bridge.addMessage('system', '当前无活跃任务。');
+              } else {
+                await tasksMgr.renameTask(activeTask.id, command.name);
+                currentTaskDescription = command.name;
+                shell.bridge.addMessage('system', `已重命名为：${command.name}`);
+              }
+            } else if (command.subcommand === 'cancel') {
+              const cancelled = await tasksMgr.cancelActiveTask();
+              if (!cancelled) {
+                shell.bridge.addMessage('system', '当前无活跃任务。');
+              } else {
+                lastPlanSnapshot = null;
+                currentTaskDescription = '';
+                shell.bridge.addMessage('system', `已丢弃当前任务：${cancelled.name}`);
+              }
+            }
+            await refreshWorkbench();
+            continue;
+          }
+
+          case 'archive': {
+            try {
+              const text = await executeArchiveCommand(CWD, command);
+              shell.bridge.addMessage('system', text);
+            } catch (error) {
+              shell.bridge.addMessage(
+                'error',
+                `Archive error: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+            continue;
+          }
+
+          case 'candidates':
+            shell.bridge.addMessage('system', '候选：待实现');
+            continue;
+
+          case 'context': {
+            const text = formatContextInspection(await inspectContext(MEMORY_DIR));
+            shell.bridge.addMessage('system', text);
+            continue;
+          }
+
+          case 'init': {
+            const run = (cmd: string, args: string[]) =>
+              new Promise<string>((resolve, reject) =>
+                execFile(cmd, args, { cwd: CWD }, (err, stdout, stderr) =>
+                  err ? reject(new Error(stderr || err.message)) : resolve(stdout.trim()),
+                ),
+              );
+            try {
+              await run('git', ['init']);
+              await run('git', ['add', '-A']);
+              await run('git', ['commit', '--allow-empty', '-m', 'chore: initial commit by student-agent']);
+              shell.bridge.addMessage('system', 'git 仓库已初始化并创建初始提交，快照回滚已启用。');
+            } catch (e) {
+              shell.bridge.addMessage('error', `/init 失败: ${e instanceof Error ? e.message : e}`);
+            }
+            continue;
+          }
+
+          case 'feedback': {
+            const text = await recordQualityFeedback(command, runtime);
+            shell.bridge.addMessage('system', text);
+            if (isActionableDownFeedback(command)) {
+              shell.bridge.addMessage('system', '收到 down 反馈：将尝试修复（见后续输出）。');
+              // Reuse console repair path; messages go through EventRenderer → bridge when wired.
+              await runConsoleFeedbackRepair(runtime, command.comment);
+            }
+            await refreshWorkbench();
+            continue;
+          }
+
+          case 'review': {
+            const reviewResult = await handleReviewCommand(command, currentTaskDescription);
+            if (reviewResult.completedTask) {
+              lastPlanSnapshot = null;
+              currentTaskDescription = '';
+            }
+            shell.bridge.addMessage('system', reviewResult.message);
+            await refreshWorkbench();
+            continue;
+          }
+
+          case 'why': {
+            shell.bridge.addMessage('system', await renderWhyCommand(command));
             continue;
           }
 
@@ -1218,13 +1559,6 @@ async function runInteractiveTui(): Promise<void> {
           case 'unknown':
             shell.bridge.addMessage('system', `未知命令: ${command.raw}\n输入 /help 查看可用命令`);
             continue;
-
-          default:
-            shell.bridge.addMessage(
-              'system',
-              `/${command.type}：TUI 尚未接入该命令；可用 /setting /provider /model /plan /status /help。`,
-            );
-            continue;
         }
 
         if (command.type !== 'paste') continue;
@@ -1232,14 +1566,14 @@ async function runInteractiveTui(): Promise<void> {
 
       // Planner-aware turn (same TasksManager truth as readline)
       await refreshWorkbench({ streaming: true });
-      shell.bridge.setStatus('running…');
+      shell.bridge.setStatus(collaborationMode === 'plan' ? 'planning…' : 'running…');
       let turnError = false;
       try {
         await runTuiPlannerAwareTurn(runtime, userInput, {
           info: (message) => shell.bridge.addMessage('system', message),
           error: (message) => shell.bridge.addMessage('error', message),
           refresh: refreshWorkbench,
-        });
+        }, { forcePlan: collaborationMode === 'plan' });
       } catch (err) {
         turnError = true;
         const raw = err instanceof Error ? err.message : String(err);
@@ -1247,6 +1581,7 @@ async function runInteractiveTui(): Promise<void> {
       } finally {
         shell.bridge.clearStatus();
         await refreshWorkbench({ streaming: false, taskError: turnError });
+        await flushSession();
       }
 
       const pendingQ = runtime.escalation.takePendingQuestion();
@@ -1261,10 +1596,15 @@ async function runInteractiveTui(): Promise<void> {
       }
     }
   } finally {
+    const exitHint = formatSessionExitHint(sessionStore.currentSession);
+    await flushSession().catch(() => {});
     runtime?.renderer.cleanup();
     runtime?.unsubscribe();
     shell.unmount();
     restoreConsole();
+    if (exitHint) {
+      console.log(chalk.dim(exitHint));
+    }
   }
 }
 
@@ -1282,7 +1622,9 @@ async function runTuiPlannerAwareTurn(
   runtime: RuntimeState,
   userInput: string,
   notify: TuiTurnNotify,
+  options?: { forcePlan?: boolean },
 ): Promise<void> {
+  const forcePlan = options?.forcePlan ?? collaborationMode === 'plan';
   const tasksMgr = TasksManager.getInstance(MEMORY_DIR);
   let activeTask = await tasksMgr.getActive();
 
@@ -1302,6 +1644,7 @@ async function runTuiPlannerAwareTurn(
   }
 
   if (activeTask && isPlanConfirmationInput(userInput)) {
+    collaborationMode = 'execute';
     await runActivePhase(runtime, activeTask, notify);
     await notify.refresh();
     return;
@@ -1341,22 +1684,16 @@ async function runTuiPlannerAwareTurn(
     return;
   }
 
-  const intent = await classifyIntent(
-    userInput,
-    activeTask?.name ?? null,
-    runtime.model,
-  );
+  const intent = forcePlan
+    ? forcePlanIntent(userInput)
+    : await classifyIntent(
+      userInput,
+      activeTask?.name ?? null,
+      runtime.model,
+    );
 
-  if (intent.type === 'new_task' && intent.requiresPlan) {
-    const agentOutputs: string[] = [];
-    const tempUnsubscribe = runtime.agent.subscribe((event) => {
-      if (event.type === 'message_update' && event.message.role === 'assistant') {
-        const textContent = event.message.content.find((c) => c.type === 'text');
-        if (textContent && textContent.type === 'text') {
-          agentOutputs.push(textContent.text);
-        }
-      }
-    });
+  if (forcePlan || (intent.type === 'new_task' && intent.requiresPlan)) {
+    const planningOut = subscribeAssistantTextSnapshot(runtime.agent);
 
     currentTaskDescription = intent.taskName ?? userInput;
     runtime.escalation.initTask(currentTaskDescription, CWD);
@@ -1366,16 +1703,22 @@ async function runTuiPlannerAwareTurn(
     runtime.unsubscribe();
 
     let planningError: unknown;
+    let signal: PhaseSignal | null = null;
     try {
       runtime.setFileGuardMode('planning');
       runtime.resetFileGuard();
       runtime.resetToolGuard();
       await runTaskWithAbort(runtime, buildPlanningPrompt(userInput));
+      signal = parsePhaseSignal(planningOut.getText());
+      if (!isValidTaskStartSignal(signal)) {
+        await runTaskWithAbort(runtime, buildPlanningRepairPrompt(userInput));
+        signal = parsePhaseSignal(planningOut.getText());
+      }
     } catch (err) {
       planningError = err;
     } finally {
       runtime.setFileGuardMode('normal');
-      tempUnsubscribe();
+      planningOut.unsubscribe();
       runtime.unsubscribe = runtime.agent.subscribe((event) => runtime.renderer.handleEvent(event));
     }
 
@@ -1391,30 +1734,21 @@ async function runTuiPlannerAwareTurn(
       return;
     }
 
-    const signal = parsePhaseSignal(agentOutputs.join(''));
-    if (signal?.type === 'task_start') {
-      if (signal.phases.length === 0) {
-        runtime.agent.state.messages = runtime.agent.state.messages.slice(0, savedMessageCount);
-        if (isInformationalFollowUp(userInput)) {
-          await runTuiPlainPrompt(runtime, userInput, notify);
-        } else {
-          notify.error('[规划失败] Agent 未输出有效 Phase 行，请重试或换个描述方式。');
-        }
-        return;
-      }
+    if (isValidTaskStartSignal(signal)) {
+      const autoExec = isYoloMode(runtime) && !forcePlan;
       const newTask = await tasksMgr.createTask(
         signal.name,
         signal.phases,
-        buildTaskCreateOptions(intent, signal.context, isYoloMode(runtime)),
+        buildTaskCreateOptions(intent, signal.context, autoExec),
       );
       lastPlanSnapshot = createPlanSnapshot(newTask);
       notify.info(formatPlanAwaitingConfirmation(
         signal.name,
         signal.phases,
-        isYoloMode(runtime),
+        autoExec,
       ));
       await notify.refresh();
-      if (isYoloMode(runtime)) {
+      if (autoExec) {
         await runActivePhase(runtime, newTask, notify);
       }
       await notify.refresh();
@@ -1447,21 +1781,13 @@ async function runTuiPlannerAwareTurn(
     if (isInformationalFollowUp(userInput)) {
       await runTuiPlainPrompt(runtime, userInput, notify);
     } else {
-      notify.error('[规划失败] Agent 未输出 TASK_START 信号，请重试或换个描述方式。');
+      notify.error('[规划失败] Agent 未输出有效 Phase 行（需 TASK_START 内含 2–5 个 Phase N: …）。请重试。');
     }
     return;
   }
 
   // Continue current task / plain answer
-  const agentOutputs: string[] = [];
-  const tempUnsubscribe = runtime.agent.subscribe((event) => {
-    if (event.type === 'message_update' && event.message.role === 'assistant') {
-      const textContent = event.message.content.find((c) => c.type === 'text');
-      if (textContent && textContent.type === 'text') {
-        agentOutputs.push(textContent.text);
-      }
-    }
-  });
+  const turnOut = subscribeAssistantTextSnapshot(runtime.agent);
 
   const useActiveTaskContext = Boolean(activeTask && intent.type === 'task_advance');
   const prompt = useActiveTaskContext && activeTask
@@ -1482,11 +1808,11 @@ async function runTuiPlannerAwareTurn(
       notify.error(`[Agent Error] ${formatAgentErrorForDisplay(runtime.agent.state.errorMessage)}`);
     }
   } finally {
-    tempUnsubscribe();
+    turnOut.unsubscribe();
   }
 
   activeTask = await tasksMgr.getActive();
-  const signal = parsePhaseSignal(agentOutputs.join(''));
+  const signal = parsePhaseSignal(turnOut.getText());
   if (signal?.type === 'phase_done' && activeTask) {
     await tasksMgr.completePhase(activeTask.id);
     const updatedTask = await tasksMgr.getActive();
@@ -1545,13 +1871,7 @@ async function runActivePhase(
   runtime.escalation.initTask(activeTask.name, CWD);
   markReflectBaseline();
 
-  const outputs: string[] = [];
-  const unsub = runtime.agent.subscribe((event) => {
-    if (event.type === 'message_update' && event.message.role === 'assistant') {
-      const textContent = event.message.content.find((c) => c.type === 'text');
-      if (textContent && textContent.type === 'text') outputs.push(textContent.text);
-    }
-  });
+  const phaseOut = subscribeAssistantTextSnapshot(runtime.agent);
 
   try {
     runtime.resetFileGuard();
@@ -1566,10 +1886,10 @@ async function runActivePhase(
       `Phase ${activeTask.active_phase_index + 1} 执行失败: ${err instanceof Error ? err.message : String(err)}`,
     );
   } finally {
-    unsub();
+    phaseOut.unsubscribe();
   }
 
-  const signal = parsePhaseSignal(outputs.join(''));
+  const signal = parsePhaseSignal(phaseOut.getText());
   if (signal?.type !== 'phase_done') {
     await notify?.refresh();
     return;
@@ -1596,7 +1916,9 @@ async function runActivePhase(
 
 
 type FeedbackCommand = Extract<SlashCommand, { type: 'feedback' }>;
-type PlanCommand = Extract<SlashCommand, { type: 'plan' }>;
+type RevisionCommand =
+  | { type: 'revision'; content: string }
+  | { type: 'revisions'; query: string };
 type ReviewCommand = Extract<SlashCommand, { type: 'review' }>;
 type WhyCommand = Extract<SlashCommand, { type: 'why' }>;
 
@@ -1657,6 +1979,47 @@ function isYoloMode(runtime: RuntimeState): boolean {
   return runtime.config.executionMode === 'yolo';
 }
 
+/** Force a planning turn (Codex /plan): always requires plan, never auto-executes via YOLO. */
+function forcePlanIntent(input: string): IntentResult {
+  const taskName = input.replace(/\s+/g, ' ').trim().slice(0, 48) || 'Plan';
+  return {
+    type: 'new_task',
+    taskName,
+    level: 3,
+    reason: 'explicit-/plan-mode',
+    requiresPlan: true,
+    requiresUserAcceptance: true,
+    requiresVisualReview: false,
+  };
+}
+
+/**
+ * Streamed message_update often carries a full text snapshot, not a delta.
+ * Replacing (not concatenating) avoids corrupting TASK_START / Phase parsing.
+ */
+function subscribeAssistantTextSnapshot(
+  agent: { subscribe: (listener: (event: any) => void) => () => void },
+): { getText: () => string; unsubscribe: () => void } {
+  let text = '';
+  const unsubscribe = agent.subscribe((event) => {
+    if (event.type !== 'message_update' || event.message?.role !== 'assistant') return;
+    const textContent = event.message.content?.find((c: { type: string }) => c.type === 'text');
+    if (textContent && textContent.type === 'text' && typeof textContent.text === 'string') {
+      text = textContent.text;
+    }
+  });
+  return {
+    getText: () => text,
+    unsubscribe,
+  };
+}
+
+function isValidTaskStartSignal(
+  signal: PhaseSignal | null,
+): signal is Extract<PhaseSignal, { type: 'task_start' }> {
+  return signal?.type === 'task_start' && signal.phases.length > 0;
+}
+
 function isPlanConfirmationInput(input: string): boolean {
   return PLAN_CONFIRM_RE.test(input.trim());
 }
@@ -1685,13 +2048,13 @@ async function finalizePendingArchiveForReview(task: Task, tasksMgr: TasksManage
 }
 
 
-function formatPlanAwaitingConfirmation(name: string, phases: string[], yoloMode = false): string {
+function formatPlanAwaitingConfirmation(name: string, phases: string[], autoExec = false): string {
   const lines = [
     `[规划完成] ${name}，共 ${phases.length} 个 Phase。`,
     ...phases.map((phase, index) => `Phase ${index + 1}: ${phase}`),
-    yoloMode
-      ? 'YOLO 模式：自动执行 Phase 1，并在每个 Phase 完成后继续推进。'
-      : '回复“确认”或“开始”后执行 Phase 1；也可以先提出修改计划。',
+    autoExec
+      ? 'YOLO：自动执行'
+      : '等待确认后执行',
   ];
   return lines.join('\n');
 }
@@ -1922,9 +2285,9 @@ async function renderWhyCommand(command: WhyCommand): Promise<string> {
   ].join('\n');
 }
 
-async function handlePlanCommand(command: PlanCommand): Promise<string> {
+async function handleRevisionCommand(command: RevisionCommand): Promise<string> {
   const manager = PlanRevisionManager.getInstance(MEMORY_DIR);
-  if (command.subcommand === 'revisions') {
+  if (command.type === 'revisions') {
     const revisions = await manager.search(command.query, 10);
     if (revisions.length === 0) return '没有找到计划修订记忆。';
     return formatPlanRevisions(revisions);

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { COMMAND_COMPLETIONS, parseCommand, getHelpText } from '../command-parser.js';
+import {
+  COMMAND_COMPLETIONS,
+  SLASH_MENU_COMMANDS,
+  parseCommand,
+  getHelpText,
+} from '../command-parser.js';
 
 describe('parseCommand', () => {
   it('非 / 开头返回 null', () => {
@@ -44,6 +49,16 @@ describe('parseCommand', () => {
 
   it('解析 clear 命令', () => {
     expect(parseCommand('/clear')).toEqual({ type: 'clear' });
+  });
+
+  it('解析 /new /resume /sessions', () => {
+    expect(parseCommand('/new')).toEqual({ type: 'new' });
+    expect(parseCommand('/resume')).toEqual({ type: 'resume', query: '' });
+    expect(parseCommand('/resume session_abc')).toEqual({ type: 'resume', query: 'session_abc' });
+    expect(parseCommand('/sessions')).toEqual({ type: 'sessions' });
+    expect(parseCommand('/session')).toEqual({ type: 'sessions' });
+    expect(parseCommand('/session new')).toEqual({ type: 'new' });
+    expect(parseCommand('/session foo')).toEqual({ type: 'resume', query: 'foo' });
   });
 
   it('解析 candidates 命令', () => {
@@ -103,20 +118,31 @@ describe('parseCommand', () => {
     });
   });
 
-  it('解析 plan revision 命令', () => {
-    expect(parseCommand('/plan revision 先做低风险修复')).toEqual({
+  it('解析 /plan 为 Plan 模式（修订记忆走 /revision）', () => {
+    expect(parseCommand('/plan')).toEqual({
       type: 'plan',
-      subcommand: 'revision',
+      goal: '',
+    });
+    expect(parseCommand('/plan 制定一个了解当前目录的计划')).toEqual({
+      type: 'plan',
+      goal: '制定一个了解当前目录的计划',
+    });
+    expect(parseCommand('/execute')).toEqual({ type: 'execute' });
+    expect(parseCommand('/revision 先做低风险修复')).toEqual({
+      type: 'revision',
       content: '先做低风险修复',
     });
-    expect(parseCommand('/plan revisions TUI')).toEqual({
-      type: 'plan',
-      subcommand: 'revisions',
+    expect(parseCommand('/revisions TUI')).toEqual({
+      type: 'revisions',
       query: 'TUI',
     });
+    // Backward compat aliases
+    expect(parseCommand('/plan revision 先做低风险修复')).toEqual({
+      type: 'revision',
+      content: '先做低风险修复',
+    });
     expect(parseCommand('/plan revisions')).toEqual({
-      type: 'plan',
-      subcommand: 'revisions',
+      type: 'revisions',
       query: '',
     });
   });
@@ -196,6 +222,8 @@ describe('getHelpText', () => {
     expect(help).toContain('/review');
     expect(help).toContain('/why');
     expect(help).toContain('/plan');
+    expect(help).toContain('/execute');
+    expect(help).toContain('/revision');
     expect(help).toContain('/task');
     expect(help).toContain('/task cancel');
     expect(help).toContain('/archive');
@@ -204,9 +232,22 @@ describe('getHelpText', () => {
 
 describe('COMMAND_COMPLETIONS', () => {
   it('包含常用子命令补全', () => {
-    expect(COMMAND_COMPLETIONS).toContain('/plan revision ');
+    expect(COMMAND_COMPLETIONS).toContain('/plan ');
+    expect(COMMAND_COMPLETIONS).toContain('/revision ');
+    expect(COMMAND_COMPLETIONS).toContain('/execute');
     expect(COMMAND_COMPLETIONS).toContain('/feedback down ');
     expect(COMMAND_COMPLETIONS).toContain('/context');
     expect(COMMAND_COMPLETIONS).toContain('/archive build');
+  });
+});
+
+describe('SLASH_MENU_COMMANDS', () => {
+  it('覆盖核心 slash 条目且不含前导 /', () => {
+    const names = SLASH_MENU_COMMANDS.map((c) => c.name);
+    expect(names).toContain('help');
+    expect(names).toContain('new');
+    expect(names).toContain('sessions');
+    expect(names).toContain('resume');
+    expect(names.every((n) => !n.startsWith('/'))).toBe(true);
   });
 });

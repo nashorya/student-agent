@@ -6,6 +6,7 @@ export function isWide(columns: number): boolean {
 }
 
 export type LayoutRegion =
+  | 'header'
   | 'transcript'
   | 'plan'
   | 'agents'
@@ -24,12 +25,12 @@ export function describeLayoutRegions(
   overlay: CompactOverlayKind = 'none',
 ): LayoutRegion[] {
   if (isWide(columns)) {
-    return ['transcript', 'plan', 'agents', 'composer', 'status'];
+    return ['header', 'transcript', 'plan', 'agents', 'composer', 'status'];
   }
   if (overlay !== 'none') {
-    return ['transcript', 'overlay', 'composer', 'status'];
+    return ['header', 'transcript', 'overlay', 'composer', 'status'];
   }
-  return ['transcript', 'composer', 'status'];
+  return ['header', 'transcript', 'composer', 'status'];
 }
 
 /** Suggested right-rail basis (columns) for Plan/Agents in wide mode. */

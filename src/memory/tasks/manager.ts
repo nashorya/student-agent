@@ -339,6 +339,42 @@ export class TasksManager {
     return cancelledTask;
   }
 
+  /**
+   * Detach the active task pointer without cancelling the task.
+   * Used for Claude Code / Codex-style "new session": old work stays on disk,
+   * the next interactive session starts empty until /resume.
+   */
+  async parkActiveTask(): Promise<Task | null> {
+    let parked: Task | null = null;
+    await this._write(async (file) => {
+      if (!file.active_task_id) return;
+      const task = file.tasks.find((t) => t.id === file.active_task_id) ?? null;
+      parked = task;
+      file.active_task_id = null;
+    });
+    return parked;
+  }
+
+  /** Most recently created incomplete task that can be resumed. */
+  async findResumableTask(): Promise<Task | null> {
+    const file = await this._read();
+    const candidates = file.tasks
+      .filter((t) => t.status === 'active')
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return candidates[0] ?? null;
+  }
+
+  async resumeTask(taskId: string): Promise<Task | null> {
+    let resumed: Task | null = null;
+    await this._write(async (file) => {
+      const task = file.tasks.find((t) => t.id === taskId);
+      if (!task || task.status !== 'active') return;
+      file.active_task_id = task.id;
+      resumed = task;
+    });
+    return resumed;
+  }
+
   private getOrCreateActor(task: Task): WorkflowActor | null {
     if (!isWorkflowMachineStatus(task.workflow_status)) return null;
 

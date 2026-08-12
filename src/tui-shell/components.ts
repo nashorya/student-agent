@@ -2,23 +2,26 @@ import type { Component } from '@earendil-works/pi-tui';
 import { Text } from '@earendil-works/pi-tui';
 import type { ActivityKind, ShellMessage, ShellState } from './state.js';
 import { theme } from './theme.js';
-import { isWide } from './layout.js';
+import { sectionRailTitle } from './chrome.js';
 import { sortAgentRowsForTree } from './project-workbench.js';
 
-const DIFF_LINE_RE = /^(?:diff --git |@@ |[+-](?![+-]))/;
+/** Real unified-diff markers only — not markdown bullets (`- item`). */
+const DIFF_FILE_RE = /^(?:diff --git |Index: |\+\+\+ |--- )/;
+const DIFF_HUNK_RE = /^@@ /;
+const DIFF_CHANGE_RE = /^[+-](?![+-])/;
 
 function kindStyle(kind: ActivityKind): (s: string) => string {
   switch (kind) {
     case 'user':
       return theme.accent;
     case 'assistant':
-      return theme.text;
+      return theme.title;
     case 'reasoning':
-      return theme.reasoning;
+      return theme.faint;
     case 'tool':
       return theme.tool;
     case 'diff':
-      return theme.text;
+      return theme.muted;
     case 'system':
       return theme.muted;
     case 'prompt':
@@ -38,51 +41,65 @@ function kindStyle(kind: ActivityKind): (s: string) => string {
   }
 }
 
-function kindLabel(kind: ActivityKind, meta?: ShellMessage['meta']): string {
+function kindLabel(
+  kind: ActivityKind,
+  meta: ShellMessage['meta'] | undefined,
+  live: boolean,
+): string {
   switch (kind) {
     case 'user':
       return 'You';
     case 'assistant':
-      return 'Assistant';
+      return live ? 'Assistant · live' : 'Assistant';
     case 'reasoning':
-      return 'Thinking';
+      return live ? 'reasoning · live' : 'reasoning';
     case 'tool': {
       const status = meta?.toolStatus;
-      if (status === 'running') return 'Tool ·';
-      if (status === 'failed') return 'Tool ✗';
-      if (status === 'done') return 'Tool ✓';
-      return 'Tool';
+      if (status === 'running') return 'tool · running';
+      if (status === 'failed') return 'tool · failed';
+      if (status === 'done') return 'tool';
+      return 'tool';
     }
     case 'diff':
-      return 'Diff';
+      return 'diff';
     case 'system':
-      return 'System';
+      return 'meta';
     case 'prompt':
-      return 'Ask';
+      return 'ask';
     case 'error':
-      return 'Error';
+      return 'error';
     case 'recovery':
-      return 'Recovery';
+      return 'recovery';
     case 'verification':
-      return 'Verify';
+      return 'verify';
     case 'signal':
-      return 'Signal';
+      return 'signal';
     case 'reflect':
-      return 'Reflect';
+      return 'reflect';
     case 'recall':
-      return 'Recall';
+      return 'recall';
     default:
       return kind;
   }
 }
 
 function looksLikeDiff(content: string): boolean {
-  const lines = content.split('\n').slice(0, 40);
-  let hits = 0;
+  const lines = content.split('\n').slice(0, 80);
+  let files = 0;
+  let hunks = 0;
+  let plus = 0;
+  let minus = 0;
   for (const line of lines) {
-    if (DIFF_LINE_RE.test(line)) hits += 1;
+    if (DIFF_FILE_RE.test(line)) files += 1;
+    else if (DIFF_HUNK_RE.test(line)) hunks += 1;
+    else if (DIFF_CHANGE_RE.test(line)) {
+      if (line.startsWith('+')) plus += 1;
+      else minus += 1;
+    }
   }
-  return hits >= 2;
+  // Require a file/hunk header, or both + and - change lines (not markdown lists).
+  if (files >= 1 || hunks >= 1) return true;
+  return plus >= 2 && minus >= 2;
 }
 
 function renderDiffBody(content: string, width: number): string[] {
@@ -92,111 +109,90 @@ function renderDiffBody(content: string, width: number): string[] {
     if (raw.startsWith('+') && !raw.startsWith('+++')) painted = theme.diffAdded(raw);
     else if (raw.startsWith('-') && !raw.startsWith('---')) painted = theme.diffRemoved(raw);
     else if (raw.startsWith('@@')) painted = theme.muted(raw);
-    else painted = theme.muted(raw);
+    else painted = theme.faint(raw);
     lines.push(...new Text(painted, 1, 0).render(width));
   }
   return lines;
 }
 
-function renderActivity(msg: ShellMessage, width: number): string[] {
+function indentBody(content: string, paint: (s: string) => string, width: number): string[] {
+  const indented = content
+    .split('\n')
+    .map((line) => paint(`  ${line}`))
+    .join('\n');
+  return new Text(indented, 1, 0).render(width);
+}
+
+function renderActivity(
+  msg: ShellMessage,
+  width: number,
+  streaming: { assistantId: string | null; reasoningId: string | null },
+): string[] {
+  const live =
+    (msg.kind === 'assistant' && msg.id === streaming.assistantId)
+    || (msg.kind === 'reasoning' && msg.id === streaming.reasoningId);
   const style = kindStyle(msg.kind);
-  const label = style(kindLabel(msg.kind, msg.meta));
-  const body = msg.content.length > 0 ? msg.content : theme.muted('…');
+  const label = style(kindLabel(msg.kind, msg.meta, live));
+  const body = msg.content.length > 0 ? msg.content : theme.faint('…');
 
   if (msg.kind === 'reasoning') {
-    const indented = body
-      .split('\n')
-      .map((line) => theme.reasoning(`  ${line}`))
-      .join('\n');
-    return new Text(`${label}\n${indented}`, 1, 0).render(width);
+    return [label, ...indentBody(body, theme.reasoning, width)];
   }
 
   if (msg.kind === 'tool') {
-    return new Text(`${label} ${theme.tool(body)}`, 1, 0).render(width);
+    return [theme.muted(`${label}  `) + theme.tool(body)];
   }
 
   if (msg.kind === 'diff' || (msg.kind === 'assistant' && looksLikeDiff(msg.content))) {
-    const header = style(msg.kind === 'diff' ? 'Diff:' : 'Assistant:');
-    return [header, ...renderDiffBody(msg.content, width), ''];
+    return [label, ...renderDiffBody(msg.content, width)];
   }
 
-  if (msg.kind === 'user' || msg.kind === 'assistant') {
-    return new Text(`${label}: ${body}`, 1, 0).render(width);
+  if (msg.kind === 'user') {
+    return [label, ...indentBody(body, theme.text, width)];
   }
 
-  return new Text(`${label}: ${body}`, 1, 0).render(width);
+  if (msg.kind === 'assistant') {
+    return [label, ...indentBody(body, theme.text, width)];
+  }
+
+  if (msg.kind === 'system') {
+    // Readable meta — never dim.gray body on black.
+    return new Text(theme.muted(`· ${msg.content}`), 1, 0).render(width);
+  }
+
+  return [label, ...indentBody(body, style, width)];
 }
 
-/** Phase 2 transcript: hierarchical activity timeline. */
+/** Main activity timeline — hierarchical, not a flat log dump. */
 export class TranscriptView implements Component {
   constructor(private readonly getState: () => ShellState) {}
 
   invalidate(): void {}
 
   render(width: number): string[] {
-    const { messages } = this.getState();
+    const state = this.getState();
+    const { messages } = state;
+    const streaming = {
+      assistantId: state.streamingAssistantId,
+      reasoningId: state.streamingReasoningId,
+    };
+
     if (messages.length === 0) {
-      return new Text(theme.muted('Transcript empty — type a prompt below.'), 1, 0).render(width);
+      return new Text(
+        theme.faint('Transcript\n  Waiting for a prompt in Compose below.'),
+        1,
+        0,
+      ).render(width);
     }
 
     const lines: string[] = [];
     for (const msg of messages) {
-      lines.push(...renderActivity(msg, width));
-      if (msg.kind !== 'tool') {
+      lines.push(...renderActivity(msg, width, streaming));
+      if (msg.kind !== 'tool' && msg.kind !== 'system') {
         lines.push('');
       }
     }
     return lines;
-  }
-}
-
-export class StatusBar implements Component {
-  constructor(
-    private readonly getState: () => ShellState,
-    private readonly getMeta: () => { model?: string; mode?: string },
-    private readonly getColumns: () => number,
-  ) {}
-
-  invalidate(): void {}
-
-  render(width: number): string[] {
-    const state = this.getState();
-    const meta = this.getMeta();
-    const parts: string[] = [];
-
-    if (state.statusText) {
-      parts.push(state.statusText);
-    } else if (state.taskStatus?.state) {
-      const ts = state.taskStatus;
-      const name = ts.name ? ` ${ts.name}` : '';
-      parts.push(`${ts.state}${name}`);
-    } else if (state.currentTool) {
-      parts.push(`tool: ${state.currentTool}`);
-    } else {
-      parts.push('ready');
-    }
-
-    if (meta.mode) parts.push(meta.mode);
-    if (meta.model) parts.push(meta.model);
-    if (state.pendingCount > 0) parts.push(`queued:${state.pendingCount}`);
-
-    if (!isWide(this.getColumns())) {
-      const planHint =
-        state.planSteps.length > 0
-          ? `Plan: ${state.planSteps.filter((s) => s.status === 'done').length}/${state.planSteps.length}`
-          : 'Plan: n/a';
-      parts.push(planHint);
-      if (state.compactOverlay !== 'none') {
-        parts.push(`overlay:${state.compactOverlay}`);
-      } else {
-        parts.push('Ctrl+P overlay');
-      }
-    }
-
-    const line = theme.muted(parts.join(' · '));
-    if (line.length <= width) return [line];
-    const visible = Math.max(0, width - 1);
-    return [line.slice(0, visible) + '…'];
   }
 }
 
@@ -207,20 +203,18 @@ export class PlanPanel implements Component {
 
   render(width: number): string[] {
     const steps = this.getState().planSteps;
-    const header = theme.accent('Plan');
+    const title = sectionRailTitle('Plan', width);
     if (steps.length === 0) {
-      return new Text(`${header}\n${theme.muted('No plan yet')}`, 1, 0).render(width);
+      return [title, theme.faint('  No plan yet')];
     }
-    const body = steps
-      .map((step) => {
-        const mark =
-          step.status === 'done' ? theme.success('✓') :
-          step.status === 'active' ? theme.accent('●') :
-          theme.muted('○');
-        return `${mark} ${step.title}`;
-      })
-      .join('\n');
-    return new Text(`${header}\n${body}`, 1, 0).render(width);
+    const body = steps.map((step) => {
+      const mark =
+        step.status === 'done' ? theme.success('✓') :
+        step.status === 'active' ? theme.accent('●') :
+        theme.faint('○');
+      return `  ${mark} ${theme.text(step.title)}`;
+    });
+    return [title, ...body];
   }
 }
 
@@ -231,26 +225,24 @@ export class AgentsPanel implements Component {
 
   render(width: number): string[] {
     const agents = sortAgentRowsForTree(this.getState().agents);
-    const header = theme.agent('Subagents');
+    const title = sectionRailTitle('Subagents', width);
     if (agents.length === 0) {
-      return new Text(`${header}\n${theme.muted('No subagents')}`, 1, 0).render(width);
+      return [title, theme.faint('  No subagents')];
     }
-    const body = agents
-      .map((agent) => {
-        const mark =
-          agent.status === 'done' ? theme.success('✓') :
-          agent.status === 'failed' ? theme.danger('✗') :
-          theme.accent('●');
-        const indent = agent.parentId ? theme.muted('└─ ') : '';
-        const summary = agent.summary ? theme.muted(` — ${agent.summary}`) : '';
-        return `${indent}${mark} ${agent.name}${summary}`;
-      })
-      .join('\n');
-    return new Text(`${header}\n${body}`, 1, 0).render(width);
+    const body = agents.map((agent) => {
+      const mark =
+        agent.status === 'done' ? theme.success('✓') :
+        agent.status === 'failed' ? theme.danger('✗') :
+        theme.accent('●');
+      const indent = agent.parentId ? theme.faint('  └ ') : '  ';
+      const summary = agent.summary ? theme.faint(` — ${agent.summary}`) : '';
+      return `${indent}${mark} ${theme.text(agent.name)}${summary}`;
+    });
+    return [title, ...body];
   }
 }
 
-/** Compact-mode overlay for Plan / Agents / Memory (ADR-009 Phase 3–4). */
+/** Compact-mode overlay for Plan / Agents / Memory. */
 export class CompactOverlayPanel implements Component {
   constructor(private readonly getState: () => ShellState) {}
 
@@ -276,10 +268,20 @@ export class MemoryPanel implements Component {
 
   render(width: number): string[] {
     const snapshot = this.getState().memorySnapshot;
-    const header = theme.memory('Memory');
+    const title = sectionRailTitle('Memory', width);
     if (!snapshot || snapshot.trim().length === 0) {
-      return new Text(`${header}\n${theme.muted('No recent memory activity')}`, 1, 0).render(width);
+      return [title, theme.faint('  No recent memory activity')];
     }
-    return new Text(`${header}\n${snapshot}`, 1, 0).render(width);
+    const body = snapshot.split('\n').map((line) => theme.muted(`  ${line}`));
+    return [title, ...body];
+  }
+}
+
+/** Divider between Plan and Subagents inside the right rail. */
+export class SidebarSectionGap implements Component {
+  invalidate(): void {}
+
+  render(width: number): string[] {
+    return ['', theme.border('├' + '─'.repeat(Math.max(1, width - 1))), ''];
   }
 }

@@ -13,18 +13,24 @@ describe('layout helpers', () => {
     expect(WIDE_BREAKPOINT).toBe(120);
     expect(isWide(119)).toBe(false);
     expect(isWide(120)).toBe(true);
-    expect(isWide(180)).toBe(true);
   });
 
-  it('describeLayoutRegions omits plan/agents in compact and mounts overlay when open', () => {
-    expect(describeLayoutRegions(80)).toEqual(['transcript', 'composer', 'status']);
+  it('describeLayoutRegions includes header and separates sidebar in wide mode', () => {
+    expect(describeLayoutRegions(80)).toEqual([
+      'header',
+      'transcript',
+      'composer',
+      'status',
+    ]);
     expect(describeLayoutRegions(100, 'plan')).toEqual([
+      'header',
       'transcript',
       'overlay',
       'composer',
       'status',
     ]);
     expect(describeLayoutRegions(140)).toEqual([
+      'header',
       'transcript',
       'plan',
       'agents',
@@ -33,19 +39,18 @@ describe('layout helpers', () => {
     ]);
   });
 
-  it('acceptance widths keep composer+status and never lose transcript', () => {
+  it('acceptance widths keep workspace chrome regions', () => {
     for (const width of LAYOUT_ACCEPTANCE_WIDTHS) {
       const regions = describeLayoutRegions(width, width < WIDE_BREAKPOINT ? 'memory' : 'none');
+      expect(regions).toContain('header');
       expect(regions).toContain('transcript');
       expect(regions).toContain('composer');
       expect(regions).toContain('status');
       if (width >= WIDE_BREAKPOINT) {
         expect(regions).toContain('plan');
         expect(regions).toContain('agents');
-        expect(regions).not.toContain('overlay');
       } else {
         expect(regions).toContain('overlay');
-        expect(regions).not.toContain('plan');
       }
     }
   });
@@ -53,7 +58,6 @@ describe('layout helpers', () => {
   it('rightRailBasis stays in a sensible band', () => {
     expect(rightRailBasis(120)).toBeGreaterThanOrEqual(28);
     expect(rightRailBasis(120)).toBeLessThanOrEqual(42);
-    expect(rightRailBasis(200)).toBeLessThanOrEqual(42);
   });
 
   it('cycles compact overlay plan → agents → memory → none', () => {

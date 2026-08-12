@@ -92,7 +92,8 @@ export type ShellAction =
   | { type: 'SET_AGENTS'; agents: ShellAgentRow[] }
   | { type: 'SET_COMPACT_OVERLAY'; overlay: CompactOverlay }
   | { type: 'SET_MEMORY_SNAPSHOT'; text: string }
-  | { type: 'CLEAR_TRANSCRIPT' };
+  | { type: 'CLEAR_TRANSCRIPT' }
+  | { type: 'LOAD_TRANSCRIPT'; messages: ShellMessage[] };
 
 let nextId = 0;
 
@@ -236,6 +237,14 @@ export function shellReducer(state: ShellState, action: ShellAction): ShellState
       return {
         ...state,
         messages: [],
+        streamingAssistantId: null,
+        streamingReasoningId: null,
+      };
+
+    case 'LOAD_TRANSCRIPT':
+      return {
+        ...state,
+        messages: action.messages.map((m) => ({ ...m })),
         streamingAssistantId: null,
         streamingReasoningId: null,
       };
