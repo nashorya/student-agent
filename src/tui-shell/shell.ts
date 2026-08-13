@@ -33,6 +33,7 @@ import {
 import { isWide, rightRailBasis, cycleCompactOverlay } from './layout.js';
 import {
   DISABLE_MOUSE_TRACKING,
+  classifyShellShortcut,
   createInputGate,
   filterIncomingChunk,
   scrubComposerBuffer,
@@ -491,7 +492,11 @@ export function startShell(options: StartShellOptions): ShellHandle {
       data = filtered.data;
     }
 
-    if (matchesKey(data, 'ctrl+c')) {
+    const shortcut = classifyShellShortcut(data);
+    if (shortcut === 'consume') {
+      return { consume: true };
+    }
+    if (shortcut === 'exit') {
       if (sessionPicker) {
         closeSessionPicker(null);
         return { consume: true };
@@ -504,7 +509,7 @@ export function startShell(options: StartShellOptions): ShellHandle {
       options.onAbort();
       return { consume: true };
     }
-    if (matchesKey(data, 'ctrl+p')) {
+    if (shortcut === 'cycle-overlay') {
       if (!isWide(getColumns())) {
         const next = cycleCompactOverlay(state.compactOverlay);
         dispatch({ type: 'SET_COMPACT_OVERLAY', overlay: next });

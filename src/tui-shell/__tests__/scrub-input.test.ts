@@ -1,10 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import {
+  classifyShellShortcut,
   createInputGate,
   filterIncomingChunk,
   isTerminalJunkInput,
   scrubComposerBuffer,
 } from '../scrub-input.js';
+
+describe('classifyShellShortcut', () => {
+  it('routes Ctrl+C and Ctrl+P press events after CSI-u filtering', () => {
+    expect(classifyShellShortcut('\x03')).toBe('exit');
+    expect(classifyShellShortcut('\x10')).toBe('cycle-overlay');
+    expect(classifyShellShortcut('\x1b[99;5u')).toBe('exit');
+    expect(classifyShellShortcut('\x1b[112;5u')).toBe('cycle-overlay');
+    expect(classifyShellShortcut('\x1b[27;5;99~')).toBe('exit');
+    expect(classifyShellShortcut('\x1b[27;5;112~')).toBe('cycle-overlay');
+  });
+
+  it('consumes shortcut repeats and releases without firing the action again', () => {
+    expect(classifyShellShortcut('\x1b[99;5:2u')).toBe('consume');
+    expect(classifyShellShortcut('\x1b[99;5:3u')).toBe('consume');
+    expect(classifyShellShortcut('\x1b[112;5:2u')).toBe('consume');
+    expect(classifyShellShortcut('\x1b[112;5:3u')).toBe('consume');
+  });
+
+  it('leaves editor shortcuts to the editor', () => {
+    expect(classifyShellShortcut('\x1b[97;5u')).toBeNull();
+    expect(classifyShellShortcut('\x1b[120;5u')).toBeNull();
+    expect(classifyShellShortcut('\x1b[97;3u')).toBeNull();
+  });
+});
 
 describe('scrubComposerBuffer', () => {
   it('removes full SGR mouse sequences', () => {
@@ -43,6 +68,36 @@ describe('filterIncomingChunk', () => {
     expect(filterIncomingChunk('\x1b[D')).toEqual({ action: 'pass', data: '\x1b[D' });
   });
 
+  it('passes CSI-u key events through for shortcut and editor handling', () => {
+    expect(filterIncomingChunk('\x1b[97u')).toEqual({
+      action: 'pass',
+      data: '\x1b[97u',
+    });
+    expect(filterIncomingChunk('\x1b[99;5u')).toEqual({
+      action: 'pass',
+      data: '\x1b[99;5u',
+    });
+    expect(filterIncomingChunk('\x1b[99;5:2u')).toEqual({
+      action: 'pass',
+      data: '\x1b[99;5:2u',
+    });
+    expect(filterIncomingChunk('\x1b[99;5:3u')).toEqual({
+      action: 'pass',
+      data: '\x1b[99;5:3u',
+    });
+    expect(filterIncomingChunk('\x1b[97;3u')).toEqual({
+      action: 'pass',
+      data: '\x1b[97;3u',
+    });
+  });
+
+  it('normalizes caret CSI-u into a real terminal key event', () => {
+    expect(filterIncomingChunk('^[[99;5u')).toEqual({
+      action: 'replace',
+      data: '\x1b[99;5u',
+    });
+  });
+
   it('consumes mouse CSI and remnants', () => {
     expect(filterIncomingChunk('\x1b[<65;32;14M')).toEqual({ action: 'consume' });
     expect(filterIncomingChunk('[A')).toEqual({ action: 'scroll', dir: 'up' });
@@ -62,11 +117,30 @@ describe('createInputGate', () => {
     expect(gate.feed('[B')).toEqual({ action: 'scroll', dir: 'down' });
   });
 
+  it('assembles split CSI-u without swallowing the shortcut', () => {
+    const gate = createInputGate();
+    expect(gate.feed('\x1b')).toEqual({ action: 'consume' });
+    expect(gate.feed('[99;5u')).toEqual({
+      action: 'pass',
+      data: '\x1b[99;5u',
+    });
+  });
+
   it('assembles split caret arrows', () => {
     const gate = createInputGate();
     expect(gate.feed('^')).toEqual({ action: 'consume' });
     expect(gate.feed('[')).toEqual({ action: 'consume' });
     expect(gate.feed('[A')).toEqual({ action: 'scroll', dir: 'up' });
+  });
+
+  it('assembles split caret CSI-u into a real terminal key event', () => {
+    const gate = createInputGate();
+    expect(gate.feed('^')).toEqual({ action: 'consume' });
+    expect(gate.feed('[')).toEqual({ action: 'consume' });
+    expect(gate.feed('[99;5u')).toEqual({
+      action: 'replace',
+      data: '\x1b[99;5u',
+    });
   });
 
   it('treats timed-out lone ESC as Escape', async () => {

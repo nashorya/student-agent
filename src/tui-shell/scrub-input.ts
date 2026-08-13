@@ -1,3 +1,5 @@
+import { isKeyRelease, isKeyRepeat, matchesKey } from '@earendil-works/pi-tui';
+
 /**
  * Scrub + gate terminal control sequences so they never become Composer text.
  *
@@ -78,7 +80,32 @@ function classifyCompleteSequence(seq: string): IncomingFilter {
   if (/^\x1b\[[0-9;]*[~HFP]$/.test(seq)) {
     return { action: 'pass', data: seq };
   }
+  // CSI-u carries printable and modified key events. It must reach the shell
+  // shortcut router or Editor intact; TUI discards releases afterward.
+  if (/^\x1b\[\d+(?::\d*)?(?::\d+)?(?:;\d+)?(?::\d+)?u$/.test(seq)) {
+    return { action: 'pass', data: seq };
+  }
   return { action: 'consume' };
+}
+
+function classifyCompleteCaretSequence(seq: string): IncomingFilter {
+  const normalized = `\x1b${seq.slice(2)}`;
+  const classified = classifyCompleteSequence(normalized);
+  if (classified.action === 'pass') {
+    return { action: 'replace', data: classified.data };
+  }
+  return classified;
+}
+
+export type ShellShortcut = 'exit' | 'cycle-overlay' | 'consume';
+
+/** Route shell-owned shortcuts while leaving Editor-owned combinations intact. */
+export function classifyShellShortcut(data: string): ShellShortcut | null {
+  const exit = matchesKey(data, 'ctrl+c');
+  const cycleOverlay = matchesKey(data, 'ctrl+p');
+  if (!exit && !cycleOverlay) return null;
+  if (isKeyRepeat(data) || isKeyRelease(data)) return 'consume';
+  return exit ? 'exit' : 'cycle-overlay';
 }
 
 /**
@@ -93,9 +120,7 @@ export function filterIncomingChunk(data: string): IncomingFilter {
   if (COMPLETE_CSI.test(data)) return classifyCompleteSequence(data);
 
   if (COMPLETE_CARET.test(data)) {
-    return /[AB]$/.test(data)
-      ? { action: 'scroll', dir: /A$/.test(data) ? 'up' : 'down' }
-      : { action: 'consume' };
+    return classifyCompleteCaretSequence(data);
   }
 
   if (
@@ -183,9 +208,7 @@ export function createInputGate(options?: { escTimeoutMs?: number }): InputGate 
       if (COMPLETE_CARET.test(buf)) {
         const seq = buf;
         reset();
-        return /[AB]$/.test(seq)
-          ? { action: 'scroll', dir: /A$/.test(seq) ? 'up' : 'down' }
-          : { action: 'consume' };
+        return classifyCompleteCaretSequence(seq);
       }
       if (PARTIAL_CARET.test(buf) && buf.length <= 24) {
         return { action: 'consume' };
@@ -225,9 +248,7 @@ export function createInputGate(options?: { escTimeoutMs?: number }): InputGate 
       if (COMPLETE_CARET.test(buf)) {
         const seq = buf;
         reset();
-        return /[AB]$/.test(seq)
-          ? { action: 'scroll', dir: /A$/.test(seq) ? 'up' : 'down' }
-          : { action: 'consume' };
+        return classifyCompleteCaretSequence(seq);
       }
       return { action: 'consume' };
     }
