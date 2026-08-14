@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Agent } from '@earendil-works/pi-agent-core';
 import { registerFauxProvider, streamSimple } from '../../pi-compat/index.js';
+import { WRITE_LESSON_INSTRUCTION } from '../../../memory/lessons/write-lesson-instruction.js';
 import { applyLlmRequestLimits, createStudentSession } from '../session-factory.js';
 
 const registrations: Array<{ unregister: () => void }> = [];
@@ -33,6 +34,7 @@ describe('createStudentSession', () => {
       });
 
       expect(session.systemPrompt).toContain('MEMORY_SENTINEL');
+      expect(session.systemPrompt).toContain(WRITE_LESSON_INSTRUCTION);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -59,6 +61,7 @@ describe('createStudentSession', () => {
         'search_files',
         'read_many',
         'apply_patch',
+        'write_lesson',
         'archive_record',
       ]));
       expect(session.getToolDefinition('bash')?.description).toContain('default timeout of 120 seconds');
@@ -66,6 +69,7 @@ describe('createStudentSession', () => {
       expect(session.systemPrompt).toContain('apply_patch');
       expect(session.systemPrompt).toContain('search_files');
       expect(session.systemPrompt).toContain('Bash commands time out after 120 seconds');
+      expect(session.systemPrompt).toContain(WRITE_LESSON_INSTRUCTION);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
@@ -78,6 +82,7 @@ describe('createStudentSession', () => {
     try {
       const { session } = await createStudentSession({ cwd, model: faux.getModel(), hooks: {}, projectArchive: false, piOptions: { agentDir: join(cwd, '.pi') } });
       expect(session.getActiveToolNames()).not.toContain('archive_record');
+      expect(session.getActiveToolNames()).toContain('write_lesson');
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

@@ -174,6 +174,13 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       },
       // Eval skill isolation: only load from controlled fixtures (empty dir = no skills).
       controlledSkillRoots: [resolveEvalSkillsRoot()],
+      ...(options.memoryDir ? {
+        writeLesson: {
+          memoryDir: options.memoryDir,
+          getTaskId: () => options.task.id,
+          getSessionRef: () => learningRun?.runId ?? options.task.id,
+        },
+      } : {}),
     });
     skillManifest = await buildSkillManifest([resolveEvalSkillsRoot()]);
     piSchemaTrace = summarizePiToolSchema(agent.state.tools);

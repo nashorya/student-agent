@@ -21,6 +21,13 @@ import { createArchiveRecordToolDefinition } from './archive-tool.js';
 import { createHashlineStore, StudentAgentFilesystem } from '../hashline/index.js';
 import { createStudentBashToolDefinition } from './bash-timeout-tool.js';
 import {
+  createWriteLessonToolDefinition,
+  recordWriteLessonAfterToolCall,
+  recordWriteLessonBeforeToolCall,
+} from './write-lesson-tool.js';
+import { getProjectMemoryDir } from '../paths.js';
+import { buildWriteLessonPromptSuffix } from '../../memory/lessons/write-lesson-instruction.js';
+import {
   createStudentGlobToolDefinition,
   createStudentListFilesToolDefinition,
   createStudentReadManyToolDefinition,
@@ -88,6 +95,16 @@ export interface CreateStudentSessionOptions {
   controlledSkillRoots?: string[];
   /** 额外传递给 Pi 的选项 */
   piOptions?: Partial<CreateAgentSessionOptions>;
+  /**
+   * Context for write_lesson. Task/session/repo are factory-supplied, never model-supplied.
+   * Defaults: memoryDir = getProjectMemoryDir(), taskId/sessionRef = unknown_*.
+   */
+  writeLesson?: {
+    memoryDir?: string;
+    getTaskId?: () => string;
+    getSessionRef?: () => string;
+    repo?: string;
+  };
 }
 
 export interface CreateStudentSessionResult {
@@ -116,11 +133,14 @@ export async function createStudentSession(
     projectArchive = true,
     controlledSkillRoots,
     piOptions = {},
+    writeLesson,
   } = options;
 
   const hashlineStore = createHashlineStore();
   const hashlineFs = new StudentAgentFilesystem(cwd);
   const tasksManager = TasksManager.getInstance();
+  const sessionEvents: Array<Record<string, unknown>> = [];
+  const writeLessonMemoryDir = writeLesson?.memoryDir ?? getProjectMemoryDir();
 
   const customTools: CreateAgentSessionOptions['customTools'] = [
     ...(piOptions.customTools ?? []),
@@ -133,6 +153,13 @@ export async function createStudentSession(
     createStudentEditToolDefinition(cwd, { store: hashlineStore, fs: hashlineFs, tasksManager }),
     createStudentWriteToolDefinition(cwd),
     createApplyPatchToolDefinition(cwd, { tasksManager }),
+    createWriteLessonToolDefinition({
+      memoryDir: writeLessonMemoryDir,
+      getTaskId: writeLesson?.getTaskId ?? (() => 'unknown_task'),
+      getSessionRef: writeLesson?.getSessionRef ?? (() => 'unknown_session'),
+      repo: writeLesson?.repo,
+      sessionEvents,
+    }),
     ...(projectArchive ? [createArchiveRecordToolDefinition(cwd)] : []),
   ] as CreateAgentSessionOptions['customTools'];
 
@@ -149,29 +176,33 @@ export async function createStudentSession(
     ? join(cwd, '.pi-eval-agent')
     : (piOptions.agentDir ?? getAgentDir());
 
-  if (hooks.buildMemoryPrompt || isolateSkills) {
-    const memoryPrompt = hooks.buildMemoryPrompt ? await hooks.buildMemoryPrompt() : '';
-    if (memoryPrompt || isolateSkills) {
-      if (piOptions.resourceLoader) {
-        throw new Error('buildMemoryPrompt/controlledSkillRoots cannot combine with custom Pi resourceLoader yet');
-      }
+  const memoryPrompt = hooks.buildMemoryPrompt ? await hooks.buildMemoryPrompt() : '';
+  const writeLessonSuffix = buildWriteLessonPromptSuffix();
 
-      const resourceLoader = new DefaultResourceLoader({
-        cwd,
-        agentDir: isolatedAgentDir,
-        settingsManager: piOptions.settingsManager,
-        // Lock skills to controlled roots only (empty dir → empty <available_skills>).
-        noSkills: isolateSkills,
-        additionalSkillPaths: isolateSkills ? controlledSkillRoots : undefined,
-        // Pi base (tools/skills) is run-stable; student memory already orders
-        // static→breakpoint→dynamic so the mutable suffix is last for prefix cache.
-        systemPromptOverride: memoryPrompt
-          ? (base) => [base, memoryPrompt].filter((part): part is string => Boolean(part)).join('\n\n')
-          : undefined,
-      });
-      await resourceLoader.reload();
-      agentOptions.resourceLoader = resourceLoader;
+  // Always install a loader so WRITE_LESSON_INSTRUCTION is appended even when
+  // buildMemoryPrompt is empty. Use appendSystemPromptOverride (not
+  // systemPromptOverride) so the default tool-list prompt stays intact.
+  if (memoryPrompt || isolateSkills || writeLessonSuffix) {
+    if (piOptions.resourceLoader) {
+      throw new Error('buildMemoryPrompt/controlledSkillRoots/write_lesson cannot combine with custom Pi resourceLoader yet');
     }
+
+    const resourceLoader = new DefaultResourceLoader({
+      cwd,
+      agentDir: isolatedAgentDir,
+      settingsManager: piOptions.settingsManager,
+      // Lock skills to controlled roots only (empty dir → empty <available_skills>).
+      noSkills: isolateSkills,
+      additionalSkillPaths: isolateSkills ? controlledSkillRoots : undefined,
+      // Pi base (tools/skills) is run-stable; student memory already orders
+      // static→breakpoint→dynamic so the mutable suffix is last for prefix cache.
+      systemPromptOverride: memoryPrompt
+        ? (base) => [base, memoryPrompt].filter((part): part is string => Boolean(part)).join('\n\n')
+        : undefined,
+      appendSystemPromptOverride: (base) => [...base, writeLessonSuffix].filter(Boolean),
+    });
+    await resourceLoader.reload();
+    agentOptions.resourceLoader = resourceLoader;
   }
 
   const piResult = await createAgentSession(agentOptions);
@@ -188,41 +219,45 @@ export async function createStudentSession(
 
   applyLlmRequestLimits(agent, llm);
 
-  // ── Wire beforeToolCall ─────────────────────────
+  // ── Wire beforeToolCall (always: write_lesson event buffer) ──
 
-  if (hooks.onBeforeToolCall) {
+  {
     const originalBeforeToolCall = agent.beforeToolCall;
     agent.beforeToolCall = async (piCtx, signal) => {
-      // 先执行 Student Agent 的钩子
       const preCtx = toPreToolCallContext(piCtx);
-      const studentDecision = await hooks.onBeforeToolCall!(preCtx);
-      if (studentDecision?.block) {
-        return studentDecision;
+      recordWriteLessonBeforeToolCall(sessionEvents, {
+        toolCallId: preCtx.toolCallId,
+        toolName: preCtx.toolName,
+      });
+      if (hooks.onBeforeToolCall) {
+        const studentDecision = await hooks.onBeforeToolCall(preCtx);
+        if (studentDecision?.block) {
+          return studentDecision;
+        }
       }
-      // 再执行原有的 beforeToolCall（如果有）
       return originalBeforeToolCall?.call(agent, piCtx, signal);
     };
   }
 
-  // ── Wire afterToolCall ──────────────────────────
+  // ── Wire afterToolCall (always: write_lesson event buffer) ──
 
-  if (hooks.onAfterToolCall) {
+  {
     const originalAfterToolCall = agent.afterToolCall;
     agent.afterToolCall = async (piCtx, signal) => {
-      // 先执行原有的 afterToolCall（如果有）
       const originalResult = await originalAfterToolCall?.call(agent, piCtx, signal);
-
-      // 再执行 Student Agent 的失败升级
       const postCtx = toPostToolCallContext(piCtx);
-      const decision = await hooks.onAfterToolCall!(postCtx);
-
-      if (decision) {
-        // Student Agent 有干预决策，转换为 Pi 的 AfterToolCallResult
-        const piDecision = toAfterToolCallResult(decision);
-        // 合并：Student Agent 的决策优先于原有的
-        return { ...originalResult, ...piDecision };
+      recordWriteLessonAfterToolCall(sessionEvents, {
+        toolCallId: postCtx.toolCallId,
+        toolName: postCtx.toolName,
+        isError: postCtx.isError,
+      });
+      if (hooks.onAfterToolCall) {
+        const decision = await hooks.onAfterToolCall(postCtx);
+        if (decision) {
+          const piDecision = toAfterToolCallResult(decision);
+          return { ...originalResult, ...piDecision };
+        }
       }
-
       return originalResult;
     };
   }
