@@ -102,6 +102,78 @@ export function isToolCall(event: Record<string, unknown>): boolean {
   return kind === 'tool_call' || kind === 'tool-call';
 }
 
+export interface CitedEvidence {
+  errorToolCallId: string;
+  fixToolCallIds: string[];
+  verificationToolCallId: string;
+}
+
+export type CitedEvidenceAudit = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Verify a cited error/fix/verification triple against the event stream.
+ * Unlike findCausalPair (first-error search for distill/template), this looks
+ * up the cited ids and checks predicates on those events only.
+ */
+export function auditCitedEvidence(
+  rawEvents: Array<CausalPairEvent | Record<string, unknown>>,
+  evidence: CitedEvidence,
+): CitedEvidenceAudit {
+  if (evidence.fixToolCallIds.length === 0) {
+    return { ok: false, reason: 'empty fixToolCallIds' };
+  }
+
+  const events = asCausalEvents(rawEvents);
+  const indexed = events.map((event, index) => {
+    const raw = rawEvents[index];
+    const rawRecord = isRecord(raw) ? raw : undefined;
+    return {
+      id: (rawRecord ? extractEventId(rawRecord) : undefined) ?? extractEventId(event.data),
+      data: event.data,
+    };
+  });
+
+  const errorId = str(evidence.errorToolCallId);
+  if (!errorId) return { ok: false, reason: 'missing errorToolCallId' };
+  const errorEvent = indexed.find((event) => event.id === errorId);
+  if (!errorEvent) return { ok: false, reason: `missing error event: ${errorId}` };
+  if (!isErrorEvent(errorEvent.data)) {
+    return { ok: false, reason: `cited error event is not an error: ${errorId}` };
+  }
+
+  for (const rawFixId of evidence.fixToolCallIds) {
+    const fixId = str(rawFixId);
+    if (!fixId) return { ok: false, reason: 'missing fix event: (empty id)' };
+    const fixEvent = indexed.find((event) => event.id === fixId);
+    if (!fixEvent) return { ok: false, reason: `missing fix event: ${fixId}` };
+  }
+
+  const verificationId = str(evidence.verificationToolCallId);
+  if (!verificationId) return { ok: false, reason: 'missing verificationToolCallId' };
+  const verificationEvent = indexed.find((event) => event.id === verificationId);
+  if (!verificationEvent) {
+    return { ok: false, reason: `missing verification event: ${verificationId}` };
+  }
+  if (detectVerification(verificationEvent.data) === undefined) {
+    return { ok: false, reason: `cited verification event is not green: ${verificationId}` };
+  }
+
+  return { ok: true };
+}
+
+/** Resolve a cited event id: toolCallId → id → metadata.evidenceRef, then nested data. */
+export function extractEventId(event: Record<string, unknown>): string | undefined {
+  const metadata = isRecord(event.metadata) ? event.metadata : undefined;
+  const nested = isRecord(event.data) ? event.data : undefined;
+  const nestedMeta = nested && isRecord(nested.metadata) ? nested.metadata : undefined;
+  return str(event.toolCallId)
+    ?? str(event.id)
+    ?? (metadata ? str(metadata.evidenceRef) : undefined)
+    ?? (nested ? str(nested.toolCallId) : undefined)
+    ?? (nested ? str(nested.id) : undefined)
+    ?? (nestedMeta ? str(nestedMeta.evidenceRef) : undefined);
+}
+
 function str(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }

@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { getProjectMemoryDir } from '../../core/paths.js';
 import { WriteQueue } from '../../core/write-queue.js';
 import {
+  auditCitedEvidence,
   findCausalPair,
   type VerificationKind,
 } from '../../evals/causal-pair.js';
@@ -14,7 +15,13 @@ import {
 } from '../distill/index.js';
 import { readRecentSignals } from '../signals/index.js';
 import type { Signal } from '../signals/types.js';
-import type { LessonCandidate, LessonCandidateStatus, LessonConfidence } from './types.js';
+import type {
+  LessonCandidate,
+  LessonCandidateStatus,
+  LessonConfidence,
+  LessonDocRef,
+  LessonEvidence,
+} from './types.js';
 
 export interface ObserveRecentSignalsOptions {
   taskId: string;
@@ -58,6 +65,21 @@ export type SignalObservationOptions = Pick<
   | 'taskDescription'
   | 'repo'
 >;
+
+export interface ModelAuthoredLessonDraft {
+  whatWentWrong: string;
+  rootCause: string;
+  fixMethod: string;
+  contrast: string;
+  /** Tool input is a string; stored as a single trimmed element or []. */
+  doNotApplyWhen: string;
+  symptomKeys: string[];
+  evidence: LessonEvidence;
+  docRefs?: LessonDocRef[];
+  taskId: string;
+  sessionRef: string;
+  repo?: string;
+}
 
 export class LessonsManager {
   private static instance: LessonsManager | null = null;
@@ -141,6 +163,8 @@ export class LessonsManager {
       severity: 'medium',
       quality: 'high',
       confidence: pair.streamVerified ? 'verified' : 'candidate',
+      authoredBy: 'template',
+      audit: 'anchored',
       status: 'observed',
       provenance: {
         taskId: options.taskId,
@@ -189,6 +213,54 @@ export class LessonsManager {
       }
       return { promoted };
     });
+  }
+
+  /**
+   * Persist a model-authored lesson. Write is unlimited; audit failure isolates
+   * to ephemeral instead of throwing. Confidence is always candidate.
+   */
+  async recordModelAuthoredLesson(
+    draft: ModelAuthoredLessonDraft,
+    sessionEvents: Array<Record<string, unknown> | { line?: number; data: Record<string, unknown> }>,
+  ): Promise<LessonCandidate> {
+    const audit = auditCitedEvidence(sessionEvents, draft.evidence);
+    const anchored = audit.ok;
+    const now = new Date().toISOString();
+    const cause = draft.rootCause;
+    const fixPattern = draft.fixMethod;
+    const sourceSignalId = `model:${draft.evidence.errorToolCallId}`;
+    const trimmedBoundary = draft.doNotApplyWhen.trim();
+    const candidate: LessonCandidate = {
+      id: `lesson_${randomUUID()}`,
+      sourceSignalId,
+      lesson: composeModelLessonBody(cause, fixPattern),
+      repo: draft.repo,
+      cause,
+      fixPattern,
+      contrast: draft.contrast,
+      symptomKeys: draft.symptomKeys,
+      docRefs: draft.docRefs,
+      evidence: draft.evidence,
+      trigger: { signalKinds: ['tool_error'], paths: [] },
+      applicableWhen: cause.trim() ? [cause] : [],
+      doNotApplyWhen: trimmedBoundary ? [trimmedBoundary] : [],
+      evidenceRefs: citedEvidenceRefs(draft.evidence),
+      severity: 'medium',
+      quality: anchored ? 'high' : 'low',
+      confidence: 'candidate',
+      authoredBy: 'model',
+      audit: anchored ? 'anchored' : 'unanchored',
+      status: 'observed',
+      provenance: {
+        taskId: draft.taskId,
+        sessionRef: draft.sessionRef,
+        signalId: sourceSignalId,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.append(candidate);
+    return candidate;
   }
 
   async updateStatus(lessonId: string, status: LessonCandidateStatus): Promise<void> {
@@ -249,6 +321,8 @@ function signalToLessonCandidate(
     // unpaired → ephemeral; paired → lessons/ (verified if stream, else candidate)
     quality: admission.paired ? 'high' : 'low',
     confidence: admission.confidence,
+    authoredBy: 'template',
+    audit: admission.paired ? 'anchored' : 'unanchored',
     verification: admission.verification,
     status: 'observed',
     provenance: {
@@ -401,7 +475,7 @@ async function readLessons(path: string): Promise<LessonCandidate[]> {
     const raw = await readFile(path, 'utf-8');
     return raw.split('\n').filter(Boolean).flatMap((line) => {
       try {
-        return [JSON.parse(line) as LessonCandidate];
+        return [hydrateLesson(JSON.parse(line) as LessonCandidate)];
       } catch {
         return [];
       }
@@ -410,6 +484,28 @@ async function readLessons(path: string): Promise<LessonCandidate[]> {
     if (isNodeError(err) && err.code === 'ENOENT') return [];
     throw err;
   }
+}
+
+/** Backward-compatible defaults for pre-v2 jsonl lines missing authoredBy/audit. */
+function hydrateLesson(lesson: LessonCandidate): LessonCandidate {
+  return {
+    ...lesson,
+    authoredBy: lesson.authoredBy ?? 'template',
+    audit: lesson.audit ?? (lesson.quality === 'low' ? 'unanchored' : 'anchored'),
+  };
+}
+
+/** Compose injected-facing body from cause/fix only — never raw event text. */
+function composeModelLessonBody(cause: string, fixPattern: string): string {
+  return `Cause: ${cause} Fix: ${fixPattern}`;
+}
+
+function citedEvidenceRefs(evidence: LessonEvidence): string[] {
+  return [
+    evidence.errorToolCallId,
+    ...evidence.fixToolCallIds,
+    evidence.verificationToolCallId,
+  ].filter((id) => id.trim());
 }
 
 /** Hashline / import / toolguard noise — not verified-fix material. */
