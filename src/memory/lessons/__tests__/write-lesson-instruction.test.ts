@@ -42,9 +42,13 @@ describe('WRITE_LESSON_INSTRUCTION', () => {
     ])).toBe(false);
   });
 
-  it('keeps arc/harvest copy free of harness internals', () => {
-    expect(WRITE_LESSON_ARC_REMINDER).toContain('write_lesson');
-    expect(WRITE_LESSON_HARVEST_PROMPT).toContain('write_lesson');
+  it('freezes arc/harvest copy verbatim (prereg v0.5 §3.2)', () => {
+    expect(WRITE_LESSON_ARC_REMINDER).toBe(
+      '你刚完成一次先错后改对，立即调用 write_lesson 记录（引用相关 toolCallId）。',
+    );
+    expect(WRITE_LESSON_HARVEST_PROMPT).toBe(
+      '回顾本次任务中先做错、后改对的地方（含走弯路），逐条调用 write_lesson 记录后再结束。',
+    );
     expect(WRITE_LESSON_ARC_REMINDER).not.toContain('harness');
     expect(WRITE_LESSON_HARVEST_PROMPT).not.toContain('pytest');
   });
