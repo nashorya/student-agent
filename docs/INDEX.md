@@ -50,6 +50,8 @@
 | 2026-07-19 | ADR-008 落档（纯文书）：项目定位 Measured Harness Evolution——对标 Hermes 式 harness 成长，但要求每环出示因果证据后才上机；澄清 ADR-001「测量平台」为阶段手段非产品身份；工具产品化（chronicle P3/P4）排序于注入效果实验之后 | [ADR-008](adr/ADR-008-measured-harness-evolution.md) · [ADR-001](adr/ADR-001-eval-claim-separation.md) |
 | 2026-07-19 | Roadmap 收编入库 + 假设账本：`docs/roadmap/` 归档 paper-calibrated 终稿（原文保留）并追加结账层；论文表加状态/证据列与 GEP/Gene 第 9 行；Chronicle extra source 接线图关系 | [roadmap 终稿](roadmap/student-agent-v0.4-v0.4x-alignment-roadmap-final.md) |
 | 2026-07-19 | 注入效果实验预注册 **v0.1.1**（finding:injection-effect-experiment）：coding plan 直连；记忆隔离+主库封存；p1prom 六题黑名单；C 臂断点后全量常驻细则；采样三臂锁定；**未冻结禁止合并** | [预注册 v0.1.1](proposals/injection-effect-experiment-prereg-v0.md) · [ADR-008](adr/ADR-008-measured-harness-evolution.md) |
+| 2026-08-14 | Lesson 出生管线 v2 立项：查明现行 lesson 为无模型参与的模板拼接（症状当载荷），改为 agent 自判自写 + `write_lesson` 证据锚定 + ctx7 索引，症状降为召回索引、成因做注入载荷；注入实验按新供给出 v0.5 草案（不冻结不点火）；计划交外部执行 agent | [计划](plan-lesson-authoring-v2.md) |
+| 2026-08-14 | Lesson 出生管线 v2 落地（M1–M5）：agent 自写 + 证据审计 + `write_lesson` + eval 常规 ctx7 + 注入改渲染成因；v0.5 草案未冻结未点火；全量 Vitest/tsc 绿；live 烟测待作者确认 | [计划](plan-lesson-authoring-v2.md) · [预注册 v0.5 草案](proposals/injection-effect-experiment-prereg-v0.5.md) |
 | 2026-08-12 | ADR-009 Phase 0 落地：`@earendil-works/pi-*` 0.84.1、`pi-compat`、删 `src/tui*`/`tui-runtime`、共享件迁 `src/runtime/`、交互暂 readline；`tsc`/Vitest/`eval:validate` 绿。Phase 1 新 shell 与 GLM thinking 实测待办 | [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) · [pi 后继迁移](plan-pi-successor-migration.md) |
 | 2026-08-12 | ADR-009 Phase 1 foundation：`src/tui-shell/`（semantic theme、state/bridge、wide/compact layout、Composer/Status/Plan·Agents 占位）；TTY 交互接 shell + EventRenderer；非 TTY 保留 readline | [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) |
 
