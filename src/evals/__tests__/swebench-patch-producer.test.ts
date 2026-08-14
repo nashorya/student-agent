@@ -210,9 +210,43 @@ describe('SWE-bench patch producer helpers', () => {
   it('renders every accumulated lesson in the full-resident arm', async () => {
     const memoryDir = join(tmpDir, 'full-memory');
     await import('node:fs/promises').then(({ mkdir }) => mkdir(memoryDir, { recursive: true }));
+    const planted = 'AssertionError: planted raw traceback in lesson body';
     await writeFile(join(memoryDir, 'lessons.jsonl'), [
-      JSON.stringify({ id: 'lesson_1', lesson: 'audit generated imports before returning a migration reference' }),
-      JSON.stringify({ id: 'lesson_2', lesson: 'preserve the complete qualified name' }),
+      JSON.stringify({
+        id: 'lesson_1',
+        lesson: `Treat tool error as a retry pattern: ${planted}`,
+        cause: 'audit generated imports before returning a migration reference',
+        fixPattern: 'keep the generated import list complete',
+        docRefs: [{ library: 'django', topic: 'migrations.serializer' }],
+        quality: 'high',
+        status: 'observed',
+        doNotApplyWhen: [],
+        trigger: { signalKinds: [], paths: [] },
+        applicableWhen: [],
+        evidenceRefs: [],
+        sourceSignalId: 'sig_1',
+        severity: 'medium',
+        provenance: { taskId: 't', sessionRef: 's', signalId: 'sig_1' },
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+      JSON.stringify({
+        id: 'lesson_2',
+        lesson: 'preserve the complete qualified name',
+        cause: 'preserve the complete qualified name',
+        fixPattern: 'use __qualname__ for the serializer',
+        quality: 'high',
+        status: 'observed',
+        doNotApplyWhen: [],
+        trigger: { signalKinds: [], paths: [] },
+        applicableWhen: [],
+        evidenceRefs: [],
+        sourceSignalId: 'sig_2',
+        severity: 'medium',
+        provenance: { taskId: 't', sessionRef: 's', signalId: 'sig_2' },
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
       '',
     ].join('\n'), 'utf8');
     const context = await resolveSweBenchStudentContext({
@@ -224,8 +258,15 @@ describe('SWE-bench patch producer helpers', () => {
     });
 
     const prompt = await context.buildMemoryPrompt();
-    expect(prompt).toContain('[resident:lesson_1] audit generated imports before returning a migration reference');
-    expect(prompt).toContain('[resident:lesson_2] preserve the complete qualified name');
+    expect(prompt).toContain('[resident:lesson_1]');
+    expect(prompt).toContain('Cause: audit generated imports before returning a migration reference');
+    expect(prompt).toContain('Fix: keep the generated import list complete');
+    expect(prompt).toContain('Docs: django#migrations.serializer');
+    expect(prompt).toContain('[resident:lesson_2]');
+    expect(prompt).toContain('Cause: preserve the complete qualified name');
+    expect(prompt).toContain('Fix: use __qualname__ for the serializer');
+    expect(prompt).not.toContain(planted);
+    expect(prompt).not.toContain('Treat tool error');
     expect(prompt.indexOf('[resident:lesson_1]')).toBeGreaterThan(prompt.indexOf('cache_prefix_breakpoint'));
     expect(context.buildMemoryPrompt.contextAssemblyTraces?.[0]?.sections)
       .toContainEqual(expect.objectContaining({ id: 'fullResidentLessons' }));

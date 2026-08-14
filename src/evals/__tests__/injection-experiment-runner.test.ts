@@ -228,7 +228,9 @@ describe('injection experiment v0.3 runner', () => {
 
     expect(snapshots[0]).not.toContain('[recall:lesson_');
     expect(snapshots[1]).toContain('[recall:lesson_');
-    expect(snapshots[1]).toContain('__qualname__');
+    expect(snapshots[1]).toContain('Do not apply when: The triggering context is absent');
+    expect(snapshots[1]).not.toContain('__qualname__');
+    expect(snapshots[1]).not.toContain('ValueError');
   });
 
   it('persists failed-run artifacts and never calls the harness', async () => {

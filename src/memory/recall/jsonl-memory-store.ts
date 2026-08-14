@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { getProjectMemoryDir } from '../../core/paths.js';
 import { WriteQueue } from '../../core/write-queue.js';
 import type { Knack } from '../knacks/index.js';
+import { renderLessonInjection } from '../lessons/render.js';
 import type { LessonCandidate } from '../lessons/types.js';
 import type { PreferenceEntry, PreferencesFile } from '../preferences/types.js';
 import type { TaskOutcome, WorkingMemorySnapshot } from '../run-archive/types.js';
@@ -159,7 +160,7 @@ export class JsonlMemoryStore implements MemoryStore {
       .map((lesson) => ({
         id: lesson.id,
         kind: 'lesson' as const,
-        summary: lesson.lesson,
+        summary: renderLessonInjection(lesson),
         recall: {
           trigger: lesson.trigger,
           applicableWhen: lesson.applicableWhen,
@@ -174,6 +175,7 @@ export class JsonlMemoryStore implements MemoryStore {
           createdAt: lesson.createdAt,
           updatedAt: lesson.updatedAt,
           evidenceRefs: lesson.evidenceRefs,
+          symptom: lesson.symptom ?? lesson.symptomKeys?.join(' '),
         },
         payload: lesson,
       }));

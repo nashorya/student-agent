@@ -10,6 +10,11 @@ export {
   WRITE_LESSON_INSTRUCTION,
   buildWriteLessonPromptSuffix,
 } from './write-lesson-instruction.js';
+export {
+  isLessonLikePayload,
+  lessonRecallIndexText,
+  renderLessonInjection,
+} from './render.js';
 export type {
   LessonAudit,
   LessonAuthoredBy,

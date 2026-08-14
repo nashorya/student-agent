@@ -1,3 +1,7 @@
+import {
+  isLessonLikePayload,
+  lessonRecallIndexText,
+} from '../lessons/render.js';
 import type {
   L1Tier,
   RecallQuery,
@@ -209,6 +213,7 @@ function itemText(item: RecallableMemoryItem): string {
     item.recall.applicableWhen.join(' '),
     item.recall.doNotApplyWhen.join(' '),
     Object.values(item.recall.trigger).flat().join(' '),
+    isLessonLikePayload(item.payload) ? lessonRecallIndexText(item.payload) : '',
   ].join(' ');
 }
 

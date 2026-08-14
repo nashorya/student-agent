@@ -341,6 +341,49 @@ describe('JsonlMemoryStore', () => {
     expect(results).toHaveLength(12);
   });
 
+  it('injects cause/fix/docs in lesson summary and still scores planted symptoms', async () => {
+    const planted = 'AssertionError: planted raw traceback boom';
+    await writeFile(join(tmpDir, 'lessons.jsonl'), `${JSON.stringify({
+      id: 'lesson_model',
+      sourceSignalId: 'sig_1',
+      lesson: `Treat tool error as a retry pattern: ${planted}`,
+      cause: 'CompoundModel copies ones into the right block',
+      fixPattern: 'Assign the child matrix into cright',
+      contrast: 'ones drop structure; copy keeps it',
+      symptomKeys: ['PLANTED_SYMPTOM_KEY', 'AssertionError'],
+      symptom: planted,
+      docRefs: [{ library: 'astropy', topic: 'modeling.separable' }],
+      doNotApplyWhen: ['Right block is a shared view'],
+      trigger: { signalKinds: ['tool_error'], paths: [] },
+      applicableWhen: [],
+      evidenceRefs: ['sig_1'],
+      severity: 'medium',
+      quality: 'high',
+      status: 'observed',
+      provenance: { taskId: 't', sessionRef: 's', signalId: 'sig_1' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })}\n`, 'utf-8');
+
+    const results = await new JsonlMemoryStore({
+      memoryDir: tmpDir,
+      kinds: ['lesson'],
+    }).search({
+      text: 'AssertionError PLANTED_SYMPTOM_KEY',
+      metadata: { kinds: ['lesson'] },
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].item.summary).toContain('Cause: CompoundModel copies ones into the right block');
+    expect(results[0].item.summary).toContain('Fix: Assign the child matrix into cright');
+    expect(results[0].item.summary).toContain('Docs: astropy#modeling.separable');
+    expect(results[0].item.summary).not.toContain(planted);
+    expect(results[0].item.summary).not.toContain('Treat tool error');
+    expect(results[0].item.summary).not.toContain('PLANTED_SYMPTOM_KEY');
+    expect(results[0].item.metadata.symptom).toBe(planted);
+    expect(results[0].score.keyword).toBeGreaterThan(0);
+  });
+
   it('records knack injection once per task and run', async () => {
     await writeKnack(tmpDir, {
       id: 'knack_injected',
