@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   WRITE_LESSON_AEVO_GUIDELINE,
+  WRITE_LESSON_ARC_REMINDER,
+  WRITE_LESSON_HARVEST_PROMPT,
   WRITE_LESSON_INSTRUCTION,
   buildWriteLessonPromptSuffix,
+  shouldHarvestWriteLessons,
 } from '../write-lesson-instruction.js';
 
 describe('WRITE_LESSON_INSTRUCTION', () => {
@@ -23,5 +26,26 @@ describe('WRITE_LESSON_INSTRUCTION', () => {
 
   it('exposes the factory prompt suffix as the freeze paragraph', () => {
     expect(buildWriteLessonPromptSuffix()).toBe(WRITE_LESSON_INSTRUCTION);
+  });
+
+  it('harvests only when the run had an error and never called write_lesson', () => {
+    expect(shouldHarvestWriteLessons([
+      { name: 'bash', isError: true },
+      { name: 'edit', isError: false },
+    ])).toBe(true);
+    expect(shouldHarvestWriteLessons([
+      { name: 'edit', isError: false },
+    ])).toBe(false);
+    expect(shouldHarvestWriteLessons([
+      { name: 'bash', isError: true },
+      { name: 'write_lesson', isError: false },
+    ])).toBe(false);
+  });
+
+  it('keeps arc/harvest copy free of harness internals', () => {
+    expect(WRITE_LESSON_ARC_REMINDER).toContain('write_lesson');
+    expect(WRITE_LESSON_HARVEST_PROMPT).toContain('write_lesson');
+    expect(WRITE_LESSON_ARC_REMINDER).not.toContain('harness');
+    expect(WRITE_LESSON_HARVEST_PROMPT).not.toContain('pytest');
   });
 });

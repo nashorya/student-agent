@@ -316,8 +316,9 @@ describe('injection experiment v0.4 runner', () => {
     });
 
     expect(snapshots[0]).not.toContain('[recall:lesson_');
-    expect(snapshots[1]).toContain('[recall:lesson_');
-    expect(snapshots[1]).toContain('Do not apply when: The triggering context is absent');
+    expect(snapshots[1]).not.toContain('[recall:lesson_');
+    expect(snapshots[1]).not.toContain('Do not apply when: The triggering context is absent');
+    expect(snapshots[1]).not.toContain('pattern omitted');
     expect(snapshots[1]).not.toContain('__qualname__');
     expect(snapshots[1]).not.toContain('ValueError');
   });

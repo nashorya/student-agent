@@ -67,21 +67,22 @@ describe('renderLessonInjection', () => {
       lesson: 'Treat tool error as a retry pattern: AssertionError: boom',
     }));
 
-    expect(rendered).toBe('Lesson lesson_legacy: pattern omitted (legacy symptom not injected).');
+    expect(rendered).toBe('');
     expect(rendered).not.toContain('AssertionError');
     expect(rendered).not.toContain('Treat tool error');
+    expect(rendered).not.toContain('pattern omitted');
   });
 
-  it('injects only doNotApplyWhen for legacy rows that have a boundary', () => {
+  it('returns empty for legacy rows that only have a template boundary', () => {
     const rendered = renderLessonInjection(lesson({
       id: 'lesson_legacy_bound',
       lesson: 'Treat tool error as a retry pattern: AssertionError: boom',
       doNotApplyWhen: ['The triggering context is absent'],
     }));
 
-    expect(rendered).toBe('Do not apply when: The triggering context is absent');
-    expect(rendered).not.toContain('AssertionError');
-    expect(rendered).not.toContain('Treat tool error');
+    expect(rendered).toBe('');
+    expect(rendered).not.toContain('The triggering context is absent');
+    expect(rendered).not.toContain('Do not apply when');
   });
 });
 

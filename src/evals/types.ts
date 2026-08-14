@@ -287,6 +287,8 @@ export interface StudentAgentEvalTrace {
   ctx7Calls?: number;
   /** Count of context7_query executes that degraded to "no docs" (0 if unused). */
   ctx7Failures?: number;
+  /** True when the eval runner appended the write_lesson harvest turn. */
+  harvestTurn?: boolean;
   /** Active run-archive identity when eval learning lifecycle is enabled. */
   learningRun?: {
     taskId: string;

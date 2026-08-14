@@ -241,7 +241,8 @@ export async function createInjectionBuildMemoryPrompt(
         return (await LessonsManager.getInstance(memoryDir).getAll())
           .filter((lesson) => !harnessGated || (lesson.quality === 'high' && lesson.status !== 'archived'))
           .filter((lesson) => !eligible || eligible.has(lesson.provenance.sessionRef))
-          .map((lesson) => ({ id: lesson.id, summary: renderLessonInjection(lesson) }));
+          .map((lesson) => ({ id: lesson.id, summary: renderLessonInjection(lesson) }))
+          .filter((lesson) => lesson.summary.trim() !== '');
       },
     } : {}),
   });

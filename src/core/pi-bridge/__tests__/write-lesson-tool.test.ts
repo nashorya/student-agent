@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -8,10 +8,13 @@ import {
   WRITE_LESSON_INSTRUCTION,
 } from '../../../memory/lessons/write-lesson-instruction.js';
 import {
+  classifyWriteLessonError,
   createWriteLessonToolDefinition,
+  detectWriteLessonArc,
   recordWriteLessonAfterToolCall,
   recordWriteLessonBeforeToolCall,
 } from '../write-lesson-tool.js';
+import { WRITE_LESSON_ARC_REMINDER } from '../../../memory/lessons/write-lesson-instruction.js';
 
 const ROOT_CAUSE = 'CompoundModel separability copies ones into the right block';
 const FIX_METHOD = 'Assign the actual right-hand separability matrix into cright';
@@ -148,5 +151,42 @@ describe('write_lesson tool', () => {
       { kind: 'tool_call', toolCallId: 'fix_1', id: 'fix_1', toolName: 'edit', exitCode: 0 },
       { kind: 'tool_call', toolCallId: 'verify_1', id: 'verify_1', toolName: 'bash', exitCode: 0 },
     ]);
+  });
+
+  it('reminds once on error→same-tool green and not when there is no error', () => {
+    const sessionEvents: Record<string, unknown>[] = [];
+    const reminded = new Set<string>();
+    recordWriteLessonAfterToolCall(sessionEvents, {
+      toolCallId: 'err_1', toolName: 'bash', isError: true, path: 'a.py',
+    });
+    const first = detectWriteLessonArc(sessionEvents, {
+      toolCallId: 'ok_1', toolName: 'bash', isError: false, path: 'a.py',
+    }, reminded);
+    const second = detectWriteLessonArc(sessionEvents, {
+      toolCallId: 'ok_2', toolName: 'bash', isError: false, path: 'a.py',
+    }, reminded);
+    expect(first).toBe(WRITE_LESSON_ARC_REMINDER);
+    expect(second).toBeUndefined();
+    expect(detectWriteLessonArc([], {
+      toolCallId: 'ok_3', toolName: 'edit', isError: false,
+    }, new Set())).toBeUndefined();
+  });
+
+  it('puts errorKind and a one-line message in details without echoing the body', async () => {
+    LessonsManager.resetInstance();
+    const blocker = join(tmpDir, 'not-a-dir');
+    await writeFile(blocker, 'x');
+    const tool = createWriteLessonToolDefinition({
+      memoryDir: blocker,
+      sessionEvents: [],
+    });
+    const result = await tool.execute('write_fail', toolParams());
+    expect(resultText(result)).toBe('Recorded lesson failed.');
+    expect(result.details).toMatchObject({
+      ok: false,
+      errorKind: expect.stringMatching(/^(io|unknown)$/),
+    });
+    expect(String(result.details.message)).not.toContain('\n');
+    expect(resultText(result)).not.toContain(ROOT_CAUSE);
   });
 });

@@ -90,6 +90,15 @@ describe('auditCitedEvidence', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('isolates an out-of-order triple as unanchored', () => {
+    const result = auditCitedEvidence([
+      { toolCallId: 'verify_1', kind: 'tool_call', exitCode: 0 },
+      { toolCallId: 'fix_1', kind: 'tool_call' },
+      { toolCallId: 'err_1', kind: 'tool_error', isError: true },
+    ], cited);
+    expect(result).toEqual({ ok: false, reason: 'out-of-order' });
+  });
+
   it('treats a cited fix id as present even when the event is not a tool_call', () => {
     const result = auditCitedEvidence([
       { toolCallId: 'err_1', kind: 'tool_error', isError: true },

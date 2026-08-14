@@ -40,6 +40,10 @@ import type {
   ToolTraceEntry,
 } from './types.js';
 import { ForcedCompactionController } from './forced-compaction-controller.js';
+import {
+  shouldHarvestWriteLessons,
+  WRITE_LESSON_HARVEST_PROMPT,
+} from '../memory/lessons/write-lesson-instruction.js';
 import { buildContextTokenEffect } from './context-breakdown.js';
 import {
   installEvalProviderRequestPolicy,
@@ -92,6 +96,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   const protectedEventsDuringRun: import('./types.js').ProtectedEvalEvent[] = [];
   const failureEscalationEvents: FailureEscalationEvent[] = [];
   const ctx7Counters = { calls: 0, failures: 0 };
+  let harvestTurn = false;
 
   try {
     if (options.memoryDir) {
@@ -215,6 +220,11 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       } else {
         await runDirectMode(session, agent, instruction, options.task.expectedFiles, toolCalls);
       }
+      if (shouldHarvestWriteLessons(toolCalls)) {
+        harvestTurn = true;
+        await session.prompt(WRITE_LESSON_HARVEST_PROMPT);
+        await agent.waitForIdle();
+      }
       if (agent.state.errorMessage) {
         errorMessage = agent.state.errorMessage;
       }
@@ -291,6 +301,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     failureEscalationEvents,
     ctx7Calls: ctx7Counters.calls,
     ctx7Failures: ctx7Counters.failures,
+    harvestTurn,
     learningRun,
   };
 }

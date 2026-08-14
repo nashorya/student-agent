@@ -157,6 +157,7 @@ export class JsonlMemoryStore implements MemoryStore {
     return lessons
       .filter((lesson) => lesson.quality === 'high' && lesson.status !== 'archived')
       .filter((lesson) => !this.eligibleRunIds || this.eligibleRunIds.has(lesson.provenance.sessionRef))
+      .filter((lesson) => renderLessonInjection(lesson).trim() !== '')
       .map((lesson) => ({
         id: lesson.id,
         kind: 'lesson' as const,

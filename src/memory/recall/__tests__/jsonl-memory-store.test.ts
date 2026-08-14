@@ -384,6 +384,34 @@ describe('JsonlMemoryStore', () => {
     expect(results[0].score.keyword).toBeGreaterThan(0);
   });
 
+  it('skips legacy-only lessons with no cause or fix from the injection pool', async () => {
+    await writeFile(join(tmpDir, 'lessons.jsonl'), `${JSON.stringify({
+      id: 'lesson_legacy',
+      sourceSignalId: 'sig_legacy',
+      lesson: 'Treat tool error as a retry pattern: AssertionError: boom',
+      doNotApplyWhen: ['The triggering context is absent'],
+      trigger: { signalKinds: ['tool_error'], paths: [] },
+      applicableWhen: [],
+      evidenceRefs: ['sig_legacy'],
+      severity: 'medium',
+      quality: 'high',
+      status: 'observed',
+      provenance: { taskId: 't', sessionRef: 's', signalId: 'sig_legacy' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })}\n`, 'utf-8');
+
+    const results = await new JsonlMemoryStore({
+      memoryDir: tmpDir,
+      kinds: ['lesson'],
+    }).search({
+      text: 'AssertionError',
+      metadata: { kinds: ['lesson'] },
+    });
+
+    expect(results).toEqual([]);
+  });
+
   it('records knack injection once per task and run', async () => {
     await writeKnack(tmpDir, {
       id: 'knack_injected',

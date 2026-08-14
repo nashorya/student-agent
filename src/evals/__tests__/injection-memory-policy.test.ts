@@ -109,6 +109,8 @@ describe('injection memory policies', () => {
 function lesson(id: string, runId: string, text: string): LessonCandidate {
   return {
     id, sourceSignalId: `signal_${id}`, lesson: text,
+    cause: text,
+    fixPattern: text,
     trigger: { signalKinds: ['tool_error'], paths: ['django/db/migrations/serializer.py'] },
     applicableWhen: ['migration reference serialization'], doNotApplyWhen: [], evidenceRefs: [id],
     severity: 'medium', quality: 'high', confidence: 'verified', status: 'observed',

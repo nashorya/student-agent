@@ -7,8 +7,11 @@ export {
 } from './manager.js';
 export {
   WRITE_LESSON_AEVO_GUIDELINE,
+  WRITE_LESSON_ARC_REMINDER,
+  WRITE_LESSON_HARVEST_PROMPT,
   WRITE_LESSON_INSTRUCTION,
   buildWriteLessonPromptSuffix,
+  shouldHarvestWriteLessons,
 } from './write-lesson-instruction.js';
 export {
   isLessonLikePayload,

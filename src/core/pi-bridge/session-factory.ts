@@ -14,7 +14,7 @@ import {
   type CreateAgentSessionResult,
   type AgentSession,
 } from '@earendil-works/pi-coding-agent';
-import type { Agent, AgentEvent } from '@earendil-works/pi-agent-core';
+import type { AfterToolCallResult, Agent, AgentEvent } from '@earendil-works/pi-agent-core';
 import type { Api, Model } from '../pi-compat/index.js';
 import { createApplyPatchToolDefinition } from './apply-patch-tool.js';
 import { createArchiveRecordToolDefinition } from './archive-tool.js';
@@ -22,6 +22,8 @@ import { createHashlineStore, StudentAgentFilesystem } from '../hashline/index.j
 import { createStudentBashToolDefinition } from './bash-timeout-tool.js';
 import {
   createWriteLessonToolDefinition,
+  detectWriteLessonArc,
+  extractToolPath,
   recordWriteLessonAfterToolCall,
   recordWriteLessonBeforeToolCall,
 } from './write-lesson-tool.js';
@@ -140,6 +142,7 @@ export async function createStudentSession(
   const hashlineFs = new StudentAgentFilesystem(cwd);
   const tasksManager = TasksManager.getInstance();
   const sessionEvents: Array<Record<string, unknown>> = [];
+  const remindedWriteLessonArcs = new Set<string>();
   const writeLessonMemoryDir = writeLesson?.memoryDir ?? getProjectMemoryDir();
 
   const customTools: CreateAgentSessionOptions['customTools'] = [
@@ -246,19 +249,27 @@ export async function createStudentSession(
     agent.afterToolCall = async (piCtx, signal) => {
       const originalResult = await originalAfterToolCall?.call(agent, piCtx, signal);
       const postCtx = toPostToolCallContext(piCtx);
+      const path = extractToolPath(postCtx.args);
       recordWriteLessonAfterToolCall(sessionEvents, {
         toolCallId: postCtx.toolCallId,
         toolName: postCtx.toolName,
         isError: postCtx.isError,
+        path,
       });
+      const reminder = detectWriteLessonArc(sessionEvents, {
+        toolCallId: postCtx.toolCallId,
+        toolName: postCtx.toolName,
+        isError: postCtx.isError,
+        path,
+      }, remindedWriteLessonArcs);
       if (hooks.onAfterToolCall) {
         const decision = await hooks.onAfterToolCall(postCtx);
         if (decision) {
           const piDecision = toAfterToolCallResult(decision);
-          return { ...originalResult, ...piDecision };
+          return appendWriteLessonReminder({ ...originalResult, ...piDecision }, reminder, postCtx.resultText);
         }
       }
-      return originalResult;
+      return appendWriteLessonReminder(originalResult, reminder, postCtx.resultText);
     };
   }
 
@@ -280,6 +291,23 @@ export async function createStudentSession(
   }
 
   return { session, agent, piResult };
+}
+
+function appendWriteLessonReminder(
+  result: AfterToolCallResult | undefined,
+  reminder: string | undefined,
+  resultText: string,
+): AfterToolCallResult | undefined {
+  if (!reminder) return result;
+  const existing = result?.content
+    ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
+    || resultText;
+  return {
+    ...result,
+    content: [{ type: 'text', text: existing ? `${existing}\n${reminder}` : reminder }],
+  };
 }
 
 export function applyLlmRequestLimits(agent: Agent, limits: LlmRequestLimits | undefined): void {

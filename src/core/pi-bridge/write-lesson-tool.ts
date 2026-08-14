@@ -7,6 +7,7 @@ import {
 } from '../../memory/lessons/manager.js';
 import {
   WRITE_LESSON_AEVO_GUIDELINE,
+  WRITE_LESSON_ARC_REMINDER,
   WRITE_LESSON_INSTRUCTION,
 } from '../../memory/lessons/write-lesson-instruction.js';
 import type { LessonDocRef, LessonEvidence } from '../../memory/lessons/types.js';
@@ -108,10 +109,10 @@ export function createWriteLessonToolDefinition(options: WriteLessonToolOptions)
           }],
           details: { id: created.id, audit: created.audit },
         };
-      } catch {
+      } catch (error) {
         return {
           content: [{ type: 'text', text: 'Recorded lesson failed.' }],
-          details: { ok: false },
+          details: { ok: false, ...classifyWriteLessonError(error) },
         };
       }
     },
@@ -132,7 +133,7 @@ export function recordWriteLessonBeforeToolCall(
 
 export function recordWriteLessonAfterToolCall(
   buffer: Array<Record<string, unknown>>,
-  event: { toolCallId: string; toolName: string; isError: boolean },
+  event: { toolCallId: string; toolName: string; isError: boolean; path?: string },
 ): void {
   if (event.isError) {
     upsertSessionEvent(buffer, {
@@ -141,6 +142,7 @@ export function recordWriteLessonAfterToolCall(
       id: event.toolCallId,
       toolName: event.toolName,
       isError: true,
+      ...(event.path ? { path: event.path } : {}),
     });
     return;
   }
@@ -150,7 +152,66 @@ export function recordWriteLessonAfterToolCall(
     id: event.toolCallId,
     toolName: event.toolName,
     exitCode: 0,
+    ...(event.path ? { path: event.path } : {}),
   });
+}
+
+export function extractToolPath(args: unknown): string | undefined {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined;
+  const record = args as Record<string, unknown>;
+  for (const key of ['path', 'file', 'file_path', 'filePath']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+/**
+ * Error → later same-tool or same-file green. One reminder per error id.
+ */
+export function detectWriteLessonArc(
+  buffer: Array<Record<string, unknown>>,
+  justCompleted: { toolCallId: string; toolName: string; isError: boolean; path?: string },
+  remindedErrorIds: Set<string>,
+): string | undefined {
+  if (justCompleted.isError) return undefined;
+  const error = [...buffer].reverse().find((event) => {
+    if (event.isError !== true) return false;
+    const errorId = typeof event.toolCallId === 'string' ? event.toolCallId
+      : typeof event.id === 'string' ? event.id : undefined;
+    if (!errorId || remindedErrorIds.has(errorId)) return false;
+    const sameTool = typeof event.toolName === 'string'
+      && event.toolName === justCompleted.toolName;
+    const samePath = typeof event.path === 'string'
+      && Boolean(justCompleted.path)
+      && event.path === justCompleted.path;
+    return sameTool || samePath;
+  });
+  if (!error) return undefined;
+  const errorId = typeof error.toolCallId === 'string' ? error.toolCallId
+    : typeof error.id === 'string' ? error.id : undefined;
+  if (!errorId) return undefined;
+  remindedErrorIds.add(errorId);
+  return WRITE_LESSON_ARC_REMINDER;
+}
+
+export function classifyWriteLessonError(error: unknown): {
+  errorKind: 'io' | 'audit' | 'unknown';
+  message: string;
+} {
+  const message = oneLine(error instanceof Error ? error.message : String(error));
+  const code = error && typeof error === 'object' && 'code' in error
+    ? String((error as { code?: unknown }).code)
+    : '';
+  if (code.startsWith('ERR_') || /^(E[A-Z]+)$/.test(code) || /\b(ENOENT|EACCES|EPERM|EIO)\b/.test(message)) {
+    return { errorKind: 'io', message };
+  }
+  if (/\baudit\b/i.test(message)) return { errorKind: 'audit', message };
+  return { errorKind: 'unknown', message };
+}
+
+function oneLine(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().slice(0, 240);
 }
 
 /**

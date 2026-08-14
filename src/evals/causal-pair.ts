@@ -158,6 +158,20 @@ export function auditCitedEvidence(
     return { ok: false, reason: `cited verification event is not green: ${verificationId}` };
   }
 
+  const errorIndex = indexed.findIndex((event) => event.id === errorId);
+  const fixIndices = evidence.fixToolCallIds.map((rawFixId) =>
+    indexed.findIndex((event) => event.id === str(rawFixId)));
+  const verificationIndex = indexed.findIndex((event) => event.id === verificationId);
+  if (
+    errorIndex < 0
+    || verificationIndex < 0
+    || fixIndices.some((index) => index < 0)
+    || fixIndices.some((index) => index <= errorIndex)
+    || fixIndices.some((index) => index >= verificationIndex)
+  ) {
+    return { ok: false, reason: 'out-of-order' };
+  }
+
   return { ok: true };
 }
 

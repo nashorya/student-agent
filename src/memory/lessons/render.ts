@@ -7,11 +7,7 @@ import type { LessonCandidate, LessonDocRef } from './types.js';
 export function renderLessonInjection(lesson: LessonCandidate): string {
   const cause = trimText(lesson.cause);
   const fixPattern = trimText(lesson.fixPattern);
-  if (!cause && !fixPattern) {
-    const boundary = joinDoNotApplyWhen(lesson.doNotApplyWhen);
-    if (boundary) return `Do not apply when: ${boundary}`;
-    return `Lesson ${lesson.id}: pattern omitted (legacy symptom not injected).`;
-  }
+  if (!cause && !fixPattern) return '';
 
   const lines: string[] = [];
   if (cause) lines.push(`Cause: ${cause}`);
