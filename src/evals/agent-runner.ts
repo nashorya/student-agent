@@ -8,6 +8,7 @@ import type { StudentAgentConfig } from '../core/config/types.js';
 import { resolveConfiguredModel } from '../core/config/model-resolver.js';
 import { getApiKeyEnvName, normalizeProviderApiKeyEnv } from '../core/setup/initializer.js';
 import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/session-factory.js';
+import { createContext7QueryToolDefinition } from '../core/pi-bridge/context7-query-tool.js';
 import { drainProtectedEvents } from '../core/hashline/index.js';
 import { createToolGuardHook } from '../extension/hooks/tool-guard.js';
 import { FailureEscalationContext } from '../extension/hooks/failure-escalation.js';
@@ -90,6 +91,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   let skillManifest: import('./types.js').EvalSkillManifest | undefined;
   const protectedEventsDuringRun: import('./types.js').ProtectedEvalEvent[] = [];
   const failureEscalationEvents: FailureEscalationEvent[] = [];
+  const ctx7Counters = { calls: 0, failures: 0 };
 
   try {
     if (options.memoryDir) {
@@ -130,6 +132,11 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
           : undefined,
       })
       : undefined;
+    const context7QueryTool = createEvalContext7Tool({
+      enabled: config.features.context7,
+      client: context7Client,
+      counters: ctx7Counters,
+    });
     const hooks = createEvalTracingHooks(toolCalls, {
       ...(learningRun ? {
         memoryDir: options.memoryDir,
@@ -163,6 +170,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       },
       piOptions: {
         agentDir: join(options.sandboxDir, '.pi'),
+        ...(context7QueryTool ? { customTools: [context7QueryTool] } : {}),
       },
       // Eval skill isolation: only load from controlled fixtures (empty dir = no skills).
       controlledSkillRoots: [resolveEvalSkillsRoot()],
@@ -274,8 +282,28 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     protectedEvents,
     guardRuleCounts: countGuardRules(protectedEvents),
     failureEscalationEvents,
+    ctx7Calls: ctx7Counters.calls,
+    ctx7Failures: ctx7Counters.failures,
     learningRun,
   };
+}
+
+/** Eval-only helper: register proactive context7_query tool when the feature is enabled. */
+export function createEvalContext7Tool(options: {
+  enabled: boolean;
+  client?: Pick<Context7Client, 'query'>;
+  counters: { calls: number; failures: number };
+}): ReturnType<typeof createContext7QueryToolDefinition> | undefined {
+  if (!options.enabled) return undefined;
+  return createContext7QueryToolDefinition({
+    client: options.client,
+    onCall: () => {
+      options.counters.calls += 1;
+    },
+    onFailure: () => {
+      options.counters.failures += 1;
+    },
+  });
 }
 
 export function readFrozenSamplingFromEnv(value: string | undefined): EvalFrozenSampling | undefined {

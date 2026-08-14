@@ -283,6 +283,10 @@ export interface StudentAgentEvalTrace {
   guardRuleCounts?: Record<string, number>;
   /** Failure-escalation ladder triggers; the experiment's count source. */
   failureEscalationEvents?: import('../extension/hooks/failure-escalation.js').FailureEscalationEvent[];
+  /** Count of proactive context7_query tool executes during the run (0 if unused). */
+  ctx7Calls?: number;
+  /** Count of context7_query executes that degraded to "no docs" (0 if unused). */
+  ctx7Failures?: number;
   /** Active run-archive identity when eval learning lifecycle is enabled. */
   learningRun?: {
     taskId: string;
