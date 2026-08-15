@@ -53,6 +53,8 @@
 | 2026-08-14 | Lesson 出生管线 v2 立项：查明现行 lesson 为无模型参与的模板拼接（症状当载荷），改为 agent 自判自写 + `write_lesson` 证据锚定 + ctx7 索引，症状降为召回索引、成因做注入载荷；注入实验按新供给出 v0.5 草案（不冻结不点火）；计划交外部执行 agent | [计划](plan-lesson-authoring-v2.md) |
 | 2026-08-14 | Lesson 出生管线 v2 落地（M1–M5）：agent 自写 + 证据审计 + `write_lesson` + eval 常规 ctx7 + 注入改渲染成因；全量 Vitest/tsc 绿 | [计划](plan-lesson-authoring-v2.md) · [预注册 v0.5](proposals/injection-effect-experiment-prereg-v0.5.md) |
 | 2026-08-14 | 注入效果实验预注册 **v0.5 冻结**（finding:injection-effect-experiment-v0.5）：供给管线 v2 写入指令逐字冻结；代码基线 `17ce4e67`；**冻结 ≠ 点火** | [预注册 v0.5](proposals/injection-effect-experiment-prereg-v0.5.md) |
+| 2026-08-15 | Self-Toolbox v1 立项（分支 `feat/self-toolbox`）：agent 为项目自写 `.mjs` 工具塑形上下文；单入口 `toolbox`、使用统计生死、flag 护体;不做沙箱/Lisp/演化预留。设计依据:五个 Lisp×agent 项目调研(`.scratch/lisp-survey/survey-notes.md`) | [计划](plan-self-toolbox-v1.md) |
+| 2026-08-15 | v0.5 正式轮结项 + 复盘：仪器全绿（thinking 确认、`write_lesson` 0→16 次、三态判分），但零有效注入——模型 lesson 因引用不可见 toolCallId 5/5 被拒进隔离，模板 lesson 靠机器证据晋升却渲染为空被 R3 过滤；Q2 三臂全 resolved 无区分度，A-L≡B 下 2.4× token 差实证 n=1 方差刻度。立项 R8（arc 句柄机械附着证据）/ R9（关停隐式模板出生），交外部执行 agent | [修改要求 R8/R9](plan-lesson-supply-r8r9.md) · 结果 `evals/results/injection-experiment-v0.5/2026-08-15T10-48-27Z`（VM） |
 | 2026-08-12 | ADR-009 Phase 0 落地：`@earendil-works/pi-*` 0.84.1、`pi-compat`、删 `src/tui*`/`tui-runtime`、共享件迁 `src/runtime/`、交互暂 readline；`tsc`/Vitest/`eval:validate` 绿。Phase 1 新 shell 与 GLM thinking 实测待办 | [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) · [pi 后继迁移](plan-pi-successor-migration.md) |
 | 2026-08-12 | ADR-009 Phase 1 foundation：`src/tui-shell/`（semantic theme、state/bridge、wide/compact layout、Composer/Status/Plan·Agents 占位）；TTY 交互接 shell + EventRenderer；非 TTY 保留 readline | [ADR-009](adr/ADR-009-pi-successor-and-student-tui.md) |
 
