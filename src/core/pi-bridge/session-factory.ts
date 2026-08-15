@@ -27,6 +27,7 @@ import {
   recordWriteLessonAfterToolCall,
   recordWriteLessonBeforeToolCall,
 } from './write-lesson-tool.js';
+import { createToolboxToolDefinition } from './toolbox-tool.js';
 import { getProjectMemoryDir } from '../paths.js';
 import { buildWriteLessonPromptSuffix } from '../../memory/lessons/write-lesson-instruction.js';
 import {
@@ -90,6 +91,8 @@ export interface CreateStudentSessionOptions {
   apiKey?: string;
   /** Whether agents may stage durable project archive records. */
   projectArchive?: boolean;
+  /** Whether agents may use the project-local toolbox tool. Default false. */
+  toolbox?: boolean;
   /**
    * Eval skill isolation: only load skills from these roots.
    * When set (even to []), disables default agentDir/home skill discovery.
@@ -133,6 +136,7 @@ export async function createStudentSession(
     llm,
     apiKey,
     projectArchive = true,
+    toolbox = false,
     controlledSkillRoots,
     piOptions = {},
     writeLesson,
@@ -164,6 +168,7 @@ export async function createStudentSession(
       sessionEvents,
     }),
     ...(projectArchive ? [createArchiveRecordToolDefinition(cwd)] : []),
+    ...(toolbox ? [createToolboxToolDefinition({ memoryDir: writeLessonMemoryDir })] : []),
   ] as CreateAgentSessionOptions['customTools'];
 
   const agentOptions: CreateAgentSessionOptions = {

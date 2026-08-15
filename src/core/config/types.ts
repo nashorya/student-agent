@@ -36,6 +36,7 @@ export interface StudentAgentConfig {
     subAgents: boolean;
     riskGuard: boolean;
     projectArchive: boolean;
+    toolbox: boolean;
   };
   context7: {
     apiKey?: string;
@@ -111,6 +112,7 @@ export const DEFAULT_STUDENT_AGENT_CONFIG: StudentAgentConfig = {
     subAgents: false,
     riskGuard: true,
     projectArchive: true,
+    toolbox: false,
   },
   context7: {
     timeoutMs: 10_000,

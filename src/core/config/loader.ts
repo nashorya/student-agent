@@ -209,6 +209,7 @@ function readEnvConfig(env: NodeJS.ProcessEnv): StudentAgentConfigInput {
       subAgents: readBoolean(env.STUDENT_AGENT_FEATURE_SUB_AGENTS),
       riskGuard: readBoolean(env.STUDENT_AGENT_FEATURE_RISK_GUARD),
       projectArchive: readBoolean(env.STUDENT_AGENT_FEATURE_PROJECT_ARCHIVE),
+      toolbox: readBoolean(env.STUDENT_AGENT_FEATURE_TOOLBOX),
     }),
     context7: compactObject({
       apiKey: readOptionalString(env.CONTEXT7_API_KEY),

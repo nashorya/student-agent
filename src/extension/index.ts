@@ -2400,6 +2400,7 @@ async function createRuntime(
     hooks,
     apiKey: resolvedApiKey,
     projectArchive: config.features.projectArchive,
+    toolbox: config.features.toolbox,
     llm: {
       timeoutMs: config.llm.requestTimeoutMs,
       maxTokens: config.llm.maxOutputTokens,
