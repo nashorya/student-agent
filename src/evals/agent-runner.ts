@@ -2,10 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { Api, Model } from '../core/pi-compat/index.js';
-import { loadEnvFile, loadEnvLayersPreservingAmbient } from '../core/env.js';
+import { loadEnvFile } from '../core/env.js';
 import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
-import { resolveConfiguredModel } from '../core/config/model-resolver.js';
+import { isDegradedFallbackModel, resolveConfiguredModel } from '../core/config/model-resolver.js';
 import { getApiKeyEnvName, normalizeProviderApiKeyEnv } from '../core/setup/initializer.js';
 import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/session-factory.js';
 import { createContext7QueryToolDefinition } from '../core/pi-bridge/context7-query-tool.js';
@@ -121,6 +121,9 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     normalizeProviderApiKeyEnv(config.model.provider);
     const apiKeyEnvName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
     const apiKey = process.env[apiKeyEnvName];
+    if (!apiKey) {
+      throw new Error(`Eval missing API key for ${config.model.provider} via ${apiKeyEnvName}`);
+    }
     if (options.learningLifecycle) {
       if (!options.memoryDir) {
         throw new Error('Eval learning lifecycle requires memoryDir');
@@ -1060,16 +1063,22 @@ function roundCost(value: number): number {
 }
 
 async function loadEvalConfig(cwd: string): Promise<StudentAgentConfig> {
-  await loadEnvLayersPreservingAmbient(async () => {
-    await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: true });
-    const initial = await loadStudentAgentConfig({ cwd });
-    await loadEnvFile({ cwd, filename: initial.envFile, override: true });
-  });
+  await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: false });
+  const initial = await loadStudentAgentConfig({ cwd });
+  await loadEnvFile({ cwd, filename: initial.envFile, override: false });
   return loadStudentAgentConfig({ cwd });
 }
 
 function buildModel(config: StudentAgentConfig): Model<Api> {
-  return resolveConfiguredModel(config.model);
+  const model = resolveConfiguredModel(config.model);
+  if (isDegradedFallbackModel(model)) {
+    throw new Error(
+      `Refusing eval run: model "${config.model.provider}/${config.model.name}" is not in the pi-ai catalog `
+      + 'and would fall back to degraded metadata (thinking disabled, 128k context window). '
+      + 'Add the model to model-resolver.ts (see resolveZaiGlm53Model) or fix the provider profile.',
+    );
+  }
+  return model;
 }
 
 function resolveEvalSkillsRoot(): string {

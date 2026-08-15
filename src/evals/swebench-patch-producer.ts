@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { accessSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
@@ -507,9 +508,22 @@ async function checkoutInstance(instance: SweBenchInstance, worktreePath: string
       await removeWorktree(worktreePath);
     }
   }
-  const source = repoToCloneSource(instance.repo);
+  const cached = cachedRepoSource(instance.repo);
+  const source = cached ?? repoToCloneSource(instance.repo);
   await runProcess('git', ['clone', '--no-checkout', source, worktreePath], process.cwd(), 600);
   await checkoutBaseCommit(instance.base_commit, worktreePath);
+}
+
+function cachedRepoSource(repo: string): string | undefined {
+  const root = process.env.SWEBENCH_REPO_CACHE?.trim();
+  if (!root) return undefined;
+  const bare = join(root, `${repo.replaceAll('/', '_')}.git`);
+  try {
+    accessSync(bare);
+    return bare;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function verifyCleanInitialWorktree(worktreePath: string): Promise<void> {
