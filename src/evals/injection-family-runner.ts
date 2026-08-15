@@ -510,7 +510,8 @@ function emptyInventory(): MemoryInventory {
 }
 
 function parseFamilies(text: string): Record<string, string[]> {
-  const appendix = text.split('## 附录 A')[1] ?? '';
+  // v0.4 titles the appendix "## 附录 A", v0.5 numbers it "## 7. 附录 A".
+  const appendix = text.split(/^## (?:\d+\.\s*)?附录 A/mu)[1] ?? '';
   const families: Record<string, string[]> = {};
   let current = '';
   for (const line of appendix.split(/\r?\n/u)) {

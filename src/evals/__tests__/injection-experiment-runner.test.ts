@@ -43,6 +43,15 @@ describe('injection experiment v0.4 runner', () => {
     ]);
   });
 
+  it('parses families from the numbered appendix heading in the v0.5 preregistration', async () => {
+    const spec = await readInjectionSpec(resolve('docs/proposals/injection-effect-experiment-prereg-v0.5.md'));
+    const families = Object.values(spec.families);
+    expect(families.length).toBeGreaterThanOrEqual(2);
+    for (const instanceIds of families) {
+      expect(instanceIds).toHaveLength(3);
+    }
+  });
+
   it('defaults the CLI and audit directory to the v0.4 preregistration', () => {
     const options = parseInjectionCliOptions(
       ['--family', FAMILY, '--arm', 'B', '--seed-memory', '/tmp/seed', '--dry-run'],
