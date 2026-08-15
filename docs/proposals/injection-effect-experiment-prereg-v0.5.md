@@ -209,17 +209,14 @@ GAM 区分 **AOT（Ahead-of-Time）** 预压缩记忆服务请求，与 **JIT（
 
 | 族 | 顺序 | instance_id |
 |----|------|-------------|
-| `F-DJ-MIGRATION-REFERENCE` | 1 | `django__django-12125` |
-|  | 2 | `django__django-14580` |
-|  | 3 | `django__django-17087` |
-| `F-SY-UNIT-EQUIVALENCE` | 1 | `sympy__sympy-20442` |
-|  | 2 | `sympy__sympy-24066` |
-|  | 3 | `sympy__sympy-24213` |
-| `F-DJ-SELECT-MASK` | 1 | `django__django-14667` |
-|  | 2 | `django__django-15814` |
-|  | 3 | `django__django-16910` |
+| `F-DJ-SQL-ORDER-IDENTITY` | 1 | `django__django-13033` |
+|  | 2 | `django__django-12470` |
+|  | 3 | `django__django-11001` |
+| `F-DJ-AUTORELOAD-WATCHSET` | 1 | `django__django-11583` |
+|  | 2 | `django__django-11422` |
+|  | 3 | `django__django-15388` |
 
-`F-DJ-INHERITANCE-PREDICATE` 记为储备族，其三题尚未并入冻结输入，本版不启用（可用族 ≤1 时直接停跑，本版无替补机制）。
+11001 为特批第三题(公开解题率 64.3% 但本栈 glm-5.3 B 臂已确认 unresolved),第 3 题本就不进主判读.
 
 题序按冻结快照 `created_at` 升序；污染排除和候选依据沿用[候选筛查表](./injection-effect-task-families.md)，不得换题或重排。
 
