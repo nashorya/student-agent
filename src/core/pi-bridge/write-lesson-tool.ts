@@ -7,10 +7,45 @@ import {
 } from '../../memory/lessons/manager.js';
 import {
   WRITE_LESSON_AEVO_GUIDELINE,
-  WRITE_LESSON_ARC_REMINDER,
+  formatWriteLessonArcReminder,
   WRITE_LESSON_INSTRUCTION,
 } from '../../memory/lessons/write-lesson-instruction.js';
 import type { LessonDocRef, LessonEvidence } from '../../memory/lessons/types.js';
+
+export interface LessonArcRecord {
+  arcId: string;
+  errorToolCallId: string;
+  fixToolCallIds: string[];
+  verificationToolCallId: string;
+}
+
+/** Run-scoped arcId -> real toolCallId triple. Model never sees the real ids. */
+export class LessonArcRegistry {
+  private nextSeq = 1;
+  private readonly arcs = new Map<string, LessonArcRecord>();
+  private readonly claimed = new Set<string>();
+
+  issue(triple: Omit<LessonArcRecord, "arcId">): LessonArcRecord {
+    const arcId = `arc-${this.nextSeq}`;
+    this.nextSeq += 1;
+    const record: LessonArcRecord = { arcId, ...triple };
+    this.arcs.set(arcId, record);
+    return record;
+  }
+
+  resolve(arcId: string | undefined): LessonArcRecord | undefined {
+    if (!arcId?.trim()) return undefined;
+    return this.arcs.get(arcId.trim());
+  }
+
+  claim(arcId: string): void {
+    if (this.arcs.has(arcId)) this.claimed.add(arcId);
+  }
+
+  unclaimedIds(): string[] {
+    return [...this.arcs.keys()].filter((id) => !this.claimed.has(id));
+  }
+}
 
 export interface WriteLessonToolOptions {
   memoryDir?: string;
@@ -18,6 +53,7 @@ export interface WriteLessonToolOptions {
   getSessionRef?: () => string;
   repo?: string;
   sessionEvents: Array<Record<string, unknown>>;
+  arcRegistry?: LessonArcRegistry;
 }
 
 interface WriteLessonInput {
@@ -27,7 +63,7 @@ interface WriteLessonInput {
   contrast: string;
   doNotApplyWhen: string;
   symptomKeys: string[];
-  evidence: LessonEvidence;
+  evidence?: { arcId?: string };
   docRefs?: LessonDocRef[];
 }
 
@@ -50,17 +86,11 @@ const schema = Type.Object({
   symptomKeys: Type.Array(Type.String(), {
     description: 'Short recall index keys. Not injected later.',
   }),
-  evidence: Type.Object({
-    errorToolCallId: Type.String({
-      description: 'toolCallId of the error or wrong-path step.',
-    }),
-    fixToolCallIds: Type.Array(Type.String(), {
-      description: 'toolCallIds of the corrective steps.',
-    }),
-    verificationToolCallId: Type.String({
-      description: 'toolCallId of the later successful verification step.',
-    }),
-  }),
+  evidence: Type.Optional(Type.Object({
+    arcId: Type.Optional(Type.String({
+      description: 'Runtime-issued arc handle from the reminder, e.g. arc-3.',
+    })),
+  })),
   docRefs: Type.Optional(Type.Array(Type.Object({
     library: Type.String({ description: 'Documentation library name or id.' }),
     topic: Type.String({ description: 'Topic looked up inside that library.' }),
@@ -74,8 +104,8 @@ export function createWriteLessonToolDefinition(options: WriteLessonToolOptions)
     name: 'write_lesson',
     label: 'write_lesson',
     description:
-      'Record a lesson after you first got something wrong and then corrected it. Cite the error, fix, and verification tool call ids.',
-    promptSnippet: 'Call write_lesson after a wrong-then-right correction; cite error/fix/verify toolCallIds',
+      'Record a lesson after you first got something wrong and then corrected it. Cite the issued arcId in evidence.',
+    promptSnippet: 'Call write_lesson after a wrong-then-right correction; cite evidence.arcId from the reminder',
     promptGuidelines: [
       WRITE_LESSON_INSTRUCTION,
       WRITE_LESSON_AEVO_GUIDELINE,
@@ -87,6 +117,15 @@ export function createWriteLessonToolDefinition(options: WriteLessonToolOptions)
     ): Promise<{ content: Array<{ type: 'text'; text: string }>; details: Record<string, unknown> }> {
       try {
         const memoryDir = options.memoryDir ?? getProjectMemoryDir();
+        const arcId = params.evidence?.arcId?.trim();
+        const resolved = options.arcRegistry?.resolve(arcId);
+        const evidence: LessonEvidence = resolved
+          ? {
+            errorToolCallId: resolved.errorToolCallId,
+            fixToolCallIds: resolved.fixToolCallIds,
+            verificationToolCallId: resolved.verificationToolCallId,
+          }
+          : { errorToolCallId: '', fixToolCallIds: [], verificationToolCallId: '' };
         const draft: ModelAuthoredLessonDraft = {
           whatWentWrong: params.whatWentWrong,
           rootCause: params.rootCause,
@@ -94,7 +133,7 @@ export function createWriteLessonToolDefinition(options: WriteLessonToolOptions)
           contrast: params.contrast,
           doNotApplyWhen: params.doNotApplyWhen,
           symptomKeys: params.symptomKeys,
-          evidence: params.evidence,
+          evidence,
           docRefs: params.docRefs,
           taskId: options.getTaskId?.() ?? 'unknown_task',
           sessionRef: options.getSessionRef?.() ?? 'unknown_session',
@@ -102,12 +141,20 @@ export function createWriteLessonToolDefinition(options: WriteLessonToolOptions)
         };
         const created = await LessonsManager.getInstance(memoryDir)
           .recordModelAuthoredLesson(draft, options.sessionEvents);
+        if (resolved) options.arcRegistry?.claim(resolved.arcId);
+        const details: Record<string, unknown> = { id: created.id, audit: created.audit };
+        if (!resolved) {
+          details.errorKind = 'audit';
+          details.message = arcId
+            ? `invalid or expired arcId: ${arcId}`
+            : 'missing arcId';
+        }
         return {
           content: [{
             type: 'text',
             text: `Recorded lesson ${created.id} (${created.audit}).`,
           }],
-          details: { id: created.id, audit: created.audit },
+          details,
         };
       } catch (error) {
         return {
@@ -173,12 +220,12 @@ export function detectWriteLessonArc(
   buffer: Array<Record<string, unknown>>,
   justCompleted: { toolCallId: string; toolName: string; isError: boolean; path?: string },
   remindedErrorIds: Set<string>,
+  registry: LessonArcRegistry,
 ): string | undefined {
   if (justCompleted.isError) return undefined;
   const error = [...buffer].reverse().find((event) => {
     if (event.isError !== true) return false;
-    const errorId = typeof event.toolCallId === 'string' ? event.toolCallId
-      : typeof event.id === 'string' ? event.id : undefined;
+    const errorId = eventToolCallId(event);
     if (!errorId || remindedErrorIds.has(errorId)) return false;
     const sameTool = typeof event.toolName === 'string'
       && event.toolName === justCompleted.toolName;
@@ -188,11 +235,36 @@ export function detectWriteLessonArc(
     return sameTool || samePath;
   });
   if (!error) return undefined;
-  const errorId = typeof error.toolCallId === 'string' ? error.toolCallId
-    : typeof error.id === 'string' ? error.id : undefined;
+  const errorId = eventToolCallId(error);
   if (!errorId) return undefined;
   remindedErrorIds.add(errorId);
-  return WRITE_LESSON_ARC_REMINDER;
+  const issued = registry.issue(extractArcEvidence(buffer, errorId, justCompleted.toolCallId));
+  return formatWriteLessonArcReminder(issued.arcId);
+}
+
+function eventToolCallId(event: Record<string, unknown>): string | undefined {
+  if (typeof event.toolCallId === 'string' && event.toolCallId.trim()) return event.toolCallId;
+  if (typeof event.id === 'string' && event.id.trim()) return event.id;
+  return undefined;
+}
+
+function extractArcEvidence(
+  buffer: Array<Record<string, unknown>>,
+  errorId: string,
+  verificationId: string,
+): Omit<LessonArcRecord, "arcId"> {
+  const errorIndex = buffer.findIndex((event) => eventToolCallId(event) === errorId);
+  const verifyIndex = buffer.findIndex((event) => eventToolCallId(event) === verificationId);
+  const start = errorIndex >= 0 ? errorIndex + 1 : 0;
+  const end = verifyIndex >= 0 ? verifyIndex : buffer.length;
+  const fixToolCallIds = buffer.slice(start, end)
+    .map(eventToolCallId)
+    .filter((id): id is string => Boolean(id));
+  return {
+    errorToolCallId: errorId,
+    fixToolCallIds,
+    verificationToolCallId: verificationId,
+  };
 }
 
 export function classifyWriteLessonError(error: unknown): {

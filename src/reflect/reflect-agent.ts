@@ -164,6 +164,7 @@ export class ReflectAgent {
     signalKindCounts: Map<SignalKind, number>,
   ): boolean {
     if (lesson.status !== 'observed' || lesson.quality !== 'high') return false;
+    if (lesson.authoredBy !== 'model') return false;
     if ((lesson.counterexamples ?? []).some((counterexample) => counterexample.severity === 'high')) {
       return false;
     }

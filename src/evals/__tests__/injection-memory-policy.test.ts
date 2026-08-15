@@ -113,7 +113,7 @@ function lesson(id: string, runId: string, text: string): LessonCandidate {
     fixPattern: text,
     trigger: { signalKinds: ['tool_error'], paths: ['django/db/migrations/serializer.py'] },
     applicableWhen: ['migration reference serialization'], doNotApplyWhen: [], evidenceRefs: [id],
-    severity: 'medium', quality: 'high', confidence: 'verified', status: 'observed',
+    severity: 'medium', quality: 'high', confidence: 'verified', authoredBy: 'model', status: 'observed',
     provenance: { taskId: `task_${id}`, sessionRef: runId, signalId: `signal_${id}` },
     createdAt: '2026-07-20T00:00:00.000Z', updatedAt: '2026-07-20T00:00:00.000Z',
   };

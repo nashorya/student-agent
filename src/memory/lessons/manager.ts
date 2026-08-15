@@ -119,29 +119,16 @@ export class LessonsManager {
   }
 
   async observeSignals(
-    signals: Signal[],
-    options: SignalObservationOptions,
+    _signals: Signal[],
+    _options: SignalObservationOptions,
   ): Promise<LessonCandidate[]> {
-    if (signals.length === 0) return [];
-
-    const existing = [
-      ...await this.getAll(),
-      ...await this.getEphemeral(),
-    ];
-    const seenSignalIds = new Set(existing.map((lesson) => lesson.sourceSignalId));
-    const candidates = signals
-      .filter((signal) => !seenSignalIds.has(signal.id))
-      .map((signal) => signalToLessonCandidate(signal, options));
-
-    for (const candidate of candidates) {
-      await this.append(candidate);
-    }
-
-    return candidates;
+    // R9: implicit template birth is shut down. Signals still land in
+    // signals.jsonl via the signal writer; this path no longer materializes lessons.
+    return [];
   }
 
   /** Distill product → main via same findCausalPair gate as distillRunEvents (no provisional). */
-  async admitDistilled(options: {
+  async admitDistilled(_options: {
     events: Array<Record<string, unknown> | { line?: number; data: Record<string, unknown> }>;
     verification?: VerificationKind;
     lesson: string;
@@ -149,33 +136,9 @@ export class LessonsManager {
     taskId: string;
     sessionRef: string;
   }): Promise<LessonCandidate | null> {
-    const pair = findCausalPair(options.events, { verification: options.verification });
-    if (!pair?.verification) return null;
-    const now = new Date().toISOString();
-    const candidate: LessonCandidate = {
-      id: `lesson_${randomUUID()}`,
-      sourceSignalId: options.sourceSignalId,
-      lesson: options.lesson,
-      trigger: { signalKinds: ['tool_error'], paths: [] },
-      applicableWhen: [options.lesson],
-      doNotApplyWhen: [],
-      evidenceRefs: [options.sourceSignalId],
-      severity: 'medium',
-      quality: 'high',
-      confidence: pair.streamVerified ? 'verified' : 'candidate',
-      authoredBy: 'template',
-      audit: 'anchored',
-      status: 'observed',
-      provenance: {
-        taskId: options.taskId,
-        sessionRef: options.sessionRef,
-        signalId: options.sourceSignalId,
-      },
-      createdAt: now,
-      updatedAt: now,
-    };
-    await this.append(candidate);
-    return candidate;
+    // R9: admitDistilled only served the implicit offline distill chain
+    // (import-distilled-lessons). Shut down — do not admit template lessons.
+    return null;
   }
 
   /**
@@ -234,7 +197,7 @@ export class LessonsManager {
     const now = new Date().toISOString();
     const cause = draft.rootCause;
     const fixPattern = draft.fixMethod;
-    const sourceSignalId = `model:${draft.evidence.errorToolCallId}`;
+    const sourceSignalId = `model:${draft.evidence.errorToolCallId || 'unanchored'}`;
     const trimmedBoundary = draft.doNotApplyWhen.trim();
     const candidate: LessonCandidate = {
       id: `lesson_${randomUUID()}`,
@@ -493,7 +456,7 @@ async function readLessons(path: string): Promise<LessonCandidate[]> {
 }
 
 /** Backward-compatible defaults for pre-v2 jsonl lines missing authoredBy/audit. */
-function hydrateLesson(lesson: LessonCandidate): LessonCandidate {
+export function hydrateLesson(lesson: LessonCandidate): LessonCandidate {
   return {
     ...lesson,
     authoredBy: lesson.authoredBy ?? 'template',

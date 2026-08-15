@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   WRITE_LESSON_AEVO_GUIDELINE,
-  WRITE_LESSON_ARC_REMINDER,
   WRITE_LESSON_HARVEST_PROMPT,
   WRITE_LESSON_INSTRUCTION,
   buildWriteLessonPromptSuffix,
+  formatWriteLessonArcReminder,
+  formatWriteLessonHarvestPrompt,
   shouldHarvestWriteLessons,
 } from '../write-lesson-instruction.js';
 
@@ -40,16 +41,22 @@ describe('WRITE_LESSON_INSTRUCTION', () => {
       { name: 'bash', isError: true },
       { name: 'write_lesson', isError: false },
     ])).toBe(false);
+    expect(shouldHarvestWriteLessons([
+      { name: 'bash', isError: true },
+      { name: 'write_lesson', isError: false },
+    ], ['arc-2'])).toBe(true);
   });
 
-  it('freezes arc/harvest copy verbatim (prereg v0.5 §3.2)', () => {
-    expect(WRITE_LESSON_ARC_REMINDER).toBe(
-      '你刚完成一次先错后改对，立即调用 write_lesson 记录（引用相关 toolCallId）。',
+  it('uses R8 arc/harvest copy (live constants; v0.5 freeze archived)', () => {
+    expect(formatWriteLessonArcReminder('arc-3')).toBe(
+      '你刚完成一次先错后改对（arc-3）。立即调用 write_lesson 记录，evidence 填 { "arcId": "arc-3" }。',
     );
-    expect(WRITE_LESSON_HARVEST_PROMPT).toBe(
-      '回顾本次任务中先做错、后改对的地方（含走弯路），逐条调用 write_lesson 记录后再结束。',
+    expect(formatWriteLessonHarvestPrompt([])).toBe(WRITE_LESSON_HARVEST_PROMPT);
+    expect(formatWriteLessonHarvestPrompt(['arc-1', 'arc-3'])).toBe(
+      '回顾本次任务中先做错、后改对的地方（含走弯路），逐条调用 write_lesson 记录后再结束。未认领弧线：arc-1, arc-3。evidence 填 { "arcId": "<id>" }。',
     );
-    expect(WRITE_LESSON_ARC_REMINDER).not.toContain('harness');
-    expect(WRITE_LESSON_HARVEST_PROMPT).not.toContain('pytest');
+    expect(formatWriteLessonArcReminder('arc-3')).not.toContain('harness');
+    expect(formatWriteLessonHarvestPrompt(['arc-1'])).not.toContain('pytest');
+    expect(formatWriteLessonHarvestPrompt(['arc-1'])).not.toContain('harness');
   });
 });

@@ -359,6 +359,7 @@ describe('JsonlMemoryStore', () => {
       evidenceRefs: ['sig_1'],
       severity: 'medium',
       quality: 'high',
+      authoredBy: 'model',
       status: 'observed',
       provenance: { taskId: 't', sessionRef: 's', signalId: 'sig_1' },
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -410,6 +411,48 @@ describe('JsonlMemoryStore', () => {
     });
 
     expect(results).toEqual([]);
+  });
+
+  it('excludes template-only lessons from the injection pool and top-k', async () => {
+    const template = {
+      id: 'lesson_template',
+      sourceSignalId: 'sig_t',
+      lesson: 'Symptom: boom Fix: patch status',
+      cause: 'template cause that would otherwise inject',
+      fixPattern: 'template fix',
+      trigger: { signalKinds: ['tool_error'], paths: [] },
+      applicableWhen: [],
+      doNotApplyWhen: [],
+      evidenceRefs: ['sig_t'],
+      severity: 'medium',
+      quality: 'high',
+      authoredBy: 'template',
+      status: 'observed',
+      provenance: { taskId: 't', sessionRef: 's', signalId: 'sig_t' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const model = {
+      ...template,
+      id: 'lesson_model_only',
+      cause: 'model cause unique token MODELONLY',
+      fixPattern: 'model fix',
+      authoredBy: 'model',
+      createdAt: '2026-01-01T00:00:01.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z',
+    };
+    await writeFile(join(tmpDir, 'lessons.jsonl'), `${JSON.stringify(template)}\n${JSON.stringify(model)}\n`, 'utf-8');
+    const results = await new JsonlMemoryStore({
+      memoryDir: tmpDir,
+      kinds: ['lesson'],
+    }).search({
+      text: 'template cause MODELONLY',
+      metadata: { kinds: ['lesson'] },
+      limit: 3,
+    });
+    expect(results.map((result) => result.item.id)).toEqual(['lesson_model_only']);
+    expect(results[0].item.summary).toContain('MODELONLY');
+    expect(results.every((result) => result.item.id !== 'lesson_template')).toBe(true);
   });
 
   it('records knack injection once per task and run', async () => {

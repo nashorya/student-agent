@@ -9,13 +9,22 @@ export const WRITE_LESSON_INSTRUCTION =
 export const WRITE_LESSON_AEVO_GUIDELINE =
   'Do not mention harness test names, grader logs, or reward scores in any write_lesson field.';
 
-/** Appended to a greened tool result when an error→fix arc is detected. */
-export const WRITE_LESSON_ARC_REMINDER =
-  '你刚完成一次先错后改对，立即调用 write_lesson 记录（引用相关 toolCallId）。';
+/**
+ * R8 live reminder. v0.5 freeze is archived; interpolate with formatWriteLessonArcReminder.
+ */
+export function formatWriteLessonArcReminder(arcId: string): string {
+  return `你刚完成一次先错后改对（${arcId}）。立即调用 write_lesson 记录，evidence 填 { "arcId": "${arcId}" }。`;
+}
 
 /** One extra eval turn when the run had errors and never called write_lesson. */
 export const WRITE_LESSON_HARVEST_PROMPT =
   '回顾本次任务中先做错、后改对的地方（含走弯路），逐条调用 write_lesson 记录后再结束。';
+
+/** R8 harvest lists unclaimed arc handles. Empty list keeps the base sentence. */
+export function formatWriteLessonHarvestPrompt(unclaimedArcIds: readonly string[]): string {
+  if (unclaimedArcIds.length === 0) return WRITE_LESSON_HARVEST_PROMPT;
+  return `${WRITE_LESSON_HARVEST_PROMPT}未认领弧线：${unclaimedArcIds.join(', ')}。evidence 填 { "arcId": "<id>" }。`;
+}
 
 /** Appended to the factory system prompt even when buildMemoryPrompt is empty. */
 export function buildWriteLessonPromptSuffix(): string {
@@ -24,7 +33,9 @@ export function buildWriteLessonPromptSuffix(): string {
 
 export function shouldHarvestWriteLessons(
   toolCalls: Array<{ name?: string; isError?: boolean }>,
+  unclaimedArcIds: readonly string[] = [],
 ): boolean {
+  if (unclaimedArcIds.length > 0) return true;
   const hadError = toolCalls.some((call) => call.isError === true);
   const wrote = toolCalls.some((call) => normalizeToolName(call.name) === 'write_lesson');
   return hadError && !wrote;

@@ -190,7 +190,7 @@ describe('recordModelAuthoredLesson', () => {
     expect(ephemeral.audit).toBe('unanchored');
   });
 
-  it('keeps template observeSignals authoredBy=template and streamVerified→verified', async () => {
+  it('does not birth a template lesson from observeSignals', async () => {
     const mgr = LessonsManager.getInstance(tmpDir);
     const created = await mgr.observeSignals([{
       id: 'sig_stream',
@@ -211,13 +211,8 @@ describe('recordModelAuthoredLesson', () => {
       }],
     });
 
-    expect(created[0]).toMatchObject({
-      authoredBy: 'template',
-      audit: 'anchored',
-      quality: 'high',
-      confidence: 'verified',
-    });
-    expect(await mgr.getAll()).toHaveLength(1);
+    expect(created).toEqual([]);
+    expect(await mgr.getAll()).toHaveLength(0);
     expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 });

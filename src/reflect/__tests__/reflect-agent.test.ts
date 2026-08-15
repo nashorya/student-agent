@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ReflectAgent } from '../reflect-agent.js';
@@ -362,15 +362,9 @@ describe('ReflectAgent', () => {
       totalTaskCount: 50,
     });
 
-    expect(result.lessonsExtracted).toBe(1);
+    expect(result.lessonsExtracted).toBe(0);
     expect(await lessonsMgr.getAll()).toHaveLength(0);
-    const ephemeral = await lessonsMgr.getEphemeral();
-    expect(ephemeral).toHaveLength(1);
-    expect(ephemeral[0]).toMatchObject({
-      sourceSignalId: 'sig_reflect_1',
-      lesson: 'Treat tool error as a retry pattern: oldText must match exactly',
-      quality: 'low',
-    });
+    expect(await lessonsMgr.getEphemeral()).toHaveLength(0);
   });
 
   it('重复 signal 会把 observed lesson 自动升格为 knack', async () => {
@@ -417,45 +411,37 @@ describe('ReflectAgent', () => {
       }],
     });
 
-    expect(result.lessonsExtracted).toBe(2);
-    expect(result.knacksPromoted).toBe(2);
-    const lessons = await lessonsMgr.getAll();
-    expect(lessons.map((lesson) => lesson.status)).toEqual(['promoted', 'promoted']);
-    const knacks = await knacksMgr.getAll();
-    expect(knacks).toHaveLength(2);
-    expect(knacks.every((knack) => knack.id.startsWith('knack_'))).toBe(true);
+    expect(result.lessonsExtracted).toBe(0);
+    expect(result.knacksPromoted).toBe(0);
+    expect(await lessonsMgr.getAll()).toHaveLength(0);
+    expect(await knacksMgr.getAll()).toHaveLength(0);
   });
 
-  it('harness 晋升的单条 lesson 免重复直接升格为 knack', async () => {
+  it('harness 晋升的单条 model lesson 免重复直接升格为 knack', async () => {
     const lessonsMgr = LessonsManager.getInstance(tmpDir);
     const knacksMgr = KnacksManager.getInstance(tmpDir);
-    await appendSignal({
-      id: 'sig_single',
-      kind: 'tool_error',
-      severity: 'medium',
-      summary: 'AssertionError: separability matrix mismatch',
-      toolName: 'bash',
-      toolCallId: 'call_err',
-      createdAt: '2026-01-01T00:00:00.000Z',
-    }, tmpDir);
     agent = new ReflectAgent(candidatesMgr, preferencesMgr, null, undefined, lessonsMgr, knacksMgr);
-
-    await agent.run({
+    await lessonsMgr.recordModelAuthoredLesson({
+      whatWentWrong: 'wrong matrix copy',
+      rootCause: 'CompoundModel copies ones into the right block',
+      fixMethod: 'Assign the child matrix into cright',
+      contrast: 'ones drop structure',
+      doNotApplyWhen: 'shared view',
+      symptomKeys: ['separability'],
+      evidence: {
+        errorToolCallId: 'err_1',
+        fixToolCallIds: ['fix_1'],
+        verificationToolCallId: 'verify_1',
+      },
       taskId: 'task_single',
       sessionRef: 'run_single',
-      taskDescription: '修复 separability matrix',
-      gitDiff: '',
-      totalTaskCount: 50,
       repo: 'astropy/astropy',
-      deferKnackPromotion: true,
-      lessonOperationEvidence: [{
-        toolName: 'edit',
-        completedAt: '2026-01-01T00:01:00.000Z',
-        summary: 'astropy/modeling/separable.py copy the actual matrix values into cright',
-      }],
-    });
+    }, [
+      { toolCallId: 'err_1', kind: 'tool_error', isError: true },
+      { toolCallId: 'fix_1', kind: 'tool_call' },
+      { toolCallId: 'verify_1', kind: 'tool_call', toolName: 'bash', exitCode: 0 },
+    ]);
 
-    // 出生时只是 candidate，重复次数为 1，不该升格。
     expect(await agent.promoteLessonsToKnacks({ totalTaskCount: 50 })).toBe(0);
 
     await lessonsMgr.promoteCandidatesForRun({
@@ -468,5 +454,61 @@ describe('ReflectAgent', () => {
     const [knack] = await knacksMgr.getAll();
     expect(knack.repo).toBe('astropy/astropy');
     expect(knack.verification).toBe('verifier reward=1');
+  });
+
+  it('does not distill knacks from template lessons', async () => {
+    const lessonsMgr = LessonsManager.getInstance(tmpDir);
+    const knacksMgr = KnacksManager.getInstance(tmpDir);
+    await writeFile(join(tmpDir, 'lessons.jsonl'), `${JSON.stringify({
+      id: 'lesson_template_knack',
+      sourceSignalId: 'sig_t',
+      lesson: 'Symptom: boom Fix: patch',
+      trigger: { signalKinds: ['tool_error'], paths: [] },
+      applicableWhen: [],
+      doNotApplyWhen: [],
+      evidenceRefs: [],
+      severity: 'medium',
+      quality: 'high',
+      confidence: 'verified',
+      authoredBy: 'template',
+      status: 'observed',
+      promotedAt: '2026-01-01T00:03:00.000Z',
+      provenance: { taskId: 't', sessionRef: 'run_t', signalId: 'sig_t' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })}\n`);
+    agent = new ReflectAgent(candidatesMgr, preferencesMgr, null, undefined, lessonsMgr, knacksMgr);
+    expect(await agent.promoteLessonsToKnacks({ totalTaskCount: 50 })).toBe(0);
+    expect(await knacksMgr.getAll()).toHaveLength(0);
+  });
+
+  it('keeps explicit preference promotion when lesson observation is present', async () => {
+    const lessonsMgr = LessonsManager.getInstance(tmpDir);
+    await appendSignal({
+      id: 'sig_pref',
+      kind: 'tool_error',
+      severity: 'medium',
+      summary: 'oldText must match exactly',
+      toolName: 'edit',
+      toolCallId: 'call_1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }, tmpDir);
+    agent = new ReflectAgent(candidatesMgr, preferencesMgr, null, undefined, lessonsMgr);
+    const diff = makeDiff('app.ts', [
+      '-  console.log("debug1")',
+      '-  console.log("debug2")',
+    ]);
+    const result = await agent.run({
+      taskId: 'task_pref',
+      sessionRef: 'session_pref',
+      taskDescription: '清理调试代码',
+      gitDiff: diff,
+      totalTaskCount: 50,
+    });
+    expect(result.patternsExtracted).toBeGreaterThan(0);
+    expect(result.lessonsExtracted).toBe(0);
+    const candidates = await candidatesMgr.getAll();
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(await lessonsMgr.getAll()).toHaveLength(0);
   });
 });

@@ -24,6 +24,7 @@ import {
   createWriteLessonToolDefinition,
   detectWriteLessonArc,
   extractToolPath,
+  LessonArcRegistry,
   recordWriteLessonAfterToolCall,
   recordWriteLessonBeforeToolCall,
 } from './write-lesson-tool.js';
@@ -113,6 +114,7 @@ export interface CreateStudentSessionResult {
   session: AgentSession;
   agent: Agent;
   piResult: CreateAgentSessionResult;
+  writeLessonArcs: LessonArcRegistry;
 }
 
 /**
@@ -143,6 +145,7 @@ export async function createStudentSession(
   const tasksManager = TasksManager.getInstance();
   const sessionEvents: Array<Record<string, unknown>> = [];
   const remindedWriteLessonArcs = new Set<string>();
+  const writeLessonArcs = new LessonArcRegistry();
   const writeLessonMemoryDir = writeLesson?.memoryDir ?? getProjectMemoryDir();
 
   const customTools: CreateAgentSessionOptions['customTools'] = [
@@ -162,6 +165,7 @@ export async function createStudentSession(
       getSessionRef: writeLesson?.getSessionRef ?? (() => 'unknown_session'),
       repo: writeLesson?.repo,
       sessionEvents,
+      arcRegistry: writeLessonArcs,
     }),
     ...(projectArchive ? [createArchiveRecordToolDefinition(cwd)] : []),
   ] as CreateAgentSessionOptions['customTools'];
@@ -261,7 +265,7 @@ export async function createStudentSession(
         toolName: postCtx.toolName,
         isError: postCtx.isError,
         path,
-      }, remindedWriteLessonArcs);
+      }, remindedWriteLessonArcs, writeLessonArcs);
       if (hooks.onAfterToolCall) {
         const decision = await hooks.onAfterToolCall(postCtx);
         if (decision) {
@@ -290,7 +294,7 @@ export async function createStudentSession(
     });
   }
 
-  return { session, agent, piResult };
+  return { session, agent, piResult, writeLessonArcs };
 }
 
 function appendWriteLessonReminder(

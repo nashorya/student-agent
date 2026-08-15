@@ -85,12 +85,11 @@ describe('eval learning lifecycle', () => {
       join(memoryDir, 'runs', task.working_memory.runId, 'outcome.json'),
       'utf-8',
     )) as Record<string, unknown>;
-    const lessons = await readFile(join(memoryDir, 'lessons.jsonl'), 'utf-8');
 
     expect(summary).toMatchObject({
       taskId: task.id,
       runId: task.working_memory.runId,
-      lessonsExtracted: 1,
+      lessonsExtracted: 0,
     });
     expect(outcome).toMatchObject({
       taskId: task.id,
@@ -106,9 +105,7 @@ describe('eval learning lifecycle', () => {
         writtenFiles: ['astropy/tests/helper.py'],
       },
     });
-    expect(lessons).toContain('warnings were treated as errors');
-    expect(lessons).toContain('"quality":"high"');
-    expect(lessons).toContain('"successfulToolCallId":"call_2"');
+    await expect(readFile(join(memoryDir, 'lessons.jsonl'), 'utf-8')).rejects.toMatchObject({ code: 'ENOENT' });
     const events = await readFile(
       join(memoryDir, 'runs', task.working_memory.runId, 'events.jsonl'),
       'utf8',

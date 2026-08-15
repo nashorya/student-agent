@@ -41,8 +41,8 @@ import type {
 } from './types.js';
 import { ForcedCompactionController } from './forced-compaction-controller.js';
 import {
+  formatWriteLessonHarvestPrompt,
   shouldHarvestWriteLessons,
-  WRITE_LESSON_HARVEST_PROMPT,
 } from '../memory/lessons/write-lesson-instruction.js';
 import { buildContextTokenEffect } from './context-breakdown.js';
 import {
@@ -163,7 +163,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     if (options.buildMemoryPrompt) {
       hooks.buildMemoryPrompt = options.buildMemoryPrompt;
     }
-    const { session, agent } = await createStudentSession({
+    const { session, agent, writeLessonArcs } = await createStudentSession({
       cwd: options.sandboxDir,
       model,
       hooks,
@@ -223,9 +223,9 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       } else {
         await runDirectMode(session, agent, instruction, options.task.expectedFiles, toolCalls);
       }
-      if (shouldHarvestWriteLessons(toolCalls)) {
+      if (shouldHarvestWriteLessons(toolCalls, writeLessonArcs.unclaimedIds())) {
         harvestTurn = true;
-        await session.prompt(WRITE_LESSON_HARVEST_PROMPT);
+        await session.prompt(formatWriteLessonHarvestPrompt(writeLessonArcs.unclaimedIds()));
         await agent.waitForIdle();
       }
       if (agent.state.errorMessage) {
