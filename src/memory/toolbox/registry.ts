@@ -61,6 +61,8 @@ export class ToolboxRegistry {
   private readonly failureThreshold: number;
   private entries = new Map<string, LoadedEntry>();
   private stats = new Map<string, ToolStats>();
+  /** True after load() or a mutator has pulled stats.json into memory. */
+  private statsHydrated = false;
 
   constructor(
     memoryDir: string,
@@ -76,6 +78,7 @@ export class ToolboxRegistry {
   async load(): Promise<void> {
     this.entries = new Map();
     this.stats = await this.readStatsFile();
+    this.statsHydrated = true;
 
     let names: string[] = [];
     try {
@@ -154,6 +157,7 @@ export class ToolboxRegistry {
 
   async createTool(name: string, source: string): Promise<void> {
     this.assertValidName(name);
+    await this.ensureStatsHydrated();
     await this.ensureToolboxDir();
     const filePath = this.toolPath(name);
 
@@ -183,6 +187,7 @@ export class ToolboxRegistry {
 
   async updateTool(name: string, source: string): Promise<void> {
     this.assertValidName(name);
+    await this.ensureStatsHydrated();
     await this.ensureToolboxDir();
     const filePath = this.toolPath(name);
 
@@ -220,6 +225,7 @@ export class ToolboxRegistry {
 
   async disableTool(name: string, reason: string): Promise<void> {
     this.assertValidName(name);
+    await this.ensureStatsHydrated();
     await this.ensureToolboxDir();
     const stats = this.statsFor(name);
     stats.disabled = true;
@@ -231,6 +237,7 @@ export class ToolboxRegistry {
 
   async recordUsage(name: string, ok: boolean): Promise<void> {
     this.assertValidName(name);
+    await this.ensureStatsHydrated();
     await this.ensureToolboxDir();
     const stats = this.statsFor(name);
     stats.calls += 1;
@@ -273,6 +280,13 @@ export class ToolboxRegistry {
     await mkdir(this.toolboxDir, { recursive: true });
   }
 
+  /** Pull stats.json into memory before any mutator so we never rewrite from an empty map. */
+  private async ensureStatsHydrated(): Promise<void> {
+    if (this.statsHydrated) return;
+    this.stats = await this.readStatsFile();
+    this.statsHydrated = true;
+  }
+
   private statsFor(name: string): ToolStats {
     const existing = this.stats.get(name);
     if (existing) {
@@ -303,10 +317,20 @@ export class ToolboxRegistry {
     return map;
   }
 
+  /**
+   * Write stats.json as disk ∪ in-memory (in-memory wins on key conflict).
+   * Prevents mutators on a fresh instance from wiping peers written by other instances.
+   */
   private async persistStats(): Promise<void> {
     await this.ensureToolboxDir();
-    const obj: Record<string, ToolStats> = {};
+    const onDisk = await this.readStatsFile();
     for (const [name, stats] of this.stats.entries()) {
+      onDisk.set(name, stats);
+    }
+    this.stats = onDisk;
+    this.statsHydrated = true;
+    const obj: Record<string, ToolStats> = {};
+    for (const [name, stats] of onDisk.entries()) {
       obj[name] = stats;
     }
     const tmp = `${this.statsPath}.${process.pid}.tmp`;

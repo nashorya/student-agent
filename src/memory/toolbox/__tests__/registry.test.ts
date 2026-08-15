@@ -142,4 +142,23 @@ export default {
     expect(desc?.stats.disabledReason).toBe('manual');
     expect(desc?.stats.lastUsedAt).toBeTruthy();
   });
+
+  it('mutators without prior load() do not wipe other tools stats on disk', async () => {
+    const regA = new ToolboxRegistry(memoryDir);
+    await regA.load();
+    await regA.createTool('alpha', VALID_TOOL('alpha'));
+    await regA.recordUsage('alpha', true);
+    const alphaCalls = regA.describe('alpha')!.stats.calls;
+    expect(alphaCalls).toBeGreaterThanOrEqual(1);
+
+    // Fresh instance: mutate without load() — must not clobber alpha stats.
+    const regB = new ToolboxRegistry(memoryDir);
+    await regB.createTool('beta', VALID_TOOL('beta'));
+
+    const regC = new ToolboxRegistry(memoryDir);
+    await regC.load();
+    expect(regC.describe('alpha')?.stats.calls).toBeGreaterThanOrEqual(alphaCalls);
+    expect(regC.describe('beta')).toBeDefined();
+    expect(regC.describe('beta')?.name).toBe('beta');
+  });
 });
