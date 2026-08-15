@@ -88,6 +88,59 @@ describe('createStudentSession', () => {
     }
   });
 
+  it('does not register toolbox by default', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'student-session-no-toolbox-'));
+    const faux = registerFauxProvider();
+    registrations.push(faux);
+    try {
+      const { session } = await createStudentSession({
+        cwd,
+        model: faux.getModel(),
+        hooks: {},
+        piOptions: { agentDir: join(cwd, '.pi') },
+      });
+      expect(session.getActiveToolNames()).not.toContain('toolbox');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it('registers toolbox when toolbox: true', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'student-session-toolbox-on-'));
+    const faux = registerFauxProvider();
+    registrations.push(faux);
+    try {
+      const { session } = await createStudentSession({
+        cwd,
+        model: faux.getModel(),
+        hooks: {},
+        toolbox: true,
+        piOptions: { agentDir: join(cwd, '.pi') },
+      });
+      expect(session.getActiveToolNames()).toContain('toolbox');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it('does not register toolbox when toolbox: false', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'student-session-toolbox-off-'));
+    const faux = registerFauxProvider();
+    registrations.push(faux);
+    try {
+      const { session } = await createStudentSession({
+        cwd,
+        model: faux.getModel(),
+        hooks: {},
+        toolbox: false,
+        piOptions: { agentDir: join(cwd, '.pi') },
+      });
+      expect(session.getActiveToolNames()).not.toContain('toolbox');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it('injects LLM request limits into the agent stream function', async () => {
     const faux = registerFauxProvider();
     registrations.push(faux);

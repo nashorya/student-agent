@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`toolbox tool > exposes adoption guideline in promptGuidelines 1`] = `"当你发现自己在这个项目里第二次做同样的笨重操作(重复的搜索、解析、格式化、从长输出里提取固定信息),用 toolbox create 把它固化成工具,下次一次调用解决。工具应该返回"恰好需要的信息",而不是原始材料。"`;

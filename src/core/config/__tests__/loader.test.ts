@@ -25,6 +25,7 @@ describe('student agent config loader', () => {
     expect(config.features.playwright).toBe(true);
     expect(config.features.subAgents).toBe(false);
     expect(config.features.riskGuard).toBe(true);
+    expect(config.features.toolbox).toBe(false);
     expect(config.executionMode).toBe('yolo');
     expect(config.context7.timeoutMs).toBe(10_000);
     expect(config.llm.requestTimeoutMs).toBe(300_000);
@@ -33,6 +34,15 @@ describe('student agent config loader', () => {
       normalMaxReads: 15,
       readWindow: 30,
     });
+  });
+
+  it('enables features.toolbox from STUDENT_AGENT_FEATURE_TOOLBOX', async () => {
+    const config = await loadStudentAgentConfig({
+      cwd: tmpDir,
+      env: { STUDENT_AGENT_FEATURE_TOOLBOX: 'true' },
+    });
+
+    expect(config.features.toolbox).toBe(true);
   });
 
   it('JSON 配置覆盖默认值', async () => {
