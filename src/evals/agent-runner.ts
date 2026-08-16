@@ -2,12 +2,13 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { Api, Model } from '../core/pi-compat/index.js';
-import { loadEnvFile, loadEnvLayersPreservingAmbient } from '../core/env.js';
+import { loadEnvFile } from '../core/env.js';
 import { loadStudentAgentConfig, GLOBAL_CONFIG_DIR } from '../core/config/loader.js';
 import type { StudentAgentConfig } from '../core/config/types.js';
-import { resolveConfiguredModel } from '../core/config/model-resolver.js';
+import { isDegradedFallbackModel, resolveConfiguredModel } from '../core/config/model-resolver.js';
 import { getApiKeyEnvName, normalizeProviderApiKeyEnv } from '../core/setup/initializer.js';
 import { createStudentSession, type StudentAgentHooks } from '../core/pi-bridge/session-factory.js';
+import { createContext7QueryToolDefinition } from '../core/pi-bridge/context7-query-tool.js';
 import { drainProtectedEvents } from '../core/hashline/index.js';
 import { createToolGuardHook } from '../extension/hooks/tool-guard.js';
 import { FailureEscalationContext } from '../extension/hooks/failure-escalation.js';
@@ -39,6 +40,10 @@ import type {
   ToolTraceEntry,
 } from './types.js';
 import { ForcedCompactionController } from './forced-compaction-controller.js';
+import {
+  formatWriteLessonHarvestPrompt,
+  shouldHarvestWriteLessons,
+} from '../memory/lessons/write-lesson-instruction.js';
 import { buildContextTokenEffect } from './context-breakdown.js';
 import {
   installEvalProviderRequestPolicy,
@@ -90,6 +95,8 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
   let skillManifest: import('./types.js').EvalSkillManifest | undefined;
   const protectedEventsDuringRun: import('./types.js').ProtectedEvalEvent[] = [];
   const failureEscalationEvents: FailureEscalationEvent[] = [];
+  const ctx7Counters = { calls: 0, failures: 0 };
+  let harvestTurn = false;
 
   try {
     if (options.memoryDir) {
@@ -114,6 +121,9 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     normalizeProviderApiKeyEnv(config.model.provider);
     const apiKeyEnvName = config.model.apiKeyEnv ?? getApiKeyEnvName(config.model.provider);
     const apiKey = process.env[apiKeyEnvName];
+    if (!apiKey) {
+      throw new Error(`Eval missing API key for ${config.model.provider} via ${apiKeyEnvName}`);
+    }
     if (options.learningLifecycle) {
       if (!options.memoryDir) {
         throw new Error('Eval learning lifecycle requires memoryDir');
@@ -130,6 +140,11 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
           : undefined,
       })
       : undefined;
+    const context7QueryTool = createEvalContext7Tool({
+      enabled: config.features.context7,
+      client: context7Client,
+      counters: ctx7Counters,
+    });
     const hooks = createEvalTracingHooks(toolCalls, {
       ...(learningRun ? {
         memoryDir: options.memoryDir,
@@ -148,7 +163,7 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     if (options.buildMemoryPrompt) {
       hooks.buildMemoryPrompt = options.buildMemoryPrompt;
     }
-    const { session, agent } = await createStudentSession({
+    const { session, agent, writeLessonArcs } = await createStudentSession({
       cwd: options.sandboxDir,
       model,
       hooks,
@@ -163,9 +178,17 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
       },
       piOptions: {
         agentDir: join(options.sandboxDir, '.pi'),
+        ...(context7QueryTool ? { customTools: [context7QueryTool] } : {}),
       },
       // Eval skill isolation: only load from controlled fixtures (empty dir = no skills).
       controlledSkillRoots: [resolveEvalSkillsRoot()],
+      ...(options.memoryDir ? {
+        writeLesson: {
+          memoryDir: options.memoryDir,
+          getTaskId: () => options.task.id,
+          getSessionRef: () => learningRun?.runId ?? options.task.id,
+        },
+      } : {}),
     });
     skillManifest = await buildSkillManifest([resolveEvalSkillsRoot()]);
     piSchemaTrace = summarizePiToolSchema(agent.state.tools);
@@ -199,6 +222,11 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
         });
       } else {
         await runDirectMode(session, agent, instruction, options.task.expectedFiles, toolCalls);
+      }
+      if (shouldHarvestWriteLessons(toolCalls, writeLessonArcs.unclaimedIds())) {
+        harvestTurn = true;
+        await session.prompt(formatWriteLessonHarvestPrompt(writeLessonArcs.unclaimedIds()));
+        await agent.waitForIdle();
       }
       if (agent.state.errorMessage) {
         errorMessage = agent.state.errorMessage;
@@ -274,8 +302,29 @@ export async function runStudentAgentEval(options: RunStudentAgentEvalOptions): 
     protectedEvents,
     guardRuleCounts: countGuardRules(protectedEvents),
     failureEscalationEvents,
+    ctx7Calls: ctx7Counters.calls,
+    ctx7Failures: ctx7Counters.failures,
+    harvestTurn,
     learningRun,
   };
+}
+
+/** Eval-only helper: register proactive context7_query tool when the feature is enabled. */
+export function createEvalContext7Tool(options: {
+  enabled: boolean;
+  client?: Pick<Context7Client, 'query'>;
+  counters: { calls: number; failures: number };
+}): ReturnType<typeof createContext7QueryToolDefinition> | undefined {
+  if (!options.enabled) return undefined;
+  return createContext7QueryToolDefinition({
+    client: options.client,
+    onCall: () => {
+      options.counters.calls += 1;
+    },
+    onFailure: () => {
+      options.counters.failures += 1;
+    },
+  });
 }
 
 export function readFrozenSamplingFromEnv(value: string | undefined): EvalFrozenSampling | undefined {
@@ -1014,16 +1063,22 @@ function roundCost(value: number): number {
 }
 
 async function loadEvalConfig(cwd: string): Promise<StudentAgentConfig> {
-  await loadEnvLayersPreservingAmbient(async () => {
-    await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: true });
-    const initial = await loadStudentAgentConfig({ cwd });
-    await loadEnvFile({ cwd, filename: initial.envFile, override: true });
-  });
+  await loadEnvFile({ cwd: GLOBAL_CONFIG_DIR, filename: '.env', override: false });
+  const initial = await loadStudentAgentConfig({ cwd });
+  await loadEnvFile({ cwd, filename: initial.envFile, override: false });
   return loadStudentAgentConfig({ cwd });
 }
 
 function buildModel(config: StudentAgentConfig): Model<Api> {
-  return resolveConfiguredModel(config.model);
+  const model = resolveConfiguredModel(config.model);
+  if (isDegradedFallbackModel(model)) {
+    throw new Error(
+      `Refusing eval run: model "${config.model.provider}/${config.model.name}" is not in the pi-ai catalog `
+      + 'and would fall back to degraded metadata (thinking disabled, 128k context window). '
+      + 'Add the model to model-resolver.ts (see resolveZaiGlm53Model) or fix the provider profile.',
+    );
+  }
+  return model;
 }
 
 function resolveEvalSkillsRoot(): string {

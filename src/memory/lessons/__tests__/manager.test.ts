@@ -3,7 +3,32 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { appendSignal } from '../../signals/index.js';
-import { LessonsManager } from '../manager.js';
+import { LessonsManager, isProcessNoiseSignal, type ModelAuthoredLessonDraft } from '../manager.js';
+
+const modelEvents = [
+  { toolCallId: 'err_1', kind: 'tool_error', isError: true },
+  { toolCallId: 'fix_1', kind: 'tool_call' },
+  { toolCallId: 'verify_1', kind: 'tool_call', toolName: 'bash', exitCode: 0 },
+];
+
+function modelDraft(overrides: Partial<ModelAuthoredLessonDraft> = {}): ModelAuthoredLessonDraft {
+  return {
+    whatWentWrong: 'wrong path',
+    rootCause: 'root cause of the defect',
+    fixMethod: 'apply the correct fix pattern',
+    contrast: 'wrong vs right',
+    doNotApplyWhen: 'not this case',
+    symptomKeys: ['matrix'],
+    evidence: {
+      errorToolCallId: 'err_1',
+      fixToolCallIds: ['fix_1'],
+      verificationToolCallId: 'verify_1',
+    },
+    taskId: 'task_1',
+    sessionRef: 'run_1',
+    ...overrides,
+  };
+}
 
 describe('LessonsManager delayed promotion admission (P1 patch)', () => {
   let tmpDir: string;
@@ -38,16 +63,8 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       }],
     });
 
-    expect(created[0]).toMatchObject({
-      quality: 'high',
-      confidence: 'verified',
-      verification: {
-        sourceToolCallId: 'call_failed',
-        successfulToolCallId: 'call_passed',
-        exitCode: 0,
-      },
-    });
-    expect(await mgr.getAll()).toHaveLength(1);
+    expect(created).toEqual([]);
+    expect(await mgr.getAll()).toHaveLength(0);
     expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
@@ -74,11 +91,8 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       }],
     });
 
-    expect(created[0]).toMatchObject({
-      quality: 'high',
-      confidence: 'candidate',
-    });
-    expect(await mgr.getAll()).toHaveLength(1);
+    expect(created).toEqual([]);
+    expect(await mgr.getAll()).toHaveLength(0);
     expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
@@ -97,26 +111,14 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       sessionRef: 'run_1',
       operationEvidence: [{ toolName: 'read', completedAt: '2026-01-01T00:01:00.000Z' }],
     });
-    expect(created[0].quality).toBe('low');
+    expect(created).toEqual([]);
     expect(await mgr.getAll()).toHaveLength(0);
-    expect(await mgr.getEphemeral()).toHaveLength(1);
+    expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
   it('promotes candidate lessons to verified when harness reward=1', async () => {
     const mgr = LessonsManager.getInstance(tmpDir);
-    await mgr.observeSignals([{
-      id: 'sig_promo',
-      kind: 'tool_error',
-      severity: 'medium',
-      summary: 'matrix shape mismatch on compound model',
-      toolName: 'bash',
-      toolCallId: 'call_err',
-      createdAt: '2026-01-01T00:00:00.000Z',
-    }], {
-      taskId: 'task_1',
-      sessionRef: 'run_promo',
-      operationEvidence: [{ toolName: 'bash', completedAt: '2026-01-01T00:01:00.000Z' }],
-    });
+    await mgr.recordModelAuthoredLesson(modelDraft({ sessionRef: 'run_promo' }), modelEvents);
     expect((await mgr.getAll())[0].confidence).toBe('candidate');
 
     const result = await mgr.promoteCandidatesForRun({ sessionRef: 'run_promo', reward: 1 });
@@ -128,21 +130,59 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
     expect(lessons[0].promotedAt).toBeTruthy();
   });
 
+  it('stamps promotedAt on stream-verified lessons so harness-strong can fire', async () => {
+    // A lesson born with in-run verification evidence is already `verified`, so
+    // the old skip-if-not-candidate rule left promotedAt empty forever — and
+    // harness-strong knack promotion needs verified AND promotedAt (BUG-015).
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const born = await mgr.recordModelAuthoredLesson(
+      modelDraft({ sessionRef: 'run_stream' }),
+      modelEvents,
+    );
+    expect(born.confidence).toBe('candidate');
+    expect(born.promotedAt).toBeUndefined();
+
+    const result = await mgr.promoteCandidatesForRun({ sessionRef: 'run_stream', reward: 1 });
+
+    expect(result.promoted).toBe(1);
+    const lesson = (await mgr.getAll()).find((item) => item.id === born.id)!;
+    expect(lesson.confidence).toBe('verified');
+    expect(lesson.promotedAt).toBeTruthy();
+  });
+
+  it('does not re-stamp promotedAt for a run already promoted', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    await mgr.recordModelAuthoredLesson(modelDraft({ sessionRef: 'run_idem' }), modelEvents);
+    const first = await mgr.promoteCandidatesForRun({
+      sessionRef: 'run_idem', reward: 1, promotedAt: '2026-01-01T00:02:00.000Z',
+    });
+    expect(first.promoted).toBe(1);
+
+    const second = await mgr.promoteCandidatesForRun({
+      sessionRef: 'run_idem', reward: 1, promotedAt: '2026-01-01T09:99:00.000Z',
+    });
+
+    expect(second.promoted).toBe(0);
+    expect((await mgr.getAll()).find((l) => l.provenance.sessionRef === 'run_idem')!.promotedAt)
+      .toBe('2026-01-01T00:02:00.000Z');
+  });
+
+  it('does not stamp promotedAt when harness reward≠1', async () => {
+    const mgr = LessonsManager.getInstance(tmpDir);
+    const born = await mgr.recordModelAuthoredLesson(
+      modelDraft({ sessionRef: 'run_unresolved' }),
+      modelEvents,
+    );
+
+    const result = await mgr.promoteCandidatesForRun({ sessionRef: 'run_unresolved', reward: 0 });
+
+    expect(result.promoted).toBe(0);
+    expect((await mgr.getAll()).find((item) => item.id === born.id)!.promotedAt).toBeUndefined();
+  });
+
   it('does not promote candidates when harness reward≠1', async () => {
     const mgr = LessonsManager.getInstance(tmpDir);
-    await mgr.observeSignals([{
-      id: 'sig_keep',
-      kind: 'tool_error',
-      severity: 'medium',
-      summary: 'separability matrix filled with ones',
-      toolName: 'bash',
-      toolCallId: 'call_err',
-      createdAt: '2026-01-01T00:00:00.000Z',
-    }], {
-      taskId: 'task_1',
-      sessionRef: 'run_fail',
-      operationEvidence: [{ toolName: 'edit', completedAt: '2026-01-01T00:01:00.000Z' }],
-    });
+    await mgr.recordModelAuthoredLesson(modelDraft({ sessionRef: 'run_fail' }), modelEvents);
 
     const result = await mgr.promoteCandidatesForRun({ sessionRef: 'run_fail', reward: 0 });
     expect(result.promoted).toBe(0);
@@ -177,19 +217,9 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       taskId: 'task_d',
       sessionRef: 'run_d',
     });
-    expect(admitted?.quality).toBe('high');
-    expect(admitted?.confidence).toBe('candidate');
-    expect(await mgr.getAll()).toHaveLength(1);
-
-    const promo = await mgr.promoteCandidatesForRun({
-      sessionRef: 'run_d',
-      reward: 1,
-      promotedAt: '2026-07-19T03:57:36.479Z',
-    });
-    expect(promo.promoted).toBe(1);
-    const [lesson] = await mgr.getAll();
-    expect(lesson.confidence).toBe('verified');
-    expect(lesson.promotedAt).toBe('2026-07-19T03:57:36.479Z');
+    expect(admitted).toBeNull();
+    expect(await mgr.getAll()).toHaveLength(0);
+    expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
   it('routes unpaired process noise to ephemeral', async () => {
@@ -210,13 +240,9 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       limit: 5,
     });
 
-    expect(created[0]).toMatchObject({
-      quality: 'low',
-      status: 'observed',
-    });
-    expect(created[0].confidence).toBeUndefined();
+    expect(created).toEqual([]);
     expect(await mgr.getAll()).toHaveLength(0);
-    expect(await mgr.getEphemeral()).toHaveLength(1);
+    expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
   it('phrases paired lessons as Symptom/Fix from the issue text and patch', async () => {
@@ -251,12 +277,9 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       }],
     });
 
-    expect(lesson.quality).toBe('high');
-    expect(lesson.repo).toBe('astropy/astropy');
-    expect(lesson.symptom).toContain('separability matrix');
-    expect(lesson.fixSummary).toContain('cright');
-    expect(lesson.lesson).toBe(`Symptom: ${lesson.symptom} Fix: ${lesson.fixSummary}`);
-    expect(lesson.executionEvidence).toContain('separable.py');
+    expect(lesson).toBeUndefined();
+    expect(await mgr.getAll()).toHaveLength(0);
+    expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
   it('rejects test-report fix text and leaves fixSummary empty', async () => {
@@ -286,9 +309,9 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       }],
     });
 
-    expect(lesson.fixSummary).toBeUndefined();
-    expect(lesson.lesson).toContain('Fix: (not extracted)');
-    expect(lesson.lesson).not.toContain('70 passed');
+    expect(lesson).toBeUndefined();
+    expect(await mgr.getAll()).toHaveLength(0);
+    expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
   it('keeps template text for unpaired ephemeral notes', async () => {
@@ -303,9 +326,9 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
     }], { taskId: 'task_1', sessionRef: 'run_1' });
 
-    expect(lesson.quality).toBe('low');
-    expect(lesson.lesson).toContain('Avoid repeating stale edits');
-    expect(lesson.symptom).toBeUndefined();
+    expect(lesson).toBeUndefined();
+    expect(await mgr.getAll()).toHaveLength(0);
+    expect(await mgr.getEphemeral()).toHaveLength(0);
   });
 
   it('writes nothing for an empty trajectory', async () => {
@@ -316,5 +339,47 @@ describe('LessonsManager delayed promotion admission (P1 patch)', () => {
     })).toEqual([]);
     expect(await mgr.getAll()).toHaveLength(0);
     expect(await mgr.getEphemeral()).toHaveLength(0);
+  });
+});
+
+describe('isProcessNoiseSignal traceback classification', () => {
+  const signal = (summary: string) => ({
+    id: 'sig_x',
+    kind: 'tool_error' as const,
+    severity: 'medium' as const,
+    summary,
+    toolName: 'bash',
+    toolCallId: 'call_x',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  // A bare Python traceback is the highest-value signal on a Python repo
+  // (astropy/sympy/django). Treating every traceback as process noise routed
+  // those lessons to ephemeral, which the injection experiment never injects.
+  it('does not treat a logic-error traceback as process noise', () => {
+    expect(isProcessNoiseSignal(signal(
+      'Traceback (most recent call last):\n  File "astropy/modeling/separable.py", line 310\n'
+      + 'ValueError: separability matrix mismatch for nested CompoundModel',
+    ))).toBe(false);
+  });
+
+  it('does not treat an assertion-failure traceback as process noise', () => {
+    expect(isProcessNoiseSignal(signal(
+      'Traceback (most recent call last):\n  File "test_separable.py", line 12\n'
+      + 'AssertionError: expected [[True, False]] but got [[True, True]]',
+    ))).toBe(false);
+  });
+
+  it('still treats an import-failure traceback as process noise', () => {
+    expect(isProcessNoiseSignal(signal(
+      'Traceback (most recent call last):\n  File "conftest.py", line 3\n'
+      + "ModuleNotFoundError: No module named 'astropy._compiler'",
+    ))).toBe(true);
+  });
+
+  it('keeps the existing non-traceback noise cases', () => {
+    expect(isProcessNoiseSignal(signal('ImportError: cannot import name X'))).toBe(true);
+    expect(isProcessNoiseSignal(signal('hashline mismatch on edit'))).toBe(true);
+    expect(isProcessNoiseSignal(signal('sed: -e expression #1, char 0'))).toBe(true);
   });
 });

@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { getProjectMemoryDir } from '../../core/paths.js';
 import { WriteQueue } from '../../core/write-queue.js';
 import {
+  auditCitedEvidence,
   findCausalPair,
   type VerificationKind,
 } from '../../evals/causal-pair.js';
@@ -14,7 +15,13 @@ import {
 } from '../distill/index.js';
 import { readRecentSignals } from '../signals/index.js';
 import type { Signal } from '../signals/types.js';
-import type { LessonCandidate, LessonCandidateStatus, LessonConfidence } from './types.js';
+import type {
+  LessonCandidate,
+  LessonCandidateStatus,
+  LessonConfidence,
+  LessonDocRef,
+  LessonEvidence,
+} from './types.js';
 
 export interface ObserveRecentSignalsOptions {
   taskId: string;
@@ -59,6 +66,21 @@ export type SignalObservationOptions = Pick<
   | 'repo'
 >;
 
+export interface ModelAuthoredLessonDraft {
+  whatWentWrong: string;
+  rootCause: string;
+  fixMethod: string;
+  contrast: string;
+  /** Tool input is a string; stored as a single trimmed element or []. */
+  doNotApplyWhen: string;
+  symptomKeys: string[];
+  evidence: LessonEvidence;
+  docRefs?: LessonDocRef[];
+  taskId: string;
+  sessionRef: string;
+  repo?: string;
+}
+
 export class LessonsManager {
   private static instance: LessonsManager | null = null;
   private readonly memoryDir: string;
@@ -97,29 +119,16 @@ export class LessonsManager {
   }
 
   async observeSignals(
-    signals: Signal[],
-    options: SignalObservationOptions,
+    _signals: Signal[],
+    _options: SignalObservationOptions,
   ): Promise<LessonCandidate[]> {
-    if (signals.length === 0) return [];
-
-    const existing = [
-      ...await this.getAll(),
-      ...await this.getEphemeral(),
-    ];
-    const seenSignalIds = new Set(existing.map((lesson) => lesson.sourceSignalId));
-    const candidates = signals
-      .filter((signal) => !seenSignalIds.has(signal.id))
-      .map((signal) => signalToLessonCandidate(signal, options));
-
-    for (const candidate of candidates) {
-      await this.append(candidate);
-    }
-
-    return candidates;
+    // R9: implicit template birth is shut down. Signals still land in
+    // signals.jsonl via the signal writer; this path no longer materializes lessons.
+    return [];
   }
 
   /** Distill product → main via same findCausalPair gate as distillRunEvents (no provisional). */
-  async admitDistilled(options: {
+  async admitDistilled(_options: {
     events: Array<Record<string, unknown> | { line?: number; data: Record<string, unknown> }>;
     verification?: VerificationKind;
     lesson: string;
@@ -127,36 +136,19 @@ export class LessonsManager {
     taskId: string;
     sessionRef: string;
   }): Promise<LessonCandidate | null> {
-    const pair = findCausalPair(options.events, { verification: options.verification });
-    if (!pair?.verification) return null;
-    const now = new Date().toISOString();
-    const candidate: LessonCandidate = {
-      id: `lesson_${randomUUID()}`,
-      sourceSignalId: options.sourceSignalId,
-      lesson: options.lesson,
-      trigger: { signalKinds: ['tool_error'], paths: [] },
-      applicableWhen: [options.lesson],
-      doNotApplyWhen: [],
-      evidenceRefs: [options.sourceSignalId],
-      severity: 'medium',
-      quality: 'high',
-      confidence: pair.streamVerified ? 'verified' : 'candidate',
-      status: 'observed',
-      provenance: {
-        taskId: options.taskId,
-        sessionRef: options.sessionRef,
-        signalId: options.sourceSignalId,
-      },
-      createdAt: now,
-      updatedAt: now,
-    };
-    await this.append(candidate);
-    return candidate;
+    // R9: admitDistilled only served the implicit offline distill chain
+    // (import-distilled-lessons). Shut down — do not admit template lessons.
+    return null;
   }
 
   /**
-   * After harness reward: promote this run's candidate lessons → verified.
-   * reward≠1 keeps candidates in place (no delete).
+   * After harness reward: stamp this run's lessons as harness-promoted.
+   * `candidate` lessons become `verified`; lessons already born `verified` from
+   * in-run stream verification keep that confidence but still get `promotedAt`,
+   * because `promotedAt` is what marks external ground truth and what
+   * harness-strong knack promotion keys on (BUG-015 — skipping non-candidates
+   * left the best-evidenced lessons permanently unstamped, so they could never
+   * become knacks). reward≠1 leaves everything in place (no delete, no stamp).
    */
   async promoteCandidatesForRun(options: {
     sessionRef: string;
@@ -168,9 +160,10 @@ export class LessonsManager {
       const now = options.promotedAt ?? new Date().toISOString();
       let promoted = 0;
       const updated = lessons.map((lesson) => {
-        if (lesson.confidence !== 'candidate') return lesson;
         if (lesson.provenance.sessionRef !== options.sessionRef) return lesson;
         if (options.reward !== 1) return lesson;
+        // Idempotent: a re-run of the same admission must not re-stamp.
+        if (lesson.promotedAt) return lesson;
         promoted += 1;
         return {
           ...lesson,
@@ -189,6 +182,54 @@ export class LessonsManager {
       }
       return { promoted };
     });
+  }
+
+  /**
+   * Persist a model-authored lesson. Write is unlimited; audit failure isolates
+   * to ephemeral instead of throwing. Confidence is always candidate.
+   */
+  async recordModelAuthoredLesson(
+    draft: ModelAuthoredLessonDraft,
+    sessionEvents: Array<Record<string, unknown> | { line?: number; data: Record<string, unknown> }>,
+  ): Promise<LessonCandidate> {
+    const audit = auditCitedEvidence(sessionEvents, draft.evidence);
+    const anchored = audit.ok;
+    const now = new Date().toISOString();
+    const cause = draft.rootCause;
+    const fixPattern = draft.fixMethod;
+    const sourceSignalId = `model:${draft.evidence.errorToolCallId || 'unanchored'}`;
+    const trimmedBoundary = draft.doNotApplyWhen.trim();
+    const candidate: LessonCandidate = {
+      id: `lesson_${randomUUID()}`,
+      sourceSignalId,
+      lesson: composeModelLessonBody(cause, fixPattern),
+      repo: draft.repo,
+      cause,
+      fixPattern,
+      contrast: draft.contrast,
+      symptomKeys: draft.symptomKeys,
+      docRefs: draft.docRefs,
+      evidence: draft.evidence,
+      trigger: { signalKinds: ['tool_error'], paths: [] },
+      applicableWhen: cause.trim() ? [cause] : [],
+      doNotApplyWhen: trimmedBoundary ? [trimmedBoundary] : [],
+      evidenceRefs: citedEvidenceRefs(draft.evidence),
+      severity: 'medium',
+      quality: anchored ? 'high' : 'low',
+      confidence: 'candidate',
+      authoredBy: 'model',
+      audit: anchored ? 'anchored' : 'unanchored',
+      status: 'observed',
+      provenance: {
+        taskId: draft.taskId,
+        sessionRef: draft.sessionRef,
+        signalId: sourceSignalId,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.append(candidate);
+    return candidate;
   }
 
   async updateStatus(lessonId: string, status: LessonCandidateStatus): Promise<void> {
@@ -249,6 +290,8 @@ function signalToLessonCandidate(
     // unpaired → ephemeral; paired → lessons/ (verified if stream, else candidate)
     quality: admission.paired ? 'high' : 'low',
     confidence: admission.confidence,
+    authoredBy: 'template',
+    audit: admission.paired ? 'anchored' : 'unanchored',
     verification: admission.verification,
     status: 'observed',
     provenance: {
@@ -401,7 +444,7 @@ async function readLessons(path: string): Promise<LessonCandidate[]> {
     const raw = await readFile(path, 'utf-8');
     return raw.split('\n').filter(Boolean).flatMap((line) => {
       try {
-        return [JSON.parse(line) as LessonCandidate];
+        return [hydrateLesson(JSON.parse(line) as LessonCandidate)];
       } catch {
         return [];
       }
@@ -410,6 +453,28 @@ async function readLessons(path: string): Promise<LessonCandidate[]> {
     if (isNodeError(err) && err.code === 'ENOENT') return [];
     throw err;
   }
+}
+
+/** Backward-compatible defaults for pre-v2 jsonl lines missing authoredBy/audit. */
+export function hydrateLesson(lesson: LessonCandidate): LessonCandidate {
+  return {
+    ...lesson,
+    authoredBy: lesson.authoredBy ?? 'template',
+    audit: lesson.audit ?? (lesson.quality === 'low' ? 'unanchored' : 'anchored'),
+  };
+}
+
+/** Compose injected-facing body from cause/fix only — never raw event text. */
+function composeModelLessonBody(cause: string, fixPattern: string): string {
+  return `Cause: ${cause} Fix: ${fixPattern}`;
+}
+
+function citedEvidenceRefs(evidence: LessonEvidence): string[] {
+  return [
+    evidence.errorToolCallId,
+    ...evidence.fixToolCallIds,
+    evidence.verificationToolCallId,
+  ].filter((id) => id.trim());
 }
 
 /** Hashline / import / toolguard noise — not verified-fix material. */
@@ -422,13 +487,23 @@ export function isProcessNoiseSignal(signal: Signal): boolean {
     return true;
   }
   const summary = signal.summary.toLowerCase();
+  if (summary.includes('hashline') || summary.startsWith('sed:')) return true;
+  // A Python traceback is the primary learnable signal on a Python repo
+  // (astropy/sympy/django), so it is only noise when the exception itself is an
+  // import/module failure. Matching every traceback sent the best-evidenced
+  // lessons to ephemeral, where the injection experiment can never reach them.
+  return isImportFailure(summary);
+}
+
+function isImportFailure(summary: string): boolean {
   return (
-    summary.includes('hashline')
-    || summary.includes('modulenotfounderror')
-    || summary.includes('no module named')
-    || summary.includes('traceback (most recent call last)')
+    summary.includes('modulenotfounderror')
+    // Python spells these without a space; the old 'import error' clause alone
+    // never matched a real interpreter message.
+    || summary.includes('importerror')
     || summary.includes('import error')
-    || summary.startsWith('sed:')
+    || summary.includes('no module named')
+    || summary.includes('cannot import name')
   );
 }
 

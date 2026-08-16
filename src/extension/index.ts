@@ -2407,6 +2407,9 @@ async function createRuntime(
       maxRetryDelayMs: config.llm.maxRetryDelayMs,
       apiKey: resolvedApiKey,
     },
+    writeLesson: {
+      memoryDir: options.memoryDir ?? MEMORY_DIR,
+    },
   });
 
   // 绑定 abort 回调：session 创建后才能访问 session.abort

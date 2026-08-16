@@ -15,7 +15,36 @@ export function resolveConfiguredModel(config: ModelConfig): Model<Api> {
     return openRouterAnthropic;
   }
 
+  const zaiGlm53 = resolveZaiGlm53Model(config, models);
+  if (zaiGlm53) {
+    return zaiGlm53;
+  }
+
   return buildCompatibleFallback(config);
+}
+
+/**
+ * pi-ai's zai/zai-coding-cn catalog stops at glm-5.2 (checked 2026-08-14), so
+ * glm-5.3 would otherwise hit buildCompatibleFallback and silently lose
+ * thinking support, the 1M context window, and the zai compat flags. Clone the
+ * glm-5.2 entry until the upstream catalog ships glm-5.3.
+ */
+function resolveZaiGlm53Model(config: ModelConfig, models: Model<Api>[]): Model<Api> | undefined {
+  if (config.name !== 'glm-5.3') {
+    return undefined;
+  }
+
+  const base = models.find((candidate) => candidate.id === 'glm-5.2');
+  if (!base) {
+    return undefined;
+  }
+
+  return {
+    ...base,
+    id: 'glm-5.3',
+    name: 'GLM-5.3',
+    baseUrl: config.baseUrl ?? base.baseUrl,
+  };
 }
 
 function resolveOpenRouterAnthropicModel(config: ModelConfig): Model<Api> | undefined {
@@ -49,8 +78,18 @@ function resolveOpenRouterAnthropicModel(config: ModelConfig): Model<Api> | unde
   };
 }
 
-function buildCompatibleFallback(config: ModelConfig): Model<Api> {
+/**
+ * True when the model came from buildCompatibleFallback, i.e. it was not found
+ * in the pi-ai catalog and runs with degraded metadata (no thinking, 128k
+ * window). Eval entry points use this to refuse silently-degraded runs.
+ */
+export function isDegradedFallbackModel(model: Model<Api>): boolean {
+  return (model as Model<Api> & { degradedFallback?: true }).degradedFallback === true;
+}
+
+function buildCompatibleFallback(config: ModelConfig): Model<Api> & { degradedFallback: true } {
   return {
+    degradedFallback: true,
     id: config.name,
     name: config.name,
     api: (config.api as Api | undefined) ?? 'openai-completions',

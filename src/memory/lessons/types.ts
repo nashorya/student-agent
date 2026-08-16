@@ -4,6 +4,19 @@ export type LessonCandidateStatus = 'observed' | 'promoted' | 'archived';
 export type LessonQuality = 'high' | 'low';
 /** Same enum as knack distillation confidence after causal-pair admission. */
 export type LessonConfidence = 'verified' | 'candidate';
+export type LessonAuthoredBy = 'model' | 'template';
+export type LessonAudit = 'anchored' | 'unanchored';
+
+export interface LessonDocRef {
+  library: string;
+  topic: string;
+}
+
+export interface LessonEvidence {
+  errorToolCallId: string;
+  fixToolCallIds: string[];
+  verificationToolCallId: string;
+}
 
 export interface LessonVerification {
   sourceToolCallId: string;
@@ -51,6 +64,20 @@ export interface LessonCandidate {
   symptom?: string;
   fixSummary?: string;
   executionEvidence?: string;
+  /** Root cause at subsystem + defect-class layer; no line numbers. */
+  cause?: string;
+  /** Fix method pattern. */
+  fixPattern?: string;
+  /** Error path vs correct path. */
+  contrast?: string;
+  /** Recall index only; never injected. */
+  symptomKeys?: string[];
+  docRefs?: LessonDocRef[];
+  evidence?: LessonEvidence;
+  /** Old jsonl without this field defaults to 'template' on read. */
+  authoredBy?: LessonAuthoredBy;
+  /** Old jsonl without this field defaults from quality on read. */
+  audit?: LessonAudit;
   status: LessonCandidateStatus;
   counterexamples?: LessonCounterexample[];
   provenance: {

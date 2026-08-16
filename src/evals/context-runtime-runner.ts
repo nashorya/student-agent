@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { createContextAssemblyHook } from '../extension/hooks/context-assembly.js';
 import type { ContextAssemblyHook } from '../extension/hooks/context-assembly.js';
 import { EVAL_AUTONOMY_RULE } from '../memory/recall/context-builder.js';
-import { LessonsManager } from '../memory/lessons/index.js';
+import { LessonsManager, renderLessonInjection } from '../memory/lessons/index.js';
 import { TasksManager } from '../memory/tasks/manager.js';
 import { createEvalSandbox, diffSnapshots, readChangedFileContents, runVerifier, snapshotFiles } from './sandbox.js';
 import { runStudentAgentEval } from './agent-runner.js';
@@ -241,7 +241,8 @@ export async function createInjectionBuildMemoryPrompt(
         return (await LessonsManager.getInstance(memoryDir).getAll())
           .filter((lesson) => !harnessGated || (lesson.quality === 'high' && lesson.status !== 'archived'))
           .filter((lesson) => !eligible || eligible.has(lesson.provenance.sessionRef))
-          .map((lesson) => ({ id: lesson.id, summary: lesson.lesson }));
+          .map((lesson) => ({ id: lesson.id, summary: renderLessonInjection(lesson) }))
+          .filter((lesson) => lesson.summary.trim() !== '');
       },
     } : {}),
   });

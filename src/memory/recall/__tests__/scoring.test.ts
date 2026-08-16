@@ -200,6 +200,28 @@ describe('Recall Scoring v2', () => {
     expect(standard.vector).toBe(0);
   });
 
+  it('matches lesson symptoms from payload even when summary omits them', () => {
+    const item = memoryItem({
+      kind: 'lesson',
+      summary: 'Cause: copies ones into the right block\nFix: assign the child matrix',
+      payload: {
+        cause: 'copies ones into the right block',
+        fixPattern: 'assign the child matrix',
+        symptomKeys: ['PLANTED_SYMPTOM_KEY'],
+        lesson: 'Treat tool error as a retry pattern: AssertionError: boom',
+        symptom: 'AssertionError: boom',
+      },
+    });
+
+    expect(scoreKeywordDimension(item, { text: 'AssertionError' })).toBe(1);
+    expect(scoreKeywordDimension(item, { text: 'PLANTED_SYMPTOM_KEY' })).toBe(1);
+    expect(scoreKeywordDimension(memoryItem({
+      kind: 'lesson',
+      summary: item.summary,
+      payload: {},
+    }), { text: 'AssertionError' })).toBe(0);
+  });
+
   it('allows heavy tier relevance and evidence weights to change ranking', () => {
     const query: RecallQuery = {
       text: 'retry stale edit',

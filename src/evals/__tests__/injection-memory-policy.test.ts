@@ -9,7 +9,7 @@ import type { EvalTaskDefinition } from '../types.js';
 import type { Knack } from '../../memory/knacks/types.js';
 import type { LessonCandidate } from '../../memory/lessons/types.js';
 
-describe('v0.2 injection memory policies', () => {
+describe('injection memory policies', () => {
   const roots: string[] = [];
   afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
 
@@ -109,9 +109,11 @@ describe('v0.2 injection memory policies', () => {
 function lesson(id: string, runId: string, text: string): LessonCandidate {
   return {
     id, sourceSignalId: `signal_${id}`, lesson: text,
+    cause: text,
+    fixPattern: text,
     trigger: { signalKinds: ['tool_error'], paths: ['django/db/migrations/serializer.py'] },
     applicableWhen: ['migration reference serialization'], doNotApplyWhen: [], evidenceRefs: [id],
-    severity: 'medium', quality: 'high', confidence: 'verified', status: 'observed',
+    severity: 'medium', quality: 'high', confidence: 'verified', authoredBy: 'model', status: 'observed',
     provenance: { taskId: `task_${id}`, sessionRef: runId, signalId: `signal_${id}` },
     createdAt: '2026-07-20T00:00:00.000Z', updatedAt: '2026-07-20T00:00:00.000Z',
   };

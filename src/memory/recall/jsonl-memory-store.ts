@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import { getProjectMemoryDir } from '../../core/paths.js';
 import { WriteQueue } from '../../core/write-queue.js';
 import type { Knack } from '../knacks/index.js';
+import { hydrateLesson } from '../lessons/manager.js';
+import { renderLessonInjection } from '../lessons/render.js';
 import type { LessonCandidate } from '../lessons/types.js';
 import type { PreferenceEntry, PreferencesFile } from '../preferences/types.js';
 import type { TaskOutcome, WorkingMemorySnapshot } from '../run-archive/types.js';
@@ -152,14 +154,17 @@ export class JsonlMemoryStore implements MemoryStore {
   }
 
   private async loadLessons(): Promise<RecallableMemoryItem[]> {
-    const lessons = await readJsonl<LessonCandidate>(join(this.memoryDir, 'lessons.jsonl'));
+    const lessons = (await readJsonl<LessonCandidate>(join(this.memoryDir, 'lessons.jsonl')))
+      .map(hydrateLesson);
     return lessons
       .filter((lesson) => lesson.quality === 'high' && lesson.status !== 'archived')
+      .filter((lesson) => lesson.authoredBy === 'model')
       .filter((lesson) => !this.eligibleRunIds || this.eligibleRunIds.has(lesson.provenance.sessionRef))
+      .filter((lesson) => renderLessonInjection(lesson).trim() !== '')
       .map((lesson) => ({
         id: lesson.id,
         kind: 'lesson' as const,
-        summary: lesson.lesson,
+        summary: renderLessonInjection(lesson),
         recall: {
           trigger: lesson.trigger,
           applicableWhen: lesson.applicableWhen,
@@ -174,6 +179,7 @@ export class JsonlMemoryStore implements MemoryStore {
           createdAt: lesson.createdAt,
           updatedAt: lesson.updatedAt,
           evidenceRefs: lesson.evidenceRefs,
+          symptom: lesson.symptom ?? lesson.symptomKeys?.join(' '),
         },
         payload: lesson,
       }));
